@@ -1,0 +1,276 @@
+import { NextRequest } from 'next/server'
+import { createRouteClient } from '@/lib/supabase/route'
+import { generatePitch, generateBattleCard, generateEmailSequence } from '@/lib/ai-logic'
+import { queryWithSchemaFallback } from '@/lib/supabase/schema-client'
+import { getDbSchema } from '@/lib/supabase/schema'
+import { getServerEnv } from '@/lib/env'
+import { ok, asHttpError, createCookieBridge } from '@/lib/api/http'
+import { CompanyUrlSchema, GeneratePitchOptionsSchema } from '@/lib/api/schemas'
+import { withApiGuard } from '@/lib/api/guard'
+import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
+
+export const dynamic = "force-dynamic";
+
+export const POST = withApiGuard(
+  async (request, { body, userId, requestId }) => {
+    const env = getServerEnv()
+    const isDev = env.NODE_ENV !== 'production'
+    const bridge = createCookieBridge()
+    
+    if (!userId) {
+      return asHttpError(new Error('Authentication required'), '/api/generate-pitch', undefined, bridge, requestId)
+    }
+
+    const data = body as { companyUrl: string; options?: unknown }
+    const { companyUrl } = data
+
+    if (isDev) {
+      console.log('[generate-pitch] Start:', { userId, companyUrl })
+    }
+
+    const supabase = createRouteClient(request, bridge)
+    
+    const { data: userData } = await supabase
+      .from('users')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .single()
+
+    const isPro = userData?.subscription_tier === 'pro'
+
+    // Get user settings for personalization
+    const { data: userSettings } = await supabase
+      .from('user_settings')
+      .select('what_you_sell, ideal_customer')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    // Fetch company info (skip external calls in E2E/test mode)
+    const companyInfo = (isE2E() || isTestEnv()) 
+      ? `Company website: ${companyUrl}. This is a B2B company that could benefit from our solutions.`
+      : await fetchCompanyInfo(companyUrl)
+
+    // Generate pitch using AI
+    const companyName = extractCompanyName(companyUrl)
+    const pitch = await generatePitch(
+      companyName,
+      null, // triggerEvent - not available in this context
+      null, // ceoName - not available
+      companyInfo,
+      {
+        whatYouSell: userSettings?.what_you_sell || '',
+        idealCustomer: userSettings?.ideal_customer || '',
+      }
+    )
+
+    // Generate battle card and email sequence for Pro users
+    let battleCard = null
+    let emailSequence = null
+    if (isPro) {
+      battleCard = await generateBattleCard(
+        companyName,
+        null, // triggerEvent
+        companyInfo,
+        {
+          whatYouSell: userSettings?.what_you_sell || '',
+          idealCustomer: userSettings?.ideal_customer || '',
+        }
+      )
+      emailSequence = await generateEmailSequence(
+        companyName,
+        null, // triggerEvent
+        null, // ceoName
+        companyInfo,
+        {
+          whatYouSell: userSettings?.what_you_sell || '',
+          idealCustomer: userSettings?.ideal_customer || '',
+        }
+      )
+    }
+
+    // Get database schema
+    const dbSchema = getDbSchema()
+    const dbSchemaUsed = dbSchema.primary || 'api'
+    const dbFallbackUsed = false
+
+    // Save lead to database
+    const savedLead = await queryWithSchemaFallback(
+      request,
+      bridge,
+      async (client) => {
+        const result = await client
+          .from('leads')
+          .upsert({
+            user_id: userId,
+            company_name: companyName,
+            company_domain: new URL(companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).hostname.replace(/^www\./, ''),
+            company_url: companyUrl,
+            ai_personalized_pitch: pitch,
+            battle_card: battleCard,
+            email_sequence: emailSequence,
+          }, {
+            onConflict: 'user_id,company_domain'
+          })
+          .select()
+          .single()
+        return { data: result.data, error: result.error }
+      }
+    )
+
+    // Save trigger event
+    const savedTriggerEvent = await queryWithSchemaFallback(
+      request,
+      bridge,
+      async (client) => {
+        const result = await client
+          .from('trigger_events')
+          .insert({
+            user_id: userId,
+            company_name: companyName,
+            company_domain: new URL(companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).hostname.replace(/^www\./, ''),
+            event_type: 'product_launch',
+            event_description: `Generated AI pitch for ${companyName}`,
+            source_url: companyUrl,
+            headline: `AI pitch generated for ${companyName}`,
+          })
+          .select()
+          .single()
+        return { data: result.data, error: result.error }
+      }
+    )
+
+    const response = {
+      pitch,
+      battleCard,
+      emailSequence,
+      lead: savedLead.data,
+      triggerEvent: savedTriggerEvent.data,
+    }
+
+    if (isDev) {
+      console.log('[generate-pitch] Success:', { 
+        hasPitch: !!pitch, 
+        hasLead: !!savedLead.data, 
+        hasTriggerEvent: !!savedTriggerEvent.data,
+        schema: dbSchemaUsed,
+        fallbackUsed: dbFallbackUsed,
+      })
+    }
+
+    const successResponse = ok(response, undefined, bridge, requestId)
+    return successResponse
+  },
+  {
+    bodySchema: CompanyUrlSchema.extend({
+      options: GeneratePitchOptionsSchema.optional(),
+    }),
+  }
+)
+
+// Helper functions (unchanged)
+async function fetchCompanyInfo(url: string): Promise<string> {
+  try {
+    let domain: string
+    try {
+      const u = url.startsWith('http') ? new URL(url) : new URL('https://' + url)
+      domain = u.hostname.replace(/^www\./, '')
+    } catch {
+      domain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]
+    }
+    
+    const companyName = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1)
+    
+    let companyInfo = ''
+    const env = getServerEnv()
+    const clearbitKey = env.CLEARBIT_API_KEY
+    if (clearbitKey) {
+      try {
+        const clearbitResponse = await fetch(`https://company.clearbit.com/v2/companies/find?domain=${domain}`, {
+          headers: {
+            'Authorization': `Bearer ${clearbitKey}`,
+          },
+        })
+        if (clearbitResponse.ok) {
+          const clearbitData = await clearbitResponse.json()
+          companyInfo = `Company: ${clearbitData.name || companyName}. Industry: ${clearbitData.category?.industry || 'Unknown'}. Description: ${clearbitData.description || 'No description available'}. `
+        }
+      } catch (error) {
+        // Non-fatal error, continue
+      }
+    }
+    
+    let recentNews = ''
+    const newsApiKey = env.NEWS_API_KEY
+    if (newsApiKey) {
+      try {
+        const newsResponse = await fetch(
+          `https://newsapi.org/v2/everything?q="${companyName}" OR "${domain}"&sortBy=publishedAt&pageSize=5&language=en&apiKey=${newsApiKey}`
+        )
+        if (newsResponse.ok) {
+          const newsData = await newsResponse.json()
+          if (newsData.articles && newsData.articles.length > 0) {
+            const articles = newsData.articles.slice(0, 3).map((article: { title: string; publishedAt: string }) => 
+              `${article.title} (${new Date(article.publishedAt).toLocaleDateString()})`
+            ).join('; ')
+            recentNews = `Recent news: ${articles}. `
+          }
+        }
+      } catch (error) {
+        // Non-fatal error, continue
+      }
+    } else {
+      try {
+        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(companyName)}&hl=en-US&gl=US&ceid=US:en`
+        const rssResponse = await fetch(rssUrl, { 
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        })
+        if (rssResponse.ok) {
+          const rssText = await rssResponse.text()
+          const titleMatches = rssText.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/g)
+          if (titleMatches && titleMatches.length > 1) {
+            const headlines = titleMatches.slice(1, 4).map(match => 
+              match.replace(/<title><!\[CDATA\[(.*?)\]\]><\/title>/, '$1')
+            ).join('; ')
+            recentNews = `Recent news: ${headlines}. `
+          }
+        }
+      } catch (error) {
+        // Non-fatal error, continue
+      }
+    }
+    
+    let websiteInfo = ''
+    try {
+      const websiteResponse = await fetch(url.startsWith('http') ? url : `https://${url}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; LeadIntel/1.0)',
+        },
+        signal: AbortSignal.timeout(5000),
+      })
+      if (websiteResponse.ok) {
+        const html = await websiteResponse.text()
+        const titleMatch = html.match(/<title>(.*?)<\/title>/i)
+        const metaDescMatch = html.match(/<meta\s+name=["']description["']\s+content=["'](.*?)["']/i)
+        if (titleMatch) websiteInfo += `Website title: ${titleMatch[1]}. `
+        if (metaDescMatch) websiteInfo += `Description: ${metaDescMatch[1]}. `
+      }
+    } catch (error) {
+      // Non-fatal error, continue
+    }
+    
+    const combinedInfo = `${companyInfo}${recentNews}${websiteInfo}Company website: ${url}. This is a B2B company that could benefit from our solutions.`
+    return combinedInfo.trim() || `Company website: ${url}. This is a B2B company that could benefit from our solutions.`
+  } catch (error) {
+    return `Company website: ${url}. This is a B2B company that could benefit from our solutions.`
+  }
+}
+
+function extractCompanyName(url: string): string {
+  try {
+    const u = url.startsWith('http') ? new URL(url) : new URL('https://' + url)
+    const domain = u.hostname.replace(/^www\./, '')
+    return domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1)
+  } catch {
+    return 'Company'
+  }
+}

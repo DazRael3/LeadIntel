@@ -1,0 +1,394 @@
+# LeadIntel - Cursor AI Coding Rules
+# Next.js 14 App Router + Supabase + Stripe SaaS Application
+
+## TypeScript Standards
+
+### Strict Type Safety
+- **NEVER use `any` type without explicit justification**
+  - If you must use `any`, add a comment explaining why: `// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Third-party API response type is unknown`
+  - Prefer `unknown` over `any` when type is truly unknown, then narrow with type guards
+  - Use proper type definitions from libraries (e.g., `@supabase/supabase-js` types)
+  - Create interfaces/types for API request/response bodies
+
+- **Type all function parameters and return values**
+  ```typescript
+  // ❌ BAD
+  function processData(data) { ... }
+  
+  // ✅ GOOD
+  function processData(data: UserData): ProcessedResult { ... }
+  ```
+
+- **Use type guards for runtime validation**
+  ```typescript
+  // ✅ GOOD
+  function isUserData(obj: unknown): obj is UserData {
+    return typeof obj === 'object' && obj !== null && 'id' in obj
+  }
+  ```
+
+### Type Assertions
+- Avoid `as` type assertions unless absolutely necessary
+- Prefer type guards and proper type narrowing
+- If using `as`, add justification comment
+
+## API Route Standards
+
+### Route Handler Structure
+- **Keep route handlers thin** - Extract business logic to separate modules
+  - Route handlers should: validate input, authenticate, call service functions, return standardized responses
+  - Business logic belongs in `lib/` modules, not in route handlers
+  - Maximum route handler size: ~100 lines (excluding imports/comments)
+
+### Input Validation
+- **ALL API routes MUST use Zod schemas for request validation**
+  ```typescript
+  // ✅ GOOD - Create shared validation schemas
+  import { z } from 'zod'
+  
+  const GeneratePitchSchema = z.object({
+    companyUrl: z.string().url().min(1),
+    options: z.object({ ... }).optional()
+  })
+  
+  export async function POST(request: NextRequest) {
+    const body = await request.json()
+    const validation = GeneratePitchSchema.safeParse(body)
+    
+    if (!validation.success) {
+      return createErrorResponse(400, 'Validation failed', validation.error)
+    }
+    
+    const { companyUrl, options } = validation.data
+    // ... rest of handler
+  }
+  ```
+
+- **Create shared validation utilities in `lib/validation/`**
+  - Reusable schemas for common patterns (UUIDs, emails, URLs)
+  - Composable schemas for related endpoints
+
+### Standardized Error Responses
+- **ALL API routes MUST use shared error response utility**
+  - Create `lib/api/errors.ts` with standardized error envelope
+  - All errors must follow this structure:
+    ```typescript
+    {
+      success: false,
+      error: {
+        code: string,        // Machine-readable error code (e.g., 'VALIDATION_ERROR', 'UNAUTHORIZED')
+        message: string,      // Human-readable error message
+        details?: unknown     // Optional additional error details (validation errors, etc.)
+      }
+    }
+    ```
+
+- **Success responses must also be standardized:**
+  ```typescript
+  {
+    success: true,
+    data: T,              // Response payload
+    meta?: {              // Optional metadata (pagination, etc.)
+      [key: string]: unknown
+    }
+  }
+  ```
+
+- **Use HTTP status codes correctly:**
+  - 400: Client validation errors
+  - 401: Authentication required
+  - 403: Authorization failed (authenticated but not permitted)
+  - 404: Resource not found
+  - 422: Business logic validation errors
+  - 500: Server errors (never expose internal details to client)
+
+### Error Handling Pattern
+```typescript
+// ✅ GOOD - Standardized error handling
+import { createErrorResponse, createSuccessResponse } from '@/lib/api/errors'
+import { validateRequest } from '@/lib/validation'
+
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Validate input
+    const validation = await validateRequest(request, RequestSchema)
+    if (!validation.success) {
+      return createErrorResponse(400, 'VALIDATION_ERROR', validation.error)
+    }
+    
+    // 2. Authenticate
+    const user = await authenticateRequest(request)
+    if (!user) {
+      return createErrorResponse(401, 'UNAUTHORIZED', 'Authentication required')
+    }
+    
+    // 3. Call service (business logic in separate module)
+    const result = await processBusinessLogic(validation.data, user)
+    
+    // 4. Return standardized success response
+    return createSuccessResponse(result)
+    
+  } catch (error) {
+    // Log error (without sensitive data)
+    logError(error, { route: '/api/example', userId: user?.id })
+    
+    // Return generic error (never expose internal details)
+    return createErrorResponse(500, 'INTERNAL_ERROR', 'An unexpected error occurred')
+  }
+}
+```
+
+## Security Standards
+
+### Secrets and Environment Variables
+- **NEVER log secrets, API keys, tokens, or passwords**
+  - ❌ BAD: `console.log('API Key:', process.env.OPENAI_API_KEY)`
+  - ❌ BAD: `console.log('User token:', token)`
+  - ✅ GOOD: `console.log('API Key configured:', !!process.env.OPENAI_API_KEY)`
+  - ✅ GOOD: `console.log('Token present:', !!token)`
+
+- **NEVER print full environment variable values**
+  - ✅ GOOD: Check existence: `if (!process.env.OPENAI_API_KEY) { ... }`
+  - ✅ GOOD: Log configuration status: `console.log('Stripe configured:', !!process.env.STRIPE_SECRET_KEY)`
+
+- **Use `lib/env.ts` utilities for environment variables**
+  ```typescript
+  // ✅ GOOD
+  import { requireEnv } from '@/lib/env'
+  const apiKey = requireEnv('OPENAI_API_KEY')
+  ```
+
+### Logging Standards
+- **Structured logging only** - Use consistent log format
+  ```typescript
+  // ✅ GOOD - Structured, no secrets
+  console.error('[route-name] Operation failed', {
+    userId: user.id,
+    errorCode: 'VALIDATION_ERROR',
+    // Never include: tokens, keys, passwords, full request bodies
+  })
+  ```
+
+- **Log levels:**
+  - `console.error()` - Errors that need attention
+  - `console.warn()` - Warnings (deprecations, fallbacks)
+  - `console.log()` - Info (only in development, use sparingly)
+  - Never use `console.debug()` or `console.info()` (not standard)
+
+- **Sanitize user input before logging**
+  - Never log full request bodies (may contain PII)
+  - Never log passwords, tokens, or sensitive fields
+  - Log only IDs, error codes, and non-sensitive metadata
+
+## Code Organization
+
+### Module Size and Testability
+- **Prefer small, testable modules**
+  - Single Responsibility Principle: Each module should do one thing well
+  - Maximum file size: ~300 lines (excluding types/interfaces)
+  - Extract complex logic into separate functions/modules
+
+- **Route handlers must be thin**
+  - Route handler: ~50-100 lines (validation, auth, orchestration)
+  - Business logic: Separate service modules in `lib/services/`
+  - Data access: Separate data access layer in `lib/data/` or use Supabase client directly
+
+### File Organization
+```
+app/api/[route]/route.ts          # Thin route handler
+lib/services/[feature].ts         # Business logic
+lib/validation/[schemas].ts       # Zod schemas
+lib/api/errors.ts                 # Error response utilities
+lib/data/[repositories].ts       # Data access (if needed)
+```
+
+### Function Design
+- **Functions should be pure when possible**
+  - Pure functions are easier to test
+  - Extract side effects (DB, API calls) to separate functions
+
+- **Function size:**
+  - Maximum ~50 lines per function
+  - If function is longer, extract sub-functions
+  - Use descriptive function names
+
+## Testing Standards
+
+### Testability Requirements
+- **All business logic must be testable**
+  - Extract logic from route handlers to testable functions
+  - Use dependency injection for external services (Supabase, Stripe, OpenAI)
+  - Mock external dependencies in tests
+
+- **Route handlers should be integration-tested**
+  - Test full request/response cycle
+  - Mock external services
+  - Verify error handling
+
+## Documentation Standards
+
+### Code Comments
+- **Document complex logic, not obvious code**
+  ```typescript
+  // ❌ BAD - Obvious
+  // Get user from database
+  const user = await getUser(id)
+  
+  // ✅ GOOD - Explains why, not what
+  // Cookie bridging: Create bridge response early so Supabase can set auth cookies
+  // These cookies must be forwarded to final response via jsonWithCookies()
+  const bridge = NextResponse.next()
+  ```
+
+- **Document API contracts**
+  - JSDoc comments for public functions
+  - Document request/response types
+  - Document error cases
+
+## Change Summaries
+
+### PR-Style Change Summaries
+When outputting change summaries, ALWAYS include:
+
+1. **Summary** - Brief description of what changed
+2. **Files Changed** - List of modified/created files
+3. **Key Changes** - Detailed explanation of changes
+4. **Testing** - How to verify the changes
+5. **Acceptance Criteria** - Checklist of requirements that must be met
+
+**Template:**
+```markdown
+## Summary
+[Brief description of changes]
+
+## Files Changed
+- `path/to/file1.ts` - [what changed]
+- `path/to/file2.ts` - [what changed]
+
+## Key Changes
+- [Detailed explanation]
+- [Another change]
+
+## Testing
+- [How to test]
+- [Expected behavior]
+
+## Acceptance Criteria
+- [ ] All TypeScript errors resolved
+- [ ] No `any` types without justification
+- [ ] API routes use shared validation
+- [ ] Error responses follow standard format
+- [ ] No secrets logged
+- [ ] Route handlers are <100 lines
+- [ ] Business logic extracted to service modules
+- [ ] Tests pass (if applicable)
+```
+
+## Supabase-Specific Rules
+
+### Schema Usage
+- **Always use `api` schema, never `public`**
+  - Verify schema in all queries: `.from('api.users')` or use schema-aware client
+  - Realtime subscriptions must specify schema: `schema: 'api'`
+
+### RLS Policies
+- **Never bypass RLS** - All queries must respect Row Level Security
+  - Use authenticated Supabase client (not service role unless absolutely necessary)
+  - Test that RLS policies work correctly
+
+### Migration Safety
+- **All migrations must be idempotent**
+  - Use `IF NOT EXISTS` / `IF EXISTS` checks
+  - Wrap in `DO $$ BEGIN ... END $$;` blocks for conditional logic
+  - Test migrations can be run multiple times safely
+
+## Next.js App Router Rules
+
+### Server vs Client Components
+- **Default to Server Components** - Use Client Components only when needed
+  - Client Components: Interactive UI (onClick, useState, useEffect)
+  - Server Components: Data fetching, static content
+
+### Route Handlers
+- **Use `export const dynamic = 'force-dynamic'` only when necessary**
+  - Default to static generation when possible
+  - Use dynamic for routes that require real-time data
+
+### Cookie Handling
+- **Use `jsonWithCookies()` for routes that need Supabase auth cookies**
+  - Create bridge response early
+  - Pass bridge to `createRouteClient()`
+  - Use `jsonWithCookies()` for final response
+
+## Examples
+
+### ✅ GOOD API Route
+```typescript
+import { NextRequest } from 'next/server'
+import { z } from 'zod'
+import { createErrorResponse, createSuccessResponse } from '@/lib/api/errors'
+import { validateRequest } from '@/lib/validation'
+import { createRouteClient } from '@/lib/supabase/route'
+import { processLead } from '@/lib/services/leads'
+
+const CreateLeadSchema = z.object({
+  companyUrl: z.string().url(),
+  triggerEvent: z.string().min(1)
+})
+
+export async function POST(request: NextRequest) {
+  try {
+    // Validate
+    const validation = await validateRequest(request, CreateLeadSchema)
+    if (!validation.success) {
+      return createErrorResponse(400, 'VALIDATION_ERROR', validation.error)
+    }
+    
+    // Authenticate
+    const supabase = createRouteClient(request, NextResponse.next())
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return createErrorResponse(401, 'UNAUTHORIZED', 'Authentication required')
+    }
+    
+    // Business logic (in service module)
+    const result = await processLead(validation.data, user.id)
+    
+    return createSuccessResponse(result)
+  } catch (error) {
+    logError(error, { route: '/api/leads' })
+    return createErrorResponse(500, 'INTERNAL_ERROR', 'Failed to create lead')
+  }
+}
+```
+
+### ❌ BAD API Route
+```typescript
+// ❌ Too long, no validation, uses 'any', logs secrets, no error standardization
+export async function POST(request: NextRequest) {
+  const body: any = await request.json()
+  console.log('Request:', body) // ❌ May contain secrets
+  console.log('API Key:', process.env.OPENAI_API_KEY) // ❌ Logs secret
+  
+  const supabase = createRouteClient(request, NextResponse.next())
+  const user = await supabase.auth.getUser()
+  
+  // 200 lines of business logic here... ❌ Should be in service module
+  
+  return NextResponse.json({ data: result }) // ❌ Not standardized
+}
+```
+
+## Enforcement
+
+These rules are enforced by:
+- Code review process
+- TypeScript strict mode
+- ESLint rules (to be added)
+- Automated testing (to be added)
+
+**When in doubt, prioritize:**
+1. Type safety
+2. Security (no secrets in logs)
+3. Testability (small, focused modules)
+4. Consistency (standardized patterns)

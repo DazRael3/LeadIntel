@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+    --radius: 0.5rem;
+    
+    /* Neon accent colors for Bloomberg terminal aesthetic */
+    --neon-cyan: 180 100% 50%;
+    --neon-green: 120 100% 50%;
+    --neon-blue: 210 100% 60%;
+    --neon-purple: 270 100% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background: linear-gradient(to bottom, #0a0e27 0%, #1a1f3a 100%);
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .neon-cyan {
+    color: hsl(var(--neon-cyan));
+    text-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.5), 0 0 20px hsl(var(--neon-cyan) / 0.3);
+  }
+  
+  .neon-green {
+    color: hsl(var(--neon-green));
+    text-shadow: 0 0 10px hsl(var(--neon-green) / 0.5), 0 0 20px hsl(var(--neon-green) / 0.3);
+  }
+  
+  .neon-blue {
+    color: hsl(var(--neon-blue));
+    text-shadow: 0 0 10px hsl(var(--neon-blue) / 0.5), 0 0 20px hsl(var(--neon-blue) / 0.3);
+  }
+  
+  .neon-border {
+    border-color: hsl(var(--neon-cyan) / 0.3);
+    box-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.2);
+  }
+  
+  .glow-effect {
+    box-shadow: 0 0 20px hsl(var(--neon-cyan) / 0.3), 0 0 40px hsl(var(--neon-cyan) / 0.1);
+  }
+  
+  .terminal-grid {
+    background-image: 
+      linear-gradient(hsl(var(--neon-cyan) / 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--neon-cyan) / 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  
+  .bloomberg-font {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    letter-spacing: 0.5px;
+  }
+  
+  .blur-sm {
+    filter: blur(4px);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  @keyframes scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-scroll {
+    animation: scroll 30s linear infinite;
+  }
+}

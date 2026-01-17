@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ['*']
+  push:
+    branches: ['main', 'master']
+
+# Cancel in-progress runs for the same workflow and branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    
+    # Set environment variables for test mode (no secrets required)
+    env:
+      NODE_ENV: test
+      # Minimal env vars for tests (mocked services don't need real keys)
+      NEXT_PUBLIC_SUPABASE_URL: https://test.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      NEXT_PUBLIC_SUPABASE_DB_SCHEMA: api
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_123
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      # Server env vars (tests use mocks, so these are just for validation)
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      SUPABASE_DB_SCHEMA: api
+      STRIPE_SECRET_KEY: sk_test_123
+      STRIPE_WEBHOOK_SECRET: whsec_test_123
+      OPENAI_API_KEY: sk-test123
+      RESEND_API_KEY: re_test123
+      RESEND_FROM_EMAIL: test@example.com
+      CLEARBIT_REVEAL_API_KEY: test-key
+      CLEARBIT_API_KEY: test-key
+      HUNTER_API_KEY: test-key
+      NEWS_API_KEY: test-key
+      ZAPIER_WEBHOOK_URL: https://test.webhook.url
+      ADMIN_DIGEST_SECRET: test-secret
+      DEV_SEED_SECRET: test-secret
+      # Playwright test user (for E2E tests)
+      E2E_TEST_USER_EMAIL: e2e-test@example.com
+      E2E_TEST_USER_PASSWORD: test-password-123
+      # CI flag for Playwright
+      CI: true
+      PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.npm
+            .next/cache
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Cache Playwright browsers
+        id: cache-playwright
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: false
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+        continue-on-error: false
+
+      - name: Unit tests
+        run: npm run test
+        continue-on-error: false
+
+      - name: Playwright smoke tests
+        run: npm run e2e
+        continue-on-error: false
+
+      - name: Upload Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload Playwright test results (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7
