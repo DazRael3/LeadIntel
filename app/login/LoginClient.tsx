@@ -31,10 +31,11 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
   let supabase: ReturnType<typeof createClient> | null = null
   try {
     supabase = createClient()
-  } catch (err: any) {
+  } catch (err: unknown) {
     // If Supabase client creation fails, show error but still render UI
     if (typeof window !== 'undefined') {
-      setInitError(err.message || 'Failed to initialize authentication')
+      const message = err instanceof Error ? err.message : 'Failed to initialize authentication'
+      setInitError(message)
     }
   }
 
