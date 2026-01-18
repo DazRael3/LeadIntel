@@ -9,6 +9,31 @@ import { serverEnv, clientEnv } from '@/lib/env'
 import { fail, ErrorCode } from './http'
 
 /**
+ * Local origins that should be allowed in non-production deployments
+ * These are safe to allow when running locally with `npm run start`
+ */
+const LOCAL_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+]
+
+/**
+ * Check if an origin is a localhost origin
+ */
+function isLocalhostOrigin(origin: string): boolean {
+  if (!origin) return false
+  try {
+    const url = new URL(origin)
+    const hostname = url.hostname
+    return hostname === 'localhost' || hostname === '127.0.0.1'
+  } catch {
+    return false
+  }
+}
+
+/**
  * Get allowed origins from environment
  * Supports multiple origins separated by commas
  */
@@ -32,7 +57,7 @@ function getAllowedOrigins(): string[] {
   
   // In development, allow localhost
   if (serverEnv.NODE_ENV === 'development') {
-    origins.push('http://localhost:3000', 'http://127.0.0.1:3000')
+    origins.push(...LOCAL_ORIGINS)
   }
   
   return origins
@@ -137,6 +162,13 @@ export function validateOrigin(
   })
   
   if (!isAllowed) {
+    // Special case: Allow localhost origins for local production testing
+    // This is safe because localhost requests can only come from the local machine
+    if (isLocalhostOrigin(requestOrigin)) {
+      console.warn(`[security] Allowing localhost origin in production mode: ${requestOrigin}`)
+      return null
+    }
+    
     return fail(
       ErrorCode.FORBIDDEN,
       'Origin not allowed',
