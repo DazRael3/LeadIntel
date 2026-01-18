@@ -11,6 +11,63 @@ import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Check if a string looks like a URL or domain
+ * e.g., "lego.com", "https://lego.com", "www.lego.com"
+ */
+function looksLikeUrl(input: string): boolean {
+  // If it starts with http:// or https://, it's definitely a URL
+  if (/^https?:\/\//i.test(input)) return true
+  
+  // Check if it looks like a domain (has a dot followed by a TLD-like pattern)
+  // e.g., "lego.com", "company.co.uk", "example.io"
+  const domainPattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/
+  const cleaned = input.replace(/^www\./i, '').split('/')[0]
+  return domainPattern.test(cleaned)
+}
+
+/**
+ * Extract a readable topic name from the input
+ * For URLs, extracts the domain name. For free-form text, returns as-is (capitalized)
+ */
+function extractTopicName(input: string): string {
+  if (looksLikeUrl(input)) {
+    return extractCompanyName(input)
+  }
+  // For free-form text, capitalize first letter of each word
+  return input
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+    .substring(0, 100) // Limit length for display
+}
+
+/**
+ * Generate context info for the AI based on input type
+ */
+function generateContextInfo(input: string, isUrlLike: boolean): string {
+  if (isUrlLike) {
+    return `Company website: ${input}. This is a B2B company that could benefit from our solutions.`
+  }
+  // For free-form topics, provide context differently
+  return `Topic/Company: ${input}. Generate a pitch based on this topic or company name. This is likely a B2B prospect that could benefit from our solutions.`
+}
+
+/**
+ * Safely extract domain from input, returns null for non-URL inputs
+ */
+function safeExtractDomain(input: string): string | null {
+  if (!looksLikeUrl(input)) return null
+  try {
+    const url = input.startsWith('http') ? new URL(input) : new URL('https://' + input)
+    return url.hostname.replace(/^www\./, '')
+  } catch {
+    // If parsing fails, try a simpler extraction
+    const cleaned = input.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0]
+    return cleaned.includes('.') ? cleaned : null
+  }
+}
+
 export const POST = withApiGuard(
   async (request, { body, userId, requestId }) => {
     const env = getServerEnv()
@@ -23,9 +80,25 @@ export const POST = withApiGuard(
 
     const data = body as { companyUrl: string; options?: unknown }
     const { companyUrl } = data
+    
+    // Normalize input
+    const input = companyUrl.trim()
+    if (!input) {
+      return asHttpError(
+        new Error('Please enter a company name, URL, or topic for your pitch'),
+        '/api/generate-pitch',
+        undefined,
+        bridge,
+        requestId
+      )
+    }
+
+    const isUrlLike = looksLikeUrl(input)
+    const topicName = extractTopicName(input)
+    const domain = safeExtractDomain(input)
 
     if (isDev) {
-      console.log('[generate-pitch] Start:', { userId, companyUrl })
+      console.log('[generate-pitch] Start:', { userId, input, isUrlLike, topicName, domain })
     }
 
     const supabase = createRouteClient(request, bridge)
@@ -45,15 +118,21 @@ export const POST = withApiGuard(
       .eq('user_id', userId)
       .maybeSingle()
 
-    // Fetch company info (skip external calls in E2E/test mode)
-    const companyInfo = (isE2E() || isTestEnv()) 
-      ? `Company website: ${companyUrl}. This is a B2B company that could benefit from our solutions.`
-      : await fetchCompanyInfo(companyUrl)
+    // Fetch company info based on input type
+    let companyInfo: string
+    if (isE2E() || isTestEnv()) {
+      companyInfo = generateContextInfo(input, isUrlLike)
+    } else if (isUrlLike) {
+      // For URL-like input, use the full company info fetching
+      companyInfo = await fetchCompanyInfo(input)
+    } else {
+      // For free-form topics, generate a simpler context
+      companyInfo = generateContextInfo(input, false)
+    }
 
     // Generate pitch using AI
-    const companyName = extractCompanyName(companyUrl)
     const pitch = await generatePitch(
-      companyName,
+      topicName,
       null, // triggerEvent - not available in this context
       null, // ceoName - not available
       companyInfo,
@@ -68,7 +147,7 @@ export const POST = withApiGuard(
     let emailSequence = null
     if (isPro) {
       battleCard = await generateBattleCard(
-        companyName,
+        topicName,
         null, // triggerEvent
         companyInfo,
         {
@@ -77,7 +156,7 @@ export const POST = withApiGuard(
         }
       )
       emailSequence = await generateEmailSequence(
-        companyName,
+        topicName,
         null, // triggerEvent
         null, // ceoName
         companyInfo,
@@ -93,51 +172,57 @@ export const POST = withApiGuard(
     const dbSchemaUsed = dbSchema.primary || 'api'
     const dbFallbackUsed = false
 
-    // Save lead to database
-    const savedLead = await queryWithSchemaFallback(
-      request,
-      bridge,
-      async (client) => {
-        const result = await client
-          .from('leads')
-          .upsert({
-            user_id: userId,
-            company_name: companyName,
-            company_domain: new URL(companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).hostname.replace(/^www\./, ''),
-            company_url: companyUrl,
-            ai_personalized_pitch: pitch,
-            battle_card: battleCard,
-            email_sequence: emailSequence,
-          }, {
-            onConflict: 'user_id,company_domain'
-          })
-          .select()
-          .single()
-        return { data: result.data, error: result.error }
-      }
-    )
+    // Save lead to database (only if we have a domain for URL-like inputs)
+    let savedLead: { data: unknown; error: unknown } = { data: null, error: null }
+    if (domain) {
+      savedLead = await queryWithSchemaFallback(
+        request,
+        bridge,
+        async (client) => {
+          const result = await client
+            .from('leads')
+            .upsert({
+              user_id: userId,
+              company_name: topicName,
+              company_domain: domain,
+              company_url: input,
+              ai_personalized_pitch: pitch,
+              battle_card: battleCard,
+              email_sequence: emailSequence,
+            }, {
+              onConflict: 'user_id,company_domain'
+            })
+            .select()
+            .single()
+          return { data: result.data, error: result.error }
+        }
+      )
+    }
 
-    // Save trigger event
-    const savedTriggerEvent = await queryWithSchemaFallback(
-      request,
-      bridge,
-      async (client) => {
-        const result = await client
-          .from('trigger_events')
-          .insert({
-            user_id: userId,
-            company_name: companyName,
-            company_domain: new URL(companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).hostname.replace(/^www\./, ''),
-            event_type: 'product_launch',
-            event_description: `Generated AI pitch for ${companyName}`,
-            source_url: companyUrl,
-            headline: `AI pitch generated for ${companyName}`,
-          })
-          .select()
-          .single()
-        return { data: result.data, error: result.error }
-      }
-    )
+    // Save trigger event (only if we have a domain)
+    let savedTriggerEvent: { data: unknown; error: unknown } = { data: null, error: null }
+    if (domain) {
+      savedTriggerEvent = await queryWithSchemaFallback(
+        request,
+        bridge,
+        async (client) => {
+          const result = await client
+            .from('trigger_events')
+            .insert({
+              user_id: userId,
+              company_name: topicName,
+              company_domain: domain,
+              event_type: 'product_launch',
+              event_description: `Generated AI pitch for ${topicName}`,
+              source_url: input,
+              headline: `AI pitch generated for ${topicName}`,
+            })
+            .select()
+            .single()
+          return { data: result.data, error: result.error }
+        }
+      )
+    }
 
     const response = {
       pitch,
@@ -162,7 +247,7 @@ export const POST = withApiGuard(
   },
   {
     bodySchema: CompanyUrlSchema.extend({
-      options: GeneratePitchOptionsSchema.optional(),
+      options: GeneratePitchOptionsSchema.omit({ companyUrl: true }).optional(),
     }),
   }
 )

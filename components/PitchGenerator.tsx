@@ -92,7 +92,18 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
   }
 
   const handleGenerate = async () => {
-    if (!companyUrl.trim()) return
+    const trimmedInput = companyUrl.trim()
+    
+    // Local validation
+    if (!trimmedInput) {
+      setAuthError('Please enter a company name, URL, or topic for your pitch.')
+      return
+    }
+    
+    if (trimmedInput.length > 1000) {
+      setAuthError('Input is too long (max 1000 characters).')
+      return
+    }
 
     // Check authentication before calling API
     setAuthError(null)
@@ -123,8 +134,22 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
           router.push('/login?redirect=/')
           return
         }
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to generate pitch')
+        const errorData = await response.json().catch(() => null)
+        // Extract error message from various response formats
+        let errorMessage = 'Failed to generate pitch. Please try again.'
+        if (errorData) {
+          // Handle { error: { message } } format
+          if (typeof errorData.error?.message === 'string') {
+            errorMessage = errorData.error.message
+          // Handle { error: string } format
+          } else if (typeof errorData.error === 'string') {
+            errorMessage = errorData.error
+          // Handle { message: string } format
+          } else if (typeof errorData.message === 'string') {
+            errorMessage = errorData.message
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json() as {
@@ -194,7 +219,7 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
             </Badge>
           </div>
           <CardDescription>
-            Enter a company URL to generate a personalized 3-part email sequence and battle card
+            Enter a company name, URL, or topic to generate a personalized 3-part email sequence and battle card
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -218,7 +243,7 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
           )}
           <div className="flex gap-2">
             <Input
-              placeholder="https://example.com"
+              placeholder="e.g., lego.com, SaaS analytics tool, webinar for HR leaders"
               value={companyUrl}
               onChange={(e) => setCompanyUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}

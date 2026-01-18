@@ -29,8 +29,18 @@ export const TagFilterSchema = z.object({
 /**
  * Common body schemas
  */
+
+/**
+ * Topic schema for AI pitch generation
+ * Accepts either a URL (e.g., "lego.com") or a free-form topic (e.g., "cold outreach for HR leaders")
+ * Renamed from CompanyUrlSchema but kept the field name for backwards compatibility
+ */
 export const CompanyUrlSchema = z.object({
-  companyUrl: z.string().url().min(1, 'Company URL is required'),
+  companyUrl: z
+    .string()
+    .trim()
+    .min(1, 'Please enter a company name, URL, or topic for your pitch')
+    .max(1000, 'Input is too long (max 1000 characters)'),
 })
 
 export const LeadIdSchema = z.object({
@@ -88,9 +98,14 @@ export const UnlockLeadSchema = z.object({
 
 /**
  * Generate pitch options schema
+ * Accepts either a URL or a free-form topic
  */
 export const GeneratePitchOptionsSchema = z.object({
-  companyUrl: z.string().url().min(1, 'Company URL is required'),
+  companyUrl: z
+    .string()
+    .trim()
+    .min(1, 'Please enter a company name, URL, or topic for your pitch')
+    .max(1000, 'Input is too long (max 1000 characters)'),
   options: z.object({
     tone: z.enum(['professional', 'casual', 'friendly']).optional(),
     length: z.enum(['short', 'medium', 'long']).optional(),
