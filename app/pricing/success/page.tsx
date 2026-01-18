@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { CheckCircle, Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { formatErrorMessage } from '@/lib/utils/format-error'
 
 type PollStatus = 'pending' | 'pro' | 'timeout' | 'error'
 
@@ -35,8 +36,9 @@ function PricingSuccessContent() {
         let data
         try {
           data = JSON.parse(text)
-        } catch (parseError: any) {
-          throw new Error(`Invalid JSON: ${parseError.message}`)
+        } catch (parseError: unknown) {
+          const msg = parseError instanceof Error ? parseError.message : 'Unknown parse error'
+          throw new Error(`Invalid JSON: ${msg}`)
         }
         if (data?.plan === 'pro') {
           if (!cancelled) {
@@ -46,9 +48,9 @@ function PricingSuccessContent() {
           }
           return
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
-          setError(err.message || 'Failed to verify plan')
+          setError(formatErrorMessage(err))
           setStatus('error')
         }
       }
