@@ -134,9 +134,9 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         // Note: loading state will be reset by component unmount, but set it here too for safety
         setLoading(false)
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Show precise error messages
-      const errorMessage = err.message || 'Authentication failed'
+      const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
       setError(errorMessage)
       setLoading(false)
     } finally {

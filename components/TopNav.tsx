@@ -10,34 +10,52 @@ import { LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react'
 export function TopNav() {
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [supabaseError, setSupabaseError] = useState(false)
 
   useEffect(() => {
-    // Check initial auth state
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setIsLoggedIn(!!user)
-      setLoading(false)
+    let subscription: { unsubscribe: () => void } | null = null
+
+    const initAuth = async () => {
+      try {
+        const supabase = createClient()
+        
+        // Check initial auth state
+        const { data: { user } } = await supabase.auth.getUser()
+        setIsLoggedIn(!!user)
+        setLoading(false)
+
+        // Subscribe to auth state changes
+        const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+          setIsLoggedIn(!!session?.user)
+          setLoading(false)
+        })
+        subscription = data.subscription
+      } catch (error) {
+        console.error('[TopNav] Failed to initialize auth:', error)
+        setSupabaseError(true)
+        setLoading(false)
+      }
     }
 
-    checkAuth()
-
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session?.user)
-      setLoading(false)
-    })
+    initAuth()
 
     return () => {
-      subscription.unsubscribe()
+      subscription?.unsubscribe()
     }
-  }, [supabase.auth])
+  }, [])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      router.push('/login')
+    } catch (error) {
+      console.error('[TopNav] Sign out failed:', error)
+      // Still redirect to login page even if sign out fails
+      router.push('/login')
+    }
   }
 
   return (
@@ -53,9 +71,9 @@ export function TopNav() {
 
           {/* Right: Auth buttons */}
           <div className="flex items-center space-x-3">
-            {loading ? (
+            {loading && !supabaseError ? (
               <div className="h-9 w-20 bg-muted animate-pulse rounded" />
-            ) : isLoggedIn ? (
+            ) : isLoggedIn && !supabaseError ? (
               <>
                 <Button
                   asChild

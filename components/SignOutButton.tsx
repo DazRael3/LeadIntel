@@ -35,7 +35,7 @@ export function SignOutButton() {
       }
       
       router.push('/login')
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle any unexpected errors gracefully
       console.error('Error signing out:', error)
       // Clear cookies as fallback

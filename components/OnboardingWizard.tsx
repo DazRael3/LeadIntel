@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, ArrowRight, ArrowLeft, Check, Zap, AlertTriangle } from "lucide-react"
+import { formatErrorMessage } from "@/lib/utils/format-error"
 
 interface OnboardingWizardProps {
   onComplete: () => void
@@ -102,10 +103,15 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}))
-        const errMsg = errJson.error || 'Failed to save settings'
+        // Extract error message properly - handle both { error: string } and { error: { code, message } }
+        const errMsg = typeof errJson.error === 'string' 
+          ? errJson.error 
+          : typeof errJson.error?.message === 'string'
+            ? errJson.error.message
+            : 'Failed to save settings'
         
         // Check if it's a migration required error (424 status)
-        if (response.status === 424 && errJson.migration_required) {
+        if (response.status === 424 && (errJson.migration_required || errJson.error?.action)) {
           const isDev = process.env.NODE_ENV !== 'production'
           
           if (isDev) {
@@ -153,9 +159,9 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       })
       
       onComplete()
-    } catch (error: any) {
-      console.error('Error saving settings:', error)
-      const errorMsg = error.message || 'Failed to save settings. Please try again.'
+    } catch (error: unknown) {
+      const errorMsg = formatErrorMessage(error)
+      console.error('Error saving settings:', errorMsg)
       setError(errorMsg)
       toast({
         variant: "destructive",

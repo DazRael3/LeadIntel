@@ -35,14 +35,14 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
       let data
       try {
         data = JSON.parse(text)
-      } catch (parseError: any) {
+      } catch (parseError: unknown) {
         console.error('PlanProvider: JSON parse error:', parseError, 'Response text:', text.substring(0, 200))
         return
       }
       if (data?.plan === 'pro' || data?.plan === 'free') {
         setPlan(data.plan)
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('PlanProvider: Error refreshing plan:', error)
     } finally {
       setLoading(false)
