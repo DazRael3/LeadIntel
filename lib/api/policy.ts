@@ -428,6 +428,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'GET:/api/health': {
+    tier: 'HEALTH',
+    maxBytes: 1024, // GET; body ignored
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
 
   // Tier E: Export
   'GET:/api/history/export': {

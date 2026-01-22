@@ -76,6 +76,9 @@ These variables are only available in server-side code and must never be exposed
 | `CRON_TOKEN_AUTOPILOT` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/autopilot/run` (`cron_token`) |
 | `CRON_TOKEN_DISCOVER` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/leads/discover` (`cron_token`) |
 | `CRON_TOKEN_DIGEST` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/digest/run` (`cron_token`) |
+| `SENTRY_DSN` | ⚠️ Optional | `lib/observability/sentry.ts` | Sentry DSN (enables real error reporting; empty disables) |
+| `SENTRY_ENVIRONMENT` | ⚠️ Optional | `lib/observability/sentry.ts` | Sentry environment name |
+| `HEALTH_CHECK_EXTERNAL` | ⚠️ Optional | `lib/services/health.ts` | Enable shallow external provider checks (prod default is off) |
 
 ### Application
 
