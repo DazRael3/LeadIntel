@@ -1,0 +1,111 @@
+import { NextRequest } from 'next/server'
+import { withApiGuard } from '@/lib/api/guard'
+import { ok, fail, asHttpError, ErrorCode } from '@/lib/api/http'
+import { serverEnv } from '@/lib/env'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { verifyResendWebhookSignature } from '@/lib/email/resend-webhook'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+type ResendWebhookEvent = {
+  type?: string
+  data?: {
+    id?: string
+    email_id?: string
+    to?: string | string[]
+  }
+}
+
+function extractResendMessageId(event: ResendWebhookEvent): string | null {
+  const candidate = event.data?.email_id || event.data?.id
+  if (typeof candidate === 'string' && candidate.length > 0) return candidate
+  return null
+}
+
+function mapResendStatus(eventType: string | undefined): string | null {
+  if (!eventType) return null
+  // Conservative mapping; unknown types are ignored.
+  if (eventType.includes('delivered')) return 'delivered'
+  if (eventType.includes('bounced')) return 'bounced'
+  if (eventType.includes('failed')) return 'failed'
+  if (eventType.includes('sent')) return 'sent'
+  return null
+}
+
+export const POST = withApiGuard(
+  async (_request: NextRequest, { body, requestId }) => {
+    try {
+      const event = body as ResendWebhookEvent
+      const messageId = extractResendMessageId(event)
+      const status = mapResendStatus(event.type)
+
+      if (!messageId || !status) {
+        // Valid webhook, but not actionable for our current analytics.
+        return ok({ received: true }, undefined, undefined, requestId)
+      }
+
+      const supabaseAdmin = createSupabaseAdminClient()
+
+      // Attempt to correlate to an email log row. This requires migrations that add resend_message_id.
+      // We keep this best-effort to avoid breaking webhook delivery if schema is behind.
+      let correlated:
+        | { user_id: string; lead_id: string | null }
+        | null = null
+
+      try {
+        const { data } = await supabaseAdmin
+          .from('email_logs')
+          .select('user_id, lead_id')
+          .eq('resend_message_id', messageId)
+          .maybeSingle()
+        if (data) correlated = data
+      } catch {
+        // Ignore: schema may not include resend_message_id yet
+      }
+
+      // Update email log status (best-effort).
+      try {
+        await supabaseAdmin
+          .from('email_logs')
+          .update({ status })
+          .eq('resend_message_id', messageId)
+      } catch {
+        // Ignore schema mismatch
+      }
+
+      // Insert engagement row (best-effort).
+      if (correlated) {
+        try {
+          await supabaseAdmin.from('email_engagement').insert({
+            user_id: correlated.user_id,
+            lead_id: correlated.lead_id,
+            provider: 'resend',
+            provider_message_id: messageId,
+            event_type: event.type || status,
+            occurred_at: new Date().toISOString(),
+          })
+        } catch {
+          // Ignore: engagement table may not exist yet
+        }
+      }
+
+      return ok({ received: true }, undefined, undefined, requestId)
+    } catch (error) {
+      return asHttpError(error, '/api/resend/webhook', undefined, undefined, requestId)
+    }
+  },
+  {
+    verifyWebhookSignature: async ({ request, rawBody }) => {
+      const secret = serverEnv.RESEND_WEBHOOK_SECRET
+      if (!secret) return false
+      // Important: verify against raw body before JSON parsing
+      return verifyResendWebhookSignature({
+        secret,
+        rawBody,
+        headers: Object.fromEntries(request.headers.entries()),
+      })
+    },
+  }
+)
+

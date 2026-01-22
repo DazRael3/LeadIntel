@@ -52,6 +52,7 @@ const serverEnvSchema = z.object({
   // Resend
   RESEND_API_KEY: z.string().startsWith('re_', 'Invalid Resend API key format').optional(),
   RESEND_FROM_EMAIL: z.string().email('Invalid Resend from email').optional(),
+  RESEND_WEBHOOK_SECRET: z.string().min(1, 'Resend webhook secret required').optional(),
   
   // Clearbit
   CLEARBIT_REVEAL_API_KEY: z.string().optional(),
@@ -62,6 +63,7 @@ const serverEnvSchema = z.object({
   NEWS_API_KEY: z.string().optional(),
   ZAPIER_WEBHOOK_URL: z.string().url().optional(),
   ADMIN_DIGEST_SECRET: z.string().optional(),
+  CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
   
   // Development
   DEV_SEED_SECRET: z.string().optional(),
@@ -124,12 +126,14 @@ function buildServerEnv(): ServerEnv {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
     CLEARBIT_REVEAL_API_KEY: process.env.CLEARBIT_REVEAL_API_KEY,
     CLEARBIT_API_KEY: process.env.CLEARBIT_API_KEY,
     HUNTER_API_KEY: process.env.HUNTER_API_KEY,
     NEWS_API_KEY: process.env.NEWS_API_KEY,
     ZAPIER_WEBHOOK_URL: process.env.ZAPIER_WEBHOOK_URL,
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
+    CRON_SECRET: process.env.CRON_SECRET,
     DEV_SEED_SECRET: process.env.DEV_SEED_SECRET,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,

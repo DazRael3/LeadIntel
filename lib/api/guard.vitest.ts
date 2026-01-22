@@ -9,6 +9,7 @@ vi.mock('@/lib/env', () => ({
   serverEnv: {
     NODE_ENV: 'test',
     STRIPE_WEBHOOK_SECRET: 'whsec_test_secret',
+    CRON_SECRET: 'test-cron-secret-123456',
   },
 }))
 
@@ -223,6 +224,27 @@ describe('withApiGuard', () => {
 
     expect(response.headers.get('X-Request-ID')).toBe('test-request-id')
     expect(body.data.requestId).toBe('test-request-id')
+  })
+
+  it('should allow cron access when X-CRON-SECRET matches', async () => {
+    const handler = withApiGuard(async (_req, ctx) => {
+      return ok({ isCron: ctx.isCron, userId: ctx.userId ?? null })
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/autopilot/run', {
+      method: 'POST',
+      body: JSON.stringify({ dryRun: true }),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-secret': 'test-cron-secret-123456',
+      },
+    })
+
+    const response = await handler(request)
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.data.isCron).toBe(true)
   })
 })
 

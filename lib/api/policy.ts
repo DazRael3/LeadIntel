@@ -26,6 +26,8 @@ export interface RoutePolicy {
   originRequired: boolean
   /** Whether Supabase authentication is required */
   authRequired: boolean
+  /** Whether the route can be called by an authenticated cron/scheduler */
+  cronAllowed: boolean
   /** Whether route is dev-only (blocked in production) */
   devOnly: boolean
   /** Whether webhook signature verification is required */
@@ -44,6 +46,7 @@ const DEFAULT_POLICY: RoutePolicy = {
   },
   originRequired: true,
   authRequired: true, // All internal endpoints require auth by default
+  cronAllowed: false,
   devOnly: false,
   webhookSignatureRequired: false,
 }
@@ -64,6 +67,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -76,6 +80,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -88,6 +93,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -100,6 +106,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -112,6 +119,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -124,6 +132,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -136,6 +145,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -150,6 +160,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -162,6 +173,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -174,6 +186,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -186,6 +199,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -198,6 +212,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -210,6 +225,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -222,6 +238,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -236,6 +253,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -248,6 +266,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -260,6 +279,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -272,6 +292,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -284,6 +305,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -296,6 +318,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -307,7 +330,8 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
       ipPerMin: 30,
     },
     originRequired: false, // Tracker may be called from external sites
-    authRequired: true,
+    authRequired: false,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -320,6 +344,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -334,6 +359,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -346,6 +372,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -358,6 +385,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -370,6 +398,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -381,7 +410,8 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
       ipPerMin: 60,
     },
     originRequired: false,
-    authRequired: true,
+    authRequired: false,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -396,6 +426,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -410,6 +441,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false, // Webhooks don't have origin
     authRequired: false, // Webhooks don't use user auth
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: true,
   },
@@ -422,8 +454,50 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: false, // Webhooks don't use user auth
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false, // Generic webhook may not have signature
+  },
+  'POST:/api/resend/webhook': {
+    tier: 'WEBHOOK',
+    maxBytes: 262144, // 256KB
+    rateLimit: {
+      authPerMin: 300,
+      ipPerMin: 300,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: true,
+  },
+
+  // Tier CRON: Scheduler routes (cron secret bypasses auth)
+  'POST:/api/autopilot/run': {
+    tier: 'CRON',
+    maxBytes: 32768, // 32KB
+    rateLimit: {
+      authPerMin: 5,
+      ipPerMin: 5,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: true,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/leads/discover': {
+    tier: 'CRON',
+    maxBytes: 32768, // 32KB
+    rateLimit: {
+      authPerMin: 5,
+      ipPerMin: 5,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: true,
+    devOnly: false,
+    webhookSignatureRequired: false,
   },
 
   // Tier DEV: Dev-only routes (blocked in production, require x-dev-key header)
@@ -436,6 +510,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: false, // Dev routes may not require auth (depends on implementation)
+    cronAllowed: false,
     devOnly: true,
     webhookSignatureRequired: false,
   },
@@ -448,6 +523,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: false, // Dev routes may not require auth
+    cronAllowed: false,
     devOnly: true,
     webhookSignatureRequired: false,
   },
@@ -460,19 +536,21 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: false, // Dev routes may not require auth
+    cronAllowed: false,
     devOnly: true,
     webhookSignatureRequired: false,
   },
   'POST:/api/digest/run': {
-    tier: 'DEV',
+    tier: 'CRON',
     maxBytes: 32768, // 32KB
     rateLimit: {
       authPerMin: 10,
       ipPerMin: 5,
     },
     originRequired: false, // Cron jobs don't have origin
-    authRequired: false, // Dev routes may not require auth
-    devOnly: true, // Blocked in production unless cron-secret implemented
+    authRequired: true,
+    cronAllowed: true,
+    devOnly: false,
     webhookSignatureRequired: false,
   },
 }

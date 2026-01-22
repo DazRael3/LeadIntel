@@ -33,6 +33,7 @@ jobs:
       OPENAI_API_KEY: sk-test123
       RESEND_API_KEY: re_test123
       RESEND_FROM_EMAIL: test@example.com
+      RESEND_WEBHOOK_SECRET: test-resend-webhook-secret
       CLEARBIT_REVEAL_API_KEY: test-key
       CLEARBIT_API_KEY: test-key
       HUNTER_API_KEY: test-key
@@ -40,6 +41,7 @@ jobs:
       ZAPIER_WEBHOOK_URL: https://test.webhook.url
       ADMIN_DIGEST_SECRET: test-secret
       DEV_SEED_SECRET: test-secret
+      CRON_SECRET: test-cron-secret-123456
       # Playwright test user (for E2E tests)
       E2E_TEST_USER_EMAIL: e2e-test@example.com
       E2E_TEST_USER_PASSWORD: test-password-123

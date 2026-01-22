@@ -37,7 +37,7 @@ export interface GuardOptions {
   /** Whether to bypass rate limiting (for internal routes) */
   bypassRateLimit?: boolean
   /** Custom webhook signature verification function */
-  verifyWebhookSignature?: (request: NextRequest) => Promise<boolean>
+  verifyWebhookSignature?: (args: { request: NextRequest; rawBody: Buffer }) => Promise<boolean>
 }
 
 /**
@@ -49,6 +49,7 @@ type GuardedHandler = (
     body?: unknown
     query?: unknown
     userId?: string
+    isCron: boolean
     requestId: string
   }
 ) => Promise<NextResponse>
@@ -79,6 +80,7 @@ export function withApiGuard(
     // Get route policy
     const policyName = options.policyName || pathname
     const policy = getRoutePolicy(policyName, method)
+    const isCron = isCronRequest(request, policy)
 
     // 1. Dev-only check (block in production, require x-dev-key header in dev)
     if (policy.devOnly) {
@@ -123,7 +125,7 @@ export function withApiGuard(
 
     // 3. Authentication enforcement (if required)
     let userId: string | undefined = undefined
-    if (policy.authRequired) {
+    if (policy.authRequired && !isCron) {
       const supabase = createRouteClient(request, bridge)
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
@@ -152,22 +154,8 @@ export function withApiGuard(
     if (policy.webhookSignatureRequired) {
       // Read raw body once for signature verification
       rawBodyForWebhook = Buffer.from(await request.arrayBuffer())
-      const signature = request.headers.get('stripe-signature')
-      
-      if (!signature) {
-        return fail(
-          ErrorCode.VALIDATION_ERROR,
-          'Missing webhook signature header',
-          undefined,
-          undefined,
-          bridge,
-          requestId
-        )
-      }
-
       if (options.verifyWebhookSignature) {
-        // Create a new request with raw body for custom verification
-        const isValid = await options.verifyWebhookSignature(request)
+        const isValid = await options.verifyWebhookSignature({ request, rawBody: rawBodyForWebhook })
         if (!isValid) {
           return fail(
             ErrorCode.VALIDATION_ERROR,
@@ -194,6 +182,17 @@ export function withApiGuard(
       } else {
         // Default Stripe webhook verification
         try {
+          const signature = request.headers.get('stripe-signature')
+          if (!signature) {
+            return fail(
+              ErrorCode.VALIDATION_ERROR,
+              'Missing webhook signature header',
+              undefined,
+              undefined,
+              bridge,
+              requestId
+            )
+          }
           // Lazy access to serverEnv to avoid module load-time evaluation in tests
           let webhookSecret: string
           try {
@@ -235,7 +234,7 @@ export function withApiGuard(
     // 5. Rate limiting using policy-defined limits
     if (!options.bypassRateLimit) {
       // Get user for rate limiting (if not already fetched during auth check)
-      if (!policy.authRequired) {
+      if (!policy.authRequired && !isCron) {
         const supabase = createRouteClient(request, bridge)
         const { data: { user } } = await supabase.auth.getUser()
         userId = user?.id || undefined
@@ -345,6 +344,7 @@ export function withApiGuard(
         body,
         query,
         userId,
+        isCron,
         requestId,
       })
       
@@ -390,4 +390,22 @@ export function withApiGuard(
       )
     }
   }
+}
+
+function isCronRequest(request: NextRequest, policy: { cronAllowed: boolean }): boolean {
+  if (!policy.cronAllowed) return false
+  const provided = request.headers.get('x-cron-secret')
+  const expected = serverEnv.CRON_SECRET
+  if (!provided || !expected) return false
+  return timingSafeEqualAscii(provided, expected)
+}
+
+function timingSafeEqualAscii(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  // Constant-time compare for ASCII secrets
+  let out = 0
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return out === 0
 }

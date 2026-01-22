@@ -92,6 +92,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
 process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test123'
+process.env.RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || 'test-resend-webhook-secret'
+process.env.CRON_SECRET = process.env.CRON_SECRET || 'test-cron-secret-123456'
 // Set NODE_ENV only if not already set (it's read-only in some contexts)
 if (!process.env.NODE_ENV) {
   Object.defineProperty(process.env, 'NODE_ENV', { value: 'test', writable: true, configurable: true })

@@ -1,0 +1,26 @@
+{
+  "crons": [
+    {
+      "path": "/api/autopilot/run",
+      "schedule": "0 9,15,21 * * *",
+      "headers": {
+        "X-CRON-SECRET": "$CRON_SECRET"
+      }
+    },
+    {
+      "path": "/api/leads/discover",
+      "schedule": "0 2 * * *",
+      "headers": {
+        "X-CRON-SECRET": "$CRON_SECRET"
+      }
+    },
+    {
+      "path": "/api/digest/run",
+      "schedule": "0 9 * * 1",
+      "headers": {
+        "X-CRON-SECRET": "$CRON_SECRET"
+      }
+    }
+  ]
+}
+

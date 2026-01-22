@@ -2,10 +2,8 @@ import { NextRequest } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
 import { generateBattleCard } from '@/lib/ai-logic'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { validateBody, validationError } from '@/lib/api/validate'
 import { z } from 'zod'
-import { checkRateLimit, shouldBypassRateLimit, getRateLimitError } from '@/lib/api/ratelimit'
-import { validateOrigin } from '@/lib/api/security'
+import { withApiGuard } from '@/lib/api/guard'
 
 const GenerateBattleCardSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
@@ -13,91 +11,61 @@ const GenerateBattleCardSchema = z.object({
   triggerEvent: z.string().optional(),
 })
 
-export async function POST(request: NextRequest) {
-  const bridge = createCookieBridge()
-  const route = '/api/generate-battle-card'
-  
-  try {
-    // Validate origin for state-changing requests
-    const originError = validateOrigin(request, route)
-    if (originError) {
-      return originError
-    }
-    
-    // Check rate limit bypass
-    if (!shouldBypassRateLimit(request, route)) {
-      // Get user for rate limiting
+export const POST = withApiGuard(
+  async (request: NextRequest, { body, userId, requestId }) => {
+    const bridge = createCookieBridge()
+    try {
+      const { companyName, companyUrl, triggerEvent } = body as z.infer<typeof GenerateBattleCardSchema>
+
+      // Pro gating
       const supabase = createRouteClient(request, bridge)
       const { data: { user } } = await supabase.auth.getUser()
-      
-      // Check rate limit
-      const rateLimitResult = await checkRateLimit(
-        request,
-        user?.id || null,
-        route,
-        'AI_GENERATION'
-      )
-      
-      if (rateLimitResult && !rateLimitResult.success) {
-        return getRateLimitError(rateLimitResult, bridge)
+      if (!user || !userId) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
-    }
-    
-    // Validate request body
-    let body
-    try {
-      body = await validateBody(request, GenerateBattleCardSchema)
-    } catch (error) {
-      return validationError(error, bridge)
-    }
 
-    const { companyName, companyUrl, triggerEvent } = body
+      const { data: userData } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', user.id)
+        .single()
 
-    // Server-side Pro gating: Check subscription tier before any AI generation
-    const supabase = createRouteClient(request, bridge)
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
-    }
+      if (userData?.subscription_tier !== 'pro') {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Pro subscription required for Battle Card generation',
+          undefined,
+          undefined,
+          bridge,
+          requestId
+        )
+      }
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('subscription_tier')
-      .eq('id', user.id)
-      .single()
+      const companyInfo = await fetchCompanyInfo(companyUrl || `https://${companyName.toLowerCase().replace(/\s+/g, '')}.com`)
 
-    if (userData?.subscription_tier !== 'pro') {
-      return fail(
-        ErrorCode.FORBIDDEN,
-        'Pro subscription required for Battle Card generation',
-        undefined,
-        undefined,
-        bridge
+      const battleCard = await generateBattleCard(
+        companyName,
+        triggerEvent || null,
+        companyInfo,
+        undefined
       )
+
+      return ok(
+        {
+          techStack: battleCard.currentTech,
+          weakness: battleCard.painPoint,
+          whyBetter: battleCard.killerFeature,
+        },
+        undefined,
+        bridge,
+        requestId
+      )
+    } catch (error) {
+      return asHttpError(error, '/api/generate-battle-card', userId, bridge, requestId)
     }
-
-    // Fetch company website info (placeholder - in production use scraping)
-    const companyInfo = await fetchCompanyInfo(companyUrl || `https://${companyName.toLowerCase().replace(/\s+/g, '')}.com`)
-
-    // Generate battle card using centralized logic
-    const battleCard = await generateBattleCard(
-      companyName,
-      triggerEvent || null, // Convert undefined to null
-      companyInfo,
-      undefined // userSettings - could be passed if available
-    )
-
-    // Transform to expected format
-    return ok({
-      techStack: battleCard.currentTech,
-      weakness: battleCard.painPoint,
-      whyBetter: battleCard.killerFeature,
-    }, undefined, bridge)
-  } catch (error) {
-    return asHttpError(error, '/api/generate-battle-card', undefined, bridge)
-  }
-}
+  },
+  { bodySchema: GenerateBattleCardSchema }
+)
 
 async function fetchCompanyInfo(url: string): Promise<string> {
   try {

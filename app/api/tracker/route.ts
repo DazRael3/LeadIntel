@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { serverEnv } from '@/lib/env'
 import { ok, fail, ErrorCode } from '@/lib/api/http'
-import { validateBody, validationError } from '@/lib/api/validate'
+import { withApiGuard } from '@/lib/api/guard'
 import { z } from 'zod'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Intent Tracker API
@@ -21,20 +21,35 @@ interface VisitorData {
   company_industry?: string
 }
 
+const TrackerPostSchema = z.object({
+  trackerKey: z.string().uuid('Invalid tracker key'),
+  user_agent: z.string().optional(),
+  referer: z.string().optional(),
+  url: z.string().url().optional(),
+  timestamp: z.string().optional(),
+})
+
 /**
  * GET: Return tracking script for embedding
  */
 export async function GET(request: NextRequest) {
+  const trackerKey = request.nextUrl.searchParams.get('k') || ''
   const script = `
 (function() {
   // LeadIntel Intent Tracker
   const trackerUrl = '${request.nextUrl.origin}/api/tracker';
+  const trackerKey = '${trackerKey.replace(/'/g, "\\'")}';
+  if (!trackerKey) {
+    console.warn('[LeadIntel Tracker] Missing tracker key. Use /api/tracker?k=YOUR_KEY');
+    return;
+  }
   
   // Get visitor IP and metadata
   fetch(trackerUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      trackerKey: trackerKey,
       user_agent: navigator.userAgent,
       referer: document.referrer,
       url: window.location.href,
@@ -56,75 +71,76 @@ export async function GET(request: NextRequest) {
 /**
  * POST: Receive visitor data and identify company
  */
-export async function POST(request: NextRequest) {
-  try {
-    // Validate request body
-    const TrackerPostSchema = z.object({
-      user_agent: z.string().optional(),
-      referer: z.string().optional(),
-      url: z.string().url().optional(),
-      timestamp: z.string().optional(),
-    })
-    
-    let body
+export const POST = withApiGuard(
+  async (request: NextRequest, { body, requestId }) => {
     try {
-      body = await validateBody(request, TrackerPostSchema)
-    } catch (error) {
-      return validationError(error, undefined)
+      const parsed = TrackerPostSchema.safeParse(body)
+      if (!parsed.success) {
+        return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, undefined, requestId)
+      }
+
+      const clientIp =
+        request.headers.get('x-forwarded-for')?.split(',')[0] ||
+        request.headers.get('x-real-ip') ||
+        'unknown'
+
+      // Identify company using Clearbit Reveal API (best-effort)
+      const companyData = await identifyCompany(clientIp)
+
+      const visitorData: VisitorData = {
+        ip: clientIp,
+        user_agent: parsed.data.user_agent,
+        referer: parsed.data.referer,
+        timestamp: parsed.data.timestamp || new Date().toISOString(),
+        company_name: companyData.name,
+        company_domain: companyData.domain,
+        company_industry: companyData.industry,
+      }
+
+      // Tenant resolution via tracker key (server-side, service role)
+      const supabaseAdmin = createSupabaseAdminClient()
+      const { data: settings, error: settingsError } = await supabaseAdmin
+        .from('user_settings')
+        .select('user_id')
+        .eq('tracker_key', parsed.data.trackerKey)
+        .maybeSingle()
+
+      if (settingsError || !settings?.user_id) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Invalid tracker key', undefined, undefined, undefined, requestId)
+      }
+
+      const { error: insertError } = await supabaseAdmin.from('website_visitors').insert({
+        user_id: settings.user_id,
+        ip_address: visitorData.ip,
+        company_name: visitorData.company_name,
+        company_domain: visitorData.company_domain,
+        company_industry: visitorData.company_industry,
+        visited_at: visitorData.timestamp,
+      })
+
+      if (insertError) {
+        return fail(ErrorCode.DATABASE_ERROR, 'Failed to write visitor', undefined, undefined, undefined, requestId)
+      }
+
+      return ok(
+        {
+          tracked: true,
+          company: companyData.name || 'Unknown',
+          domain: companyData.domain,
+          industry: companyData.industry,
+        },
+        undefined,
+        undefined,
+        requestId
+      )
+    } catch {
+      return fail(ErrorCode.INTERNAL_ERROR, 'Failed to track visitor', undefined, undefined, undefined, requestId)
     }
-    
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                     request.headers.get('x-real-ip') || 
-                     'unknown'
-
-    // Identify company using Clearbit Reveal API
-    const companyData = await identifyCompany(clientIp)
-
-    const visitorData: VisitorData = {
-      ip: clientIp,
-      user_agent: body.user_agent,
-      referer: body.referer,
-      timestamp: body.timestamp || new Date().toISOString(),
-      company_name: companyData.name,
-      company_domain: companyData.domain,
-      company_industry: companyData.industry,
-    }
-
-    // Save to database (create visitors table if needed)
-    try {
-      const supabase = createClient()
-      await supabase
-        .from('website_visitors')
-        .insert({
-          ip_address: visitorData.ip,
-          user_agent: visitorData.user_agent,
-          referer: visitorData.referer,
-          company_name: visitorData.company_name,
-          company_domain: visitorData.company_domain,
-          company_industry: visitorData.company_industry,
-          visited_at: visitorData.timestamp,
-        })
-    } catch (dbError) {
-      // Table might not exist yet - log but don't fail
-      console.log('Visitor tracking (table may need creation):', dbError)
-    }
-
-    return ok({
-      ip: clientIp,
-      company: companyData.name || 'Unknown',
-      domain: companyData.domain,
-      industry: companyData.industry,
-    })
-  } catch (error) {
-    return fail(
-      ErrorCode.INTERNAL_ERROR,
-      'Failed to track visitor',
-      undefined,
-      undefined,
-      undefined
-    )
+  },
+  {
+    bodySchema: TrackerPostSchema,
   }
-}
+)
 
 /**
  * Identify company from IP using Clearbit Reveal API
@@ -137,7 +153,6 @@ async function identifyCompany(ip: string): Promise<{
 }> {
   const clearbitKey = serverEnv.CLEARBIT_REVEAL_API_KEY
   if (!clearbitKey) {
-    console.log('Clearbit Reveal API key not configured, using placeholder')
     // Return placeholder data
     return {
       name: 'Unknown Company',

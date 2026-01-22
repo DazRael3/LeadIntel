@@ -4,6 +4,7 @@ import { serverEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { validateBody, validationError } from '@/lib/api/validate'
 import { z } from 'zod'
+import { withApiGuard } from '@/lib/api/guard'
 
 /**
  * Ghost Reveal API
@@ -25,82 +26,70 @@ const RevealPostSchema = z.object({
 /**
  * POST: Identify company from visitor IP
  */
-export async function POST(request: NextRequest) {
-  const bridge = createCookieBridge()
-  
-  try {
-    // Validate request body
-    let body
+export const POST = withApiGuard(
+  async (request: NextRequest, { body, userId, requestId }) => {
+    const bridge = createCookieBridge()
     try {
-      body = await validateBody(request, RevealPostSchema)
-    } catch (error) {
-      return validationError(error, bridge)
-    }
+      const { visitor_ip } = body as z.infer<typeof RevealPostSchema>
 
-    const { visitor_ip } = body
+      const supabase = createRouteClient(request, bridge)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !userId) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
 
-    // Check if user is Pro (Enterprise features require Pro)
-    const supabase = createRouteClient(request, bridge)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
-    }
+      const { data: userData } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', user.id)
+        .single()
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('subscription_tier')
-      .eq('id', user.id)
-      .single()
+      if (userData?.subscription_tier !== 'pro') {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Pro subscription required for Ghost Reveal',
+          undefined,
+          undefined,
+          bridge,
+          requestId
+        )
+      }
 
-    if (userData?.subscription_tier !== 'pro') {
-      return fail(
-        ErrorCode.FORBIDDEN,
-        'Pro subscription required for Ghost Reveal',
-        undefined,
-        undefined,
-        bridge
-      )
-    }
+      const companyData = await identifyCompany(visitor_ip)
 
-    // Identify company using Clearbit Reveal API
-    let companyData: RevealResponse
-    try {
-      companyData = await identifyCompany(visitor_ip)
-    } catch (error) {
-      return fail(
-        ErrorCode.EXTERNAL_API_ERROR,
-        'Failed to identify company',
-        undefined,
-        undefined,
-        bridge
-      )
-    }
-
-    // Save to database for Live Intent tracking
-    try {
-      await supabase
-        .from('website_visitors')
-        .insert({
+      // RLS-safe insert: include tenant key
+      try {
+        await supabase.from('website_visitors').insert({
+          user_id: user.id,
           ip_address: visitor_ip,
           company_name: companyData.companyName,
           company_domain: companyData.companyDomain,
           company_industry: companyData.companyIndustry,
           visited_at: new Date().toISOString(),
         })
-    } catch (dbError) {
-      console.log('Visitor tracking (table may need creation):', dbError)
-    }
+      } catch {
+        // Ignore schema mismatch; don't fail reveal itself.
+      }
 
-    return ok({
-      company: companyData.companyName || 'Unknown',
-      domain: companyData.companyDomain,
-      industry: companyData.companyIndustry,
-      confidence: companyData.confidence,
-    }, undefined, bridge)
-  } catch (error) {
-    return asHttpError(error, '/api/reveal', undefined, bridge)
+      return ok(
+        {
+          company: companyData.companyName || 'Unknown',
+          domain: companyData.companyDomain,
+          industry: companyData.companyIndustry,
+          confidence: companyData.confidence,
+        },
+        undefined,
+        bridge,
+        requestId
+      )
+    } catch (error) {
+      return asHttpError(error, '/api/reveal', userId, bridge, requestId)
+    }
+  },
+  {
+    bodySchema: RevealPostSchema,
   }
-}
+)
 
 /**
  * GET: Return embeddable tracking script for Ghost Reveal
@@ -180,9 +169,9 @@ async function identifyCompany(ip: string): Promise<RevealResponse> {
       companyIndustry: data.category?.industry,
       confidence: data.confidence || 'medium',
     }
-  } catch (error: any) {
-    console.error('Error identifying company with Clearbit:', error)
-    // Return unknown on error rather than placeholder data
-    throw new Error(`Failed to identify company: ${error.message || 'Unknown error'}`)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Error identifying company with Clearbit:', { message })
+    throw new Error(`Failed to identify company: ${message}`)
   }
 }
