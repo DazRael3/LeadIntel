@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDbSchema } from './schema'
 import { AuthApiError } from '@supabase/supabase-js'
+import { isE2E } from '@/lib/runtimeFlags'
 
 /**
  * Get Supabase anon key - supports both env var naming conventions
@@ -29,6 +30,11 @@ export async function updateSession(request: NextRequest) {
       headers: request.headers,
     },
   })
+
+  // In Playwright/E2E, we use a fake Supabase client; don't attempt session refresh.
+  if (isE2E()) {
+    return response
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = getSupabaseKey()

@@ -1,5 +1,7 @@
 import { createBrowserClient } from '@supabase/ssr'
 import { getDbSchema } from './schema'
+import { isE2E } from '@/lib/runtimeFlags'
+import { createE2EBrowserSupabaseClient } from './e2e'
 
 /**
  * Get Supabase anon key - supports both env var naming conventions
@@ -20,6 +22,9 @@ function getSupabaseKey(): string {
  * Configured with schema from environment (default: 'api')
  */
 export function createClient() {
+  if (isE2E()) {
+    return createE2EBrowserSupabaseClient()
+  }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = getSupabaseKey()
   const { primary } = getDbSchema()
