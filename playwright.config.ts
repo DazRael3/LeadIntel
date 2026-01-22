@@ -93,6 +93,7 @@ export default defineConfig({
       RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || 'test@example.com',
       RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET || 'test-resend-webhook-secret',
       CRON_SECRET: process.env.CRON_SECRET || 'test-cron-secret-123456',
+      CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET || 'test-cron-signing-secret-123456',
       ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET || 'test-secret',
     },
   },

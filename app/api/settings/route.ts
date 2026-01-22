@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const digest_dow = body.digest_dow ?? 1
     const digest_hour = body.digest_hour ?? 9
     const digest_webhook_url = body.digest_webhook_url || null
+    const autopilot_enabled = typeof body.autopilot_enabled === 'boolean' ? body.autopilot_enabled : undefined
 
     const { error, data: updated } = await supabase
       .from('user_settings')
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
         digest_dow,
         digest_hour,
         digest_webhook_url: digest_webhook_url || null,
+        ...(autopilot_enabled !== undefined ? { autopilot_enabled } : {}),
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'user_id',

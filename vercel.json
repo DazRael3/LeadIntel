@@ -1,21 +1,21 @@
 {
   "crons": [
     {
-      "path": "/api/autopilot/run",
+      "path": "/api/autopilot/run?cron_token=$CRON_TOKEN_AUTOPILOT",
       "schedule": "0 9,15,21 * * *",
       "headers": {
         "X-CRON-SECRET": "$CRON_SECRET"
       }
     },
     {
-      "path": "/api/leads/discover",
+      "path": "/api/leads/discover?cron_token=$CRON_TOKEN_DISCOVER",
       "schedule": "0 2 * * *",
       "headers": {
         "X-CRON-SECRET": "$CRON_SECRET"
       }
     },
     {
-      "path": "/api/digest/run",
+      "path": "/api/digest/run?cron_token=$CRON_TOKEN_DIGEST",
       "schedule": "0 9 * * 1",
       "headers": {
         "X-CRON-SECRET": "$CRON_SECRET"

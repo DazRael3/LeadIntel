@@ -23,6 +23,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { serverEnv } from '@/lib/env'
+import { timingSafeEqualAscii, verifyCronToken } from '@/lib/api/cron-auth'
 
 /**
  * Options for withApiGuard
@@ -394,18 +395,25 @@ export function withApiGuard(
 
 function isCronRequest(request: NextRequest, policy: { cronAllowed: boolean }): boolean {
   if (!policy.cronAllowed) return false
-  const provided = request.headers.get('x-cron-secret')
-  const expected = serverEnv.CRON_SECRET
-  if (!provided || !expected) return false
-  return timingSafeEqualAscii(provided, expected)
-}
+  const url = new URL(request.url)
 
-function timingSafeEqualAscii(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  // Constant-time compare for ASCII secrets
-  let out = 0
-  for (let i = 0; i < a.length; i++) {
-    out |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  // 1) Legacy: custom header (may be unavailable in some cron providers)
+  const providedHeader = request.headers.get('x-cron-secret')
+  const expectedHeader = serverEnv.CRON_SECRET
+  if (providedHeader && expectedHeader && timingSafeEqualAscii(providedHeader, expectedHeader)) {
+    return true
   }
-  return out === 0
+
+  // 2) Preferred: signed query token (works even if custom headers are stripped)
+  const cronToken = url.searchParams.get('cron_token')
+  const signingSecret = serverEnv.CRON_SIGNING_SECRET
+  if (cronToken && signingSecret) {
+    return verifyCronToken({
+      signingSecret,
+      providedToken: cronToken,
+      ctx: { method: request.method, pathname: url.pathname },
+    })
+  }
+
+  return false
 }

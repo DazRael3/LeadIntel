@@ -94,6 +94,7 @@ process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test123'
 process.env.RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || 'test-resend-webhook-secret'
 process.env.CRON_SECRET = process.env.CRON_SECRET || 'test-cron-secret-123456'
+process.env.CRON_SIGNING_SECRET = process.env.CRON_SIGNING_SECRET || 'test-cron-signing-secret-123456'
 // Set NODE_ENV only if not already set (it's read-only in some contexts)
 if (!process.env.NODE_ENV) {
   Object.defineProperty(process.env, 'NODE_ENV', { value: 'test', writable: true, configurable: true })

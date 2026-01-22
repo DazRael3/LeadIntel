@@ -12,6 +12,7 @@ describe('API Policy', () => {
     'POST:/api/send-pitch',
     'POST:/api/push-to-crm',
     'POST:/api/settings',
+    'POST:/api/settings/autopilot',
     'POST:/api/tags',
     'DELETE:/api/tags',
     'POST:/api/leads/[leadId]/tags',

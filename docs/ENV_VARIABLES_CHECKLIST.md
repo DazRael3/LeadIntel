@@ -53,6 +53,7 @@ These variables are only available in server-side code and must never be exposed
 |----------|----------|---------|-------------|
 | `RESEND_API_KEY` | ⚠️ Optional | `app/api/send-pitch/route.ts` | Resend API key for email sending |
 | `RESEND_FROM_EMAIL` | ⚠️ Optional | `app/api/send-pitch/route.ts` | From email address (defaults to noreply@leadintel.com) |
+| `RESEND_WEBHOOK_SECRET` | ⚠️ Optional | `app/api/resend/webhook/route.ts` | Resend webhook signing secret (raw-body verification) |
 
 ### Clearbit (Company Enrichment)
 
@@ -70,6 +71,11 @@ These variables are only available in server-side code and must never be exposed
 | `ZAPIER_WEBHOOK_URL` | ⚠️ Optional | `app/api/push-to-crm/route.ts` | Zapier webhook URL (CRM integration) |
 | `ADMIN_DIGEST_SECRET` | ⚠️ Optional | `app/api/digest/run/route.ts` | Admin digest webhook secret |
 | `DEV_SEED_SECRET` | ⚠️ Optional | `app/api/dev/create-user/route.ts` | Dev user creation secret (dev only) |
+| `CRON_SECRET` | ⚠️ Optional | `lib/api/guard.ts`, `vercel.json` | Legacy cron secret (header `X-CRON-SECRET`) |
+| `CRON_SIGNING_SECRET` | ⚠️ Optional | `lib/api/cron-auth.ts`, `lib/api/guard.ts` | Cron token signing secret (preferred) |
+| `CRON_TOKEN_AUTOPILOT` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/autopilot/run` (`cron_token`) |
+| `CRON_TOKEN_DISCOVER` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/leads/discover` (`cron_token`) |
+| `CRON_TOKEN_DIGEST` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/digest/run` (`cron_token`) |
 
 ### Application
 

@@ -14,6 +14,7 @@ const AutopilotRunSchema = z.object({
   dryRun: z.boolean().optional().default(false),
   limitUsers: z.number().int().min(1).max(200).optional(),
   limitLeadsPerUser: z.number().int().min(1).max(200).optional(),
+  userId: z.string().uuid().optional(),
 })
 
 type AutopilotFailure = {
@@ -50,7 +51,7 @@ function pickSequencePart(sequence: unknown, step: number): string | null {
 }
 
 export const POST = withApiGuard(
-  async (request: NextRequest, { body, isCron, requestId }) => {
+  async (request: NextRequest, { body, isCron, userId: sessionUserId, requestId }) => {
     // This endpoint is intended for cron. If called by a user session, we still allow it
     // (policy requires auth), but all DB access is done via service role to avoid RLS issues.
     // If neither cron nor user auth is present, guard will block before reaching here.
@@ -66,14 +67,108 @@ export const POST = withApiGuard(
 
       const supabaseAdmin = createSupabaseAdminClient()
 
+      // Determine which tenants to process.
+      // - Cron runs: only tenants with autopilot_enabled = true
+      // - Manual runs (authenticated): only the caller's tenant; allows dryRun even if disabled
+      let targetUserIds: string[] = []
+
+      if (isCron) {
+        if (parsed.data.userId) {
+          // Cron can be targeted to a single tenant (still gated by autopilot_enabled unless dryRun).
+          targetUserIds = [parsed.data.userId]
+        } else {
+          const { data: enabledSettings, error: enabledError } = await supabaseAdmin
+            .from('user_settings')
+            .select('user_id')
+            .eq('autopilot_enabled', true)
+            .limit(parsed.data.limitUsers ?? 50)
+
+          if (enabledError) {
+            return fail(ErrorCode.DATABASE_ERROR, 'Failed to fetch autopilot settings', undefined, undefined, undefined, requestId)
+          }
+          targetUserIds = (enabledSettings || []).map((r) => (r as { user_id: string }).user_id)
+        }
+      } else {
+        // Manual run: restricted to authenticated caller
+        if (!sessionUserId) {
+          return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, undefined, requestId)
+        }
+        targetUserIds = [sessionUserId]
+      }
+
+      if (targetUserIds.length === 0) {
+        return ok(
+          {
+            mode: isCron ? 'cron' : 'user',
+            usersProcessed: 0,
+            leadsProcessed: 0,
+            emailsAttempted: 0,
+            successfulSends: 0,
+            failureCount: 0,
+            failures: [],
+          },
+          undefined,
+          undefined,
+          requestId
+        )
+      }
+
+      // Enforce Pro tier and rollout gate
       const { data: users, error: usersError } = await supabaseAdmin
         .from('users')
         .select('id')
+        .in('id', targetUserIds)
         .eq('subscription_tier', 'pro')
         .limit(parsed.data.limitUsers ?? 50)
 
       if (usersError) {
         return fail(ErrorCode.DATABASE_ERROR, 'Failed to fetch users', undefined, undefined, undefined, requestId)
+      }
+
+      // For targeted runs, confirm autopilot_enabled (unless manual dryRun)
+      if (isCron && parsed.data.userId) {
+        const { data: s } = await supabaseAdmin
+          .from('user_settings')
+          .select('autopilot_enabled')
+          .eq('user_id', parsed.data.userId)
+          .maybeSingle()
+        const enabled = Boolean((s as { autopilot_enabled?: boolean } | null)?.autopilot_enabled)
+        if (!enabled && !parsed.data.dryRun) {
+          return ok(
+            {
+              mode: 'cron',
+              usersProcessed: 0,
+              leadsProcessed: 0,
+              emailsAttempted: 0,
+              successfulSends: 0,
+              failureCount: 1,
+              failures: [
+                {
+                  userId: parsed.data.userId,
+                  leadId: null,
+                  code: ErrorCode.FORBIDDEN,
+                  message: 'Autopilot disabled for tenant',
+                },
+              ],
+            },
+            undefined,
+            undefined,
+            requestId
+          )
+        }
+      }
+
+      if (!isCron) {
+        // Manual non-dry-run requires autopilot_enabled
+        const { data: s } = await supabaseAdmin
+          .from('user_settings')
+          .select('autopilot_enabled')
+          .eq('user_id', sessionUserId)
+          .maybeSingle()
+        const enabled = Boolean((s as { autopilot_enabled?: boolean } | null)?.autopilot_enabled)
+        if (!enabled && !parsed.data.dryRun) {
+          return fail(ErrorCode.FORBIDDEN, 'Autopilot is disabled. Enable it in Settings first.', undefined, undefined, undefined, requestId)
+        }
       }
 
       const failures: AutopilotFailure[] = []

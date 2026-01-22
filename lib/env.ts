@@ -64,6 +64,7 @@ const serverEnvSchema = z.object({
   ZAPIER_WEBHOOK_URL: z.string().url().optional(),
   ADMIN_DIGEST_SECRET: z.string().optional(),
   CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
+  CRON_SIGNING_SECRET: z.string().min(16, 'CRON_SIGNING_SECRET must be at least 16 characters').optional(),
   
   // Development
   DEV_SEED_SECRET: z.string().optional(),
@@ -134,6 +135,7 @@ function buildServerEnv(): ServerEnv {
     ZAPIER_WEBHOOK_URL: process.env.ZAPIER_WEBHOOK_URL,
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
+    CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET,
     DEV_SEED_SECRET: process.env.DEV_SEED_SECRET,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,

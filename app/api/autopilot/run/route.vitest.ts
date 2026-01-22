@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const insertedEmailLogs: unknown[] = []
+let enabledAutopilotUsers: string[] = ['user_1']
 
 class FakeQuery<T = unknown> {
   private table: string
@@ -27,6 +28,9 @@ class FakeQuery<T = unknown> {
   }
   eq(column: string, value: unknown) {
     this.state.eq[column] = value
+    return this
+  }
+  in() {
     return this
   }
   not(column: string, op: string, value: unknown) {
@@ -67,6 +71,9 @@ class FakeQuery<T = unknown> {
     }
 
     if (this.table === 'user_settings') {
+      if (this.state.eq.autopilot_enabled === true) {
+        return { data: enabledAutopilotUsers.map((id) => ({ user_id: id })), error: null }
+      }
       if (this.state.mode === 'maybeSingle') {
         return { data: { sender_name: 'Alice', from_email: 'alice@example.com' }, error: null }
       }
@@ -133,6 +140,7 @@ vi.mock('@/lib/email/resend', () => ({
 describe('/api/autopilot/run', () => {
   beforeEach(() => {
     insertedEmailLogs.splice(0, insertedEmailLogs.length)
+    enabledAutopilotUsers = ['user_1']
     vi.clearAllMocks()
   })
 
@@ -158,6 +166,27 @@ describe('/api/autopilot/run', () => {
 
     // Ensure at least one log attempt was recorded
     expect(insertedEmailLogs.length).toBeGreaterThan(0)
+  })
+
+  it('skips tenants when autopilot_enabled is false (cron run)', async () => {
+    enabledAutopilotUsers = []
+    const { POST } = await import('./route')
+
+    const req = new NextRequest('http://localhost:3000/api/autopilot/run', {
+      method: 'POST',
+      body: JSON.stringify({ dryRun: true, limitUsers: 10, limitLeadsPerUser: 10 }),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-secret': 'test-cron-secret-123456',
+      },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data.emailsAttempted).toBe(0)
+    expect(insertedEmailLogs.length).toBe(0)
   })
 })
 

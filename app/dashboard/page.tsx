@@ -20,6 +20,7 @@ export default async function DashboardPage() {
   let subscriptionTier: 'free' | 'pro' = 'free'
   let creditsRemaining = 1
   let onboardingCompleted = false
+  let autopilotEnabled = false
 
   // Try to get subscription tier from billing module
   try {
@@ -89,7 +90,7 @@ export default async function DashboardPage() {
   try {
     const { data: settingsRow, error: settingsError } = await supabase
       .from('user_settings')
-      .select('onboarding_completed')
+      .select('onboarding_completed, autopilot_enabled')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -102,6 +103,7 @@ export default async function DashboardPage() {
       }
     } else {
       onboardingCompleted = Boolean(settingsRow?.onboarding_completed)
+      autopilotEnabled = Boolean((settingsRow as { autopilot_enabled?: boolean } | null)?.autopilot_enabled)
     }
   } catch (err) {
     console.warn('[Dashboard] Error loading settings, using defaults:', err)
@@ -113,6 +115,7 @@ export default async function DashboardPage() {
         initialSubscriptionTier={subscriptionTier}
         initialCreditsRemaining={creditsRemaining}
         initialOnboardingCompleted={onboardingCompleted}
+        initialAutopilotEnabled={autopilotEnabled}
       />
     </PlanProvider>
   )
