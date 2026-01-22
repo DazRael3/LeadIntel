@@ -70,12 +70,33 @@ export default defineConfig({
     timeout: 120 * 1000,
     stdout: 'ignore',
     stderr: 'pipe',
-    // Set E2E environment variables to satisfy validation and enable test mode
+    // Pass through all environment variables from parent process (CI sets these)
+    // Plus E2E-specific flags and test values for any that might be missing
     env: {
+      // Inherit all parent environment variables
+      ...process.env,
+      // E2E test flags
       E2E: '1',
       PLAYWRIGHT: '1',
-      UPSTASH_REDIS_REST_URL: 'https://example.com',
-      UPSTASH_REDIS_REST_TOKEN: 'test-token',
+      // Fallback test values for required NEXT_PUBLIC_* vars (in case not set in parent)
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key',
+      NEXT_PUBLIC_SUPABASE_DB_SCHEMA: process.env.NEXT_PUBLIC_SUPABASE_DB_SCHEMA || 'api',
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_123',
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+      // Server env vars for E2E tests (mocked, but validation needs them)
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key',
+      SUPABASE_DB_SCHEMA: process.env.SUPABASE_DB_SCHEMA || 'api',
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || 'sk_test_123',
+      STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123',
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY || 'sk-test123',
+      RESEND_API_KEY: process.env.RESEND_API_KEY || 're_test123',
+      RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || 'test@example.com',
+      CLEARBIT_REVEAL_API_KEY: process.env.CLEARBIT_REVEAL_API_KEY || 'test-key',
+      CLEARBIT_API_KEY: process.env.CLEARBIT_API_KEY || 'test-key',
+      // Optional services with test fallbacks
+      UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL || 'https://example.upstash.io',
+      UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN || 'test-token',
     },
   },
 })
