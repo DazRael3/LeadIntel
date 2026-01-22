@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { serverEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { validateBody, validationError } from '@/lib/api/validate'
 import { DigestRunSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
@@ -18,7 +17,7 @@ async function sendWebhook(url: string, text: string) {
 }
 
 export const POST = withApiGuard(
-  async (request: NextRequest, { isCron, requestId }) => {
+  async (request: NextRequest, { body, isCron, requestId }) => {
     const bridge = createCookieBridge()
 
     try {
@@ -31,14 +30,6 @@ export const POST = withApiGuard(
         if (!adminSecret || headerSecret !== adminSecret) {
           return fail(ErrorCode.UNAUTHORIZED, 'Unauthorized', undefined, undefined, bridge, requestId)
         }
-      }
-
-      // Validate request body (optional userId for testing)
-      let body
-      try {
-        body = await validateBody(request, DigestRunSchema.partial(), { maxBytes: 1024 })
-      } catch (error) {
-        return validationError(error, bridge, requestId)
       }
 
       // Digest operates cross-tenant (reads digest-enabled tenants), so it must use service role.
@@ -101,7 +92,8 @@ export const POST = withApiGuard(
         summaries.push({ user_id: u.user_id, delivered })
       }
 
-      return ok({ summaries, requestedUserId: body?.userId ?? null }, undefined, bridge, requestId)
+      const requestedUserId = (body as { userId?: string } | undefined)?.userId ?? null
+      return ok({ summaries, requestedUserId }, undefined, bridge, requestId)
     } catch (error) {
       return asHttpError(error, '/api/digest/run', undefined, bridge, requestId)
     }
