@@ -1,9 +1,0 @@
-@echo off
-title LeadIntel Business Engine
-echo Starting Lead Generation Scraper...
-start cmd /k "npm run scraper"
-echo Starting Auto-Marketing Engine...
-start cmd /k "npm run marketing"
-echo Launching Web Dashboard...
-npm run dev
-pause

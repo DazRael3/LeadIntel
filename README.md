@@ -33,13 +33,7 @@ cd LeadIntel
 npm install
 ```
 
-**Note for Windows Users**: Some antivirus/EDR software blocks `npm.ps1`. If you encounter this issue, use the smoke test script wrapper instead:
-
-```powershell
-.\scripts\99_smoketest.ps1 -Install
-```
-
-This script automatically uses `npm.cmd` or falls back to calling npm-cli.js directly via Node.js, avoiding the PowerShell shim entirely.
+**Note for Windows Users**: Some antivirus/EDR software blocks `npm.ps1` shims. If you encounter this issue, use `npm.cmd` explicitly (or run via WSL/Linux).
 
 ### 3. Environment Variables
 
@@ -274,15 +268,11 @@ LeadIntel/
 
 **"npm.ps1 blocked by antivirus" error:**
 - **Cause**: Antivirus/EDR software blocks PowerShell script execution (`npm.ps1` shims)
-- **Solution**: Use the smoke test script which avoids `npm.ps1`:
-  ```powershell
-  .\scripts\99_smoketest.ps1 -Install
-  ```
 - **Alternative**: Use `npm.cmd` explicitly:
   ```powershell
   & (Get-Command npm.cmd).Source install
   ```
-- **All scripts fixed**: The scripts in `scripts/` folder (`01_install.ps1`, `02_quality.ps1`, `03_tests.ps1`, `99_smoketest.ps1`) automatically use `npm.cmd` or fall back to calling `npm-cli.js` via Node.js, completely bypassing `npm.ps1` shims.
+  Then run e.g. `npm.cmd run verify:ready`.
 
 **PowerShell execution policy errors:**
 - If you see "execution of scripts is disabled", run:
