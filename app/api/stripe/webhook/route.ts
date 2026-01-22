@@ -6,6 +6,8 @@ import { serverEnv, clientEnv } from '@/lib/env'
 import { ok, fail, ErrorCode } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
 import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
+import { isFeatureEnabled } from '@/lib/services/feature-flags'
+import { recordCounter } from '@/lib/observability/metrics'
 
 /**
  * Stripe Webhook Handler
@@ -22,6 +24,7 @@ export const POST = withApiGuard(
     // Guard already verified signature and parsed body
     // Body is the parsed Stripe event object
     const event = body as Stripe.Event
+    recordCounter('webhook.stripe.total', 1)
 
     captureBreadcrumb({
       category: 'webhook',
@@ -34,6 +37,17 @@ export const POST = withApiGuard(
         livemode: (event as any).livemode ?? undefined,
       },
     })
+
+    if (!isFeatureEnabled('stripe_webhook')) {
+      captureBreadcrumb({
+        category: 'feature_flag',
+        level: 'warning',
+        message: 'stripe_webhook_disabled',
+        data: { route: '/api/stripe/webhook', requestId, eventType: event.type },
+      })
+      // ACK to prevent retry storms; operators can re-enable to resume processing.
+      return ok({ received: true, disabled: true }, undefined, undefined, requestId)
+    }
 
     // Create Supabase admin client for subscription updates
     const supabaseAdmin = createClient(
@@ -71,6 +85,7 @@ export const POST = withApiGuard(
 
           if (updateError) {
             console.error('Error updating user subscription:', updateError)
+            recordCounter('webhook.stripe.error', 1, { stage: 'update_user' })
             captureException(updateError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
             return fail(
               ErrorCode.DATABASE_ERROR,
@@ -98,6 +113,7 @@ export const POST = withApiGuard(
 
           if (subError) {
             console.error('Error upserting subscription:', subError)
+            recordCounter('webhook.stripe.error', 1, { stage: 'upsert_subscription' })
             captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
         }
@@ -128,6 +144,7 @@ export const POST = withApiGuard(
 
           if (subError) {
             console.error('Error updating subscription:', subError)
+            recordCounter('webhook.stripe.error', 1, { stage: 'update_subscription' })
             captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
 

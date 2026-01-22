@@ -79,6 +79,11 @@ These variables are only available in server-side code and must never be exposed
 | `SENTRY_DSN` | ⚠️ Optional | `lib/observability/sentry.ts` | Sentry DSN (enables real error reporting; empty disables) |
 | `SENTRY_ENVIRONMENT` | ⚠️ Optional | `lib/observability/sentry.ts` | Sentry environment name |
 | `HEALTH_CHECK_EXTERNAL` | ⚠️ Optional | `lib/services/health.ts` | Enable shallow external provider checks (prod default is off) |
+| `FEATURE_AUTOPILOT_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/autopilot/run` | Global kill switch for autopilot sending (`0/false` disables) |
+| `FEATURE_RESEND_WEBHOOK_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/resend/webhook` | Global kill switch for Resend webhook processing (`0/false` disables DB writes) |
+| `FEATURE_STRIPE_WEBHOOK_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/stripe/webhook` | Global kill switch for Stripe webhook processing (`0/false` disables business updates; still ACKs) |
+| `FEATURE_CLEARBIT_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/reveal` | Global kill switch for Clearbit enrichment (`0/false` disables) |
+| `FEATURE_ZAPIER_PUSH_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/push-to-crm` | Global kill switch for Zapier push (`0/false` disables) |
 
 ### Application
 

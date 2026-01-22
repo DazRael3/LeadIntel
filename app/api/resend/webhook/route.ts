@@ -5,6 +5,8 @@ import { serverEnv } from '@/lib/env'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyResendWebhookSignature } from '@/lib/email/resend-webhook'
 import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
+import { isFeatureEnabled } from '@/lib/services/feature-flags'
+import { recordCounter } from '@/lib/observability/metrics'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,6 +39,19 @@ function mapResendStatus(eventType: string | undefined): string | null {
 export const POST = withApiGuard(
   async (_request: NextRequest, { body, requestId }) => {
     try {
+      recordCounter('webhook.resend.total', 1)
+
+      if (!isFeatureEnabled('resend_webhook')) {
+        captureBreadcrumb({
+          category: 'feature_flag',
+          level: 'warning',
+          message: 'resend_webhook_disabled',
+          data: { route: '/api/resend/webhook', requestId },
+        })
+        // Signature was already verified by guard; we intentionally ACK without DB writes.
+        return ok({ received: true, disabled: true }, undefined, undefined, requestId)
+      }
+
       const event = body as ResendWebhookEvent
       const messageId = extractResendMessageId(event)
       const status = mapResendStatus(event.type)
@@ -105,6 +120,7 @@ export const POST = withApiGuard(
 
       return ok({ received: true }, undefined, undefined, requestId)
     } catch (error) {
+      recordCounter('webhook.resend.error', 1)
       captureException(error, { route: '/api/resend/webhook', requestId, provider: 'resend' })
       return asHttpError(error, '/api/resend/webhook', undefined, undefined, requestId)
     }
@@ -123,6 +139,7 @@ export const POST = withApiGuard(
         headers: Object.fromEntries(request.headers.entries()),
       })
       if (!ok) {
+        recordCounter('webhook.resend.signature_invalid', 1)
         captureMessage('resend_webhook_invalid_signature', { route: '/api/resend/webhook' })
       }
       return ok

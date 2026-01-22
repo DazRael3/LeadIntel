@@ -58,6 +58,30 @@ const serverEnvSchema = z.object({
   // Allow empty string so test/dev can explicitly disable without failing validation.
   SENTRY_DSN: z.string().url('Invalid SENTRY_DSN URL').optional().or(z.literal('')),
   SENTRY_ENVIRONMENT: z.string().optional(),
+  HEALTH_CHECK_EXTERNAL: z.enum(['0', '1']).optional(),
+
+  // Feature flags / kill switches (global)
+  // Normalize to lowercase to avoid footguns like "TRUE"/"False" in production envs.
+  FEATURE_AUTOPILOT_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  FEATURE_RESEND_WEBHOOK_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  FEATURE_STRIPE_WEBHOOK_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  FEATURE_CLEARBIT_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  FEATURE_ZAPIER_PUSH_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
 
   // Clearbit
   CLEARBIT_REVEAL_API_KEY: z.string().optional(),
@@ -70,7 +94,6 @@ const serverEnvSchema = z.object({
   ADMIN_DIGEST_SECRET: z.string().optional(),
   CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
   CRON_SIGNING_SECRET: z.string().min(16, 'CRON_SIGNING_SECRET must be at least 16 characters').optional(),
-  HEALTH_CHECK_EXTERNAL: z.enum(['0', '1']).optional(),
   
   // Development
   DEV_SEED_SECRET: z.string().optional(),
@@ -141,6 +164,11 @@ function buildServerEnv(): ServerEnv {
     HUNTER_API_KEY: process.env.HUNTER_API_KEY,
     NEWS_API_KEY: process.env.NEWS_API_KEY,
     ZAPIER_WEBHOOK_URL: process.env.ZAPIER_WEBHOOK_URL,
+    FEATURE_AUTOPILOT_ENABLED: process.env.FEATURE_AUTOPILOT_ENABLED,
+    FEATURE_RESEND_WEBHOOK_ENABLED: process.env.FEATURE_RESEND_WEBHOOK_ENABLED,
+    FEATURE_STRIPE_WEBHOOK_ENABLED: process.env.FEATURE_STRIPE_WEBHOOK_ENABLED,
+    FEATURE_CLEARBIT_ENABLED: process.env.FEATURE_CLEARBIT_ENABLED,
+    FEATURE_ZAPIER_PUSH_ENABLED: process.env.FEATURE_ZAPIER_PUSH_ENABLED,
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET,

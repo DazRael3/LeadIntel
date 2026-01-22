@@ -7,6 +7,8 @@ import { sendEmailWithResend } from '@/lib/email/resend'
 import { insertEmailLog } from '@/lib/email/email-logs'
 import { renderSimplePitchEmailHtml } from '@/lib/email/templates'
 import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
+import { assertFeatureEnabled } from '@/lib/services/feature-flags'
+import { recordCounter } from '@/lib/observability/metrics'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -61,6 +63,19 @@ export const POST = withApiGuard(
       const parsed = AutopilotRunSchema.safeParse(input)
       if (!parsed.success) {
         return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, undefined, requestId)
+      }
+
+      recordCounter('autopilot.run.total', 1, { mode: isCron ? 'cron' : 'user' })
+
+      const featureGate = assertFeatureEnabled('autopilot_sends', {
+        route: '/api/autopilot/run',
+        requestId,
+        tenantId: sessionUserId,
+        mode: isCron ? 'cron' : 'user',
+      })
+      if (featureGate) {
+        recordCounter('autopilot.run.error', 1, { reason: 'disabled' })
+        return featureGate
       }
 
       captureBreadcrumb({
@@ -407,6 +422,7 @@ export const POST = withApiGuard(
       }
 
       if (failures.length > 0) {
+        recordCounter('autopilot.run.error', 1, { reason: 'lead_failures' })
         captureMessage('autopilot_run_completed_with_failures', {
           route: '/api/autopilot/run',
           requestId,

@@ -3,6 +3,8 @@ import { getServerEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { validateBody, validationError } from '@/lib/api/validate'
 import { z } from 'zod'
+import { assertFeatureEnabled } from '@/lib/services/feature-flags'
+import { captureBreadcrumb } from '@/lib/observability/sentry'
 
 const PushToCrmSchema = z.object({
   company_name: z.string().optional(),
@@ -18,6 +20,16 @@ export async function POST(request: NextRequest) {
   const bridge = createCookieBridge()
   
   try {
+    const gate = assertFeatureEnabled('zapier_push', { route: '/api/push-to-crm', mode: 'user' })
+    if (gate) return gate
+
+    captureBreadcrumb({
+      category: 'zapier',
+      level: 'info',
+      message: 'push_to_crm_invoked',
+      data: { route: '/api/push-to-crm' },
+    })
+
     // Get Zapier webhook URL (lazy load at runtime, not during build)
     const env = getServerEnv()
     const ZAPIER_WEBHOOK_URL = env.ZAPIER_WEBHOOK_URL || 'https://hooks.zapier.com/hooks/catch/YOUR_WEBHOOK_ID/'

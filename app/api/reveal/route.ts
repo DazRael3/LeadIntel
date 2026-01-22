@@ -5,6 +5,8 @@ import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/
 import { validateBody, validationError } from '@/lib/api/validate'
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
+import { assertFeatureEnabled } from '@/lib/services/feature-flags'
+import { captureBreadcrumb } from '@/lib/observability/sentry'
 
 /**
  * Ghost Reveal API
@@ -31,6 +33,14 @@ export const POST = withApiGuard(
     const bridge = createCookieBridge()
     try {
       const { visitor_ip } = body as z.infer<typeof RevealPostSchema>
+
+      const featureGate = assertFeatureEnabled('clearbit_enrichment', {
+        route: '/api/reveal',
+        requestId,
+        tenantId: userId,
+        mode: 'user',
+      })
+      if (featureGate) return featureGate
 
       const supabase = createRouteClient(request, bridge)
       const { data: { user } } = await supabase.auth.getUser()
@@ -83,6 +93,12 @@ export const POST = withApiGuard(
         requestId
       )
     } catch (error) {
+      captureBreadcrumb({
+        category: 'clearbit',
+        level: 'error',
+        message: 'reveal_failed',
+        data: { route: '/api/reveal', requestId },
+      })
       return asHttpError(error, '/api/reveal', userId, bridge, requestId)
     }
   },

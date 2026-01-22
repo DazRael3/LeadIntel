@@ -142,6 +142,7 @@ describe('/api/autopilot/run', () => {
     insertedEmailLogs.splice(0, insertedEmailLogs.length)
     enabledAutopilotUsers = ['user_1']
     vi.clearAllMocks()
+    process.env.FEATURE_AUTOPILOT_ENABLED = 'true'
   })
 
   it('returns a structured envelope and records a dry-run send attempt', async () => {
@@ -187,6 +188,27 @@ describe('/api/autopilot/run', () => {
     expect(json.ok).toBe(true)
     expect(json.data.emailsAttempted).toBe(0)
     expect(insertedEmailLogs.length).toBe(0)
+  })
+
+  it('returns 503 when FEATURE_AUTOPILOT_ENABLED is disabled', async () => {
+    vi.resetModules()
+    process.env.FEATURE_AUTOPILOT_ENABLED = '0'
+    const { POST } = await import('./route')
+
+    const req = new NextRequest('http://localhost:3000/api/autopilot/run', {
+      method: 'POST',
+      body: JSON.stringify({ dryRun: true, limitUsers: 1, limitLeadsPerUser: 1 }),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-secret': 'test-cron-secret-123456',
+      },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(503)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error.code).toBe('SERVICE_UNAVAILABLE')
   })
 })
 
