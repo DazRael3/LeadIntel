@@ -12,6 +12,7 @@ It also provides a lightweight **health endpoint** for uptime monitoring: `GET /
 ### Sentry integration
 
 Facade: `lib/observability/sentry.ts`
+Metrics facade: `lib/observability/metrics.ts`
 
 Behavior:
 - If `SENTRY_DSN` is **unset/empty**, observability calls **no-op** (dev/test/e2e stays clean).
@@ -20,6 +21,12 @@ Behavior:
   - `captureMessage`
   - `captureBreadcrumb`
   - `setRequestId`
+
+Metrics (minimal, no vendor yet):
+- Code uses `recordCounter()` / `recordTiming()` with a small union of metric names (e.g. `autopilot.run.total`, `ratelimit.block`).
+- If Sentry is enabled: metrics are emitted as **Sentry breadcrumbs** (sanitized).
+- If Sentry is disabled: metrics fall back to **structured server console logs** (`[metric] ...`).
+- Metrics calls never throw and **drop/truncate** tag keys/values that look sensitive.
 
 Security/privacy rules:
 - We **do not** attach raw request bodies, webhook payloads, email bodies, or tokens.
@@ -30,6 +37,7 @@ Security/privacy rules:
 Env vars (server):
 - `SENTRY_DSN` (optional; empty string disables)
 - `SENTRY_ENVIRONMENT` (optional; defaults to `NODE_ENV`)
+- Kill switches (optional; see below): `FEATURE_*`
 
 ---
 
@@ -58,6 +66,29 @@ External provider checks:
 
 Env vars:
 - `HEALTH_CHECK_EXTERNAL` (`0|1`, optional; default `0`)
+
+---
+
+### Kill switches / feature flags (global)
+
+Facade: `lib/services/feature-flags.ts`
+
+These are **global emergency flags** intended for production incident response. Defaults are **ON** unless explicitly disabled.
+
+Supported env vars:
+- `FEATURE_AUTOPILOT_ENABLED`
+- `FEATURE_RESEND_WEBHOOK_ENABLED`
+- `FEATURE_STRIPE_WEBHOOK_ENABLED`
+- `FEATURE_CLEARBIT_ENABLED`
+- `FEATURE_ZAPIER_PUSH_ENABLED`
+
+Values:
+- `0` / `false` disables the feature globally.
+- `1` / `true` enables the feature globally.
+
+Design notes:
+- Webhooks still verify signatures, but may **ACK early** (no DB writes) when disabled.
+- User-facing routes typically return a **503** when disabled.
 
 Recommended usage:
 - Point your uptime monitor (Pingdom/BetterUptime/etc.) at `GET /api/health`.

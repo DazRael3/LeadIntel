@@ -24,6 +24,7 @@ import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { serverEnv } from '@/lib/env'
 import { timingSafeEqualAscii, verifyCronToken } from '@/lib/api/cron-auth'
+import { recordCounter } from '@/lib/observability/metrics'
 
 /**
  * Options for withApiGuard
@@ -253,6 +254,10 @@ export function withApiGuard(
         // In development, rateLimitResult may be null if Redis is not configured (allowed)
         // In production, checkPolicyRateLimit throws RedisNotConfiguredError if Redis is missing
         if (rateLimitResult && !rateLimitResult.success) {
+          recordCounter('ratelimit.block', 1, {
+            route: pathname,
+            auth: userId ? '1' : '0',
+          })
           // Convert PolicyRateLimitResult to RateLimitResult for getRateLimitError
           const standardResult = {
             success: false,
