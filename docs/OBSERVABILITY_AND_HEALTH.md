@@ -90,6 +90,16 @@ Design notes:
 - Webhooks still verify signatures, but may **ACK early** (no DB writes) when disabled.
 - User-facing routes typically return a **503** when disabled.
 
+### Per-tenant overrides (feature flags)
+
+If global kill switches allow a feature, you can still disable/enable some features **per tenant**.
+
+- Table: `api.feature_flags` (RLS tenant-scoped)
+- API: `POST /api/settings/features` (authenticated, tenant-scoped)
+- Current keys:
+  - `clearbit_enrichment`
+  - `zapier_push`
+
 Recommended usage:
 - Point your uptime monitor (Pingdom/BetterUptime/etc.) at `GET /api/health`.
 - Alert on `data.status === "down"`; optionally page on sustained `"degraded"`.

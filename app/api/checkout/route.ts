@@ -3,8 +3,7 @@ import { stripe } from '@/lib/stripe'
 import { createRouteClient } from '@/lib/supabase/route'
 import { serverEnv, clientEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { checkRateLimit, shouldBypassRateLimit, getRateLimitError } from '@/lib/api/ratelimit'
-import { validateOrigin } from '@/lib/api/security'
+import { withApiGuard } from '@/lib/api/guard'
 
 /**
  * Validates required Stripe environment variables
@@ -32,35 +31,12 @@ function validateStripeEnv(): { priceId: string; siteUrl: string } {
 }
 
 export async function POST(request: NextRequest) {
+  return POST_GUARDED(request)
+}
+
+const POST_GUARDED = withApiGuard(async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
-  const route = '/api/checkout'
-  
   try {
-    // Validate origin for state-changing requests
-    const originError = validateOrigin(request, route)
-    if (originError) {
-      return originError
-    }
-    
-    // Check rate limit bypass
-    if (!shouldBypassRateLimit(request, route)) {
-      // Get user for rate limiting
-      const supabase = createRouteClient(request, bridge)
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      // Check rate limit
-      const rateLimitResult = await checkRateLimit(
-        request,
-        user?.id || null,
-        route,
-        'CHECKOUT'
-      )
-      
-      if (rateLimitResult && !rateLimitResult.success) {
-        return getRateLimitError(rateLimitResult, bridge)
-      }
-    }
-    
     // Create Supabase client using the bridge response (cookies will be set on bridge)
     const supabase = createRouteClient(request, bridge)
     
@@ -68,7 +44,7 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
+      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
     // Validate Stripe environment variables
@@ -84,7 +60,8 @@ export async function POST(request: NextRequest) {
         'Stripe configuration error',
         undefined,
         undefined,
-        bridge
+        bridge,
+        requestId
       )
     }
 
@@ -131,7 +108,8 @@ export async function POST(request: NextRequest) {
         'Already subscribed',
         undefined,
         undefined,
-        bridge
+        bridge,
+        requestId
       )
     }
 
@@ -162,8 +140,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Return standardized success response
-    return ok({ url: session.url }, undefined, bridge)
+    return ok({ url: session.url }, undefined, bridge, requestId)
   } catch (error) {
-    return asHttpError(error, '/api/checkout', undefined, bridge)
+    return asHttpError(error, '/api/checkout', undefined, bridge, requestId)
   }
-}
+})

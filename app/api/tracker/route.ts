@@ -182,7 +182,8 @@ async function identifyCompany(ip: string): Promise<{
       industry: undefined,
     }
   } catch (error) {
-    console.error('Error identifying company:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Error identifying company:', { message })
     return {
       name: 'Unknown Company',
       domain: undefined,

@@ -9,6 +9,7 @@ const WEBSITE_URL = 'https://dazrael.com'
 
 import { serverEnv } from './env'
 import { isE2E, isTestEnv } from './runtimeFlags'
+import { captureException, captureMessage } from './observability/sentry'
 
 // Lazy initialization of OpenAI client
 function getOpenAIClient(): OpenAI {
@@ -219,9 +220,6 @@ export async function calculateDealScore(input: DealScoringInput): Promise<{
   if (input.userSettings?.whatYouSell && input.userSettings?.idealCustomer) {
     // Use AI to determine fit if OpenAI is available
     try {
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error('Configuration Error: Missing API Key - OPENAI_API_KEY')
-      }
       const openai = getOpenAIClient()
       const response = await openai.chat.completions.create({
         model: 'gpt-4o',
@@ -312,10 +310,6 @@ export async function generatePitch(
     return `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent || 'activity'}. View it here: ${WEBSITE_URL}`
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('Configuration Error: Missing API Key - OPENAI_API_KEY')
-  }
-
   try {
     const openai = getOpenAIClient()
     const response = await openai.chat.completions.create({
@@ -350,15 +344,14 @@ End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant 
       temperature: 0.7,
       max_tokens: 250,
     })
-
-    console.log('--- AI RAW RESPONSE ---', JSON.stringify(response, null, 2))
+    // Never log raw provider payloads (may contain sensitive user input).
     
     // Check if response structure is correct
     const content = response.choices?.[0]?.message?.content
     let pitch = content?.trim() || ''
     
     if (!pitch) {
-      console.error('ERROR: AI response content is empty or undefined')
+      captureMessage('ai_empty_response', { route: 'lib/ai-logic.generatePitch' })
       return 'AI failed to generate pitch. Please check OpenAI credits.'
     }
 
@@ -383,7 +376,7 @@ End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant 
 
     return pitch.trim()
   } catch (error) {
-    console.error('Error generating pitch:', error)
+    captureException(error, { route: 'lib/ai-logic.generatePitch' })
     // Fallback pitch
     return `Hi ${ceoName || 'there'}, I've already generated a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${WEBSITE_URL}`
   }
@@ -409,10 +402,6 @@ export async function generateBattleCard(
       painPoint: 'Scaling sales operations while maintaining quality',
       killerFeature: 'Automated lead scoring and personalized outreach',
     }
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('Configuration Error: Missing API Key - OPENAI_API_KEY')
   }
 
   try {
@@ -471,7 +460,7 @@ Return as JSON:
       killerFeature: battleCard.killerFeature || 'AI-powered lead intelligence',
     }
   } catch (error) {
-    console.error('Error generating battle card:', error)
+    captureException(error, { route: 'lib/ai-logic.generateBattleCard' })
     // Fallback battle card
     return {
       currentTech: ['CRM Platform', 'Email Marketing', 'Analytics Tools'],
@@ -502,10 +491,6 @@ export async function generateEmailSequence(
       part2: `Based on your recent ${triggerEvent || 'activity'}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: ${WEBSITE_URL}`,
       part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${WEBSITE_URL}`,
     }
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('Configuration Error: Missing API Key - OPENAI_API_KEY')
   }
 
   try {
@@ -594,7 +579,7 @@ This is the final email in the sequence. Keep it brief and respectful.`,
             `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${WEBSITE_URL}`,
     }
   } catch (error) {
-    console.error('Error generating email sequence:', error)
+    captureException(error, { route: 'lib/ai-logic.generateEmailSequence' })
     // Fallback sequence
     return {
       part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${WEBSITE_URL}`,

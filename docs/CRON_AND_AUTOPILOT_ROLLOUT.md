@@ -86,6 +86,17 @@ Behavior:
 - **Cron-triggered** `/api/autopilot/run` only processes tenants where `autopilot_enabled = true`.
 - **Manual** runs are restricted to the authenticated user’s tenant, and non-dry-run requires `autopilot_enabled = true`.
 
+---
+
+## Digest + Discover behavior (cron)
+
+- `POST /api/digest/run`:
+  - Cron calls run in **system mode** (no end-user Supabase session) and use the **service role** to read digest-enabled tenants.
+  - Manual/admin calls require `x-admin-digest-secret` (no end-user session required) and also use the service role.
+
+- `POST /api/leads/discover`:
+  - Currently a placeholder route wired for cron auth + rate limiting.
+
 ### Enabling/disabling autopilot
 
 In the dashboard, use the **Settings** tab to toggle Autopilot for your user.

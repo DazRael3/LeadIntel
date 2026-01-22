@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server'
-import { createRouteClient } from '@/lib/supabase/route'
 import { serverEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { validateBody, validationError } from '@/lib/api/validate'
 import { DigestRunSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { captureBreadcrumb, captureException } from '@/lib/observability/sentry'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,8 @@ export const POST = withApiGuard(
         return validationError(error, bridge, requestId)
       }
 
-      const supabase = createRouteClient(request, bridge)
+      // Digest operates cross-tenant (reads digest-enabled tenants), so it must use service role.
+      const supabase = createSupabaseAdminClient()
 
       // Find digest-enabled users due now (simple: enabled + any)
       const { data: users, error: usersError } = await supabase
@@ -49,6 +51,7 @@ export const POST = withApiGuard(
         .eq('digest_enabled', true)
 
       if (usersError) {
+        captureException(usersError, { route: '/api/digest/run', requestId, isCron })
         return fail(ErrorCode.DATABASE_ERROR, 'Failed to fetch users', undefined, undefined, bridge, requestId)
       }
 
@@ -80,10 +83,20 @@ export const POST = withApiGuard(
           }
         }
 
-        await supabase
-          .from('user_settings')
-          .update({ digest_last_sent_at: new Date().toISOString() })
-          .eq('user_id', u.user_id)
+        try {
+          await supabase
+            .from('user_settings')
+            .update({ digest_last_sent_at: new Date().toISOString() })
+            .eq('user_id', u.user_id)
+        } catch {
+          // Best-effort: schema may not include digest_last_sent_at yet.
+          captureBreadcrumb({
+            category: 'digest',
+            level: 'warning',
+            message: 'digest_last_sent_at_update_failed',
+            data: { route: '/api/digest/run', requestId, isCron },
+          })
+        }
 
         summaries.push({ user_id: u.user_id, delivered })
       }

@@ -14,16 +14,29 @@ Use `docs/ENV_VARIABLES_CHECKLIST.md` as the source of truth. At a minimum, ensu
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY`
   - `NEXT_PUBLIC_SUPABASE_DB_SCHEMA=api`
+  - `UPSTASH_REDIS_REST_URL`
+  - `UPSTASH_REDIS_REST_TOKEN`
 
 - **Stripe**
   - `STRIPE_SECRET_KEY`
   - `STRIPE_WEBHOOK_SECRET`
   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+  - `STRIPE_PRICE_ID` (or `STRIPE_PRICE_ID_PRO`)
 
 - **Resend**
   - `RESEND_API_KEY`
   - `RESEND_FROM_EMAIL`
   - `RESEND_WEBHOOK_SECRET`
+
+- **OpenAI**
+  - `OPENAI_API_KEY`
+
+- **Clearbit (optional)**
+  - `CLEARBIT_REVEAL_API_KEY` (Ghost Reveal)
+  - `CLEARBIT_API_KEY` (optional enrichment)
+
+- **Zapier (optional)**
+  - `ZAPIER_WEBHOOK_URL`
 
 - **Cron (automation endpoints)**
   - `CRON_SIGNING_SECRET`
@@ -54,15 +67,20 @@ Recommended initial values:
 Apply migrations in `supabase/migrations/` (idempotent where possible).
 Production should include at least:
 
+- `0001_init_api_schema.sql` (base `api.*` tables + RLS + grants)
+- `0004_missing_tables.sql` (website visitors, email logs, etc.)
+- `0008_align_schema_with_app.sql` (adds columns app expects)
 - `0010_tracking_keys_and_email_logs.sql`
 - `0011_engagement_tracking.sql`
 - `0012_conversion_tracking.sql`
 - `0013_autopilot_enabled.sql`
 - `0014_feature_flags.sql` (per-tenant feature overrides)
+- `0015_api_grants_for_tracking_and_feature_flags.sql` (explicit GRANTs for authenticated on new tables)
 
 Notes:
 - Analytics + email logging assume schema `api` and RLS policies are enabled.
 - After applying migrations, reload PostgREST schema cache if needed.
+ - After applying `0015`, authenticated app routes should no longer hit "permission denied" on `api.website_visitors`, `api.email_logs`, or `api.feature_flags`.
 
 ---
 
@@ -132,9 +150,64 @@ Run:
 - `npm run lint`
 - `npm run test:unit`
 - `npm run test:e2e`
+ - `npm run verify:ready` (shortcut)
 
 Verify:
 - `/api/health` returns `ok: true` and `data.status !== "down"` in your environment.
 - Cron invocations succeed with signed `cron_token`.
 - Webhooks validate signatures and respect kill switches.
+ - RLS sanity: run the SQL checks in `docs/ANALYTICS_RLS.md` after migrations to confirm RLS + grants.
+ - (optional) Run the automated RLS sanity script (staging/prod): `RUN_DB_SANITY=1 npm run db:sanity`
+
+---
+
+### 7) Manual smoke checks (staging)
+
+- **Auth + dashboard**
+  - Login works and dashboard loads.
+  - Settings tab loads and autopilot toggle can be flipped.
+
+- **Core product**
+  - Generate pitch (`/api/generate-pitch`) succeeds for an authenticated user.
+  - Generate sequence (`/api/generate-sequence`) succeeds for Pro user.
+  - Send pitch (`/api/send-pitch`) succeeds for Pro user and writes an email log.
+
+- **Tracking / reveal**
+  - Tracker script (`GET /api/tracker?k=...`) loads.
+  - Tracker POST writes `api.website_visitors` rows (verify in Supabase).
+  - Reveal (`POST /api/reveal`) respects global + per-tenant flags.
+
+- **Payments**
+  - Upgrade flow calls `POST /api/checkout` and returns a Stripe checkout URL.
+  - Portal flow calls `POST /api/stripe/portal` and returns a portal URL.
+
+- **Integrations**
+  - Push to CRM (`POST /api/push-to-crm`) respects global + per-tenant flags.
+
+
+---
+
+### Scratch (repo/docs sweep findings — to reconcile before launch)
+
+This section is intentionally “internal notes” from a repo sweep. It should be burned down as part of launch hardening.
+
+- **ENV checklist is partially stale**
+  - `docs/ENV_VARIABLES_CHECKLIST.md` includes a “File-by-File Usage” section that flags many routes as “still uses process.env.*”.
+  - The codebase has since moved many critical paths to `serverEnv`/`clientEnv` and added new runtime controls (kill switches, per-tenant overrides, health checks).
+  - Action: refresh that section or remove the per-file audit in favor of `lib/env.ts` being the source of truth.
+
+- **Launch checklist is missing some required/operational envs**
+  - Action: ensure the top-level list includes:
+    - Upstash: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (required in production for rate limiting)
+    - OpenAI: `OPENAI_API_KEY` (required for AI routes)
+    - Clearbit: `CLEARBIT_REVEAL_API_KEY` / `CLEARBIT_API_KEY` (if enabling enrichment)
+    - Zapier: `ZAPIER_WEBHOOK_URL` (if enabling CRM push)
+    - Digest: `ADMIN_DIGEST_SECRET` (if using non-cron admin path)
+
+- **DB verification steps need to be consolidated**
+  - `docs/ANALYTICS_RLS.md` has SQL checks for analytics tables; the launch checklist needs a single “DB verification steps” section that also covers:
+    - `api.website_visitors`
+    - `api.email_logs`
+    - `api.feature_flags`
+
 

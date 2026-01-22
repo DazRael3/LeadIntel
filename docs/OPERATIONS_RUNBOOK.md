@@ -50,6 +50,16 @@ Operational guidance:
 - Prefer disabling **the smallest surface area** first (e.g. `FEATURE_RESEND_WEBHOOK_ENABLED=0` rather than disabling all traffic).
 - Re-enable gradually and watch Sentry + logs.
 
+### 3b) Per-tenant feature overrides
+
+If global kill switches allow a feature, per-tenant overrides can still enable/disable for individual tenants.
+
+- Backing table: `api.feature_flags` (tenant-scoped via RLS)
+- Update API: `POST /api/settings/features`
+- Supported keys today:
+  - `clearbit_enrichment`
+  - `zapier_push`
+
 ---
 
 ### 4) Minimal metrics (today)

@@ -19,7 +19,9 @@
     "scraper": "tsx scripts/scraper.ts",
     "marketing": "tsx scripts/auto-marketing.ts",
     "dry-run": "tsx scripts/dry-run.ts",
-    "migration": "tsx scripts/apply-migration.ts"
+    "migration": "tsx scripts/apply-migration.ts",
+    "db:sanity": "tsx scripts/db-sanity-rls.ts",
+    "verify:ready": "npm run lint && npm run test:unit && npm run test:e2e"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
