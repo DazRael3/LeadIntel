@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { insertEmailLog } from '@/lib/email/email-logs'
 import { renderSimplePitchEmailHtml } from '@/lib/email/templates'
+import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -61,6 +62,19 @@ export const POST = withApiGuard(
       if (!parsed.success) {
         return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, undefined, requestId)
       }
+
+      captureBreadcrumb({
+        category: 'autopilot',
+        level: 'info',
+        message: 'autopilot_run_start',
+        data: {
+          route: '/api/autopilot/run',
+          requestId,
+          isCron,
+          dryRun: parsed.data.dryRun,
+          targetedUserId: parsed.data.userId ? 'yes' : 'no',
+        },
+      })
 
       const now = new Date()
       const dayStart = startOfDayIso(now)
@@ -122,6 +136,7 @@ export const POST = withApiGuard(
         .limit(parsed.data.limitUsers ?? 50)
 
       if (usersError) {
+        captureException(usersError, { route: '/api/autopilot/run', requestId, isCron })
         return fail(ErrorCode.DATABASE_ERROR, 'Failed to fetch users', undefined, undefined, undefined, requestId)
       }
 
@@ -134,6 +149,11 @@ export const POST = withApiGuard(
           .maybeSingle()
         const enabled = Boolean((s as { autopilot_enabled?: boolean } | null)?.autopilot_enabled)
         if (!enabled && !parsed.data.dryRun) {
+          captureMessage('autopilot_disabled_for_tenant', {
+            route: '/api/autopilot/run',
+            requestId,
+            isCron: true,
+          })
           return ok(
             {
               mode: 'cron',
@@ -167,6 +187,7 @@ export const POST = withApiGuard(
           .maybeSingle()
         const enabled = Boolean((s as { autopilot_enabled?: boolean } | null)?.autopilot_enabled)
         if (!enabled && !parsed.data.dryRun) {
+          captureMessage('autopilot_disabled_manual', { route: '/api/autopilot/run', requestId, isCron: false })
           return fail(ErrorCode.FORBIDDEN, 'Autopilot is disabled. Enable it in Settings first.', undefined, undefined, undefined, requestId)
         }
       }
@@ -225,6 +246,7 @@ export const POST = withApiGuard(
           .limit(Math.min(parsed.data.limitLeadsPerUser ?? remaining, remaining))
 
         if (leadsError) {
+          captureException(leadsError, { route: '/api/autopilot/run', requestId, isCron, userId })
           failures.push({ userId, code: ErrorCode.DATABASE_ERROR, message: 'Failed to fetch leads' })
           continue
         }
@@ -243,6 +265,12 @@ export const POST = withApiGuard(
           try {
             const toEmail = leadRow.contact_email
             if (!toEmail || !isEmail(toEmail)) {
+              captureBreadcrumb({
+                category: 'autopilot',
+                level: 'warning',
+                message: 'lead_skipped_invalid_contact_email',
+                data: { route: '/api/autopilot/run', requestId, userId, leadId: leadRow.id },
+              })
               failures.push({
                 userId,
                 leadId: leadRow.id,
@@ -308,6 +336,13 @@ export const POST = withApiGuard(
               })
               if (!sendResult.ok) {
                 status = 'failed'
+                captureMessage('autopilot_resend_send_failed', {
+                  route: '/api/autopilot/run',
+                  requestId,
+                  userId,
+                  leadId: leadRow.id,
+                  provider: 'resend',
+                })
               } else {
                 resendMessageId = sendResult.messageId
               }
@@ -328,6 +363,12 @@ export const POST = withApiGuard(
             })
 
             if (!logResult.ok) {
+              captureMessage('autopilot_email_log_write_failed', {
+                route: '/api/autopilot/run',
+                requestId,
+                userId,
+                leadId: leadRow.id,
+              })
               failures.push({
                 userId,
                 leadId: leadRow.id,
@@ -347,6 +388,14 @@ export const POST = withApiGuard(
               })
             }
           } catch (err) {
+            captureException(err, {
+              route: '/api/autopilot/run',
+              requestId,
+              isCron,
+              userId,
+              leadId: (lead as { id: string }).id,
+              provider: 'resend',
+            })
             failures.push({
               userId,
               leadId: (lead as { id: string }).id,
@@ -355,6 +404,20 @@ export const POST = withApiGuard(
             })
           }
         }
+      }
+
+      if (failures.length > 0) {
+        captureMessage('autopilot_run_completed_with_failures', {
+          route: '/api/autopilot/run',
+          requestId,
+          isCron,
+          dryRun: parsed.data.dryRun,
+          usersProcessed,
+          leadsProcessed,
+          emailsAttempted,
+          successfulSends,
+          failureCount: failures.length,
+        })
       }
 
       return ok(
@@ -377,6 +440,7 @@ export const POST = withApiGuard(
         requestId
       )
     } catch (error) {
+      captureException(error, { route: '/api/autopilot/run', requestId, isCron })
       return asHttpError(error, '/api/autopilot/run', undefined, undefined, requestId)
     }
   },

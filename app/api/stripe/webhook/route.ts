@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { serverEnv, clientEnv } from '@/lib/env'
 import { ok, fail, ErrorCode } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
+import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
 
 /**
  * Stripe Webhook Handler
@@ -21,6 +22,18 @@ export const POST = withApiGuard(
     // Guard already verified signature and parsed body
     // Body is the parsed Stripe event object
     const event = body as Stripe.Event
+
+    captureBreadcrumb({
+      category: 'webhook',
+      level: 'info',
+      message: 'stripe_webhook_received',
+      data: {
+        route: '/api/stripe/webhook',
+        requestId,
+        eventType: event.type,
+        livemode: (event as any).livemode ?? undefined,
+      },
+    })
 
     // Create Supabase admin client for subscription updates
     const supabaseAdmin = createClient(
@@ -58,6 +71,7 @@ export const POST = withApiGuard(
 
           if (updateError) {
             console.error('Error updating user subscription:', updateError)
+            captureException(updateError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
             return fail(
               ErrorCode.DATABASE_ERROR,
               'Failed to update subscription',
@@ -84,6 +98,7 @@ export const POST = withApiGuard(
 
           if (subError) {
             console.error('Error upserting subscription:', subError)
+            captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
         }
         break
@@ -113,6 +128,7 @@ export const POST = withApiGuard(
 
           if (subError) {
             console.error('Error updating subscription:', subError)
+            captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
 
           // Update user tier based on subscription status
@@ -134,6 +150,7 @@ export const POST = withApiGuard(
       default:
         // Unhandled event type
         console.log(`Unhandled event type: ${event.type}`)
+        captureMessage('stripe_webhook_unhandled_event', { route: '/api/stripe/webhook', requestId, eventType: event.type })
     }
 
     return ok({ received: true }, undefined, undefined, requestId)

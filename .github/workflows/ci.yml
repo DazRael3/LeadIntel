@@ -43,6 +43,9 @@ jobs:
       DEV_SEED_SECRET: test-secret
       CRON_SECRET: test-cron-secret-123456
       CRON_SIGNING_SECRET: test-cron-signing-secret-123456
+      SENTRY_DSN: ""
+      SENTRY_ENVIRONMENT: test
+      HEALTH_CHECK_EXTERNAL: "0"
       # Playwright test user (for E2E tests)
       E2E_TEST_USER_EMAIL: e2e-test@example.com
       E2E_TEST_USER_PASSWORD: test-password-123

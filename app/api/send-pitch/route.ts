@@ -7,6 +7,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { insertEmailLog } from '@/lib/email/email-logs'
 import { renderSimplePitchEmailHtml } from '@/lib/email/templates'
+import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
 
 /**
  * Auto-Send Pitch API
@@ -57,6 +58,7 @@ export const POST = withApiGuard(
         .single()
 
       if (leadError || !lead) {
+        captureMessage('send_pitch_lead_not_found', { route: '/api/send-pitch', requestId, userId, leadId })
         return fail(ErrorCode.NOT_FOUND, 'Lead not found', undefined, undefined, bridge, requestId)
       }
 
@@ -92,6 +94,13 @@ export const POST = withApiGuard(
       })
 
       if (!sendResult.ok) {
+        captureMessage('send_pitch_resend_failed', {
+          route: '/api/send-pitch',
+          requestId,
+          userId,
+          leadId,
+          provider: 'resend',
+        })
         await insertEmailLog(supabase, {
           userId: user.id,
           leadId,
@@ -107,6 +116,13 @@ export const POST = withApiGuard(
         })
         return fail(ErrorCode.EXTERNAL_API_ERROR, 'Failed to send email', undefined, undefined, bridge, requestId)
       }
+
+      captureBreadcrumb({
+        category: 'email',
+        level: 'info',
+        message: 'send_pitch_sent',
+        data: { route: '/api/send-pitch', requestId, userId, leadId, provider: 'resend' },
+      })
 
       await insertEmailLog(supabase, {
         userId: user.id,
@@ -124,6 +140,7 @@ export const POST = withApiGuard(
 
       return ok({ message: 'Email sent successfully', emailId: sendResult.messageId }, undefined, bridge, requestId)
     } catch (error) {
+      captureException(error, { route: '/api/send-pitch', requestId, userId, provider: 'resend' })
       return asHttpError(error, '/api/send-pitch', userId, bridge, requestId)
     }
   },

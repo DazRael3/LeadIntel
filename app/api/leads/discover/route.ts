@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok } from '@/lib/api/http'
+import { captureBreadcrumb } from '@/lib/observability/sentry'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,6 +12,12 @@ export const dynamic = 'force-dynamic'
  * limiting now, so production schedulers can call it safely.
  */
 export const POST = withApiGuard(async (_request: NextRequest, { requestId }) => {
+  captureBreadcrumb({
+    category: 'cron',
+    level: 'info',
+    message: 'leads_discover_invoked',
+    data: { route: '/api/leads/discover', requestId },
+  })
   return ok(
     {
       discovered: 0,

@@ -4,6 +4,7 @@ import { ok, fail, asHttpError, ErrorCode } from '@/lib/api/http'
 import { serverEnv } from '@/lib/env'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyResendWebhookSignature } from '@/lib/email/resend-webhook'
+import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -39,6 +40,18 @@ export const POST = withApiGuard(
       const event = body as ResendWebhookEvent
       const messageId = extractResendMessageId(event)
       const status = mapResendStatus(event.type)
+
+      captureBreadcrumb({
+        category: 'webhook',
+        level: 'info',
+        message: 'resend_webhook_received',
+        data: {
+          route: '/api/resend/webhook',
+          requestId,
+          eventType: event.type || 'unknown',
+          hasMessageId: Boolean(messageId),
+        },
+      })
 
       if (!messageId || !status) {
         // Valid webhook, but not actionable for our current analytics.
@@ -92,19 +105,27 @@ export const POST = withApiGuard(
 
       return ok({ received: true }, undefined, undefined, requestId)
     } catch (error) {
+      captureException(error, { route: '/api/resend/webhook', requestId, provider: 'resend' })
       return asHttpError(error, '/api/resend/webhook', undefined, undefined, requestId)
     }
   },
   {
     verifyWebhookSignature: async ({ request, rawBody }) => {
       const secret = serverEnv.RESEND_WEBHOOK_SECRET
-      if (!secret) return false
+      if (!secret) {
+        captureMessage('resend_webhook_missing_secret', { route: '/api/resend/webhook' })
+        return false
+      }
       // Important: verify against raw body before JSON parsing
-      return verifyResendWebhookSignature({
+      const ok = verifyResendWebhookSignature({
         secret,
         rawBody,
         headers: Object.fromEntries(request.headers.entries()),
       })
+      if (!ok) {
+        captureMessage('resend_webhook_invalid_signature', { route: '/api/resend/webhook' })
+      }
+      return ok
     },
   }
 )

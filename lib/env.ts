@@ -54,6 +54,11 @@ const serverEnvSchema = z.object({
   RESEND_FROM_EMAIL: z.string().email('Invalid Resend from email').optional(),
   RESEND_WEBHOOK_SECRET: z.string().min(1, 'Resend webhook secret required').optional(),
   
+  // Observability (Sentry)
+  // Allow empty string so test/dev can explicitly disable without failing validation.
+  SENTRY_DSN: z.string().url('Invalid SENTRY_DSN URL').optional().or(z.literal('')),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+
   // Clearbit
   CLEARBIT_REVEAL_API_KEY: z.string().optional(),
   CLEARBIT_API_KEY: z.string().optional(),
@@ -65,6 +70,7 @@ const serverEnvSchema = z.object({
   ADMIN_DIGEST_SECRET: z.string().optional(),
   CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
   CRON_SIGNING_SECRET: z.string().min(16, 'CRON_SIGNING_SECRET must be at least 16 characters').optional(),
+  HEALTH_CHECK_EXTERNAL: z.enum(['0', '1']).optional(),
   
   // Development
   DEV_SEED_SECRET: z.string().optional(),
@@ -128,6 +134,8 @@ function buildServerEnv(): ServerEnv {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
     CLEARBIT_REVEAL_API_KEY: process.env.CLEARBIT_REVEAL_API_KEY,
     CLEARBIT_API_KEY: process.env.CLEARBIT_API_KEY,
     HUNTER_API_KEY: process.env.HUNTER_API_KEY,
@@ -136,6 +144,7 @@ function buildServerEnv(): ServerEnv {
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET,
+    HEALTH_CHECK_EXTERNAL: process.env.HEALTH_CHECK_EXTERNAL,
     DEV_SEED_SECRET: process.env.DEV_SEED_SECRET,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
