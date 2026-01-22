@@ -200,8 +200,9 @@ export function LiveIntent({ isPro }: LiveIntentProps) {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      // TODO: Navigate to lead creation or search
-                      console.log('Create lead for:', visitor.company_name)
+                      const url = visitor.company_domain || visitor.company_name || ''
+                      const name = visitor.company_name || ''
+                      router.push(`/pitch?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`)
                     }}
                     className="hover:bg-purple-500/10 text-purple-400"
                   >
