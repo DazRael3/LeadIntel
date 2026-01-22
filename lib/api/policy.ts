@@ -322,9 +322,22 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/settings/features': {
+    tier: 'WRITE',
+    maxBytes: 4096, // small settings payload
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/push-to-crm': {
     tier: 'WRITE',
-    maxBytes: 32768, // 32KB
+    maxBytes: 2 * 1024 * 1024, // 2MB (lead payload with pitch content)
     rateLimit: {
       authPerMin: 60,
       ipPerMin: 30,

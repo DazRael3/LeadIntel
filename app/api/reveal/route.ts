@@ -34,19 +34,20 @@ export const POST = withApiGuard(
     try {
       const { visitor_ip } = body as z.infer<typeof RevealPostSchema>
 
-      const featureGate = assertFeatureEnabled('clearbit_enrichment', {
-        route: '/api/reveal',
-        requestId,
-        tenantId: userId,
-        mode: 'user',
-      })
-      if (featureGate) return featureGate
-
       const supabase = createRouteClient(request, bridge)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
+
+      const featureGate = await assertFeatureEnabled('clearbit_enrichment', {
+        route: '/api/reveal',
+        requestId,
+        tenantId: user.id,
+        mode: 'user',
+        supabase,
+      })
+      if (featureGate) return featureGate
 
       const { data: userData } = await supabase
         .from('users')

@@ -67,7 +67,7 @@ export const POST = withApiGuard(
 
       recordCounter('autopilot.run.total', 1, { mode: isCron ? 'cron' : 'user' })
 
-      const featureGate = assertFeatureEnabled('autopilot_sends', {
+      const featureGate = await assertFeatureEnabled('autopilot_sends', {
         route: '/api/autopilot/run',
         requestId,
         tenantId: sessionUserId,

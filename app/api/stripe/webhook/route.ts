@@ -38,7 +38,7 @@ export const POST = withApiGuard(
       },
     })
 
-    if (!isFeatureEnabled('stripe_webhook')) {
+    if (!(await isFeatureEnabled('stripe_webhook'))) {
       captureBreadcrumb({
         category: 'feature_flag',
         level: 'warning',

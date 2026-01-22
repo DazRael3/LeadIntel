@@ -26,6 +26,7 @@ describe('API Policy', () => {
     'GET:/api/whoami',
     'GET:/api/health',
     'POST:/api/stripe/portal',
+    'POST:/api/settings/features',
     'POST:/api/reveal',
     'POST:/api/verify-email',
     'POST:/api/tracker',

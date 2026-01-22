@@ -41,7 +41,7 @@ export const POST = withApiGuard(
     try {
       recordCounter('webhook.resend.total', 1)
 
-      if (!isFeatureEnabled('resend_webhook')) {
+      if (!(await isFeatureEnabled('resend_webhook'))) {
         captureBreadcrumb({
           category: 'feature_flag',
           level: 'warning',

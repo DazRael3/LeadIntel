@@ -2,6 +2,7 @@ import type { NextResponse } from 'next/server'
 import { fail, ErrorCode } from '@/lib/api/http'
 import { serverEnv } from '@/lib/env'
 import { captureBreadcrumb, captureMessage } from '@/lib/observability/sentry'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type FeatureName =
   | 'autopilot_sends'
@@ -43,20 +44,54 @@ function parseBooleanish(value: unknown): boolean | null {
   return null
 }
 
-export function isFeatureEnabled(feature: FeatureName, options?: { tenantId?: string }): boolean {
+type TenantFlagRow = { feature: string; enabled: boolean }
+
+async function getTenantOverride(
+  supabase: SupabaseClient,
+  tenantId: string,
+  feature: FeatureName
+): Promise<boolean | null> {
+  try {
+    const { data, error } = await supabase
+      .from('feature_flags')
+      .select('feature, enabled')
+      .eq('user_id', tenantId)
+      .eq('feature', feature)
+      .maybeSingle()
+    if (error || !data) return null
+    const row = data as TenantFlagRow
+    if (typeof row.enabled !== 'boolean') return null
+    return row.enabled
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Feature flag evaluation precedence:
+ * 1) Global kill switch (env) OFF => always OFF
+ * 2) Tenant override (DB) if present
+ * 3) Global env ON if explicitly set
+ * 4) Default ON
+ */
+export async function isFeatureEnabled(
+  feature: FeatureName,
+  options?: { tenantId?: string; supabase?: SupabaseClient }
+): Promise<boolean> {
   try {
     const envKey = FEATURE_TO_ENV[feature]
     const raw = serverEnv[envKey]
-    const parsed = parseBooleanish(raw)
+    const envParsed = parseBooleanish(raw)
 
-    // Default is ON unless explicitly disabled.
-    if (parsed === null) return true
-    if (parsed === false) return false
+    // Global hard-off always wins (emergency kill switch).
+    if (envParsed === false) return false
 
-    // Placeholder for future tenant overrides (DB-backed) without changing the signature.
-    if (options?.tenantId) {
-      return true
+    if (options?.tenantId && options.supabase) {
+      const overridden = await getTenantOverride(options.supabase, options.tenantId, feature)
+      if (overridden !== null) return overridden
     }
+
+    if (envParsed === true) return true
     return true
   } catch {
     // If anything goes wrong, fail OPEN for availability (operators can still disable via env).
@@ -66,42 +101,50 @@ export function isFeatureEnabled(feature: FeatureName, options?: { tenantId?: st
 
 export function assertFeatureEnabled(
   feature: FeatureName,
-  context?: { route?: string; requestId?: string; tenantId?: string; mode?: 'cron' | 'user' | 'webhook' }
-): NextResponse | null {
+  context?: {
+    route?: string
+    requestId?: string
+    tenantId?: string
+    mode?: 'cron' | 'user' | 'webhook'
+    supabase?: SupabaseClient
+  }
+): Promise<NextResponse | null> {
   try {
-    const enabled = isFeatureEnabled(feature, { tenantId: context?.tenantId })
-    if (enabled) return null
+    return (async () => {
+      const enabled = await isFeatureEnabled(feature, { tenantId: context?.tenantId, supabase: context?.supabase })
+      if (enabled) return null
 
-    captureBreadcrumb({
-      category: 'feature_flag',
-      level: 'warning',
-      message: 'feature_disabled',
-      data: {
+      captureBreadcrumb({
+        category: 'feature_flag',
+        level: 'warning',
+        message: 'feature_disabled',
+        data: {
+          feature,
+          route: context?.route,
+          requestId: context?.requestId,
+          mode: context?.mode,
+        },
+      })
+
+      captureMessage('feature_kill_switch_engaged', {
         feature,
         route: context?.route,
         requestId: context?.requestId,
         mode: context?.mode,
-      },
-    })
+      })
 
-    captureMessage('feature_kill_switch_engaged', {
-      feature,
-      route: context?.route,
-      requestId: context?.requestId,
-      mode: context?.mode,
-    })
-
-    return fail(
-      ErrorCode.SERVICE_UNAVAILABLE,
-      'Feature temporarily disabled by configuration',
-      { feature },
-      { status: 503 },
-      undefined,
-      context?.requestId
-    )
+      return fail(
+        ErrorCode.SERVICE_UNAVAILABLE,
+        'Feature temporarily disabled by configuration',
+        { feature },
+        { status: 503 },
+        undefined,
+        context?.requestId
+      )
+    })()
   } catch {
     // Never block requests due to feature-flag system failure.
-    return null
+    return Promise.resolve(null)
   }
 }
 
