@@ -12,6 +12,7 @@ import { TrendingUp, Zap, Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/TopNav"
 import { formatErrorMessage } from "@/lib/utils/format-error"
+import Link from "next/link"
 
 export default function Dashboard() {
   const [events, setEvents] = useState<TriggerEvent[]>([])
@@ -157,22 +158,6 @@ export default function Dashboard() {
     router.push(`/pitch?url=${encodeURIComponent(companyUrl)}&name=${encodeURIComponent(companyName)}`)
   }
 
-  const handleUpgrade = () => {
-    router.push('/pricing')
-  }
-
-  const handleLogin = () => {
-    router.push('/login?mode=signin&redirect=/dashboard')
-  }
-
-  const handleSignup = () => {
-    router.push('/login?mode=signup&redirect=/dashboard')
-  }
-
-  const handleDashboard = () => {
-    router.push('/dashboard')
-  }
-
   return (
     <div className="min-h-screen bg-background">
       <TopNav />
@@ -187,16 +172,17 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               {!isLoggedIn ? (
                 <>
-                  <Button variant="outline" onClick={handleLogin} size="sm">
-                    Log in
+                  {/* Use real links so navigation works even if hydration is impaired. */}
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/login?mode=signin&redirect=/dashboard">Log in</Link>
                   </Button>
-                  <Button onClick={handleSignup} size="sm">
-                    Sign up
+                  <Button asChild size="sm">
+                    <Link href="/signup?redirect=/dashboard">Sign up</Link>
                   </Button>
                 </>
               ) : (
-                <Button variant="outline" onClick={handleDashboard} size="sm">
-                  Command Center
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/dashboard">Command Center</Link>
                 </Button>
               )}
               <Badge variant={subscriptionTier === 'pro' ? 'default' : 'outline'}>
@@ -210,8 +196,8 @@ export default function Dashboard() {
                 )}
               </Badge>
               {isLoggedIn && subscriptionTier === 'free' && (
-                <Button onClick={handleUpgrade} size="sm">
-                  Upgrade to Pro
+                <Button asChild size="sm">
+                  <Link href="/pricing">Upgrade to Pro</Link>
                 </Button>
               )}
             </div>
