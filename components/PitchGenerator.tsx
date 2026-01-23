@@ -14,6 +14,10 @@ interface PitchGeneratorProps {
   initialUrl?: string
 }
 
+type ApiSuccess<T> = { ok: true; data: T }
+type ApiError = { ok: false; error: { code?: string; message?: string } }
+type ApiEnvelope<T> = ApiSuccess<T> | ApiError
+
 interface BattleCard {
   currentTech: string[]
   painPoint: string
@@ -24,6 +28,30 @@ interface EmailSequence {
   part1: string
   part2: string
   part3: string
+}
+
+type GeneratePitchPayload = {
+  pitch?: unknown
+  warnings?: unknown
+  isPro?: unknown
+  emailSequence?: unknown
+  battleCard?: unknown
+  lead?: unknown
+  triggerEvent?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function unwrapGeneratePitchPayload(raw: unknown): GeneratePitchPayload {
+  // Canonical API shape is the standardized envelope: { ok: true, data: {...} }
+  if (isRecord(raw) && raw.ok === true && 'data' in raw) {
+    const data = (raw as ApiSuccess<unknown>).data
+    return isRecord(data) ? (data as GeneratePitchPayload) : {}
+  }
+  // Backward/legacy: some callers may expect a flat object already containing fields.
+  return isRecord(raw) ? (raw as GeneratePitchPayload) : {}
 }
 
 export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
@@ -152,41 +180,45 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
         throw new Error(errorMessage)
       }
 
-      const data = await response.json() as {
-        pitch?: string
-        warnings?: string[]
-        isPro?: boolean
-        emailSequence?: EmailSequence
-        battleCard?: BattleCard
-        lead?: unknown
-        triggerEvent?: unknown
-      }
+      const raw = (await response.json()) as unknown
+      const data = unwrapGeneratePitchPayload(raw)
       
       // ALWAYS set pitch - this is the primary output (does NOT depend on lead/triggerEvent)
-      if (data.pitch && typeof data.pitch === 'string') {
-        setPitch(data.pitch)
+      const pitchText = typeof data.pitch === 'string' ? data.pitch.trim() : ''
+      if (pitchText) {
+        setPitch(pitchText)
         persistSaved(companyUrl)
       } else {
-        // Fallback if pitch is missing
+        // Only show this fallback when the request succeeded but the canonical pitch field is empty.
         setPitch('Pitch generation completed, but no pitch text was returned.')
       }
 
       // Parse warnings array defensively (non-blocking)
-      setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
+      setWarnings(Array.isArray(data.warnings) ? (data.warnings as string[]) : [])
 
       // Update isPro from response (if present)
-      if (data.isPro !== undefined) {
+      if (typeof data.isPro === 'boolean') {
         setIsPro(data.isPro)
       }
 
       // Set email sequence (3-part) - Enterprise Intelligence feature
-      if (data.emailSequence) {
-        setEmailSequence(data.emailSequence)
+      if (isRecord(data.emailSequence)) {
+        const seq = data.emailSequence as Record<string, unknown>
+        if (typeof seq.part1 === 'string' && typeof seq.part2 === 'string' && typeof seq.part3 === 'string') {
+          setEmailSequence({ part1: seq.part1, part2: seq.part2, part3: seq.part3 })
+        }
       }
 
       // Set battle card - Enterprise Intelligence feature
-      if (data.battleCard) {
-        setBattleCard(data.battleCard)
+      if (isRecord(data.battleCard)) {
+        const bc = data.battleCard as Record<string, unknown>
+        if (Array.isArray(bc.currentTech) && typeof bc.painPoint === 'string' && typeof bc.killerFeature === 'string') {
+          setBattleCard({
+            currentTech: bc.currentTech.filter((t) => typeof t === 'string') as string[],
+            painPoint: bc.painPoint,
+            killerFeature: bc.killerFeature,
+          })
+        }
       }
     } catch (error: unknown) {
       const errorMessage = formatErrorMessage(error)
