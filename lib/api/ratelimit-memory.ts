@@ -31,7 +31,18 @@ interface RateLimitEntry {
  * In-memory store for rate limit counters
  * Key format: `${identifier}:${route}`
  */
-const rateLimitStore = new Map<string, RateLimitEntry>()
+// IMPORTANT: Next.js dev server (and sometimes test runners) can reload modules.
+// Storing the counters on globalThis makes the limiter deterministic across reloads,
+// which is critical for Playwright rate-limit tests.
+const globalStoreKey = '__leadintelRateLimitStore'
+const rateLimitStore: Map<string, RateLimitEntry> = (() => {
+  const g = globalThis as unknown as Record<string, unknown>
+  const existing = g[globalStoreKey]
+  if (existing instanceof Map) return existing as Map<string, RateLimitEntry>
+  const next = new Map<string, RateLimitEntry>()
+  g[globalStoreKey] = next
+  return next
+})()
 
 /**
  * Window size in milliseconds (1 minute = 60000ms)

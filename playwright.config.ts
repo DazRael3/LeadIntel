@@ -26,7 +26,9 @@ export default defineConfig({
   // Shared settings for all projects
   use: {
     // Base URL for tests
-    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000',
+    // Default to a dedicated port so E2E does not reuse a dev server
+    // started without E2E env flags (which can cause request hangs/timeouts).
+    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3001',
     
     // Collect trace on failure
     trace: 'on-first-retry',
@@ -64,9 +66,11 @@ export default defineConfig({
 
   // Run local dev server before tests
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    // Run on a dedicated port to avoid collisions with a developer's local server.
+    command: 'npm run dev -- -p 3001',
+    url: 'http://localhost:3001',
+    // Always start a fresh server for determinism unless explicitly overridden.
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
     timeout: 120 * 1000,
     stdout: 'ignore',
     stderr: 'pipe',

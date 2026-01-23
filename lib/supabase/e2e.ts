@@ -2,11 +2,17 @@ type AuthUser = { id: string; email?: string | null }
 
 type AuthResponse = { data: { user: AuthUser | null; session?: unknown | null }; error: null }
 
-function getE2EUser(): AuthUser {
+function getE2EUser(userId?: string | null): AuthUser {
   return {
-    id: 'e2e-user-id',
+    id: (userId && userId.trim()) || 'e2e-user-id',
     email: process.env.E2E_TEST_USER_EMAIL || 'e2e-test@example.com',
   }
+}
+
+function getBrowserCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[-/\\^$*+?.()|[\\]{}]/g, '\\\\$&')}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
 }
 
 class E2EQuery<T = unknown> {
@@ -95,20 +101,21 @@ export function createE2EBrowserSupabaseClient(): any {
     auth: {
       getUser: async (): Promise<AuthResponse> => {
         const authed = typeof document !== 'undefined' && document.cookie.includes('li_e2e_auth=1')
-        return { data: { user: authed ? getE2EUser() : null }, error: null }
+        const uid = getBrowserCookie('li_e2e_uid')
+        return { data: { user: authed ? getE2EUser(uid) : null }, error: null }
       },
       signInWithPassword: async () => {
         if (typeof document !== 'undefined') {
           document.cookie = 'li_e2e_auth=1; path=/'
         }
-        const user = getE2EUser()
+        const user = getE2EUser(getBrowserCookie('li_e2e_uid'))
         return { data: { user, session: { access_token: 'e2e' } }, error: null }
       },
       signUp: async () => {
         if (typeof document !== 'undefined') {
           document.cookie = 'li_e2e_auth=1; path=/'
         }
-        const user = getE2EUser()
+        const user = getE2EUser(getBrowserCookie('li_e2e_uid'))
         return { data: { user, session: { access_token: 'e2e' } }, error: null }
       },
       signOut: async () => {
@@ -121,7 +128,7 @@ export function createE2EBrowserSupabaseClient(): any {
         if (typeof document !== 'undefined') {
           document.cookie = 'li_e2e_auth=1; path=/'
         }
-        const user = getE2EUser()
+        const user = getE2EUser(getBrowserCookie('li_e2e_uid'))
         return { data: { user, session: { access_token: 'e2e' } }, error: null }
       },
     },
@@ -134,7 +141,8 @@ export function createE2EServerSupabaseClient(args: { getCookie: (name: string) 
     auth: {
       getUser: async (): Promise<AuthResponse> => {
         const authed = args.getCookie('li_e2e_auth') === '1'
-        return { data: { user: authed ? getE2EUser() : null }, error: null }
+        const uid = args.getCookie('li_e2e_uid')
+        return { data: { user: authed ? getE2EUser(uid) : null }, error: null }
       },
       signOut: async () => ({ error: null }),
     },
