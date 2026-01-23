@@ -129,7 +129,7 @@ export function LeadCard({ lead }: LeadCardProps) {
                           onClick={() => window.location.href = '/api/checkout'}
                           className="h-6 text-xs bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
                         >
-                          Join Dazrael Pro
+                          Join LeadIntel Pro
                         </Button>
                       </div>
                     </div>
@@ -248,7 +248,7 @@ export function LeadCard({ lead }: LeadCardProps) {
                 <Lock className="h-8 w-8 mx-auto mb-3 text-cyan-400" />
                 <p className="text-sm font-bold mb-2 text-cyan-400">Pro Feature</p>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.
+                  Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.
                 </p>
                 <Button
                   size="sm"

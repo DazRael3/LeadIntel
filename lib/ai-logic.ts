@@ -5,7 +5,18 @@
 
 import OpenAI from 'openai'
 
-const WEBSITE_URL = 'https://dazrael.com'
+const DEFAULT_WEBSITE_URL = 'https://leadintel.com'
+const WEBSITE_URL =
+  typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL && process.env.NEXT_PUBLIC_SITE_URL.trim()
+    ? process.env.NEXT_PUBLIC_SITE_URL.trim()
+    : DEFAULT_WEBSITE_URL
+const WEBSITE_HOST = (() => {
+  try {
+    return new URL(WEBSITE_URL).hostname
+  } catch {
+    return 'leadintel.com'
+  }
+})()
 
 import { serverEnv } from './env'
 import { isE2E, isTestEnv } from './runtimeFlags'
@@ -355,8 +366,8 @@ End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant 
       return 'AI failed to generate pitch. Please check OpenAI credits.'
     }
 
-    // Ensure the website URL is included
-    if (!pitch.includes(WEBSITE_URL) && !pitch.includes('dazrael.com')) {
+    // Ensure the website URL is included (accept host-only matches too).
+    if (!pitch.includes(WEBSITE_URL) && !pitch.includes(WEBSITE_HOST)) {
       pitch += `\n\nView your competitive intelligence report: ${WEBSITE_URL}`
     }
 

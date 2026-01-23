@@ -13,7 +13,7 @@ export function UpgradeOverlay() {
         <Lock className="h-8 w-8 mx-auto mb-3 text-cyan-400" />
         <p className="text-sm font-bold mb-2 text-cyan-400">Pro Feature</p>
         <p className="text-xs text-muted-foreground mb-3">
-          Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.
+          Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.
         </p>
         <Button
           size="sm"

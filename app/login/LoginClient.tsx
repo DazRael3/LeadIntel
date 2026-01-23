@@ -3,7 +3,7 @@
 // No Radix/shadcn roving focus components are used here intentionally to avoid provider/context crashes.
 // The mode switch uses plain buttons with URL query updates instead of Radix Tabs.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,18 +26,17 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
   const [info, setInfo] = useState<string | null>(null)
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode)
   const [showDevTips, setShowDevTips] = useState(false)
-  const [initError, setInitError] = useState<string | null>(null)
 
-  let supabase: ReturnType<typeof createClient> | null = null
-  try {
-    supabase = createClient()
-  } catch (err: unknown) {
-    // If Supabase client creation fails, show error but still render UI
-    if (typeof window !== 'undefined') {
+  // IMPORTANT: never call setState during render.
+  // If Supabase env vars are missing/malformed, createClient() can throw; we capture that once.
+  const { supabase, initError } = useMemo(() => {
+    try {
+      return { supabase: createClient(), initError: null as string | null }
+    } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to initialize authentication'
-      setInitError(message)
+      return { supabase: null as ReturnType<typeof createClient> | null, initError: message }
     }
-  }
+  }, [])
 
   const isDev = process.env.NODE_ENV !== 'production'
 
@@ -172,7 +171,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md border-cyan-500/20 bg-card/50">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">LEADINTEL</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">LeadIntel</CardTitle>
           <CardDescription className="text-center">
             {mode === 'signin' ? 'Sign in to your account' : 'Create a new account'}
           </CardDescription>

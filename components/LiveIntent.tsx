@@ -110,7 +110,7 @@ export function LiveIntent({ isPro }: LiveIntentProps) {
               className="neon-border hover:glow-effect bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
             >
               <Sparkles className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span className="text-center">Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
+              <span className="text-center">Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
             </Button>
           </div>
         </CardContent>

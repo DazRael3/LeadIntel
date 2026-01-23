@@ -188,7 +188,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                     onClick={() => window.location.href = '/api/checkout'}
                     className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
                   >
-                    <span className="text-center">Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
+                    <span className="text-center">Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
                   </Button>
                 </div>
               ) : null}
@@ -354,7 +354,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                     <Lock className="h-8 w-8 mx-auto mb-3 text-cyan-400" />
                     <p className="text-sm font-bold mb-2 text-cyan-400">AI Pitch Locked</p>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.
+                      Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.
                     </p>
                     <Button
                       size="sm"
