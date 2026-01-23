@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from "react"
+import { useMemo, useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -37,7 +37,7 @@ export function EmailSequence({
   isPro,
   recipientEmail
 }: EmailSequenceProps) {
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com').trim()
+  const siteUrl = useMemo(() => (process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com').trim(), [])
   const [sequence, setSequence] = useState<SequenceData | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
@@ -96,7 +96,7 @@ export function EmailSequence({
     } finally {
       setLoading(false)
     }
-  }, [isPro, companyName, triggerEvent, ceoName, companyInfo, userSettings])
+  }, [isPro, companyName, triggerEvent, ceoName, companyInfo, userSettings, siteUrl])
 
   // Only auto-generate if Pro user
   useEffect(() => {
