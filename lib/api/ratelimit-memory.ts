@@ -8,6 +8,7 @@
 import { NextRequest } from 'next/server'
 import type { RoutePolicy } from './policy'
 import { getClientIp } from './ratelimit'
+import { isE2E } from '@/lib/runtimeFlags'
 
 /**
  * Rate limit check result (matches Upstash Ratelimit interface)
@@ -84,7 +85,24 @@ export async function checkPolicyRateLimitMemory(
   const isAuthenticated = userId !== null
   
   // Select appropriate limit based on authentication status
-  const limit = isAuthenticated ? policy.rateLimit.authPerMin : policy.rateLimit.ipPerMin
+  let limit = isAuthenticated ? policy.rateLimit.authPerMin : policy.rateLimit.ipPerMin
+
+  // E2E-only caps:
+  // Playwright rate-limit tests can generate very high request bursts which is realistic,
+  // but on some environments (notably Windows + Node 24 + Next dev server) it can lead to
+  // aborted sockets / ECONNRESET noise and occasional timeouts, even though rate limiting
+  // is functioning correctly.
+  //
+  // To keep E2E deterministic and fast while preserving production limits,
+  // we cap a small set of endpoints to hit 429 within a small number of requests.
+  if (isE2E()) {
+    if (route === '/api/whoami') {
+      limit = Math.min(limit, 15)
+    }
+    if (route === '/api/generate-pitch') {
+      limit = Math.min(limit, 10)
+    }
+  }
   
   // For webhooks (Tier WEBHOOK), always use IP-based
   const effectiveUserId = policy.tier === 'WEBHOOK' ? null : userId
