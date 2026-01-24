@@ -153,7 +153,10 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
   // Tier B: Payments
   'POST:/api/checkout': {
     tier: 'B',
-    maxBytes: 32768, // 32KB
+    // NOTE: Checkout parses/validates body inside the route handler so we can
+    // return a route-specific error code for invalid payloads.
+    // The handler still enforces an explicit 32KB limit.
+    maxBytes: 0,
     rateLimit: {
       authPerMin: 10,
       ipPerMin: 5,

@@ -161,7 +161,7 @@ export function Watchlist({ isPro }: WatchlistProps) {
               Star leads to automatically monitor them for 30 days. Get strategic updates when new hires, stock changes, or other trigger events occur.
             </p>
             <Button
-              onClick={() => window.location.href = '/api/checkout'}
+              onClick={() => (window.location.href = '/pricing')}
               className="neon-border hover:glow-effect bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
             >
               <span className="text-center">Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.</span>

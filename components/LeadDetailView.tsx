@@ -185,7 +185,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                   <p className="text-sm text-red-400">{unlockError}</p>
                   <Button
                     size="sm"
-                    onClick={() => window.location.href = '/api/checkout'}
+                    onClick={() => (window.location.href = '/pricing')}
                     className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
                   >
                     <span className="text-center">Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
@@ -358,7 +358,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                     </p>
                     <Button
                       size="sm"
-                      onClick={() => window.location.href = '/api/checkout'}
+                      onClick={() => (window.location.href = '/pricing')}
                       className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
                     >
                       Upgrade to Pro

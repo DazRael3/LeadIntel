@@ -17,7 +17,7 @@ export function UpgradeOverlay() {
         </p>
         <Button
           size="sm"
-          onClick={() => router.push('/api/checkout')}
+          onClick={() => router.push('/pricing')}
           className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
         >
           <DollarSign className="h-4 w-4 mr-2" />

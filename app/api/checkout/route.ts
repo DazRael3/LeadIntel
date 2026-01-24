@@ -5,6 +5,8 @@ import { serverEnv, clientEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
 import { z } from 'zod'
+import { readBodyWithLimit } from '@/lib/api/validate'
+import { captureMessage } from '@/lib/observability/sentry'
 
 /**
  * Validates required Stripe environment variables
@@ -35,38 +37,73 @@ export async function POST(request: NextRequest) {
   return POST_GUARDED(request)
 }
 
+export async function GET(_request: NextRequest) {
+  // Explicitly return JSON (not Next.js default 404) so callers get a clear signal.
+  return fail(
+    'METHOD_NOT_ALLOWED',
+    'Method not allowed. Use POST /api/checkout.',
+    undefined,
+    { status: 405 }
+  )
+}
+
 const CheckoutBodySchema = z.object({
   planId: z.literal('pro'),
-  // Optional override for multi-plan setups; must be a Stripe price id.
-  priceId: z.string().startsWith('price_').optional(),
 })
 
 const POST_GUARDED = withApiGuard(
-  async (request: NextRequest, { requestId, body }) => {
+  async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
   try {
-    // Dev-only breadcrumb logging (no secrets).
-    if (serverEnv.NODE_ENV === 'development') {
-      const bodyKeys = body && typeof body === 'object' ? Object.keys(body as Record<string, unknown>) : []
-      console.log('[checkout] Request received', {
-        requestId,
-        hasStripeSecretKey: Boolean(serverEnv.STRIPE_SECRET_KEY),
-        hasStripePriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
-        bodyKeys,
-      })
-    }
-
-    const parsedBody = body as z.infer<typeof CheckoutBodySchema> | undefined
-    if (!parsedBody) {
-      // Should not happen because guard parses JSON, but keep this fail-safe.
+    // Parse + validate body here (not in guard) so we can return route-specific error codes.
+    // Also enforces an explicit 32KB limit.
+    let parsedBody: z.infer<typeof CheckoutBodySchema>
+    try {
+      const raw = await readBodyWithLimit(request, 32768)
+      if (!raw || raw.trim().length === 0) {
+        return fail(
+          'INVALID_CHECKOUT_PAYLOAD',
+          'Missing JSON body',
+          { hint: 'Send JSON like { "planId": "pro" }' },
+          { status: 400 },
+          bridge,
+          requestId
+        )
+      }
+      const json = JSON.parse(raw)
+      const result = CheckoutBodySchema.safeParse(json)
+      if (!result.success) {
+        return fail(
+          'INVALID_CHECKOUT_PAYLOAD',
+          'Invalid checkout payload',
+          result.error.errors.map((e) => ({ path: e.path.join('.'), message: e.message, code: e.code })),
+          { status: 422 },
+          bridge,
+          requestId
+        )
+      }
+      parsedBody = result.data
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid JSON body'
       return fail(
-        ErrorCode.VALIDATION_ERROR,
-        'Missing/invalid JSON body',
-        { hint: 'Send JSON like { "planId": "pro" }' },
+        'INVALID_CHECKOUT_PAYLOAD',
+        message.startsWith('Invalid JSON') ? message : 'Invalid JSON body',
+        undefined,
         { status: 400 },
         bridge,
         requestId
       )
+    }
+
+    // Dev-only breadcrumb logging (no secrets).
+    if (serverEnv.NODE_ENV === 'development') {
+      console.log('[checkout] Request received', {
+        requestId,
+        planId: parsedBody.planId,
+        hasStripeSecretKey: Boolean(serverEnv.STRIPE_SECRET_KEY),
+        hasStripePriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
+        hasTrialFeePriceId: Boolean(serverEnv.STRIPE_TRIAL_FEE_PRICE_ID),
+      })
     }
 
     // Create Supabase client using the bridge response (cookies will be set on bridge)
@@ -85,15 +122,20 @@ const POST_GUARDED = withApiGuard(
     let siteUrl: string
     try {
       const env = validateStripeEnv()
-      priceId = parsedBody.priceId || env.priceId
+      // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
+      priceId = env.priceId
       siteUrl = env.siteUrl || request.nextUrl.origin
 
       // Require an explicit trial fee price for "7-day $25 trial" behavior.
       trialFeePriceId = serverEnv.STRIPE_TRIAL_FEE_PRICE_ID || null
       if (!trialFeePriceId) {
+        captureMessage('checkout_not_configured_missing_trial_fee_price', {
+          route: '/api/checkout',
+          requestId,
+        })
         return fail(
-          ErrorCode.INTERNAL_ERROR,
-          'Stripe configuration error',
+          'CHECKOUT_NOT_CONFIGURED',
+          'Checkout is not configured',
           {
             message: 'STRIPE_TRIAL_FEE_PRICE_ID must be set to enable the $25 trial fee.',
             required: ['STRIPE_TRIAL_FEE_PRICE_ID'],
@@ -104,15 +146,19 @@ const POST_GUARDED = withApiGuard(
         )
       }
     } catch (error) {
+      captureMessage('checkout_not_configured', {
+        route: '/api/checkout',
+        requestId,
+      })
       return fail(
-        ErrorCode.INTERNAL_ERROR,
-        'Stripe configuration error',
+        'CHECKOUT_NOT_CONFIGURED',
+        'Checkout is not configured',
         {
           // Do not leak env values; just explain what is missing.
           message: error instanceof Error ? error.message : 'Missing Stripe configuration',
           required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID (or STRIPE_PRICE_ID_PRO)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
         },
-        undefined,
+        { status: 500 },
         bridge,
         requestId
       )
@@ -232,5 +278,5 @@ const POST_GUARDED = withApiGuard(
     return asHttpError(error, '/api/checkout', undefined, bridge, requestId)
   }
 },
-  { bodySchema: CheckoutBodySchema }
+  // No bodySchema: we validate body inside handler for custom error codes.
 )

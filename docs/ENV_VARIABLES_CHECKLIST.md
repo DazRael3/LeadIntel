@@ -37,8 +37,9 @@ These variables are only available in server-side code and must never be exposed
 | Variable | Required | Used In | Description |
 |----------|----------|---------|-------------|
 | `STRIPE_SECRET_KEY` | ✅ Yes | `lib/stripe.ts`, `app/api/checkout/route.ts` | Stripe secret key (server-side) |
-| `STRIPE_PRICE_ID` | ⚠️ Optional | `app/api/checkout/route.ts` | Stripe price ID for subscription |
-| `STRIPE_PRICE_ID_PRO` | ⚠️ Optional | `app/api/checkout/route.ts` | Stripe price ID override for Pro tier |
+| `STRIPE_PRICE_ID` | ⚠️ Optional | `app/api/checkout/route.ts` | Stripe recurring price ID (fallback) |
+| `STRIPE_PRICE_ID_PRO` | ✅ Yes | `app/api/checkout/route.ts` | Stripe recurring price ID for Pro ($99/mo) |
+| `STRIPE_TRIAL_FEE_PRICE_ID` | ✅ Yes | `app/api/checkout/route.ts` | Stripe **one-time** price ID for trial fee ($25) |
 | `STRIPE_WEBHOOK_SECRET` | ✅ Yes | `app/api/stripe/webhook/route.ts` | Stripe webhook signing secret |
 
 ### OpenAI

@@ -128,7 +128,8 @@ export function Pricing() {
           extractApiErrorMessage(payload) ||
           (raw.trim().length > 0 ? raw : `Checkout failed (${response.status})`)
         console.error('[Pricing] Checkout failed:', { status: response.status, message: errorMessage })
-        setCheckoutError(errorMessage)
+        // User-friendly message (do not leak internals). Keep details in console logs.
+        setCheckoutError('Checkout is currently unavailable. Please try again later.')
         return
       }
 
@@ -142,7 +143,7 @@ export function Pricing() {
         window.location.href = checkoutUrl
       } else {
         console.error('[Pricing] No checkout URL in response:', data)
-        setCheckoutError('Checkout failed: no redirect URL was returned')
+        setCheckoutError('Checkout is currently unavailable. Please try again later.')
       }
     } catch (error: unknown) {
       // Network error or other exception
