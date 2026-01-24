@@ -4,6 +4,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { serverEnv, clientEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
+import { z } from 'zod'
 
 /**
  * Validates required Stripe environment variables
@@ -34,9 +35,40 @@ export async function POST(request: NextRequest) {
   return POST_GUARDED(request)
 }
 
-const POST_GUARDED = withApiGuard(async (request: NextRequest, { requestId }) => {
+const CheckoutBodySchema = z.object({
+  planId: z.literal('pro'),
+  // Optional override for multi-plan setups; must be a Stripe price id.
+  priceId: z.string().startsWith('price_').optional(),
+})
+
+const POST_GUARDED = withApiGuard(
+  async (request: NextRequest, { requestId, body }) => {
   const bridge = createCookieBridge()
   try {
+    // Dev-only breadcrumb logging (no secrets).
+    if (serverEnv.NODE_ENV === 'development') {
+      const bodyKeys = body && typeof body === 'object' ? Object.keys(body as Record<string, unknown>) : []
+      console.log('[checkout] Request received', {
+        requestId,
+        hasStripeSecretKey: Boolean(serverEnv.STRIPE_SECRET_KEY),
+        hasStripePriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
+        bodyKeys,
+      })
+    }
+
+    const parsedBody = body as z.infer<typeof CheckoutBodySchema> | undefined
+    if (!parsedBody) {
+      // Should not happen because guard parses JSON, but keep this fail-safe.
+      return fail(
+        ErrorCode.VALIDATION_ERROR,
+        'Missing/invalid JSON body',
+        { hint: 'Send JSON like { "planId": "pro" }' },
+        { status: 400 },
+        bridge,
+        requestId
+      )
+    }
+
     // Create Supabase client using the bridge response (cookies will be set on bridge)
     const supabase = createRouteClient(request, bridge)
     
@@ -52,13 +84,17 @@ const POST_GUARDED = withApiGuard(async (request: NextRequest, { requestId }) =>
     let siteUrl: string
     try {
       const env = validateStripeEnv()
-      priceId = env.priceId
+      priceId = parsedBody.priceId || env.priceId
       siteUrl = env.siteUrl || request.nextUrl.origin
     } catch (error) {
       return fail(
         ErrorCode.INTERNAL_ERROR,
         'Stripe configuration error',
-        undefined,
+        {
+          // Do not leak env values; just explain what is missing.
+          message: error instanceof Error ? error.message : 'Missing Stripe configuration',
+          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID (or STRIPE_PRICE_ID_PRO)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
+        },
         undefined,
         bridge,
         requestId
@@ -114,34 +150,64 @@ const POST_GUARDED = withApiGuard(async (request: NextRequest, { requestId }) =>
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      success_url: `${siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/pricing`,
-      client_reference_id: user.id,
-      metadata: {
-        user_id: user.id,
-        email: user.email ?? '',
-      },
-      subscription_data: {
+    let sessionUrl: string | null = null
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        success_url: `${siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${siteUrl}/pricing`,
+        client_reference_id: user.id,
         metadata: {
           user_id: user.id,
+          email: user.email ?? '',
         },
-      },
-      allow_promotion_codes: true,
-    })
+        subscription_data: {
+          metadata: {
+            user_id: user.id,
+          },
+        },
+        allow_promotion_codes: true,
+      })
+      sessionUrl = session.url ?? null
+    } catch (err) {
+      const details =
+        serverEnv.NODE_ENV === 'development'
+          ? { message: err instanceof Error ? err.message : String(err) }
+          : undefined
+      return fail(
+        ErrorCode.EXTERNAL_API_ERROR,
+        'Stripe checkout session creation failed',
+        details,
+        { status: 500 },
+        bridge,
+        requestId
+      )
+    }
 
     // Return standardized success response
-    return ok({ url: session.url }, undefined, bridge, requestId)
+    if (!sessionUrl) {
+      return fail(
+        ErrorCode.INTERNAL_ERROR,
+        'Stripe checkout session missing redirect URL',
+        undefined,
+        { status: 500 },
+        bridge,
+        requestId
+      )
+    }
+
+    return ok({ url: sessionUrl }, undefined, bridge, requestId)
   } catch (error) {
     return asHttpError(error, '/api/checkout', undefined, bridge, requestId)
   }
-})
+},
+  { bodySchema: CheckoutBodySchema }
+)
