@@ -1,23 +1,34 @@
 import { NextRequest } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
-import { getPlan } from '@/lib/billing/plan'
+import { getPlanDetails } from '@/lib/billing/plan'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
+import { withApiGuard } from '@/lib/api/guard'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
   const supabase = createRouteClient(request, bridge)
 
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
+      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
-    const plan = await getPlan(supabase as any, user.id)
-    return ok({ plan }, undefined, bridge)
+    const details = await getPlanDetails(supabase as any, user.id)
+    const trialEndsAt = details.trialEndsAt ?? null
+    const isTrialing = details.subscriptionStatus === 'trialing' && Boolean(trialEndsAt)
+    return ok(
+      {
+        plan: details.plan,
+        trial: isTrialing ? { active: true, endsAt: trialEndsAt } : { active: false, endsAt: null },
+      },
+      undefined,
+      bridge,
+      requestId
+    )
   } catch (error) {
-    return asHttpError(error, '/api/plan', undefined, bridge)
+    return asHttpError(error, '/api/plan', undefined, bridge, requestId)
   }
-}
+})

@@ -33,13 +33,7 @@ cd LeadIntel
 npm install
 ```
 
-**Note for Windows Users**: Some antivirus/EDR software blocks `npm.ps1`. If you encounter this issue, use the smoke test script wrapper instead:
-
-```powershell
-.\scripts\99_smoketest.ps1 -Install
-```
-
-This script automatically uses `npm.cmd` or falls back to calling npm-cli.js directly via Node.js, avoiding the PowerShell shim entirely.
+**Note for Windows Users**: Some antivirus/EDR software blocks `npm.ps1` shims. If you encounter this issue, use `npm.cmd` explicitly (or run via WSL/Linux).
 
 ### 3. Environment Variables
 
@@ -82,11 +76,9 @@ STRIPE_SECRET_KEY=sk_test_your-secret-key-here
 # Stripe Publishable Key (public, safe for client-side)
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your-publishable-key-here
 
-# Stripe Price ID for Pro subscription
-# Get from Stripe Dashboard → Products → Your Product → Pricing
-STRIPE_PRICE_ID=price_your-price-id-here
-# Optional: Override for Pro tier
-STRIPE_PRICE_ID_PRO=price_your-pro-price-id-here
+# Stripe recurring price ID for Pro subscription ($99/month)
+# Get from Stripe Dashboard → Products → Your Product → Pricing (Recurring)
+STRIPE_PRICE_ID_PRO=price_your-pro-recurring-price-id-here
 
 # Stripe Webhook Secret (for webhook signature verification)
 # Get from Stripe Dashboard → Developers → Webhooks → Your endpoint → Signing secret
@@ -212,6 +204,10 @@ npm run lint
 npx tsc --noEmit
 ```
 
+## Production deployment notes
+
+See `docs/PRODUCTION_ENV.md` for the full production environment checklist (Stripe live keys, Supabase, Upstash rate limiting, and webhook setup).
+
 ### Database & Migrations
 
 ```bash
@@ -274,15 +270,11 @@ LeadIntel/
 
 **"npm.ps1 blocked by antivirus" error:**
 - **Cause**: Antivirus/EDR software blocks PowerShell script execution (`npm.ps1` shims)
-- **Solution**: Use the smoke test script which avoids `npm.ps1`:
-  ```powershell
-  .\scripts\99_smoketest.ps1 -Install
-  ```
 - **Alternative**: Use `npm.cmd` explicitly:
   ```powershell
   & (Get-Command npm.cmd).Source install
   ```
-- **All scripts fixed**: The scripts in `scripts/` folder (`01_install.ps1`, `02_quality.ps1`, `03_tests.ps1`, `99_smoketest.ps1`) automatically use `npm.cmd` or fall back to calling `npm-cli.js` via Node.js, completely bypassing `npm.ps1` shims.
+  Then run e.g. `npm.cmd run verify:ready`.
 
 **PowerShell execution policy errors:**
 - If you see "execution of scripts is disabled", run:

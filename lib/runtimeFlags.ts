@@ -16,7 +16,13 @@ export function isTestEnv(): boolean {
  * Check if running in E2E test environment (Playwright)
  */
 export function isE2E(): boolean {
-  return process.env.E2E === '1' || process.env.PLAYWRIGHT === '1'
+  // NOTE: In client bundles, only NEXT_PUBLIC_* env vars are available.
+  return (
+    process.env.E2E === '1' ||
+    process.env.PLAYWRIGHT === '1' ||
+    process.env.NEXT_PUBLIC_E2E === '1' ||
+    process.env.NEXT_PUBLIC_PLAYWRIGHT === '1'
+  )
 }
 
 /**

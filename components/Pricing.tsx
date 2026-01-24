@@ -102,24 +102,12 @@ export function Pricing() {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: 'pro' }),
       })
 
-      // Try to parse response as JSON
-      let payload: unknown = null
-      try {
-        const text = await response.text()
-        if (text && text.trim().length > 0) {
-          payload = safeJsonParse(text)
-          // If JSON parsing failed and it's an error response, use the raw text
-          if (payload === null && !response.ok) {
-            // Likely HTML error page - use generic message
-            payload = { message: 'Server error. Please try again later.' }
-          }
-        }
-      } catch {
-        // Response read failed
-        payload = { message: 'Failed to read server response' }
-      }
+      // Parse response safely: read as text, then JSON.parse if present.
+      const raw = await response.text()
+      const payload = raw.trim().length > 0 ? safeJsonParse(raw) : null
 
       // Handle error responses
       if (!response.ok) {
@@ -135,10 +123,13 @@ export function Pricing() {
           return
         }
         
-        // Extract error message from payload
-        const errorMessage = extractApiErrorMessage(payload)
+        // Extract a meaningful error message.
+        const errorMessage =
+          extractApiErrorMessage(payload) ||
+          (raw.trim().length > 0 ? raw : `Checkout failed (${response.status})`)
         console.error('[Pricing] Checkout failed:', { status: response.status, message: errorMessage })
-        setCheckoutError(errorMessage)
+        // User-friendly message (do not leak internals). Keep details in console logs.
+        setCheckoutError('Checkout is currently unavailable. Please try again later.')
         return
       }
 
@@ -152,7 +143,7 @@ export function Pricing() {
         window.location.href = checkoutUrl
       } else {
         console.error('[Pricing] No checkout URL in response:', data)
-        setCheckoutError('Checkout failed: no redirect URL was returned')
+        setCheckoutError('Checkout is currently unavailable. Please try again later.')
       }
     } catch (error: unknown) {
       // Network error or other exception

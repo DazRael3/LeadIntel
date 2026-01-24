@@ -92,6 +92,17 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
 process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test123'
+process.env.RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || 'test-resend-webhook-secret'
+process.env.CRON_SECRET = process.env.CRON_SECRET || 'test-cron-secret-123456'
+process.env.CRON_SIGNING_SECRET = process.env.CRON_SIGNING_SECRET || 'test-cron-signing-secret-123456'
+process.env.SENTRY_DSN = process.env.SENTRY_DSN || ''
+process.env.SENTRY_ENVIRONMENT = process.env.SENTRY_ENVIRONMENT || 'test'
+process.env.HEALTH_CHECK_EXTERNAL = process.env.HEALTH_CHECK_EXTERNAL || '0'
+process.env.FEATURE_AUTOPILOT_ENABLED = process.env.FEATURE_AUTOPILOT_ENABLED || 'true'
+process.env.FEATURE_RESEND_WEBHOOK_ENABLED = process.env.FEATURE_RESEND_WEBHOOK_ENABLED || 'true'
+process.env.FEATURE_STRIPE_WEBHOOK_ENABLED = process.env.FEATURE_STRIPE_WEBHOOK_ENABLED || 'true'
+process.env.FEATURE_CLEARBIT_ENABLED = process.env.FEATURE_CLEARBIT_ENABLED || 'true'
+process.env.FEATURE_ZAPIER_PUSH_ENABLED = process.env.FEATURE_ZAPIER_PUSH_ENABLED || 'true'
 // Set NODE_ENV only if not already set (it's read-only in some contexts)
 if (!process.env.NODE_ENV) {
   Object.defineProperty(process.env, 'NODE_ENV', { value: 'test', writable: true, configurable: true })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { PitchGenerator } from "@/components/PitchGenerator"
 import { TriggerEventCard } from "@/components/TriggerEventCard"
 import { Button } from "@/components/ui/button"
@@ -12,15 +12,29 @@ import { TrendingUp, Zap, Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/TopNav"
 import { formatErrorMessage } from "@/lib/utils/format-error"
+import Link from "next/link"
 
 export default function Dashboard() {
   const [events, setEvents] = useState<TriggerEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'pro'>('free')
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
+  const { supabase } = useMemo(() => {
+    try {
+      return { supabase: createClient() as ReturnType<typeof createClient> }
+    } catch {
+      // If Supabase env vars are missing/malformed, render logged-out CTAs instead of crashing the whole page.
+      return { supabase: null as ReturnType<typeof createClient> | null }
+    }
+  }, [])
 
   const loadEvents = useCallback(async () => {
+    if (!supabase) {
+      setLoading(false)
+      setEvents([])
+      return
+    }
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -66,6 +80,7 @@ export default function Dashboard() {
 
   const checkSubscription = useCallback(async () => {
     try {
+      if (!supabase) return
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         return
@@ -97,20 +112,50 @@ export default function Dashboard() {
   }, [supabase])
 
   useEffect(() => {
-    loadEvents()
-    checkSubscription()
-  }, [loadEvents, checkSubscription])
+    let cancelled = false
+
+    const init = async () => {
+      if (!supabase) {
+        if (!cancelled) {
+          setIsLoggedIn(false)
+          setLoading(false)
+          setEvents([])
+        }
+        return
+      }
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (cancelled) return
+        const loggedIn = !!user
+        setIsLoggedIn(loggedIn)
+
+        // Only load tenant-scoped data when authenticated.
+        if (loggedIn) {
+          loadEvents()
+          checkSubscription()
+        } else {
+          setLoading(false)
+          setEvents([])
+          setSubscriptionTier('free')
+        }
+      } catch {
+        if (!cancelled) {
+          setIsLoggedIn(false)
+          setLoading(false)
+          setEvents([])
+        }
+      }
+    }
+
+    init()
+    return () => {
+      cancelled = true
+    }
+  }, [supabase, loadEvents, checkSubscription])
 
   const handleGeneratePitch = (companyUrl: string, companyName: string) => {
     router.push(`/pitch?url=${encodeURIComponent(companyUrl)}&name=${encodeURIComponent(companyName)}`)
-  }
-
-  const handleUpgrade = () => {
-    router.push('/pricing')
-  }
-
-  const handleDashboard = () => {
-    router.push('/dashboard')
   }
 
   return (
@@ -125,9 +170,21 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">B2B Lead Intelligence Portal</p>
             </div>
             <div className="flex items-center gap-4">
-              <Button variant="outline" onClick={handleDashboard} size="sm">
-                Command Center
-              </Button>
+              {!isLoggedIn ? (
+                <>
+                  {/* Use real links so navigation works even if hydration is impaired. */}
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/login?mode=signin&redirect=/dashboard">Log in</Link>
+                  </Button>
+                  <Button asChild size="sm">
+                    <Link href="/signup?redirect=/dashboard">Sign up</Link>
+                  </Button>
+                </>
+              ) : (
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/dashboard">Command Center</Link>
+                </Button>
+              )}
               <Badge variant={subscriptionTier === 'pro' ? 'default' : 'outline'}>
                 {subscriptionTier === 'pro' ? (
                   <>
@@ -138,9 +195,9 @@ export default function Dashboard() {
                   'Free'
                 )}
               </Badge>
-              {subscriptionTier === 'free' && (
-                <Button onClick={handleUpgrade} size="sm">
-                  Upgrade to Pro
+              {isLoggedIn && subscriptionTier === 'free' && (
+                <Button asChild size="sm">
+                  <Link href="/pricing">Upgrade to Pro</Link>
                 </Button>
               )}
             </div>

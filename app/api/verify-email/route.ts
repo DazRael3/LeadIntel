@@ -1,27 +1,19 @@
 import { NextRequest } from 'next/server'
 import { serverEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { validateBody, validationError } from '@/lib/api/validate'
 import { VerifyEmailSchema } from '@/lib/api/schemas'
+import { withApiGuard } from '@/lib/api/guard'
 
 /**
  * Email Shield API
  * Verifies email deliverability using Hunter.io API
  */
 
-export async function POST(request: NextRequest) {
-  const bridge = createCookieBridge()
-  
-  try {
-    // Validate request body
-    let body
+export const POST = withApiGuard(
+  async (_request: NextRequest, { body, requestId }) => {
+    const bridge = createCookieBridge()
     try {
-      body = await validateBody(request, VerifyEmailSchema)
-    } catch (error) {
-      return validationError(error, bridge)
-    }
-
-    const { email } = body
+      const { email } = body as { email: string }
 
     // Verify email using Hunter.io API
     const verification = await verifyWithHunter(email)
@@ -30,11 +22,13 @@ export async function POST(request: NextRequest) {
       status: verification.status,
       score: verification.score,
       sources: verification.sources,
-    }, undefined, bridge)
-  } catch (error) {
-    return asHttpError(error, '/api/verify-email', undefined, bridge)
-  }
-}
+    }, undefined, bridge, requestId)
+    } catch (error) {
+      return asHttpError(error, '/api/verify-email', undefined, bridge, requestId)
+    }
+  },
+  { bodySchema: VerifyEmailSchema }
+)
 
 /**
  * Verify email with Hunter.io API
@@ -47,7 +41,6 @@ async function verifyWithHunter(email: string): Promise<{
 }> {
   const hunterKey = serverEnv.HUNTER_API_KEY
   if (!hunterKey) {
-    console.log('Hunter.io API key not configured, using placeholder')
     // Return placeholder - assume deliverable for demo
     return {
       status: 'deliverable',
@@ -84,7 +77,6 @@ async function verifyWithHunter(email: string): Promise<{
       sources: Math.floor(Math.random() * 5) + 1, // 1-5
     }
   } catch (error) {
-    console.error('Error verifying with Hunter.io:', error)
     return { status: 'unknown' }
   }
 }

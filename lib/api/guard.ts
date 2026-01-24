@@ -23,6 +23,8 @@ import { createRouteClient } from '@/lib/supabase/route'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { serverEnv } from '@/lib/env'
+import { timingSafeEqualAscii, verifyCronToken } from '@/lib/api/cron-auth'
+import { recordCounter } from '@/lib/observability/metrics'
 
 /**
  * Options for withApiGuard
@@ -37,7 +39,7 @@ export interface GuardOptions {
   /** Whether to bypass rate limiting (for internal routes) */
   bypassRateLimit?: boolean
   /** Custom webhook signature verification function */
-  verifyWebhookSignature?: (request: NextRequest) => Promise<boolean>
+  verifyWebhookSignature?: (args: { request: NextRequest; rawBody: Buffer }) => Promise<boolean>
 }
 
 /**
@@ -49,6 +51,7 @@ type GuardedHandler = (
     body?: unknown
     query?: unknown
     userId?: string
+    isCron: boolean
     requestId: string
   }
 ) => Promise<NextResponse>
@@ -79,6 +82,7 @@ export function withApiGuard(
     // Get route policy
     const policyName = options.policyName || pathname
     const policy = getRoutePolicy(policyName, method)
+    const isCron = isCronRequest(request, policy)
 
     // 1. Dev-only check (block in production, require x-dev-key header in dev)
     if (policy.devOnly) {
@@ -123,7 +127,7 @@ export function withApiGuard(
 
     // 3. Authentication enforcement (if required)
     let userId: string | undefined = undefined
-    if (policy.authRequired) {
+    if (policy.authRequired && !isCron) {
       const supabase = createRouteClient(request, bridge)
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
@@ -152,22 +156,8 @@ export function withApiGuard(
     if (policy.webhookSignatureRequired) {
       // Read raw body once for signature verification
       rawBodyForWebhook = Buffer.from(await request.arrayBuffer())
-      const signature = request.headers.get('stripe-signature')
-      
-      if (!signature) {
-        return fail(
-          ErrorCode.VALIDATION_ERROR,
-          'Missing webhook signature header',
-          undefined,
-          undefined,
-          bridge,
-          requestId
-        )
-      }
-
       if (options.verifyWebhookSignature) {
-        // Create a new request with raw body for custom verification
-        const isValid = await options.verifyWebhookSignature(request)
+        const isValid = await options.verifyWebhookSignature({ request, rawBody: rawBodyForWebhook })
         if (!isValid) {
           return fail(
             ErrorCode.VALIDATION_ERROR,
@@ -194,6 +184,17 @@ export function withApiGuard(
       } else {
         // Default Stripe webhook verification
         try {
+          const signature = request.headers.get('stripe-signature')
+          if (!signature) {
+            return fail(
+              ErrorCode.VALIDATION_ERROR,
+              'Missing webhook signature header',
+              undefined,
+              undefined,
+              bridge,
+              requestId
+            )
+          }
           // Lazy access to serverEnv to avoid module load-time evaluation in tests
           let webhookSecret: string
           try {
@@ -235,7 +236,7 @@ export function withApiGuard(
     // 5. Rate limiting using policy-defined limits
     if (!options.bypassRateLimit) {
       // Get user for rate limiting (if not already fetched during auth check)
-      if (!policy.authRequired) {
+      if (!policy.authRequired && !isCron) {
         const supabase = createRouteClient(request, bridge)
         const { data: { user } } = await supabase.auth.getUser()
         userId = user?.id || undefined
@@ -253,6 +254,10 @@ export function withApiGuard(
         // In development, rateLimitResult may be null if Redis is not configured (allowed)
         // In production, checkPolicyRateLimit throws RedisNotConfiguredError if Redis is missing
         if (rateLimitResult && !rateLimitResult.success) {
+          recordCounter('ratelimit.block', 1, {
+            route: pathname,
+            auth: userId ? '1' : '0',
+          })
           // Convert PolicyRateLimitResult to RateLimitResult for getRateLimitError
           const standardResult = {
             success: false,
@@ -345,6 +350,7 @@ export function withApiGuard(
         body,
         query,
         userId,
+        isCron,
         requestId,
       })
       
@@ -390,4 +396,29 @@ export function withApiGuard(
       )
     }
   }
+}
+
+function isCronRequest(request: NextRequest, policy: { cronAllowed: boolean }): boolean {
+  if (!policy.cronAllowed) return false
+  const url = new URL(request.url)
+
+  // 1) Legacy: custom header (may be unavailable in some cron providers)
+  const providedHeader = request.headers.get('x-cron-secret')
+  const expectedHeader = serverEnv.CRON_SECRET
+  if (providedHeader && expectedHeader && timingSafeEqualAscii(providedHeader, expectedHeader)) {
+    return true
+  }
+
+  // 2) Preferred: signed query token (works even if custom headers are stripped)
+  const cronToken = url.searchParams.get('cron_token')
+  const signingSecret = serverEnv.CRON_SIGNING_SECRET
+  if (cronToken && signingSecret) {
+    return verifyCronToken({
+      signingSecret,
+      providedToken: cronToken,
+      ctx: { method: request.method, pathname: url.pathname },
+    })
+  }
+
+  return false
 }

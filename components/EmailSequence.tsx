@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from "react"
+import { useMemo, useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -37,6 +37,7 @@ export function EmailSequence({
   isPro,
   recipientEmail
 }: EmailSequenceProps) {
+  const siteUrl = useMemo(() => (process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com').trim(), [])
   const [sequence, setSequence] = useState<SequenceData | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
@@ -86,16 +87,16 @@ export function EmailSequence({
         // For Pro users with other errors, show fallback
         if (isPro) {
           setSequence({
-            part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: https://dazrael.com`,
-            part2: `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: https://dazrael.com`,
-            part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: https://dazrael.com`,
+            part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${siteUrl}`,
+            part2: `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: ${siteUrl}`,
+            part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${siteUrl}`,
           })
         }
       }
     } finally {
       setLoading(false)
     }
-  }, [isPro, companyName, triggerEvent, ceoName, companyInfo, userSettings])
+  }, [isPro, companyName, triggerEvent, ceoName, companyInfo, userSettings, siteUrl])
 
   // Only auto-generate if Pro user
   useEffect(() => {

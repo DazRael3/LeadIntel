@@ -3,8 +3,10 @@ import { stripe } from '@/lib/stripe'
 import { createRouteClient } from '@/lib/supabase/route'
 import { serverEnv, clientEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { checkRateLimit, shouldBypassRateLimit, getRateLimitError } from '@/lib/api/ratelimit'
-import { validateOrigin } from '@/lib/api/security'
+import { withApiGuard } from '@/lib/api/guard'
+import { z } from 'zod'
+import { readBodyWithLimit } from '@/lib/api/validate'
+import { captureMessage } from '@/lib/observability/sentry'
 
 /**
  * Validates required Stripe environment variables
@@ -32,35 +34,77 @@ function validateStripeEnv(): { priceId: string; siteUrl: string } {
 }
 
 export async function POST(request: NextRequest) {
+  return POST_GUARDED(request)
+}
+
+export async function GET(_request: NextRequest) {
+  // Explicitly return JSON (not Next.js default 404) so callers get a clear signal.
+  return fail(
+    'METHOD_NOT_ALLOWED',
+    'Method not allowed. Use POST /api/checkout.',
+    undefined,
+    { status: 405 }
+  )
+}
+
+const CheckoutBodySchema = z.object({
+  planId: z.literal('pro'),
+})
+
+const POST_GUARDED = withApiGuard(
+  async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
-  const route = '/api/checkout'
-  
   try {
-    // Validate origin for state-changing requests
-    const originError = validateOrigin(request, route)
-    if (originError) {
-      return originError
-    }
-    
-    // Check rate limit bypass
-    if (!shouldBypassRateLimit(request, route)) {
-      // Get user for rate limiting
-      const supabase = createRouteClient(request, bridge)
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      // Check rate limit
-      const rateLimitResult = await checkRateLimit(
-        request,
-        user?.id || null,
-        route,
-        'CHECKOUT'
-      )
-      
-      if (rateLimitResult && !rateLimitResult.success) {
-        return getRateLimitError(rateLimitResult, bridge)
+    // Parse + validate body here (not in guard) so we can return route-specific error codes.
+    // Also enforces an explicit 32KB limit.
+    let parsedBody: z.infer<typeof CheckoutBodySchema>
+    try {
+      const raw = await readBodyWithLimit(request, 32768)
+      if (!raw || raw.trim().length === 0) {
+        return fail(
+          'INVALID_CHECKOUT_PAYLOAD',
+          'Missing JSON body',
+          { hint: 'Send JSON like { "planId": "pro" }' },
+          { status: 400 },
+          bridge,
+          requestId
+        )
       }
+      const json = JSON.parse(raw)
+      const result = CheckoutBodySchema.safeParse(json)
+      if (!result.success) {
+        return fail(
+          'INVALID_CHECKOUT_PAYLOAD',
+          'Invalid checkout payload',
+          result.error.errors.map((e) => ({ path: e.path.join('.'), message: e.message, code: e.code })),
+          { status: 422 },
+          bridge,
+          requestId
+        )
+      }
+      parsedBody = result.data
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid JSON body'
+      return fail(
+        'INVALID_CHECKOUT_PAYLOAD',
+        message.startsWith('Invalid JSON') ? message : 'Invalid JSON body',
+        undefined,
+        { status: 400 },
+        bridge,
+        requestId
+      )
     }
-    
+
+    // Dev-only breadcrumb logging (no secrets).
+    if (serverEnv.NODE_ENV === 'development') {
+      console.log('[checkout] Request received', {
+        requestId,
+        planId: parsedBody.planId,
+        hasStripeSecretKey: Boolean(serverEnv.STRIPE_SECRET_KEY),
+        hasStripePriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
+      })
+    }
+
     // Create Supabase client using the bridge response (cookies will be set on bridge)
     const supabase = createRouteClient(request, bridge)
     
@@ -68,7 +112,7 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
+      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
     // Validate Stripe environment variables
@@ -76,15 +120,25 @@ export async function POST(request: NextRequest) {
     let siteUrl: string
     try {
       const env = validateStripeEnv()
+      // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
       priceId = env.priceId
       siteUrl = env.siteUrl || request.nextUrl.origin
     } catch (error) {
+      captureMessage('checkout_not_configured', {
+        route: '/api/checkout',
+        requestId,
+      })
       return fail(
-        ErrorCode.INTERNAL_ERROR,
-        'Stripe configuration error',
-        undefined,
-        undefined,
-        bridge
+        'CHECKOUT_NOT_CONFIGURED',
+        'Checkout is not configured',
+        {
+          // Do not leak env values; just explain what is missing.
+          message: error instanceof Error ? error.message : 'Missing Stripe configuration',
+          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID_PRO (recommended)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
+        },
+        { status: 500 },
+        bridge,
+        requestId
       )
     }
 
@@ -117,12 +171,12 @@ export async function POST(request: NextRequest) {
         })
     }
 
-    // Check for existing active subscription
+    // Check for existing active/trialing subscription (avoid duplicate checkouts)
     const { data: existingSubscription } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', user.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'trialing'])
       .single()
 
     if (existingSubscription) {
@@ -131,39 +185,72 @@ export async function POST(request: NextRequest) {
         'Already subscribed',
         undefined,
         undefined,
-        bridge
+        bridge,
+        requestId
       )
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      success_url: `${siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/pricing`,
-      client_reference_id: user.id,
-      metadata: {
-        user_id: user.id,
-        email: user.email ?? '',
-      },
-      subscription_data: {
+    let sessionUrl: string | null = null
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        // Collect payment method up-front.
+        payment_method_collection: 'always',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        success_url: `${siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${siteUrl}/pricing`,
+        client_reference_id: user.id,
         metadata: {
           user_id: user.id,
+          email: user.email ?? '',
         },
-      },
-      allow_promotion_codes: true,
-    })
+        subscription_data: {
+          metadata: {
+            user_id: user.id,
+          },
+        },
+        allow_promotion_codes: true,
+      })
+      sessionUrl = session.url ?? null
+    } catch (err) {
+      const details =
+        serverEnv.NODE_ENV === 'development'
+          ? { message: err instanceof Error ? err.message : String(err) }
+          : undefined
+      return fail(
+        ErrorCode.EXTERNAL_API_ERROR,
+        'Stripe checkout session creation failed',
+        details,
+        { status: 500 },
+        bridge,
+        requestId
+      )
+    }
 
     // Return standardized success response
-    return ok({ url: session.url }, undefined, bridge)
+    if (!sessionUrl) {
+      return fail(
+        ErrorCode.INTERNAL_ERROR,
+        'Stripe checkout session missing redirect URL',
+        undefined,
+        { status: 500 },
+        bridge,
+        requestId
+      )
+    }
+
+    return ok({ url: sessionUrl }, undefined, bridge, requestId)
   } catch (error) {
-    return asHttpError(error, '/api/checkout', undefined, bridge)
+    return asHttpError(error, '/api/checkout', undefined, bridge, requestId)
   }
-}
+},
+  // No bodySchema: we validate body inside handler for custom error codes.
+)

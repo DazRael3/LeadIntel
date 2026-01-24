@@ -1,0 +1,106 @@
+## Observability + Health (production ops)
+
+This repo uses a **small observability facade** (`lib/observability/sentry.ts`) to keep call sites stable
+and to avoid leaking secrets/PII.
+
+It also provides a lightweight **health endpoint** for uptime monitoring: `GET /api/health`.
+
+> Note: your environment file is `.env.local` for local development.
+
+---
+
+### Sentry integration
+
+Facade: `lib/observability/sentry.ts`
+Metrics facade: `lib/observability/metrics.ts`
+
+Behavior:
+- If `SENTRY_DSN` is **unset/empty**, observability calls **no-op** (dev/test/e2e stays clean).
+- If `SENTRY_DSN` is set, the facade lazily initializes `@sentry/nextjs` and forwards:
+  - `captureException`
+  - `captureMessage`
+  - `captureBreadcrumb`
+  - `setRequestId`
+
+Metrics (minimal, no vendor yet):
+- Code uses `recordCounter()` / `recordTiming()` with a small union of metric names (e.g. `autopilot.run.total`, `ratelimit.block`).
+- If Sentry is enabled: metrics are emitted as **Sentry breadcrumbs** (sanitized).
+- If Sentry is disabled: metrics fall back to **structured server console logs** (`[metric] ...`).
+- Metrics calls never throw and **drop/truncate** tag keys/values that look sensitive.
+
+Security/privacy rules:
+- We **do not** attach raw request bodies, webhook payloads, email bodies, or tokens.
+- Only safe metadata is attached (route, requestId, userId/tenant id, provider name, cron vs manual, dryRun).
+- Context keys that look like secrets (`token`, `cookie`, `authorization`, `api_key`, `secret`, `html`, `text`, `payload`, etc.)
+  are automatically dropped.
+
+Env vars (server):
+- `SENTRY_DSN` (optional; empty string disables)
+- `SENTRY_ENVIRONMENT` (optional; defaults to `NODE_ENV`)
+- Kill switches (optional; see below): `FEATURE_*`
+
+---
+
+### Health endpoint
+
+Route: `GET /api/health`
+
+Response (standard API envelope):
+- `ok: true`
+- `data.status`: `"ok" | "degraded" | "down"`
+- `data.components`: `{ db, redis, supabaseApi, resend, openai, clearbit }`
+
+Design goals:
+- **Unauthenticated**, rate-limited (policy tier `HEALTH`)
+- No secrets, no internal IDs in the response
+- Minimal checks:
+  - **db**: (production) service-role `select id from api.users limit 1`; (test-like) skipped
+  - **supabaseApi**: GET `${SUPABASE_URL}/auth/v1/health` with short timeout
+  - **redis**: read-only `GET` via Upstash
+  - **resend/openai/clearbit**: “configured” checks by default; no provider calls
+
+External provider checks:
+- In non-production, the endpoint may perform slightly more active checks.
+- In production, provider checks are **not performed** unless explicitly enabled:
+  - `HEALTH_CHECK_EXTERNAL=1`
+
+Env vars:
+- `HEALTH_CHECK_EXTERNAL` (`0|1`, optional; default `0`)
+
+---
+
+### Kill switches / feature flags (global)
+
+Facade: `lib/services/feature-flags.ts`
+
+These are **global emergency flags** intended for production incident response. Defaults are **ON** unless explicitly disabled.
+
+Supported env vars:
+- `FEATURE_AUTOPILOT_ENABLED`
+- `FEATURE_RESEND_WEBHOOK_ENABLED`
+- `FEATURE_STRIPE_WEBHOOK_ENABLED`
+- `FEATURE_CLEARBIT_ENABLED`
+- `FEATURE_ZAPIER_PUSH_ENABLED`
+
+Values:
+- `0` / `false` disables the feature globally.
+- `1` / `true` enables the feature globally.
+
+Design notes:
+- Webhooks still verify signatures, but may **ACK early** (no DB writes) when disabled.
+- User-facing routes typically return a **503** when disabled.
+
+### Per-tenant overrides (feature flags)
+
+If global kill switches allow a feature, you can still disable/enable some features **per tenant**.
+
+- Table: `api.feature_flags` (RLS tenant-scoped)
+- API: `POST /api/settings/features` (authenticated, tenant-scoped)
+- Current keys:
+  - `clearbit_enrichment`
+  - `zapier_push`
+
+Recommended usage:
+- Point your uptime monitor (Pingdom/BetterUptime/etc.) at `GET /api/health`.
+- Alert on `data.status === "down"`; optionally page on sustained `"degraded"`.
+

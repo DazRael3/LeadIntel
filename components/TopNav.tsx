@@ -110,7 +110,7 @@ export function TopNav() {
                   asChild
                   className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30"
                 >
-                  <Link href="/login?mode=signup&redirect=/">
+                  <Link href="/signup?redirect=/">
                     <UserPlus className="h-4 w-4 mr-2" />
                     Sign up
                   </Link>

@@ -1,24 +1,14 @@
 import { NextRequest } from 'next/server'
-import { Resend } from 'resend'
 import { createRouteClient } from '@/lib/supabase/route'
-import { getServerEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { validateBody, validationError } from '@/lib/api/validate'
 import { z } from 'zod'
-
-// Lazy initialization of Resend client (only created at runtime, not during build)
-let resendInstance: Resend | null = null
-
-function getResendClient(): Resend {
-  if (!resendInstance) {
-    const env = getServerEnv()
-    if (!env.RESEND_API_KEY) {
-      throw new Error('Configuration Error: Missing API Key - RESEND_API_KEY')
-    }
-    resendInstance = new Resend(env.RESEND_API_KEY)
-  }
-  return resendInstance
-}
+import { withApiGuard } from '@/lib/api/guard'
+import { sendEmailWithResend } from '@/lib/email/resend'
+import { insertEmailLog } from '@/lib/email/email-logs'
+import { renderSimplePitchEmailHtml } from '@/lib/email/templates'
+import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
+import { recordCounter } from '@/lib/observability/metrics'
 
 /**
  * Auto-Send Pitch API
@@ -32,147 +22,133 @@ const SendPitchExtendedSchema = z.object({
   companyName: z.string().optional(),
 })
 
-export async function POST(request: NextRequest) {
-  const bridge = createCookieBridge()
-  
-  try {
-    // Validate request body
-    let body
+export const POST = withApiGuard(
+  async (request: NextRequest, { body, userId, requestId }) => {
+    const bridge = createCookieBridge()
     try {
-      body = await validateBody(request, SendPitchExtendedSchema)
-    } catch (error) {
-      return validationError(error, bridge)
-    }
+      const { leadId, recipientEmail, recipientName, companyName } = body as z.infer<typeof SendPitchExtendedSchema>
 
-    const { leadId, recipientEmail, recipientName, companyName } = body
+      const supabase = createRouteClient(request, bridge)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !userId) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
 
-    // Check if user is Pro
-    const supabase = createRouteClient(request, bridge)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
-    }
+      const { data: userData } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', user.id)
+        .single()
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('subscription_tier')
-      .eq('id', user.id)
-      .single()
+      if (userData?.subscription_tier !== 'pro') {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Pro subscription required to send emails',
+          undefined,
+          undefined,
+          bridge,
+          requestId
+        )
+      }
 
-    if (userData?.subscription_tier !== 'pro') {
-      return fail(
-        ErrorCode.FORBIDDEN,
-        'Pro subscription required to send emails',
-        undefined,
-        undefined,
-        bridge
-      )
-    }
+      // Fetch lead data
+      const { data: lead, error: leadError } = await supabase
+        .from('leads')
+        .select('id, company_name, ai_personalized_pitch')
+        .eq('id', leadId)
+        .single()
 
-    // Fetch lead data
-    const { data: lead, error: leadError } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('id', leadId)
-      .single()
+      if (leadError || !lead) {
+        captureMessage('send_pitch_lead_not_found', { route: '/api/send-pitch', requestId, userId, leadId })
+        return fail(ErrorCode.NOT_FOUND, 'Lead not found', undefined, undefined, bridge, requestId)
+      }
 
-    if (leadError || !lead) {
-      return fail(ErrorCode.NOT_FOUND, 'Lead not found', undefined, undefined, bridge)
-    }
+      // Sender identity (best-effort)
+      const { data: userSettings } = await supabase
+        .from('user_settings')
+        .select('sender_name, from_email')
+        .eq('user_id', user.id)
+        .maybeSingle()
 
-    // Get user settings for personalized sender info
-    const { data: userSettings } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
+      const senderName = userSettings?.sender_name || 'LeadIntel Team'
+      const senderEmail = userSettings?.from_email || process.env.RESEND_FROM_EMAIL || 'noreply@leadintel.com'
+      const companyNameFinal = companyName || lead.company_name || 'your company'
 
-    const senderName = userSettings?.sender_name || 'LeadIntel Team'
-    const senderEmail = process.env.RESEND_FROM_EMAIL || 'noreply@leadintel.com'
-    const companyName_final = companyName || lead.company_name
+      const subject = `Quick intelligence on ${companyNameFinal}`
+      const pitchText = lead.ai_personalized_pitch || `I put together a short intelligence snapshot on ${companyNameFinal}.`
+      const html = renderSimplePitchEmailHtml({
+        brandName: 'LeadIntel',
+        recipientName,
+        senderName,
+        pitchText,
+        footerText: 'This email was sent via LeadIntel. To manage preferences, visit your dashboard.',
+      })
+      const text = `Hi ${recipientName || 'there'},\n\n${pitchText}\n\nBest regards,\n${senderName}\nLeadIntel Autonomous Revenue Agent`
 
-    // Send email using Resend
-    const resend = getResendClient()
-    const { data: emailData, error: emailError } = await resend.emails.send({
-      from: `${senderName} <${senderEmail}>`,
-      to: recipientEmail,
-      subject: `Quick intelligence on ${companyName_final}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Lead Intelligence</title>
-          </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">LeadIntel</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">AI-Powered Lead Intelligence</p>
-            </div>
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
-              <p style="font-size: 16px; margin: 0 0 20px 0;">
-                Hi ${recipientName || 'there'},
-              </p>
-              <div style="background: white; padding: 20px; border-left: 4px solid #06b6d4; margin: 20px 0; border-radius: 4px;">
-                ${lead.ai_personalized_pitch.split('\n').map((para: string) => `<p style="margin: 0 0 15px 0;">${para}</p>`).join('')}
-              </div>
-              <p style="font-size: 14px; color: #6b7280; margin: 20px 0 0 0;">
-                Best regards,<br>
-                <strong>${senderName}</strong><br>
-                LeadIntel Autonomous Revenue Agent
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-              <p style="font-size: 12px; color: #9ca3af; text-align: center; margin: 0;">
-                This email was sent via LeadIntel. To manage your preferences, visit your dashboard.
-              </p>
-            </div>
-          </body>
-        </html>
-      `,
-      text: `
-Hi ${recipientName || 'there'},
+      const sendResult = await sendEmailWithResend({
+        from: `${senderName} <${senderEmail}>`,
+        to: recipientEmail,
+        subject,
+        html,
+        text,
+        tags: [{ name: 'kind', value: 'manual' }],
+      })
 
-${lead.ai_personalized_pitch}
-
-Best regards,
-${senderName}
-LeadIntel Autonomous Revenue Agent
-      `.trim(),
-    })
-
-    if (emailError) {
-      return fail(
-        ErrorCode.EXTERNAL_API_ERROR,
-        'Failed to send email',
-        undefined,
-        undefined,
-        bridge
-      )
-    }
-
-    // Log the email send event
-    try {
-      await supabase
-        .from('email_logs')
-        .insert({
-          user_id: user.id,
-          lead_id: leadId,
-          recipient_email: recipientEmail,
-          sent_at: new Date().toISOString(),
-          status: 'sent',
-          resend_id: emailData?.id,
+      if (!sendResult.ok) {
+        recordCounter('send_pitch.error', 1)
+        captureMessage('send_pitch_resend_failed', {
+          route: '/api/send-pitch',
+          requestId,
+          userId,
+          leadId,
+          provider: 'resend',
         })
-    } catch (logError) {
-      // Log error but don't fail the request
-      console.error('Error logging email:', logError)
-    }
+        await insertEmailLog(supabase, {
+          userId: user.id,
+          leadId,
+          toEmail: recipientEmail,
+          fromEmail: senderEmail,
+          subject,
+          provider: 'resend',
+          status: 'failed',
+          error: sendResult.errorMessage,
+          resendMessageId: null,
+          sequenceStep: null,
+          kind: 'manual',
+        })
+        return fail(ErrorCode.EXTERNAL_API_ERROR, 'Failed to send email', undefined, undefined, bridge, requestId)
+      }
 
-    return ok({
-      message: 'Email sent successfully',
-      emailId: emailData?.id,
-    }, undefined, bridge)
-  } catch (error) {
-    return asHttpError(error, '/api/send-pitch', undefined, bridge)
+      recordCounter('send_pitch.success', 1)
+      captureBreadcrumb({
+        category: 'email',
+        level: 'info',
+        message: 'send_pitch_sent',
+        data: { route: '/api/send-pitch', requestId, userId, leadId, provider: 'resend' },
+      })
+
+      await insertEmailLog(supabase, {
+        userId: user.id,
+        leadId,
+        toEmail: recipientEmail,
+        fromEmail: senderEmail,
+        subject,
+        provider: 'resend',
+        status: 'sent',
+        error: null,
+        resendMessageId: sendResult.messageId,
+        sequenceStep: null,
+        kind: 'manual',
+      })
+
+      return ok({ message: 'Email sent successfully', emailId: sendResult.messageId }, undefined, bridge, requestId)
+    } catch (error) {
+      recordCounter('send_pitch.error', 1)
+      captureException(error, { route: '/api/send-pitch', requestId, userId, provider: 'resend' })
+      return asHttpError(error, '/api/send-pitch', userId, bridge, requestId)
+    }
+  },
+  {
+    bodySchema: SendPitchExtendedSchema,
   }
-}
+)

@@ -37,8 +37,8 @@ These variables are only available in server-side code and must never be exposed
 | Variable | Required | Used In | Description |
 |----------|----------|---------|-------------|
 | `STRIPE_SECRET_KEY` | ✅ Yes | `lib/stripe.ts`, `app/api/checkout/route.ts` | Stripe secret key (server-side) |
-| `STRIPE_PRICE_ID` | ⚠️ Optional | `app/api/checkout/route.ts` | Stripe price ID for subscription |
-| `STRIPE_PRICE_ID_PRO` | ⚠️ Optional | `app/api/checkout/route.ts` | Stripe price ID override for Pro tier |
+| `STRIPE_PRICE_ID` | ⚠️ Optional | `app/api/checkout/route.ts` | Stripe recurring price ID (fallback) |
+| `STRIPE_PRICE_ID_PRO` | ✅ Yes | `app/api/checkout/route.ts` | Stripe recurring price ID for Pro ($99/mo) |
 | `STRIPE_WEBHOOK_SECRET` | ✅ Yes | `app/api/stripe/webhook/route.ts` | Stripe webhook signing secret |
 
 ### OpenAI
@@ -53,6 +53,7 @@ These variables are only available in server-side code and must never be exposed
 |----------|----------|---------|-------------|
 | `RESEND_API_KEY` | ⚠️ Optional | `app/api/send-pitch/route.ts` | Resend API key for email sending |
 | `RESEND_FROM_EMAIL` | ⚠️ Optional | `app/api/send-pitch/route.ts` | From email address (defaults to noreply@leadintel.com) |
+| `RESEND_WEBHOOK_SECRET` | ⚠️ Optional | `app/api/resend/webhook/route.ts` | Resend webhook signing secret (raw-body verification) |
 
 ### Clearbit (Company Enrichment)
 
@@ -70,6 +71,19 @@ These variables are only available in server-side code and must never be exposed
 | `ZAPIER_WEBHOOK_URL` | ⚠️ Optional | `app/api/push-to-crm/route.ts` | Zapier webhook URL (CRM integration) |
 | `ADMIN_DIGEST_SECRET` | ⚠️ Optional | `app/api/digest/run/route.ts` | Admin digest webhook secret |
 | `DEV_SEED_SECRET` | ⚠️ Optional | `app/api/dev/create-user/route.ts` | Dev user creation secret (dev only) |
+| `CRON_SECRET` | ⚠️ Optional | `lib/api/guard.ts`, `vercel.json` | Legacy cron secret (header `X-CRON-SECRET`) |
+| `CRON_SIGNING_SECRET` | ⚠️ Optional | `lib/api/cron-auth.ts`, `lib/api/guard.ts` | Cron token signing secret (preferred) |
+| `CRON_TOKEN_AUTOPILOT` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/autopilot/run` (`cron_token`) |
+| `CRON_TOKEN_DISCOVER` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/leads/discover` (`cron_token`) |
+| `CRON_TOKEN_DIGEST` | ⚠️ Optional | `vercel.json` | Precomputed token for `POST /api/digest/run` (`cron_token`) |
+| `SENTRY_DSN` | ⚠️ Optional | `lib/observability/sentry.ts` | Sentry DSN (enables real error reporting; empty disables) |
+| `SENTRY_ENVIRONMENT` | ⚠️ Optional | `lib/observability/sentry.ts` | Sentry environment name |
+| `HEALTH_CHECK_EXTERNAL` | ⚠️ Optional | `lib/services/health.ts` | Enable shallow external provider checks (prod default is off) |
+| `FEATURE_AUTOPILOT_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/autopilot/run` | Global kill switch for autopilot sending (`0/false` disables) |
+| `FEATURE_RESEND_WEBHOOK_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/resend/webhook` | Global kill switch for Resend webhook processing (`0/false` disables DB writes) |
+| `FEATURE_STRIPE_WEBHOOK_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/stripe/webhook` | Global kill switch for Stripe webhook processing (`0/false` disables business updates; still ACKs) |
+| `FEATURE_CLEARBIT_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/reveal` | Global kill switch for Clearbit enrichment (`0/false` disables) |
+| `FEATURE_ZAPIER_PUSH_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/push-to-crm` | Global kill switch for Zapier push (`0/false` disables) |
 
 ### Application
 
@@ -81,118 +95,11 @@ These variables are only available in server-side code and must never be exposed
 
 ---
 
-## File-by-File Usage
+## Notes
 
-### `lib/env.ts`
-- **Purpose**: Centralized environment variable validation
-- **Uses**: Zod schemas for validation
-- **Exports**: `clientEnv`, `serverEnv`, `requireEnv()`, `getEnv()`
-
-### `lib/stripe.ts`
-- **Uses**: `serverEnv.STRIPE_SECRET_KEY`
-- **Replaced**: `process.env.STRIPE_SECRET_KEY`
-
-### `lib/ai-logic.ts`
-- **Uses**: `serverEnv.OPENAI_API_KEY`
-- **Replaced**: `process.env.OPENAI_API_KEY`
-
-### `app/api/send-pitch/route.ts`
-- **Uses**: `serverEnv.RESEND_API_KEY`, `serverEnv.RESEND_FROM_EMAIL`
-- **Replaced**: `process.env.RESEND_API_KEY`, `process.env.RESEND_FROM_EMAIL`
-
-### `app/api/checkout/route.ts`
-- **Uses**: `serverEnv.STRIPE_PRICE_ID`, `serverEnv.STRIPE_PRICE_ID_PRO`, `clientEnv.NEXT_PUBLIC_SITE_URL`
-- **Replaced**: `process.env.STRIPE_SECRET_KEY`, `process.env.STRIPE_PRICE_ID`, `process.env.NEXT_PUBLIC_SITE_URL`
-
-### `app/api/stripe/webhook/route.ts`
-- **Uses**: `serverEnv.STRIPE_WEBHOOK_SECRET`, `serverEnv.SUPABASE_SERVICE_ROLE_KEY`, `serverEnv.NODE_ENV`, `clientEnv.NEXT_PUBLIC_SUPABASE_URL`
-- **Replaced**: `process.env.STRIPE_WEBHOOK_SECRET`, `process.env.SUPABASE_SERVICE_ROLE_KEY`, `process.env.NEXT_PUBLIC_SUPABASE_URL`, `process.env.NODE_ENV`
-
-### `app/api/generate-pitch/route.ts`
-- **Uses**: `serverEnv.OPENAI_API_KEY`, `serverEnv.NODE_ENV`, `serverEnv.CLEARBIT_API_KEY`, `serverEnv.NEWS_API_KEY`
-- **Replaced**: `process.env.OPENAI_API_KEY`, `process.env.NODE_ENV`, `process.env.CLEARBIT_API_KEY`, `process.env.NEWS_API_KEY`
-
-### `app/api/generate-battle-card/route.ts`
-- **Uses**: `serverEnv.OPENAI_API_KEY` (needs update)
-- **Status**: ⚠️ Still uses `process.env.OPENAI_API_KEY`
-
-### `app/api/generate-sequence/route.ts`
-- **Uses**: `serverEnv.OPENAI_API_KEY` (needs update)
-- **Status**: ⚠️ Still uses `process.env.OPENAI_API_KEY`
-
-### `app/api/generate-linkedin-comment/route.ts`
-- **Uses**: `serverEnv.OPENAI_API_KEY` (needs update)
-- **Status**: ⚠️ Still uses `process.env.OPENAI_API_KEY`
-
-### `app/api/tracker/route.ts`
-- **Uses**: `serverEnv.CLEARBIT_REVEAL_API_KEY` (needs update)
-- **Status**: ⚠️ Still uses `process.env.CLEARBIT_REVEAL_API_KEY`
-
-### `app/api/reveal/route.ts`
-- **Uses**: `serverEnv.CLEARBIT_REVEAL_API_KEY` (needs update)
-- **Status**: ⚠️ Still uses `process.env.CLEARBIT_REVEAL_API_KEY`
-
-### `app/api/verify-email/route.ts`
-- **Uses**: `serverEnv.HUNTER_API_KEY` (needs update)
-- **Status**: ⚠️ Still uses `process.env.HUNTER_API_KEY`
-
-### `app/api/push-to-crm/route.ts`
-- **Uses**: `serverEnv.ZAPIER_WEBHOOK_URL` (needs update)
-- **Status**: ⚠️ Still uses `process.env.ZAPIER_WEBHOOK_URL`
-
-### `app/api/digest/run/route.ts`
-- **Uses**: `serverEnv.ADMIN_DIGEST_SECRET` (needs update)
-- **Status**: ⚠️ Still uses `process.env.ADMIN_DIGEST_SECRET`
-
-### `app/api/dev/create-user/route.ts`
-- **Uses**: `serverEnv.SUPABASE_SERVICE_ROLE_KEY`, `serverEnv.DEV_SEED_SECRET`, `serverEnv.NODE_ENV`, `clientEnv.NEXT_PUBLIC_SUPABASE_URL` (needs update)
-- **Status**: ⚠️ Still uses `process.env.*`
-
-### `app/api/stripe/portal/route.ts`
-- **Uses**: `clientEnv.NEXT_PUBLIC_SITE_URL` (needs update)
-- **Status**: ⚠️ Still uses `process.env.NEXT_PUBLIC_SITE_URL`
-
-### `lib/supabase/*.ts` (all client files)
-- **Uses**: `clientEnv.NEXT_PUBLIC_SUPABASE_URL`, `clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY` (needs update)
-- **Status**: ⚠️ Still uses `process.env.NEXT_PUBLIC_SUPABASE_URL`, `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`
-
-### `lib/supabase/schema.ts`
-- **Uses**: `clientEnv.NEXT_PUBLIC_SUPABASE_DB_SCHEMA`, `serverEnv.SUPABASE_DB_SCHEMA`, `serverEnv.SUPABASE_DB_SCHEMA_FALLBACK` (needs update)
-- **Status**: ⚠️ Still uses `process.env.*`
-
-### Client Components (NODE_ENV checks)
-- **Files**: `app/login/LoginClient.tsx`, `app/dashboard/DashboardClient.tsx`, `components/OnboardingWizard.tsx`
-- **Uses**: `process.env.NODE_ENV` (safe to keep - Next.js built-in)
-- **Status**: ✅ OK (NODE_ENV is safe to use directly)
-
----
-
-## Migration Status
-
-### ✅ Completed
-- `lib/env.ts` - Created with Zod validation
-- `lib/stripe.ts` - Updated to use `serverEnv`
-- `lib/ai-logic.ts` - Updated to use `serverEnv`
-- `app/api/send-pitch/route.ts` - Updated to use `serverEnv`
-- `app/api/checkout/route.ts` - Updated to use `serverEnv` and `clientEnv`
-- `app/api/stripe/webhook/route.ts` - Updated to use `serverEnv` and `clientEnv`
-- `app/api/generate-pitch/route.ts` - Updated to use `serverEnv`
-
-### ⚠️ Pending Updates
-- `app/api/generate-battle-card/route.ts`
-- `app/api/generate-sequence/route.ts`
-- `app/api/generate-linkedin-comment/route.ts`
-- `app/api/tracker/route.ts`
-- `app/api/reveal/route.ts`
-- `app/api/verify-email/route.ts`
-- `app/api/push-to-crm/route.ts`
-- `app/api/digest/run/route.ts`
-- `app/api/dev/create-user/route.ts`
-- `app/api/stripe/portal/route.ts`
-- `lib/supabase/*.ts` (all files)
-- `lib/supabase/schema.ts`
-
----
+- `lib/env.ts` is the **source of truth** for env validation.
+- Prefer `serverEnv` / `clientEnv` usage to avoid accidentally reading secrets in client bundles.
+- This doc intentionally does **not** attempt to maintain a “file-by-file migration status” section, as it becomes stale quickly.
 
 ## Validation Rules
 
@@ -239,7 +146,7 @@ These variables are only available in server-side code and must never be exposed
 
 ---
 
-**Last Updated**: January 2025  
+**Last Updated**: January 2026  
 **Total Variables**: 22 (5 client, 17 server)  
 **Required Variables**: 8 (3 client, 5 server)  
 **Optional Variables**: 14 (2 client, 12 server)

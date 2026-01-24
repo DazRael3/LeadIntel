@@ -7,6 +7,7 @@ type Plan = 'free' | 'pro'
 interface PlanContextValue {
   plan: Plan
   isPro: boolean
+  trial: { active: boolean; endsAt: string | null }
   loading: boolean
   refresh: () => Promise<void>
 }
@@ -20,6 +21,7 @@ interface PlanProviderProps {
 
 export function PlanProvider({ initialPlan = 'free', children }: PlanProviderProps) {
   const [plan, setPlan] = useState<Plan>(initialPlan)
+  const [trial, setTrial] = useState<{ active: boolean; endsAt: string | null }>({ active: false, endsAt: null })
   const [loading, setLoading] = useState(false)
 
   const refresh = useCallback(async () => {
@@ -39,8 +41,17 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
         console.error('PlanProvider: JSON parse error:', parseError, 'Response text:', text.substring(0, 200))
         return
       }
-      if (data?.plan === 'pro' || data?.plan === 'free') {
-        setPlan(data.plan)
+      // Standard envelope: { ok: true, data: { plan, trial } }
+      const payload = data?.data ?? data
+      if (payload?.plan === 'pro' || payload?.plan === 'free') {
+        setPlan(payload.plan)
+      }
+      if (payload?.trial && typeof payload.trial === 'object') {
+        const nextTrial = payload.trial as { active?: unknown; endsAt?: unknown }
+        setTrial({
+          active: Boolean(nextTrial.active),
+          endsAt: typeof nextTrial.endsAt === 'string' ? nextTrial.endsAt : null,
+        })
       }
     } catch (error: unknown) {
       console.error('PlanProvider: Error refreshing plan:', error)
@@ -61,10 +72,11 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
     () => ({
       plan,
       isPro: plan === 'pro',
+      trial,
       loading,
       refresh,
     }),
-    [plan, loading, refresh]
+    [plan, trial, loading, refresh]
   )
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>

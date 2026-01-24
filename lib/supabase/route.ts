@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDbSchema } from './schema'
+import { isE2E } from '@/lib/runtimeFlags'
+import { createE2EServerSupabaseClient } from './e2e'
 
 /**
  * Get Supabase anon key - supports both env var naming conventions
@@ -33,6 +35,11 @@ export function getSchema() {
 }
 
 export function createRouteClient(request: NextRequest, response: NextResponse) {
+  if (isE2E()) {
+    return createE2EServerSupabaseClient({
+      getCookie: (name) => request.cookies.get(name)?.value,
+    })
+  }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = getSupabaseKey()
   const schema = getSchema()
