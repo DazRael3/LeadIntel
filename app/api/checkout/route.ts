@@ -193,12 +193,12 @@ const POST_GUARDED = withApiGuard(
         })
     }
 
-    // Check for existing active subscription
+    // Check for existing active/trialing subscription (avoid duplicate checkouts)
     const { data: existingSubscription } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', user.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'trialing'])
       .single()
 
     if (existingSubscription) {
