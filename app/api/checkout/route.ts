@@ -81,11 +81,28 @@ const POST_GUARDED = withApiGuard(
 
     // Validate Stripe environment variables
     let priceId: string
+    let trialFeePriceId: string | null = null
     let siteUrl: string
     try {
       const env = validateStripeEnv()
       priceId = parsedBody.priceId || env.priceId
       siteUrl = env.siteUrl || request.nextUrl.origin
+
+      // Require an explicit trial fee price for "7-day $25 trial" behavior.
+      trialFeePriceId = serverEnv.STRIPE_TRIAL_FEE_PRICE_ID || null
+      if (!trialFeePriceId) {
+        return fail(
+          ErrorCode.INTERNAL_ERROR,
+          'Stripe configuration error',
+          {
+            message: 'STRIPE_TRIAL_FEE_PRICE_ID must be set to enable the $25 trial fee.',
+            required: ['STRIPE_TRIAL_FEE_PRICE_ID'],
+          },
+          { status: 500 },
+          bridge,
+          requestId
+        )
+      }
     } catch (error) {
       return fail(
         ErrorCode.INTERNAL_ERROR,
@@ -155,6 +172,8 @@ const POST_GUARDED = withApiGuard(
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         mode: 'subscription',
+        // Collect payment method up-front during trial so the trial can convert.
+        payment_method_collection: 'always',
         payment_method_types: ['card'],
         line_items: [
           {
@@ -170,6 +189,10 @@ const POST_GUARDED = withApiGuard(
           email: user.email ?? '',
         },
         subscription_data: {
+          // 7-day trial period
+          trial_period_days: 7,
+          // $25 trial fee (charged immediately as an invoice item)
+          add_invoice_items: trialFeePriceId ? [{ price: trialFeePriceId }] : undefined,
           metadata: {
             user_id: user.id,
           },

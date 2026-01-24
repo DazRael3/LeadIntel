@@ -30,6 +30,7 @@ jobs:
       SUPABASE_DB_SCHEMA: api
       STRIPE_SECRET_KEY: sk_test_123
       STRIPE_WEBHOOK_SECRET: whsec_test_123
+      STRIPE_TRIAL_FEE_PRICE_ID: price_test_trial_fee
       OPENAI_API_KEY: sk-test123
       RESEND_API_KEY: re_test123
       RESEND_FROM_EMAIL: test@example.com

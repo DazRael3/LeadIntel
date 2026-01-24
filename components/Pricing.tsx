@@ -181,6 +181,11 @@ export function Pricing() {
                 <span className="text-5xl font-bold neon-cyan">$99</span>
                 <span className="text-muted-foreground">/month</span>
               </div>
+              <div className="mt-2">
+                <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/30">
+                  7-day $25 trial
+                </Badge>
+              </div>
               <CardDescription className="mt-2">
                 Everything you need to dominate B2B sales
               </CardDescription>
