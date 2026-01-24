@@ -56,7 +56,8 @@ export const POST = withApiGuard(
           ErrorCode.FORBIDDEN,
           `You've already unlocked a lead today. Next unlock available in ${hoursRemaining} hours.`,
           {
-            redirect: '/api/checkout',
+            // Centralize upgrade flow on /pricing (checkout is initiated via POST /api/checkout there).
+            redirect: '/pricing',
             hoursRemaining,
           },
           undefined,
