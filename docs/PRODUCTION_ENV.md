@@ -8,12 +8,10 @@ This document lists the **minimum required** environment variables for a safe pr
 - `STRIPE_SECRET_KEY` (**secret**): `sk_live_...`
 - `STRIPE_WEBHOOK_SECRET` (**secret**): `whsec_...` for your production webhook endpoint
 - `STRIPE_PRICE_ID_PRO` (**secret-ish**): `price_...` for the **recurring $99/month** price
-- `STRIPE_TRIAL_FEE_PRICE_ID` (**secret-ish**): `price_...` for the **one-time $25** trial fee price
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (public): `pk_live_...`
 
 **How pricing works**
-- The checkout session uses **subscription mode** with `trial_period_days: 7`
-- It also adds a **one-time invoice item** using `STRIPE_TRIAL_FEE_PRICE_ID` to collect the $25 trial fee
+- The checkout session uses **subscription mode** for the **$99/month** Pro plan
 - Payment method is collected up-front (so the trial can convert)
 
 ## Supabase (Auth + DB)

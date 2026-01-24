@@ -102,7 +102,6 @@ const POST_GUARDED = withApiGuard(
         planId: parsedBody.planId,
         hasStripeSecretKey: Boolean(serverEnv.STRIPE_SECRET_KEY),
         hasStripePriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
-        hasTrialFeePriceId: Boolean(serverEnv.STRIPE_TRIAL_FEE_PRICE_ID),
       })
     }
 
@@ -118,33 +117,12 @@ const POST_GUARDED = withApiGuard(
 
     // Validate Stripe environment variables
     let priceId: string
-    let trialFeePriceId: string | null = null
     let siteUrl: string
     try {
       const env = validateStripeEnv()
       // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
       priceId = env.priceId
       siteUrl = env.siteUrl || request.nextUrl.origin
-
-      // Require an explicit trial fee price for "7-day $25 trial" behavior.
-      trialFeePriceId = serverEnv.STRIPE_TRIAL_FEE_PRICE_ID || null
-      if (!trialFeePriceId) {
-        captureMessage('checkout_not_configured_missing_trial_fee_price', {
-          route: '/api/checkout',
-          requestId,
-        })
-        return fail(
-          'CHECKOUT_NOT_CONFIGURED',
-          'Checkout is not configured',
-          {
-            message: 'STRIPE_TRIAL_FEE_PRICE_ID must be set to enable the $25 trial fee.',
-            required: ['STRIPE_TRIAL_FEE_PRICE_ID'],
-          },
-          { status: 500 },
-          bridge,
-          requestId
-        )
-      }
     } catch (error) {
       captureMessage('checkout_not_configured', {
         route: '/api/checkout',
@@ -156,7 +134,7 @@ const POST_GUARDED = withApiGuard(
         {
           // Do not leak env values; just explain what is missing.
           message: error instanceof Error ? error.message : 'Missing Stripe configuration',
-          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID (or STRIPE_PRICE_ID_PRO)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
+          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID_PRO (recommended)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
         },
         { status: 500 },
         bridge,
@@ -218,7 +196,7 @@ const POST_GUARDED = withApiGuard(
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         mode: 'subscription',
-        // Collect payment method up-front during trial so the trial can convert.
+        // Collect payment method up-front.
         payment_method_collection: 'always',
         payment_method_types: ['card'],
         line_items: [
@@ -235,10 +213,6 @@ const POST_GUARDED = withApiGuard(
           email: user.email ?? '',
         },
         subscription_data: {
-          // 7-day trial period
-          trial_period_days: 7,
-          // $25 trial fee (charged immediately as an invoice item)
-          add_invoice_items: trialFeePriceId ? [{ price: trialFeePriceId }] : undefined,
           metadata: {
             user_id: user.id,
           },
