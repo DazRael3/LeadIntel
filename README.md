@@ -76,11 +76,13 @@ STRIPE_SECRET_KEY=sk_test_your-secret-key-here
 # Stripe Publishable Key (public, safe for client-side)
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your-publishable-key-here
 
-# Stripe Price ID for Pro subscription
-# Get from Stripe Dashboard → Products → Your Product → Pricing
-STRIPE_PRICE_ID=price_your-price-id-here
-# Optional: Override for Pro tier
-STRIPE_PRICE_ID_PRO=price_your-pro-price-id-here
+# Stripe recurring price ID for Pro subscription ($99/month)
+# Get from Stripe Dashboard → Products → Your Product → Pricing (Recurring)
+STRIPE_PRICE_ID_PRO=price_your-pro-recurring-price-id-here
+
+# Stripe one-time price ID for the trial fee ($25)
+# This is charged immediately as an invoice item, while the subscription uses a 7-day trial.
+STRIPE_TRIAL_FEE_PRICE_ID=price_your-trial-fee-one-time-price-id-here
 
 # Stripe Webhook Secret (for webhook signature verification)
 # Get from Stripe Dashboard → Developers → Webhooks → Your endpoint → Signing secret
@@ -205,6 +207,10 @@ npm run lint
 # Type check (no build)
 npx tsc --noEmit
 ```
+
+## Production deployment notes
+
+See `docs/PRODUCTION_ENV.md` for the full production environment checklist (Stripe live keys, Supabase, Upstash rate limiting, and webhook setup).
 
 ### Database & Migrations
 

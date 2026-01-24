@@ -31,6 +31,10 @@ yarn-error.log*
 .env.*.local
 *.env
 
+# Allow committed, non-secret env templates
+!.env.example
+!.env.production.example
+
 # dependencies
 node_modules
 .next
