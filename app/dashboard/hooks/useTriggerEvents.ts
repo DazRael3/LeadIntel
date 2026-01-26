@@ -96,9 +96,9 @@ export function useTriggerEvents(): UseTriggerEventsReturn {
         event_description: row.event_description || '',
         source_url: row.source_url || '',
         detected_at: row.detected_at || row.created_at || new Date().toISOString(),
-        company_url: row.company_url,
-        company_domain: row.company_domain,
-        headline: row.headline,
+        company_url: row.company_url ?? undefined,
+        company_domain: row.company_domain ?? undefined,
+        headline: row.headline ?? undefined,
         created_at: row.created_at || new Date().toISOString(),
       }))
       
