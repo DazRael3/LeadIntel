@@ -24,7 +24,8 @@ export type EmailLogInsert = {
  * - Then falls back to the minimal legacy shape when columns are missing.
  */
 export async function insertEmailLog(
-  supabase: SupabaseClient,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SupabaseClient schema generics vary (api/public) based on runtime configuration.
+  supabase: SupabaseClient<any, any, any>,
   row: EmailLogInsert
 ): Promise<{ ok: true } | { ok: false; errorMessage: string }> {
   const primary = {
