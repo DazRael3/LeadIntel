@@ -12,6 +12,19 @@ interface UseTriggerEventsReturn {
   loadEvents: () => Promise<void>
 }
 
+type TriggerEventRow = {
+  id: string
+  company_name?: string | null
+  company_domain?: string | null
+  company_url?: string | null
+  event_type?: string | null
+  event_description?: string | null
+  headline?: string | null
+  source_url?: string | null
+  detected_at?: string | null
+  created_at?: string | null
+}
+
 /**
  * Hook to load trigger events for the current user.
  * Handles schema mismatches and missing columns gracefully.
@@ -61,7 +74,8 @@ export function useTriggerEvents(): UseTriggerEventsReturn {
       }
       
       // Normalize data to match TriggerEvent interface with safe defaults
-      const normalizedEvents: TriggerEvent[] = (data || []).map((row) => ({
+      const rows = (data ?? []) as TriggerEventRow[]
+      const normalizedEvents: TriggerEvent[] = rows.map((row) => ({
         id: row.id,
         company_name: row.company_name || 'Unknown Company',
         event_type: row.event_type || 'expansion',
