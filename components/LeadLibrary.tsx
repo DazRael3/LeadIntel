@@ -26,6 +26,10 @@ import { UpgradeOverlay } from "@/components/UpgradeOverlay"
 import { LeadDetailView } from "@/components/LeadDetailView"
 import { addLeadToWatchlist } from "@/components/Watchlist"
 
+type WatchlistRow = {
+  lead_id: string
+}
+
 interface LeadLibraryProps {
   isPro: boolean
   creditsRemaining: number
@@ -56,7 +60,8 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
         .eq('user_id', user.id)
 
       if (data) {
-        setStarredLeads(new Set(data.map(item => item.lead_id)))
+        const rows = data as WatchlistRow[]
+        setStarredLeads(new Set(rows.map((item) => item.lead_id)))
       }
     } catch (error) {
       console.error('Error loading starred leads:', error)

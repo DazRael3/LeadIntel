@@ -72,14 +72,15 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
   useEffect(() => {
     // Get current user
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setUserId(user.id)
         // Try to get email and name from user
         setSenderEmail(user.email || '')
         setSenderName(user.user_metadata?.full_name || user.email?.split('@')[0] || '')
       }
-    })
+    })()
   }, [supabase.auth])
 
   const handleIndustryToggle = (industry: string) => {

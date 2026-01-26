@@ -22,27 +22,27 @@ function requireEnv(name: string): string {
 
 type Row = Record<string, unknown>
 
-async function must<T>(p: Promise<{ data: T; error: any }>, label: string): Promise<T> {
+async function must<T>(p: PromiseLike<{ data: T; error: any }>, label: string): Promise<T> {
   const { data, error } = await p
   if (error) throw new Error(`${label}: ${error.message || String(error)}`)
   return data
 }
 
-async function createTempUser(admin: SupabaseClient, email: string, password: string): Promise<string> {
-  const data = await must(
-    admin.auth.admin.createUser({ email, password, email_confirm: true }),
-    'createUser'
-  )
+async function createTempUser(admin: SupabaseClient<any, any, any>, email: string, password: string): Promise<string> {
+  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
+  if (error) throw new Error(`createUser: ${error.message || String(error)}`)
+  if (!data.user) throw new Error('createUser: missing user')
   return data.user.id
 }
 
-async function signIn(anon: SupabaseClient, email: string, password: string): Promise<string> {
-  const data = await must(anon.auth.signInWithPassword({ email, password }), 'signInWithPassword')
-  if (!data.session?.access_token) throw new Error('missing access_token')
+async function signIn(anon: SupabaseClient<any, any, any>, email: string, password: string): Promise<string> {
+  const { data, error } = await anon.auth.signInWithPassword({ email, password })
+  if (error) throw new Error(`signInWithPassword: ${error.message || String(error)}`)
+  if (!data.session?.access_token) throw new Error('signInWithPassword: missing access_token')
   return data.session.access_token
 }
 
-function authClient(url: string, anonKey: string, jwt: string, schema: string): SupabaseClient {
+function authClient(url: string, anonKey: string, jwt: string, schema: string): SupabaseClient<any, any, any> {
   return createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${jwt}` } },
@@ -50,7 +50,7 @@ function authClient(url: string, anonKey: string, jwt: string, schema: string): 
   })
 }
 
-async function expectCannotSelect(client: SupabaseClient, table: string, label: string) {
+async function expectCannotSelect(client: SupabaseClient<any, any, any>, table: string, label: string) {
   const { error } = await client.from(table).select('*').limit(1)
   if (!error) {
     throw new Error(`${label}: expected SELECT to be blocked by RLS/grants`)
@@ -78,16 +78,18 @@ async function main() {
     auth: { persistSession: false, autoRefreshToken: false },
     db: { schema },
   })
+  const adminClient = admin as SupabaseClient<any, any, any>
+  const anonClient = anon as SupabaseClient<any, any, any>
 
   const password = 'TempPassword!12345'
   const u1Email = `rls_u1_${Date.now()}@example.com`
   const u2Email = `rls_u2_${Date.now()}@example.com`
 
-  const u1 = await createTempUser(admin, u1Email, password)
-  const u2 = await createTempUser(admin, u2Email, password)
+  const u1 = await createTempUser(adminClient, u1Email, password)
+  const u2 = await createTempUser(adminClient, u2Email, password)
 
-  const u1Jwt = await signIn(anon, u1Email, password)
-  const u2Jwt = await signIn(anon, u2Email, password)
+  const u1Jwt = await signIn(anonClient, u1Email, password)
+  const u2Jwt = await signIn(anonClient, u2Email, password)
 
   const c1 = authClient(url, anonKey, u1Jwt, schema)
   const c2 = authClient(url, anonKey, u2Jwt, schema)
@@ -111,7 +113,7 @@ async function main() {
 
   // Service role can write cross-tenant (webhook/cron model), but must set user_id explicitly.
   await must(
-    admin.from('email_engagement').insert({
+    adminClient.from('email_engagement').insert({
       user_id: u1,
       lead_id: null,
       provider: 'resend',

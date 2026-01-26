@@ -8,11 +8,13 @@
  * - Never log/attach secrets, tokens, or full email bodies.
  */
 
-import type { ScopeContext } from '@sentry/types'
 import { serverEnv } from '@/lib/env'
 
 /** Observability context for structured logging */
 export type ObsContext = Record<string, unknown>
+
+// Local minimal type to avoid depending on optional Sentry type packages at build time.
+type ScopeContext = Record<string, unknown>
 
 type Breadcrumb = {
   category?: string

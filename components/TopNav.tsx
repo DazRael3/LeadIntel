@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 export function TopNav() {
   const router = useRouter()
@@ -27,7 +28,7 @@ export function TopNav() {
         setLoading(false)
 
         // Subscribe to auth state changes
-        const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
           setIsLoggedIn(!!session?.user)
           setLoading(false)
         })
