@@ -14,6 +14,33 @@ import { TopNav } from "@/components/TopNav"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import Link from "next/link"
 
+type TriggerEventRow = {
+  id: string
+  company_name?: string | null
+  company_domain?: string | null
+  company_url?: string | null
+  event_type?: string | null
+  event_description?: string | null
+  headline?: string | null
+  source_url?: string | null
+  detected_at?: string | null
+  created_at?: string | null
+}
+
+const ALLOWED_EVENT_TYPES: TriggerEvent['event_type'][] = [
+  'product_launch',
+  'expansion',
+  'funding',
+  'new_hires',
+  'partnership',
+]
+
+function normalizeEventType(value: string | null | undefined): TriggerEvent['event_type'] {
+  if (!value) return 'expansion'
+  const candidate = value as TriggerEvent['event_type']
+  return ALLOWED_EVENT_TYPES.includes(candidate) ? candidate : 'expansion'
+}
+
 export default function Dashboard() {
   const [events, setEvents] = useState<TriggerEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,16 +83,17 @@ export default function Dashboard() {
       }
       
       // Normalize data with safe defaults
-      const normalizedEvents: TriggerEvent[] = (data || []).map((row) => ({
+      const rows = (data ?? []) as TriggerEventRow[]
+      const normalizedEvents: TriggerEvent[] = rows.map((row) => ({
         id: row.id,
         company_name: row.company_name || 'Unknown Company',
-        event_type: row.event_type || 'expansion',
+        event_type: normalizeEventType(row.event_type),
         event_description: row.event_description || '',
         source_url: row.source_url || '',
         detected_at: row.detected_at || row.created_at || new Date().toISOString(),
-        company_url: row.company_url,
-        company_domain: row.company_domain,
-        headline: row.headline,
+        company_url: row.company_url ?? undefined,
+        company_domain: row.company_domain ?? undefined,
+        headline: row.headline ?? undefined,
         created_at: row.created_at || new Date().toISOString(),
       }))
       
