@@ -25,6 +25,20 @@ type TriggerEventRow = {
   created_at?: string | null
 }
 
+const ALLOWED_EVENT_TYPES: TriggerEvent['event_type'][] = [
+  'product_launch',
+  'expansion',
+  'funding',
+  'new_hires',
+  'partnership',
+]
+
+function normalizeEventType(value: string | null | undefined): TriggerEvent['event_type'] {
+  if (!value) return 'expansion'
+  const candidate = value as TriggerEvent['event_type']
+  return ALLOWED_EVENT_TYPES.includes(candidate) ? candidate : 'expansion'
+}
+
 /**
  * Hook to load trigger events for the current user.
  * Handles schema mismatches and missing columns gracefully.
@@ -78,7 +92,7 @@ export function useTriggerEvents(): UseTriggerEventsReturn {
       const normalizedEvents: TriggerEvent[] = rows.map((row) => ({
         id: row.id,
         company_name: row.company_name || 'Unknown Company',
-        event_type: row.event_type || 'expansion',
+        event_type: normalizeEventType(row.event_type),
         event_description: row.event_description || '',
         source_url: row.source_url || '',
         detected_at: row.detected_at || row.created_at || new Date().toISOString(),
