@@ -12,21 +12,6 @@ export interface PlanDetails {
   trialEndsAt?: string | null
   /** Current period end timestamp (ISO) if known. */
   currentPeriodEndsAt?: string | null
-  /** App-level trial end timestamp (ISO) if enabled and active. */
-  appTrialEndsAt?: string | null
-  /** True when effective Pro access is coming from app-level trial (not Stripe). */
-  isAppTrial?: boolean
-}
-
-function isAppTrialEnabled(): boolean {
-  const raw = (process.env.ENABLE_APP_TRIAL || '').trim().toLowerCase()
-  return raw === '1' || raw === 'true'
-}
-
-function isFutureIso(ts: string | null | undefined, nowMs: number): boolean {
-  if (!ts) return false
-  const ms = Date.parse(ts)
-  return Number.isFinite(ms) && ms > nowMs
 }
 
 export async function getPlan(supabase: SupabaseClient, userId: string): Promise<Plan> {
@@ -78,36 +63,13 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
       .maybeSingle()
 
     const status = (sub as { status?: string | null } | null)?.status ?? null
-    let plan: Plan = status && ACTIVE_STATUSES.includes(status) ? 'pro' : await getPlan(supabase, userId)
-    let appTrialEndsAt: string | null = null
-    let isAppTrial = false
-
-    if (plan === 'free' && isAppTrialEnabled()) {
-      try {
-        const { data: userRow } = await supabase
-          .from('users')
-          .select('trial_ends_at')
-          .eq('id', userId)
-          .maybeSingle()
-
-        const trialEnds = (userRow as { trial_ends_at?: string | null } | null)?.trial_ends_at ?? null
-        if (isFutureIso(trialEnds, Date.now())) {
-          plan = 'pro'
-          appTrialEndsAt = trialEnds
-          isAppTrial = true
-        }
-      } catch {
-        // If columns are missing, treat as no app trial (schema drift tolerance).
-      }
-    }
+    const plan: Plan = status && ACTIVE_STATUSES.includes(status) ? 'pro' : await getPlan(supabase, userId)
 
     return {
       plan,
       subscriptionStatus: status,
       trialEndsAt: (sub as { trial_end?: string | null } | null)?.trial_end ?? null,
       currentPeriodEndsAt: (sub as { current_period_end?: string | null } | null)?.current_period_end ?? null,
-      appTrialEndsAt,
-      isAppTrial,
     }
   } catch {
     const plan = await getPlan(supabase, userId)

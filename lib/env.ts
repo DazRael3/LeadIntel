@@ -82,10 +82,6 @@ const serverEnvSchema = z.object({
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
-  ENABLE_APP_TRIAL: z.preprocess(
-    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
-    z.enum(['0', '1', 'true', 'false']).optional()
-  ),
 
   // Clearbit
   CLEARBIT_REVEAL_API_KEY: z.string().optional(),
@@ -173,7 +169,6 @@ function buildServerEnv(): ServerEnv {
     FEATURE_STRIPE_WEBHOOK_ENABLED: process.env.FEATURE_STRIPE_WEBHOOK_ENABLED,
     FEATURE_CLEARBIT_ENABLED: process.env.FEATURE_CLEARBIT_ENABLED,
     FEATURE_ZAPIER_PUSH_ENABLED: process.env.FEATURE_ZAPIER_PUSH_ENABLED,
-    ENABLE_APP_TRIAL: process.env.ENABLE_APP_TRIAL,
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET,

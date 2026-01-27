@@ -84,7 +84,6 @@ These variables are only available in server-side code and must never be exposed
 | `FEATURE_STRIPE_WEBHOOK_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/stripe/webhook` | Global kill switch for Stripe webhook processing (`0/false` disables business updates; still ACKs) |
 | `FEATURE_CLEARBIT_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/reveal` | Global kill switch for Clearbit enrichment (`0/false` disables) |
 | `FEATURE_ZAPIER_PUSH_ENABLED` | ⚠️ Optional | `lib/services/feature-flags.ts`, `/api/push-to-crm` | Global kill switch for Zapier push (`0/false` disables) |
-| `ENABLE_APP_TRIAL` | ⚠️ Optional | `app/api/plan/route.ts`, `lib/billing/plan.ts` | Enables app-level 3-day Pro trial for new users (no Stripe trial) |
 
 ### Application
 
