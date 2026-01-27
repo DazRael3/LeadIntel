@@ -38,12 +38,17 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       return fail(ErrorCode.DATABASE_ERROR, 'Failed to load watchlist', undefined, undefined, bridge, requestId)
     }
 
-    const items =
-      (data ?? []).map((row) => ({
-        symbol: (row as { symbol: string }).symbol,
-        instrumentType: (row as { instrument_type: 'stock' | 'crypto' }).instrument_type,
-        position: (row as { position: number }).position,
-      })) ?? []
+    type WatchlistSymbolRow = {
+      symbol: string
+      instrument_type: 'stock' | 'crypto'
+      position: number
+    }
+    const rows = (data ?? []) as WatchlistSymbolRow[]
+    const items = rows.map((row) => ({
+      symbol: row.symbol,
+      instrumentType: row.instrument_type,
+      position: row.position,
+    }))
 
     return ok({ items }, undefined, bridge, requestId)
   } catch (err) {
