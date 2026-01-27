@@ -1,0 +1,214 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { Star, TrendingDown, TrendingUp } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { usePlan } from '@/components/PlanProvider'
+import { DEFAULT_INSTRUMENTS, findDefaultInstrument, type InstrumentDefinition } from '@/lib/market/instruments'
+import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
+import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
+
+type QuoteMap = Record<string, InstrumentQuote>
+
+function toQuoteMap(quotes: InstrumentQuote[]): QuoteMap {
+  const map: QuoteMap = {}
+  for (const q of quotes) map[q.symbol] = q
+  return map
+}
+
+export function MarketSidebar() {
+  const { isPro } = usePlan()
+  const { visible, starredKeys, add, remove, loading: watchlistLoading } = useMarketWatchlist()
+
+  const [quotes, setQuotes] = useState<QuoteMap>({})
+  const [quoteError, setQuoteError] = useState<string | null>(null)
+
+  const [query, setQuery] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const next = await fetchInstrumentQuotes(visible)
+        if (cancelled) return
+        setQuotes(toQuoteMap(next))
+        setQuoteError(null)
+      } catch {
+        if (cancelled) return
+        setQuoteError('Market data unavailable')
+      }
+    }
+    void refresh()
+    const interval = setInterval(refresh, 45000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [visible])
+
+  const suggestions = useMemo(() => {
+    const q = query.trim().toUpperCase()
+    if (!q) return []
+    return DEFAULT_INSTRUMENTS.filter((i) => i.defaultVisible && i.symbol.includes(q)).slice(0, 8)
+  }, [query])
+
+  async function toggleStar(inst: InstrumentDefinition) {
+    if (!isPro) return
+    setActionError(null)
+    const key = `${inst.kind}:${inst.symbol}`
+    try {
+      if (starredKeys.has(key)) {
+        await remove(inst.symbol, inst.kind)
+      } else {
+        await add(inst.symbol, inst.kind)
+      }
+    } catch {
+      setActionError('Failed to update watchlist')
+    }
+  }
+
+  async function addFromQuery() {
+    if (!isPro) return
+    setActionError(null)
+    const symbol = query.trim().toUpperCase()
+    const match = DEFAULT_INSTRUMENTS.find((i) => i.defaultVisible && i.symbol === symbol)
+    if (!match) {
+      setActionError('Choose a symbol from the default list')
+      return
+    }
+    try {
+      await add(match.symbol, match.kind)
+      setQuery('')
+    } catch {
+      setActionError('Failed to update watchlist')
+    }
+  }
+
+  return (
+    <Card className="border-cyan-500/20 bg-card/50" data-testid="market-sidebar">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-lg bloomberg-font">MARKETS</CardTitle>
+          </div>
+          <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10">
+            {visible.length}
+          </Badge>
+        </div>
+        {!isPro ? (
+          <div className="text-xs text-muted-foreground">
+            Upgrade to customize your watchlist.
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-2 text-purple-300 hover:bg-purple-500/10"
+              onClick={() => (window.location.href = '/pricing')}
+            >
+              Upgrade
+            </Button>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground">Star symbols to pin them to your personal watchlist.</div>
+        )}
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        {isPro && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Add symbol (e.g. AAPL, BTC-USD)"
+                className="h-9"
+                data-testid="market-sidebar-search"
+              />
+              <Button onClick={addFromQuery} disabled={!query.trim()} className="h-9" data-testid="market-sidebar-add">
+                Add
+              </Button>
+            </div>
+            {suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((s) => (
+                  <Button
+                    key={`${s.kind}:${s.symbol}`}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-cyan-500/20"
+                    onClick={() => setQuery(s.symbol)}
+                  >
+                    {s.symbol}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {actionError && <div className="text-xs text-red-400">{actionError}</div>}
+        {quoteError && <div className="text-xs text-muted-foreground">{quoteError}</div>}
+
+        <div className="space-y-2 max-h-[520px] overflow-auto pr-1">
+          {visible.map((inst) => {
+            const q = quotes[inst.symbol]
+            const change = q?.changePct ?? null
+            const price = q?.price ?? null
+            const key = `${inst.kind}:${inst.symbol}`
+            const starred = starredKeys.has(key)
+            const def = findDefaultInstrument(inst.symbol, inst.kind)
+            const name = def?.name ?? inst.name
+
+            return (
+              <div
+                key={key}
+                className="flex items-center justify-between rounded border border-cyan-500/10 bg-background/30 px-3 py-2"
+                data-testid={`market-row-${inst.symbol}`}
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-cyan-300">{inst.symbol}</span>
+                    <span className="truncate text-xs text-muted-foreground">{name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{price == null ? '—' : `$${price.toFixed(2)}`}</span>
+                    <span className="opacity-60">•</span>
+                    <span
+                      className={
+                        change == null ? 'text-muted-foreground' : change > 0 ? 'text-green-400' : change < 0 ? 'text-red-400' : 'text-muted-foreground'
+                      }
+                    >
+                      {change == null ? '—' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {change == null ? null : change >= 0 ? (
+                    <TrendingUp className="h-4 w-4 text-green-400" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-400" />
+                  )}
+                  <button
+                    type="button"
+                    aria-label={starred ? 'Unstar' : 'Star'}
+                    className={`p-1 rounded hover:bg-cyan-500/10 ${!isPro ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    onClick={() => void toggleStar(inst)}
+                    disabled={!isPro || watchlistLoading}
+                    data-testid={`market-star-${inst.symbol}`}
+                  >
+                    <Star className={`h-4 w-4 ${starred ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`} />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+

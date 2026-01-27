@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
-import { DEFAULT_INSTRUMENTS, type InstrumentDefinition } from '@/lib/market/instruments'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
+import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -16,10 +16,7 @@ function toQuoteMap(quotes: InstrumentQuote[]): QuoteMap {
 }
 
 export function MarketTickerBar() {
-  // For now: default-visible instruments. (Will be merged with user watchlist via /api/watchlist.)
-  const instruments: InstrumentDefinition[] = useMemo(() => {
-    return DEFAULT_INSTRUMENTS.filter((i) => i.defaultVisible).slice().sort((a, b) => a.order - b.order)
-  }, [])
+  const { visible: instruments, error: watchlistError } = useMarketWatchlist()
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [error, setError] = useState<string | null>(null)
@@ -53,8 +50,8 @@ export function MarketTickerBar() {
   return (
     <div className="border-b border-cyan-500/20 bg-background/90 backdrop-blur-sm overflow-hidden" data-testid="market-ticker">
       <div className="relative group">
-        {error ? (
-          <div className="px-6 py-2 text-xs text-muted-foreground">{error}</div>
+        {error || watchlistError ? (
+          <div className="px-6 py-2 text-xs text-muted-foreground">{error || watchlistError}</div>
         ) : instruments.length === 0 ? (
           <div className="px-6 py-2 text-xs text-muted-foreground">No instruments</div>
         ) : (

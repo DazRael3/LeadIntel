@@ -12,6 +12,7 @@ import { WebsiteVisitors } from '@/components/WebsiteVisitors'
 import { LiveIntent } from '@/components/LiveIntent'
 import { OnboardingWizard } from '@/components/OnboardingWizard'
 import { Watchlist } from '@/components/Watchlist'
+import { MarketSidebar } from '@/components/MarketSidebar'
 import { DashboardHeader } from '@/components/DashboardHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePlan } from '@/components/PlanProvider'
@@ -145,14 +146,9 @@ export function DashboardClient({
             {/* View Mode Toggle */}
             <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - Market Pulse */}
-              <div className="lg:col-span-1">
-                <MarketPulse />
-              </div>
-
-              {/* Right Column - Lead Library */}
-              <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Main Column */}
+              <div className="lg:col-span-3">
                 {loading ? (
                   <Card className="border-cyan-500/20 bg-card/50">
                     <CardContent className="py-20 text-center">
@@ -164,28 +160,33 @@ export function DashboardClient({
                   <LeadLibrary isPro={isPro} creditsRemaining={creditsRemaining} viewMode={viewMode} />
                 )}
               </div>
+
+              {/* Right Sidebar - Markets */}
+              <div className="lg:col-span-1">
+                <MarketSidebar />
+              </div>
             </div>
           </TabsContent>
 
           <TabsContent value="visitors" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-1">
-                <MarketPulse />
-              </div>
-              <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-3">
                 <WebsiteVisitors />
+              </div>
+              <div className="lg:col-span-1">
+                <MarketSidebar />
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="live-intent" className="space-y-6">
             {isPro ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1">
-                  <MarketPulse />
-                </div>
-                <div className="lg:col-span-2">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-3">
                   <LiveIntent isPro={isPro} />
+                </div>
+                <div className="lg:col-span-1">
+                  <MarketSidebar />
                 </div>
               </div>
             ) : (
