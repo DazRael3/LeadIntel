@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Activity, DollarSign, Lock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { MarketPulse } from '@/components/MarketPulse'
 import { LeadLibrary } from '@/components/LeadLibrary'
 import { WebsiteVisitors } from '@/components/WebsiteVisitors'
 import { LiveIntent } from '@/components/LiveIntent'
@@ -21,7 +20,6 @@ import { useCredits } from './hooks/useCredits'
 import { useStats } from './hooks/useStats'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useDebugInfo } from './hooks/useDebugInfo'
-import { MarketWatchlistProvider } from './hooks/useMarketWatchlist'
 import { DashboardHeaderSection } from './components/DashboardHeaderSection'
 import { StatsBar } from './components/StatsBar'
 import { TriggerEventsSection } from './components/TriggerEventsSection'
@@ -75,40 +73,39 @@ export function DashboardClient({
   const loading = creditsLoading
 
   return (
-    <MarketWatchlistProvider>
-      <div className="min-h-screen bg-background terminal-grid">
-        <DashboardHeader />
-        {/* Onboarding Wizard - Only show if server says not completed */}
-        {onboardingChecked && showOnboarding && !onboardingComplete && !initialOnboardingCompleted && !planIsPro && (
-          <OnboardingWizard onComplete={handleOnboardingComplete} />
-        )}
+    <div className="min-h-screen bg-background terminal-grid">
+      <DashboardHeader />
+      {/* Onboarding Wizard - Only show if server says not completed */}
+      {onboardingChecked && showOnboarding && !onboardingComplete && !initialOnboardingCompleted && !planIsPro && (
+        <OnboardingWizard onComplete={handleOnboardingComplete} />
+      )}
 
-        {/* Header */}
-        <DashboardHeaderSection isPro={isPro} creditsRemaining={creditsRemaining} />
+      {/* Header */}
+      <DashboardHeaderSection isPro={isPro} creditsRemaining={creditsRemaining} />
 
-        {/* Debug Panel - Only in dev mode */}
-        {isDev && showDebug && debugInfo && (
-          <DebugPanel debugInfo={debugInfo} onClose={hideDebug} />
-        )}
+      {/* Debug Panel - Only in dev mode */}
+      {isDev && showDebug && debugInfo && (
+        <DebugPanel debugInfo={debugInfo} onClose={hideDebug} />
+      )}
 
-        {/* Stats Bar */}
-        <StatsBar 
-          totalLeads={totalLeads} 
-          eventsCount={events.length} 
-          isPro={isPro} 
-          isDev={isDev}
-          onDebugClick={checkWhoami}
+      {/* Stats Bar */}
+      <StatsBar 
+        totalLeads={totalLeads} 
+        eventsCount={events.length} 
+        isPro={isPro} 
+        isDev={isDev}
+        onDebugClick={checkWhoami}
+      />
+
+      {/* Main Content */}
+      <main className="container mx-auto px-6 py-6">
+        {/* Trigger Events Section */}
+        <TriggerEventsSection 
+          events={events}
+          loading={eventsLoading}
+          error={eventsError}
+          onRefresh={loadEvents}
         />
-
-        {/* Main Content */}
-        <main className="container mx-auto px-6 py-6">
-          {/* Trigger Events Section */}
-          <TriggerEventsSection 
-            events={events}
-            loading={eventsLoading}
-            error={eventsError}
-            onRefresh={loadEvents}
-          />
 
         <Tabs defaultValue="leads" className="space-y-6">
           <TabsList className="bg-background/50 border border-cyan-500/20">
@@ -200,14 +197,25 @@ export function DashboardClient({
           </TabsContent>
 
           <TabsContent value="market" className="space-y-6">
-            <MarketPulse />
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-3">
+                <Card className="border-cyan-500/20 bg-card/50">
+                  <CardContent className="py-10 text-center text-muted-foreground">
+                    Market view uses the same instruments as the ticker/sidebar.
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="lg:col-span-1">
+                <MarketSidebar />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="watchlist" className="space-y-6">
             {isPro ? (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1">
-                  <MarketPulse />
+                  <MarketSidebar />
                 </div>
                 <div className="lg:col-span-2">
                   <Watchlist isPro={isPro} />
@@ -293,8 +301,7 @@ export function DashboardClient({
             </CardContent>
           </Card>
         )}
-        </main>
-      </div>
-    </MarketWatchlistProvider>
+      </main>
+    </div>
   )
 }
