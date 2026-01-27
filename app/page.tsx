@@ -10,7 +10,6 @@ import { createClient } from "@/lib/supabase/client"
 import type { TriggerEvent } from "@/lib/supabaseClient"
 import { TrendingUp, Zap, Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { TopNav } from "@/components/TopNav"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import Link from "next/link"
 
@@ -188,7 +187,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNav />
       {/* Header */}
       <header className="border-b border-border">
         <div className="container mx-auto px-4 py-4">

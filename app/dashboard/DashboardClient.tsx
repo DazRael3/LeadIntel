@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Activity, DollarSign, Lock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { MarketPulse } from '@/components/MarketPulse'
-import { MarketPulseTicker } from '@/components/MarketPulseTicker'
 import { LeadLibrary } from '@/components/LeadLibrary'
 import { WebsiteVisitors } from '@/components/WebsiteVisitors'
 import { LiveIntent } from '@/components/LiveIntent'
@@ -82,9 +81,6 @@ export function DashboardClient({
         {onboardingChecked && showOnboarding && !onboardingComplete && !initialOnboardingCompleted && !planIsPro && (
           <OnboardingWizard onComplete={handleOnboardingComplete} />
         )}
-
-        {/* Market Pulse Ticker */}
-        <MarketPulseTicker />
 
         {/* Header */}
         <DashboardHeaderSection isPro={isPro} creditsRemaining={creditsRemaining} />
