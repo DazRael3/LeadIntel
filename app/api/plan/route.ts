@@ -50,12 +50,13 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
     const isTrialing = details.subscriptionStatus === 'trialing' && Boolean(trialEndsAt)
     const appTrialEndsAt = details.appTrialEndsAt ?? null
     const isAppTrial = Boolean(details.isAppTrial) && Boolean(appTrialEndsAt)
-    const trial =
+    type TrialKind = 'stripe' | 'app' | null
+    const trial: { active: boolean; endsAt: string | null; kind: TrialKind } =
       isTrialing
-        ? { active: true, endsAt: trialEndsAt, kind: 'stripe' as const }
+        ? { active: true, endsAt: trialEndsAt, kind: 'stripe' }
         : isAppTrial
-          ? { active: true, endsAt: appTrialEndsAt, kind: 'app' as const }
-          : { active: false, endsAt: null, kind: null as const }
+          ? { active: true, endsAt: appTrialEndsAt, kind: 'app' }
+          : { active: false, endsAt: null, kind: null }
     return ok(
       {
         plan: details.plan,
