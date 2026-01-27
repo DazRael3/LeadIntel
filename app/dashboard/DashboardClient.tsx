@@ -21,6 +21,7 @@ import { useCredits } from './hooks/useCredits'
 import { useStats } from './hooks/useStats'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useDebugInfo } from './hooks/useDebugInfo'
+import { MarketWatchlistProvider } from './hooks/useMarketWatchlist'
 import { DashboardHeaderSection } from './components/DashboardHeaderSection'
 import { StatsBar } from './components/StatsBar'
 import { TriggerEventsSection } from './components/TriggerEventsSection'
@@ -74,42 +75,43 @@ export function DashboardClient({
   const loading = creditsLoading
 
   return (
-    <div className="min-h-screen bg-background terminal-grid">
-      <DashboardHeader />
-      {/* Onboarding Wizard - Only show if server says not completed */}
-      {onboardingChecked && showOnboarding && !onboardingComplete && !initialOnboardingCompleted && !planIsPro && (
-        <OnboardingWizard onComplete={handleOnboardingComplete} />
-      )}
+    <MarketWatchlistProvider>
+      <div className="min-h-screen bg-background terminal-grid">
+        <DashboardHeader />
+        {/* Onboarding Wizard - Only show if server says not completed */}
+        {onboardingChecked && showOnboarding && !onboardingComplete && !initialOnboardingCompleted && !planIsPro && (
+          <OnboardingWizard onComplete={handleOnboardingComplete} />
+        )}
 
-      {/* Market Pulse Ticker */}
-      <MarketPulseTicker />
+        {/* Market Pulse Ticker */}
+        <MarketPulseTicker />
 
-      {/* Header */}
-      <DashboardHeaderSection isPro={isPro} creditsRemaining={creditsRemaining} />
+        {/* Header */}
+        <DashboardHeaderSection isPro={isPro} creditsRemaining={creditsRemaining} />
 
-      {/* Debug Panel - Only in dev mode */}
-      {isDev && showDebug && debugInfo && (
-        <DebugPanel debugInfo={debugInfo} onClose={hideDebug} />
-      )}
+        {/* Debug Panel - Only in dev mode */}
+        {isDev && showDebug && debugInfo && (
+          <DebugPanel debugInfo={debugInfo} onClose={hideDebug} />
+        )}
 
-      {/* Stats Bar */}
-      <StatsBar 
-        totalLeads={totalLeads} 
-        eventsCount={events.length} 
-        isPro={isPro} 
-        isDev={isDev}
-        onDebugClick={checkWhoami}
-      />
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-6">
-        {/* Trigger Events Section */}
-        <TriggerEventsSection 
-          events={events}
-          loading={eventsLoading}
-          error={eventsError}
-          onRefresh={loadEvents}
+        {/* Stats Bar */}
+        <StatsBar 
+          totalLeads={totalLeads} 
+          eventsCount={events.length} 
+          isPro={isPro} 
+          isDev={isDev}
+          onDebugClick={checkWhoami}
         />
+
+        {/* Main Content */}
+        <main className="container mx-auto px-6 py-6">
+          {/* Trigger Events Section */}
+          <TriggerEventsSection 
+            events={events}
+            loading={eventsLoading}
+            error={eventsError}
+            onRefresh={loadEvents}
+          />
 
         <Tabs defaultValue="leads" className="space-y-6">
           <TabsList className="bg-background/50 border border-cyan-500/20">
@@ -294,7 +296,8 @@ export function DashboardClient({
             </CardContent>
           </Card>
         )}
-      </main>
-    </div>
+        </main>
+      </div>
+    </MarketWatchlistProvider>
   )
 }

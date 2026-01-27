@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { DEFAULT_WATCHLIST, type DefaultInstrument, type InstrumentType } from '@/lib/markets/defaultWatchlist'
 import { usePlan } from '@/components/PlanProvider'
 import { formatErrorMessage } from '@/lib/utils/format-error'
@@ -16,7 +17,19 @@ type WatchlistApiResponse =
   | { ok: true; data: { items: WatchlistApiItem[] } }
   | { ok: false; error?: { message?: string } }
 
-export function useMarketWatchlist() {
+type MarketWatchlistValue = {
+  isPro: boolean
+  loading: boolean
+  error: string | null
+  customItems: WatchlistApiItem[]
+  resolved: DefaultInstrument[]
+  refresh: () => Promise<void>
+  save: (items: WatchlistItemInput[]) => Promise<{ ok: true } | { ok: false; message: string }>
+}
+
+const MarketWatchlistContext = createContext<MarketWatchlistValue | null>(null)
+
+function useMarketWatchlistInternal(): MarketWatchlistValue {
   const { isPro } = usePlan()
   const [customItems, setCustomItems] = useState<WatchlistApiItem[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,7 +46,7 @@ export function useMarketWatchlist() {
         return
       }
       const json = (await res.json()) as WatchlistApiResponse
-      if (!json || (json as any).ok !== true) {
+      if (!json || (json as { ok?: unknown }).ok !== true) {
         setCustomItems([])
         return
       }
@@ -88,5 +101,16 @@ export function useMarketWatchlist() {
     refresh: load,
     save,
   }
+}
+
+export function MarketWatchlistProvider({ children }: { children: ReactNode }) {
+  const value = useMarketWatchlistInternal()
+  return createElement(MarketWatchlistContext.Provider, { value }, children)
+}
+
+export function useMarketWatchlist(): MarketWatchlistValue {
+  const ctx = useContext(MarketWatchlistContext)
+  // Fallback to local behavior if used outside the provider.
+  return ctx ?? useMarketWatchlistInternal()
 }
 

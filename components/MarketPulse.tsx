@@ -90,7 +90,7 @@ export function MarketPulse() {
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between mb-3">
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground" data-testid="market-watchlist-count">
             {error ? 'Market data unavailable' : `${resolved.length} symbols`}
           </div>
           {isPro ? (
@@ -99,6 +99,7 @@ export function MarketPulse() {
               variant="ghost"
               onClick={openEditor}
               className="text-cyan-400 hover:bg-cyan-500/10"
+              data-testid="market-watchlist-edit"
             >
               Edit Watchlist
             </Button>
@@ -108,6 +109,7 @@ export function MarketPulse() {
               variant="ghost"
               onClick={() => (window.location.href = '/pricing')}
               className="text-purple-400 hover:bg-purple-500/10"
+              data-testid="market-watchlist-upsell"
             >
               Customize (Pro)
             </Button>
@@ -226,7 +228,7 @@ export function MarketPulse() {
                 >
                   Add
                 </Button>
-                <Button variant="ghost" onClick={() => setDraft([])}>
+                <Button variant="ghost" onClick={() => setDraft([])} data-testid="market-watchlist-clear">
                   Clear
                 </Button>
               </div>
