@@ -62,7 +62,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 # Database Schema (defaults to 'api' if not set)
 NEXT_PUBLIC_SUPABASE_DB_SCHEMA=api
 # Optional fallback schema
-SUPABASE_DB_SCHEMA_FALLBACK=public
+SUPABASE_DB_SCHEMA_FALLBACK=api
 ```
 
 #### Stripe Configuration
