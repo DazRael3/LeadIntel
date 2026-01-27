@@ -3,6 +3,7 @@
 import { Component, ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { MarketTickerBar } from '@/components/MarketTickerBar'
 
 interface ErrorBoundaryState {
   hasError: boolean
@@ -72,6 +73,7 @@ export default function DashboardLayout({
 }) {
   return (
     <DashboardErrorBoundary>
+      <MarketTickerBar />
       {children}
     </DashboardErrorBoundary>
   )
