@@ -12,7 +12,11 @@ This document lists the **minimum required** environment variables for a safe pr
 
 **How pricing works**
 - The checkout session uses **subscription mode** for the **$99/month** Pro plan
-- Payment method is collected up-front (so the trial can convert)
+- Payment method is collected up-front (no Stripe trial configured)
+
+## Optional: App-level 3-day trial (no Stripe changes)
+
+- `ENABLE_APP_TRIAL` (optional): set to `true` / `1` to enable a 3-day **app-level** Pro trial for new users. This does **not** change Stripe billing or create a Stripe trial.
 
 ## Supabase (Auth + DB)
 

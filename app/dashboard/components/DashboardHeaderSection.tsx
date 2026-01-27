@@ -7,6 +7,7 @@ import { CreditCard, DollarSign, Shield } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { SignOutButton } from '@/components/SignOutButton'
 import { useStripePortal } from '../hooks/useStripePortal'
+import { usePlan } from '@/components/PlanProvider'
 
 interface DashboardHeaderSectionProps {
   isPro: boolean
@@ -16,6 +17,12 @@ interface DashboardHeaderSectionProps {
 export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHeaderSectionProps) {
   const router = useRouter()
   const { openPortal } = useStripePortal()
+  const { trial } = usePlan()
+
+  const trialDaysLeft =
+    trial.active && trial.endsAt
+      ? Math.max(0, Math.ceil((new Date(trial.endsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : null
 
   return (
     <header className="border-b border-cyan-500/20 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
@@ -41,13 +48,20 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
 
             {/* Subscription Badge - Only show Pro badge, never show Free badge */}
             {isPro && (
-              <Badge 
-                variant="default" 
-                className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
-              >
-                <Shield className="h-3 w-3 mr-1" />
-                Pro
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant="default" 
+                  className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                >
+                  <Shield className="h-3 w-3 mr-1" />
+                  Pro
+                </Badge>
+                {trialDaysLeft !== null && (
+                  <Badge variant="outline" className="border-purple-500/30 text-purple-300 bg-purple-500/10">
+                    Free trial • {trialDaysLeft}d left
+                  </Badge>
+                )}
+              </div>
             )}
 
             {/* Upgrade button - Only show for Free users */}

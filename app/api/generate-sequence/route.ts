@@ -4,6 +4,7 @@ import { generateEmailSequence } from '@/lib/ai-logic'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
+import { isPro as isProPlan } from '@/lib/billing/plan'
 
 /**
  * Generate 3-Part Email Sequence API
@@ -36,13 +37,7 @@ const POST_GUARDED = withApiGuard(
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('subscription_tier')
-      .eq('id', user.id)
-      .single()
-
-    if (userData?.subscription_tier !== 'pro') {
+    if (!(await isProPlan(supabase, user.id))) {
       return fail(
         ErrorCode.FORBIDDEN,
         'Pro subscription required for Email Sequence generation',

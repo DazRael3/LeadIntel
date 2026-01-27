@@ -8,6 +8,7 @@ import { ok, asHttpError, createCookieBridge } from '@/lib/api/http'
 import { CompanyUrlSchema, GeneratePitchOptionsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
+import { isPro as isProPlan } from '@/lib/billing/plan'
 
 export const dynamic = "force-dynamic";
 
@@ -103,13 +104,7 @@ export const POST = withApiGuard(
 
     const supabase = createRouteClient(request, bridge)
     
-    const { data: userData } = await supabase
-      .from('users')
-      .select('subscription_tier')
-      .eq('id', userId)
-      .single()
-
-    const isPro = userData?.subscription_tier === 'pro'
+    const isPro = await isProPlan(supabase, userId)
 
     // Get user settings for personalization
     const { data: userSettings } = await supabase

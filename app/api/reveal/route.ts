@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { assertFeatureEnabled } from '@/lib/services/feature-flags'
 import { captureBreadcrumb } from '@/lib/observability/sentry'
+import { isPro as isProPlan } from '@/lib/billing/plan'
 
 /**
  * Ghost Reveal API
@@ -49,13 +50,7 @@ export const POST = withApiGuard(
       })
       if (featureGate) return featureGate
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('subscription_tier')
-        .eq('id', user.id)
-        .single()
-
-      if (userData?.subscription_tier !== 'pro') {
+      if (!(await isProPlan(supabase, user.id))) {
         return fail(
           ErrorCode.FORBIDDEN,
           'Pro subscription required for Ghost Reveal',

@@ -3,6 +3,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { UnlockLeadSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
+import { isPro as isProPlan } from '@/lib/billing/plan'
 
 /**
  * Unlock Lead API
@@ -34,8 +35,8 @@ export const POST = withApiGuard(
       return fail(ErrorCode.NOT_FOUND, 'User not found', undefined, undefined, bridge, requestId)
     }
 
-    // Pro users have unlimited access
-    if (userData.subscription_tier === 'pro') {
+    // Pro users (and app-trial users, if enabled) have unlimited access.
+    if (await isProPlan(supabase, user.id)) {
       return ok({
         unlocked: true,
         message: 'Lead unlocked (Pro user)',

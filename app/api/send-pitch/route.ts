@@ -9,6 +9,7 @@ import { insertEmailLog } from '@/lib/email/email-logs'
 import { renderSimplePitchEmailHtml } from '@/lib/email/templates'
 import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
 import { recordCounter } from '@/lib/observability/metrics'
+import { isPro as isProPlan } from '@/lib/billing/plan'
 
 /**
  * Auto-Send Pitch API
@@ -34,13 +35,7 @@ export const POST = withApiGuard(
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('subscription_tier')
-        .eq('id', user.id)
-        .single()
-
-      if (userData?.subscription_tier !== 'pro') {
+      if (!(await isProPlan(supabase, user.id))) {
         return fail(
           ErrorCode.FORBIDDEN,
           'Pro subscription required to send emails',
