@@ -2,6 +2,8 @@ type AuthUser = { id: string; email?: string | null }
 
 type AuthResponse = { data: { user: AuthUser | null; session?: unknown | null }; error: null }
 
+type PlanTier = 'free' | 'pro'
+
 function getE2EUser(userId?: string | null): AuthUser {
   return {
     id: (userId && userId.trim()) || 'e2e-user-id',
@@ -15,10 +17,43 @@ function getBrowserCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
+type WatchlistSymbolRow = {
+  user_id: string
+  symbol: string
+  instrument_type: 'stock' | 'crypto'
+  position: number
+}
+
+const globalWatchlistKey = '__leadintelE2EWatchlistSymbols'
+function getWatchlistStore(): Map<string, WatchlistSymbolRow[]> {
+  const g = globalThis as unknown as Record<string, unknown>
+  const existing = g[globalWatchlistKey]
+  if (existing instanceof Map) return existing as Map<string, WatchlistSymbolRow[]>
+  const next = new Map<string, WatchlistSymbolRow[]>()
+  g[globalWatchlistKey] = next
+  return next
+}
+
+function getPlanFromCookie(getCookie: (name: string) => string | null | undefined): PlanTier {
+  const raw = (getCookie('li_e2e_plan') || '').toLowerCase()
+  return raw === 'pro' ? 'pro' : 'free'
+}
+
 class E2EQuery<T = unknown> {
+  private table: string
+  private ctx: { userId: string; plan: PlanTier }
   private selectArgs: unknown[] | null = null
   private isCountQuery = false
   private forceSingle = false
+  private mode: 'select' | 'delete' | 'insert' | 'update' | 'upsert' = 'select'
+  private filters: Record<string, unknown> = {}
+  private orderBy: { col: string; asc: boolean } | null = null
+  private pendingRows: unknown[] | null = null
+
+  constructor(table: string, ctx: { userId: string; plan: PlanTier }) {
+    this.table = table
+    this.ctx = ctx
+  }
 
   select(...args: unknown[]) {
     this.selectArgs = args
@@ -28,7 +63,8 @@ class E2EQuery<T = unknown> {
     }
     return this
   }
-  eq() {
+  eq(column?: string, value?: unknown) {
+    if (column) this.filters[column] = value
     return this
   }
   in() {
@@ -41,6 +77,9 @@ class E2EQuery<T = unknown> {
     return this
   }
   order() {
+    const col = arguments[0] as string | undefined
+    const opts = arguments[1] as { ascending?: boolean } | undefined
+    if (col) this.orderBy = { col, asc: opts?.ascending !== false }
     return this
   }
   limit() {
@@ -55,15 +94,20 @@ class E2EQuery<T = unknown> {
     return this
   }
   insert() {
+    this.mode = 'insert'
+    this.pendingRows = Array.isArray(arguments[0]) ? (arguments[0] as unknown[]) : [arguments[0]]
     return this
   }
   update() {
+    this.mode = 'update'
     return this
   }
   upsert() {
+    this.mode = 'upsert'
     return this
   }
   delete() {
+    this.mode = 'delete'
     return this
   }
 
@@ -72,12 +116,44 @@ class E2EQuery<T = unknown> {
       return { data: null, error: null, count: 0 }
     }
 
-    // Provide minimal stable shapes for common selects
-    if (this.forceSingle) {
-      // Return null data (callers typically handle null and use defaults)
-      return { data: null, error: null }
+    // Users table: provide subscription_tier (drives plan gating in UI/API).
+    if (this.table === 'users') {
+      const row = {
+        id: this.ctx.userId,
+        subscription_tier: this.ctx.plan,
+        stripe_customer_id: 'cus_e2e',
+        last_unlock_date: null,
+      }
+      if (this.forceSingle) return { data: row, error: null }
+      return { data: [row], error: null }
     }
 
+    // Market watchlist symbols: persistent per test user id.
+    if (this.table === 'watchlist_symbols') {
+      const store = getWatchlistStore()
+      const owner = (this.filters.user_id as string | undefined) || this.ctx.userId
+      const existing = store.get(owner) ?? []
+
+      if (this.mode === 'delete') {
+        store.set(owner, [])
+        return { data: null, error: null }
+      }
+      if (this.mode === 'insert') {
+        const rows = (this.pendingRows ?? []).map((r) => r as WatchlistSymbolRow)
+        store.set(owner, rows)
+        return { data: null, error: null }
+      }
+
+      let rows = existing.slice()
+      if (this.orderBy?.col === 'position') {
+        rows.sort((a, b) => (this.orderBy?.asc ? a.position - b.position : b.position - a.position))
+      }
+      if (this.forceSingle) return { data: rows[0] ?? null, error: null }
+      return { data: rows, error: null }
+    }
+
+    // Default: behave like before (empty results).
+    if (this.forceSingle) return { data: null, error: null }
     return { data: [], error: null }
   }
 
@@ -132,7 +208,11 @@ export function createE2EBrowserSupabaseClient(): any {
         return { data: { user, session: { access_token: 'e2e' } }, error: null }
       },
     },
-    from: (_table: string) => new E2EQuery(),
+    from: (table: string) => {
+      const uid = getBrowserCookie('li_e2e_uid') || 'e2e-user-id'
+      const plan = getPlanFromCookie((name) => getBrowserCookie(name))
+      return new E2EQuery(table, { userId: uid, plan })
+    },
   }
 }
 
@@ -146,7 +226,11 @@ export function createE2EServerSupabaseClient(args: { getCookie: (name: string) 
       },
       signOut: async () => ({ error: null }),
     },
-    from: (_table: string) => new E2EQuery(),
+    from: (table: string) => {
+      const uid = args.getCookie('li_e2e_uid') || 'e2e-user-id'
+      const plan = getPlanFromCookie((name) => args.getCookie(name))
+      return new E2EQuery(table, { userId: uid, plan })
+    },
   }
 }
 

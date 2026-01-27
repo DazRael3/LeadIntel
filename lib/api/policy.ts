@@ -312,6 +312,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'PUT:/api/watchlist': {
+    tier: 'WRITE',
+    maxBytes: 16384, // 16KB
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/settings/autopilot': {
     tier: 'WRITE',
     maxBytes: 4096, // 4KB
@@ -421,6 +434,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
   'GET:/api/tags': {
     tier: 'D',
     maxBytes: 8192, // 8KB
+    rateLimit: {
+      authPerMin: 120,
+      ipPerMin: 60,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/watchlist': {
+    tier: 'D',
+    maxBytes: 8192, // GET; body ignored
     rateLimit: {
       authPerMin: 120,
       ipPerMin: 60,
