@@ -312,7 +312,20 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
-  'PUT:/api/watchlist': {
+  'POST:/api/watchlist': {
+    tier: 'WRITE',
+    maxBytes: 16384, // 16KB
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'DELETE:/api/watchlist': {
     tier: 'WRITE',
     maxBytes: 16384, // 16KB
     rateLimit: {
