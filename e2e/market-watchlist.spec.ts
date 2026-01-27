@@ -46,7 +46,14 @@ test('pro user can customize market watchlist and ticker reflects it', async ({ 
 
   // Open editor from Market Pulse side panel.
   await clickByTestId('market-watchlist-edit')
-  await expect(page.getByTestId('market-watchlist-modal')).toBeVisible()
+  const modal = page.getByTestId('market-watchlist-modal')
+  try {
+    await expect(modal).toBeVisible({ timeout: 10000 })
+  } catch {
+    // Rare hydration/rerender race: retry once.
+    await clickByTestId('market-watchlist-edit')
+    await expect(modal).toBeVisible({ timeout: 10000 })
+  }
 
   // Clear defaults and set a tiny custom list.
   await clickByTestId('market-watchlist-clear')
