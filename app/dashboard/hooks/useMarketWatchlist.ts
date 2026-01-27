@@ -110,7 +110,9 @@ export function MarketWatchlistProvider({ children }: { children: ReactNode }) {
 
 export function useMarketWatchlist(): MarketWatchlistValue {
   const ctx = useContext(MarketWatchlistContext)
-  // Fallback to local behavior if used outside the provider.
-  return ctx ?? useMarketWatchlistInternal()
+  if (!ctx) {
+    throw new Error('useMarketWatchlist must be used within MarketWatchlistProvider')
+  }
+  return ctx
 }
 
