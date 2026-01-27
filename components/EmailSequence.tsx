@@ -175,7 +175,12 @@ export function EmailSequence({
           Enterprise Intelligence • Automated Multi-Touch Outreach
         </CardDescription>
       </CardHeader>
-      <CardContent className={`relative ${!isPro ? 'blur-sm pointer-events-none select-none' : ''}`}>
+      <CardContent className={`relative overflow-hidden ${!isPro ? 'blur-sm pointer-events-none select-none' : ''}`}>
+        {/* blurred brand backdrop */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.10]">
+          <div className="absolute -inset-10 bg-[url('/branding/LeadIntel_DazRael.png')] bg-cover bg-center blur-2xl" />
+        </div>
+
         {!isPro && (
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center justify-center">
             <div className="bg-background/95 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
@@ -183,13 +188,15 @@ export function EmailSequence({
             </div>
           </div>
         )}
-        {loading ? (
-          <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 mx-auto mb-3 text-purple-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Generating 3-part sequence...</p>
-          </div>
-        ) : sequence ? (
-          <div className="space-y-6">
+
+        <div className="relative">
+          {loading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-8 w-8 mx-auto mb-3 text-purple-400 animate-spin" />
+              <p className="text-sm text-muted-foreground">Generating 3-part sequence...</p>
+            </div>
+          ) : sequence ? (
+            <div className="space-y-6">
             {/* Part 1: Helpful */}
             <div className="p-4 rounded-lg border border-green-500/10 bg-background/30 relative group">
               <div className="flex items-center justify-between mb-3">
@@ -321,14 +328,15 @@ export function EmailSequence({
                 {sequence.part3}
               </p>
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground mb-3">
-              Click &quot;Generate&quot; to create a 3-part email sequence
-            </p>
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground mb-3">
+                Click &quot;Generate&quot; to create a 3-part email sequence
+              </p>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

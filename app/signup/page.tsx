@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+import { LoginClient } from '../login/LoginClient'
 
 interface SignupPageProps {
   searchParams?: {
@@ -6,12 +6,8 @@ interface SignupPageProps {
   }
 }
 
-/**
- * Convenience route: `/signup`
- * The app’s auth UI is implemented at `/login` with `mode=signup`.
- */
 export default function SignupPage({ searchParams = {} }: SignupPageProps) {
   const redirectTo = searchParams?.redirect ?? '/dashboard'
-  redirect(`/login?mode=signup&redirect=${encodeURIComponent(redirectTo)}`)
+  return <LoginClient initialMode="signup" redirectTo={redirectTo} />
 }
 

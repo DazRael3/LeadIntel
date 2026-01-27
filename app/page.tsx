@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/TopNav"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import Link from "next/link"
+import { BrandHero } from "@/components/BrandHero"
 
 type TriggerEventRow = {
   id: string
@@ -280,6 +281,11 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
+
+            {/* Brand visual */}
+            <div className="mt-10 max-w-4xl mx-auto">
+              <BrandHero />
+            </div>
           </div>
 
           {/* Right Column - Pitch Generator */}
