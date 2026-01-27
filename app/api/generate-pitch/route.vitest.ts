@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
+vi.mock('@/lib/billing/plan', () => ({
+  isPro: vi.fn(async () => true),
+}))
+
 class FakeQuery {
   private table: string
   constructor(table: string) {
