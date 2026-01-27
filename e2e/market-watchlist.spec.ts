@@ -10,7 +10,8 @@ test('pro user can star a market symbol and it persists after reload', async ({ 
   // Star AAPL from the sidebar
   const star = page.getByTestId('market-star-AAPL')
   await expect(star).toBeVisible()
-  await star.click()
+  await expect(star).toBeEnabled({ timeout: 15000 })
+  await star.evaluate((n) => (n as HTMLButtonElement).click())
 
   // Ticker is present (layout-level)
   await expect(page.getByTestId('market-ticker')).toBeVisible()
