@@ -17,6 +17,10 @@ type WatchlistApiResponse =
   | { ok: true; data: { items: WatchlistApiItem[] } }
   | { ok: false; error?: { message?: string } }
 
+function isOkWatchlistResponse(value: WatchlistApiResponse): value is { ok: true; data: { items: WatchlistApiItem[] } } {
+  return value.ok === true
+}
+
 type MarketWatchlistValue = {
   isPro: boolean
   loading: boolean
@@ -46,7 +50,7 @@ function useMarketWatchlistInternal(): MarketWatchlistValue {
         return
       }
       const json = (await res.json()) as WatchlistApiResponse
-      if (!json || (json as { ok?: unknown }).ok !== true) {
+      if (!json || !isOkWatchlistResponse(json)) {
         setCustomItems([])
         return
       }
