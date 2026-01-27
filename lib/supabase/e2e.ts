@@ -17,19 +17,20 @@ function getBrowserCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-type WatchlistSymbolRow = {
+type UserWatchlistRow = {
   user_id: string
+  kind: 'stock' | 'crypto'
   symbol: string
-  instrument_type: 'stock' | 'crypto'
-  position: number
+  display_name: string
+  sort_order: number
 }
 
-const globalWatchlistKey = '__leadintelE2EWatchlistSymbols'
-function getWatchlistStore(): Map<string, WatchlistSymbolRow[]> {
+const globalWatchlistKey = '__leadintelE2EUserWatchlists'
+function getWatchlistStore(): Map<string, UserWatchlistRow[]> {
   const g = globalThis as unknown as Record<string, unknown>
   const existing = g[globalWatchlistKey]
-  if (existing instanceof Map) return existing as Map<string, WatchlistSymbolRow[]>
-  const next = new Map<string, WatchlistSymbolRow[]>()
+  if (existing instanceof Map) return existing as Map<string, UserWatchlistRow[]>
+  const next = new Map<string, UserWatchlistRow[]>()
   g[globalWatchlistKey] = next
   return next
 }
@@ -104,6 +105,7 @@ class E2EQuery<T = unknown> {
   }
   upsert() {
     this.mode = 'upsert'
+    this.pendingRows = Array.isArray(arguments[0]) ? (arguments[0] as unknown[]) : [arguments[0]]
     return this
   }
   delete() {
@@ -128,25 +130,39 @@ class E2EQuery<T = unknown> {
       return { data: [row], error: null }
     }
 
-    // Market watchlist symbols: persistent per test user id.
-    if (this.table === 'watchlist_symbols') {
+    // Market watchlist: persistent per test user id.
+    if (this.table === 'user_watchlists') {
       const store = getWatchlistStore()
       const owner = (this.filters.user_id as string | undefined) || this.ctx.userId
       const existing = store.get(owner) ?? []
 
       if (this.mode === 'delete') {
-        store.set(owner, [])
+        const kind = this.filters.kind as ('stock' | 'crypto') | undefined
+        const symbol = this.filters.symbol as string | undefined
+        if (kind && symbol) {
+          store.set(
+            owner,
+            existing.filter((r) => !(r.kind === kind && r.symbol === symbol))
+          )
+        } else {
+          store.set(owner, [])
+        }
         return { data: null, error: null }
       }
-      if (this.mode === 'insert') {
-        const rows = (this.pendingRows ?? []).map((r) => r as WatchlistSymbolRow)
-        store.set(owner, rows)
+      if (this.mode === 'insert' || this.mode === 'upsert') {
+        const rows = (this.pendingRows ?? []).map((r) => r as UserWatchlistRow)
+        let next = existing.slice()
+        for (const row of rows) {
+          next = next.filter((r) => !(r.kind === row.kind && r.symbol === row.symbol))
+          next.push(row)
+        }
+        store.set(owner, next)
         return { data: null, error: null }
       }
 
       let rows = existing.slice()
-      if (this.orderBy?.col === 'position') {
-        rows.sort((a, b) => (this.orderBy?.asc ? a.position - b.position : b.position - a.position))
+      if (this.orderBy?.col === 'sort_order') {
+        rows.sort((a, b) => (this.orderBy?.asc ? a.sort_order - b.sort_order : b.sort_order - a.sort_order))
       }
       if (this.forceSingle) return { data: rows[0] ?? null, error: null }
       return { data: rows, error: null }
