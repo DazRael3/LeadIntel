@@ -325,6 +325,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/market/quotes': {
+    tier: 'D',
+    maxBytes: 16384, // up to 60 symbols/kinds
+    rateLimit: {
+      authPerMin: 120,
+      ipPerMin: 60,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'DELETE:/api/watchlist': {
     tier: 'WRITE',
     maxBytes: 16384, // 16KB

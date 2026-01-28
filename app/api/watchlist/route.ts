@@ -13,8 +13,9 @@ const WatchlistModifySchema = z.object({
     .string()
     .trim()
     .transform((s) => s.toUpperCase())
-    .refine((s) => /^[A-Z0-9.\-]{1,15}$/.test(s), 'Invalid symbol'),
+    .refine((s) => /^[A-Z0-9][A-Z0-9.\-]{0,23}$/.test(s), 'Invalid symbol'),
   kind: InstrumentKindSchema,
+  displayName: z.string().trim().min(1).max(64).optional(),
 })
 
 export const GET = withApiGuard(async (request: NextRequest, { requestId, userId }) => {

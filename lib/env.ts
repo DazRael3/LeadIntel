@@ -25,6 +25,11 @@ const clientEnvSchema = z.object({
   
   // Application
   NEXT_PUBLIC_SITE_URL: z.string().url().optional().or(z.literal('')),
+  // Debug UI (optional): if "true", show /api/whoami debug panel in dashboard.
+  NEXT_PUBLIC_ENABLE_DEBUG_UI: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
   // CORS/Origin validation (comma-separated list of allowed origins)
   // Example: "https://app.example.com,https://www.example.com"
   ALLOWED_ORIGINS: z.string().optional(),
@@ -89,6 +94,12 @@ const serverEnvSchema = z.object({
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
 
+  // Demo behavior (optional): seed synthetic trigger events after pitch generation.
+  ENABLE_DEMO_TRIGGER_EVENTS: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+
   // Clearbit
   CLEARBIT_REVEAL_API_KEY: z.string().optional(),
   CLEARBIT_API_KEY: z.string().optional(),
@@ -100,6 +111,13 @@ const serverEnvSchema = z.object({
   ADMIN_DIGEST_SECRET: z.string().optional(),
   CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
   CRON_SIGNING_SECRET: z.string().min(16, 'CRON_SIGNING_SECRET must be at least 16 characters').optional(),
+
+  // Optional market data provider (server-side; falls back to deterministic mock quotes)
+  MARKET_DATA_PROVIDER: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['none', 'finnhub', 'polygon']).optional()
+  ),
+  MARKET_DATA_API_KEY: z.string().optional(),
   
   // Development
   DEV_SEED_SECRET: z.string().optional(),
@@ -176,9 +194,12 @@ function buildServerEnv(): ServerEnv {
     FEATURE_CLEARBIT_ENABLED: process.env.FEATURE_CLEARBIT_ENABLED,
     FEATURE_ZAPIER_PUSH_ENABLED: process.env.FEATURE_ZAPIER_PUSH_ENABLED,
     ENABLE_APP_TRIAL: process.env.ENABLE_APP_TRIAL,
+    ENABLE_DEMO_TRIGGER_EVENTS: process.env.ENABLE_DEMO_TRIGGER_EVENTS,
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET,
+    MARKET_DATA_PROVIDER: process.env.MARKET_DATA_PROVIDER,
+    MARKET_DATA_API_KEY: process.env.MARKET_DATA_API_KEY,
     HEALTH_CHECK_EXTERNAL: process.env.HEALTH_CHECK_EXTERNAL,
     DEV_SEED_SECRET: process.env.DEV_SEED_SECRET,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
@@ -244,6 +265,7 @@ export const clientEnv = (() => {
     NEXT_PUBLIC_SUPABASE_DB_SCHEMA: process.env.NEXT_PUBLIC_SUPABASE_DB_SCHEMA,
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_ENABLE_DEBUG_UI: process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
   })
 

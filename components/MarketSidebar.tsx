@@ -21,19 +21,27 @@ function toQuoteMap(quotes: InstrumentQuote[]): QuoteMap {
 
 export function MarketSidebar() {
   const { isPro } = usePlan()
-  const { visible, starredKeys, add, remove, loading: watchlistLoading } = useMarketWatchlist()
+  const { allInstruments, yourWatchlist, starredKeys, add, remove, loading: watchlistLoading } = useMarketWatchlist()
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [quoteError, setQuoteError] = useState<string | null>(null)
 
   const [query, setQuery] = useState('')
+  const [kind, setKind] = useState<'stock' | 'crypto'>('stock')
   const [actionError, setActionError] = useState<string | null>(null)
+
+  const quoteUniverse = useMemo(() => {
+    const map = new Map<string, InstrumentDefinition>()
+    for (const i of allInstruments) map.set(`${i.kind}:${i.symbol}`, i)
+    for (const i of yourWatchlist) map.set(`${i.kind}:${i.symbol}`, i)
+    return Array.from(map.values())
+  }, [allInstruments, yourWatchlist])
 
   useEffect(() => {
     let cancelled = false
     const refresh = async () => {
       try {
-        const next = await fetchInstrumentQuotes(visible)
+        const next = await fetchInstrumentQuotes(quoteUniverse)
         if (cancelled) return
         setQuotes(toQuoteMap(next))
         setQuoteError(null)
@@ -48,12 +56,12 @@ export function MarketSidebar() {
       cancelled = true
       clearInterval(interval)
     }
-  }, [visible])
+  }, [quoteUniverse])
 
   const suggestions = useMemo(() => {
     const q = query.trim().toUpperCase()
     if (!q) return []
-    return DEFAULT_INSTRUMENTS.filter((i) => i.defaultVisible && i.symbol.includes(q)).slice(0, 8)
+    return DEFAULT_INSTRUMENTS.filter((i) => i.symbol.includes(q)).slice(0, 8)
   }, [query])
 
   async function toggleStar(inst: InstrumentDefinition) {
@@ -75,13 +83,9 @@ export function MarketSidebar() {
     if (!isPro) return
     setActionError(null)
     const symbol = query.trim().toUpperCase()
-    const match = DEFAULT_INSTRUMENTS.find((i) => i.defaultVisible && i.symbol === symbol)
-    if (!match) {
-      setActionError('Choose a symbol from the default list')
-      return
-    }
     try {
-      await add(match.symbol, match.kind)
+      const match = DEFAULT_INSTRUMENTS.find((i) => i.symbol === symbol)
+      await add(symbol, (match?.kind ?? kind) as InstrumentDefinition['kind'], match?.name)
       setQuery('')
     } catch {
       setActionError('Failed to update watchlist')
@@ -96,7 +100,7 @@ export function MarketSidebar() {
             <CardTitle className="text-lg bloomberg-font">MARKETS</CardTitle>
           </div>
           <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10">
-            {visible.length}
+            {yourWatchlist.length}
           </Badge>
         </div>
         {!isPro ? (
@@ -127,6 +131,28 @@ export function MarketSidebar() {
                 className="h-9"
                 data-testid="market-sidebar-search"
               />
+              <div className="flex rounded-md border border-cyan-500/20 overflow-hidden">
+                <Button
+                  type="button"
+                  variant={kind === 'stock' ? 'default' : 'ghost'}
+                  className="h-9 rounded-none px-3"
+                  onClick={() => setKind('stock')}
+                  aria-pressed={kind === 'stock'}
+                  data-testid="market-kind-stock"
+                >
+                  Stock
+                </Button>
+                <Button
+                  type="button"
+                  variant={kind === 'crypto' ? 'default' : 'ghost'}
+                  className="h-9 rounded-none px-3"
+                  onClick={() => setKind('crypto')}
+                  aria-pressed={kind === 'crypto'}
+                  data-testid="market-kind-crypto"
+                >
+                  Crypto
+                </Button>
+              </div>
               <Button onClick={addFromQuery} disabled={!query.trim()} className="h-9" data-testid="market-sidebar-add">
                 Add
               </Button>
@@ -139,7 +165,10 @@ export function MarketSidebar() {
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs border-cyan-500/20"
-                    onClick={() => setQuery(s.symbol)}
+                    onClick={() => {
+                      setQuery(s.symbol)
+                      setKind(s.kind)
+                    }}
                   >
                     {s.symbol}
                   </Button>
@@ -152,60 +181,140 @@ export function MarketSidebar() {
         {actionError && <div className="text-xs text-red-400">{actionError}</div>}
         {quoteError && <div className="text-xs text-muted-foreground">{quoteError}</div>}
 
-        <div className="space-y-2 max-h-[520px] overflow-auto pr-1">
-          {visible.map((inst) => {
-            const q = quotes[inst.symbol]
-            const change = q?.changePct ?? null
-            const price = q?.price ?? null
-            const key = `${inst.kind}:${inst.symbol}`
-            const starred = starredKeys.has(key)
-            const def = findDefaultInstrument(inst.symbol, inst.kind)
-            const name = def?.name ?? inst.name
-
-            return (
-              <div
-                key={key}
-                className="flex items-center justify-between rounded border border-cyan-500/10 bg-background/30 px-3 py-2"
-                data-testid={`market-row-${inst.symbol}`}
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-cyan-300">{inst.symbol}</span>
-                    <span className="truncate text-xs text-muted-foreground">{name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{price == null ? '—' : `$${price.toFixed(2)}`}</span>
-                    <span className="opacity-60">•</span>
-                    <span
-                      className={
-                        change == null ? 'text-muted-foreground' : change > 0 ? 'text-green-400' : change < 0 ? 'text-red-400' : 'text-muted-foreground'
-                      }
-                    >
-                      {change == null ? '—' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {change == null ? null : change >= 0 ? (
-                    <TrendingUp className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4 text-red-400" />
-                  )}
-                  <button
-                    type="button"
-                    aria-label={starred ? 'Unstar' : 'Star'}
-                    className={`p-1 rounded hover:bg-cyan-500/10 ${!isPro ? 'opacity-40 cursor-not-allowed' : ''}`}
-                    onClick={() => void toggleStar(inst)}
-                    disabled={!isPro || watchlistLoading}
-                    data-testid={`market-star-${inst.symbol}`}
-                  >
-                    <Star className={`h-4 w-4 ${starred ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`} />
-                  </button>
-                </div>
+        <div className="space-y-4 max-h-[520px] overflow-auto pr-1">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold tracking-wide text-muted-foreground">YOUR WATCHLIST</div>
+              <div className="text-xs text-muted-foreground">{yourWatchlist.length}</div>
+            </div>
+            {yourWatchlist.length === 0 ? (
+              <div className="rounded border border-cyan-500/10 bg-background/20 px-3 py-2 text-xs text-muted-foreground">
+                Star instruments below to add them here.
               </div>
-            )
-          })}
+            ) : (
+              yourWatchlist.map((inst) => {
+                const q = quotes[inst.symbol]
+                const change = q?.changePct ?? null
+                const price = q?.price ?? null
+                const key = `${inst.kind}:${inst.symbol}`
+                const starred = starredKeys.has(key)
+                const name = inst.name
+
+                return (
+                  <div
+                    key={`watchlist:${key}`}
+                    className="flex items-center justify-between rounded border border-cyan-500/10 bg-background/30 px-3 py-2"
+                    data-testid={`market-watchlist-row-${inst.symbol}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-cyan-300">{inst.symbol}</span>
+                        <span className="truncate text-xs text-muted-foreground">{name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{price == null ? '—' : `$${price.toFixed(2)}`}</span>
+                        <span className="opacity-60">•</span>
+                        <span
+                          className={
+                            change == null
+                              ? 'text-muted-foreground'
+                              : change > 0
+                                ? 'text-green-400'
+                                : change < 0
+                                  ? 'text-red-400'
+                                  : 'text-muted-foreground'
+                          }
+                        >
+                          {change == null ? '—' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {change == null ? null : change >= 0 ? (
+                        <TrendingUp className="h-4 w-4 text-green-400" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-red-400" />
+                      )}
+                      <button
+                        type="button"
+                        aria-label={starred ? 'Unstar' : 'Star'}
+                        className={`p-1 rounded hover:bg-cyan-500/10 ${!isPro ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        onClick={() => void toggleStar(inst)}
+                        disabled={!isPro || watchlistLoading}
+                        data-testid={`market-star-watchlist-${inst.symbol}`}
+                      >
+                        <Star className={`h-4 w-4 ${starred ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-xs font-semibold tracking-wide text-muted-foreground">ALL INSTRUMENTS</div>
+            {allInstruments.map((inst) => {
+              const q = quotes[inst.symbol]
+              const change = q?.changePct ?? null
+              const price = q?.price ?? null
+              const key = `${inst.kind}:${inst.symbol}`
+              const starred = starredKeys.has(key)
+              const def = findDefaultInstrument(inst.symbol, inst.kind)
+              const name = def?.name ?? inst.name
+
+              return (
+                <div
+                  key={`all:${key}`}
+                  className="flex items-center justify-between rounded border border-cyan-500/10 bg-background/20 px-3 py-2"
+                  data-testid={`market-row-${inst.symbol}`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-cyan-300">{inst.symbol}</span>
+                      <span className="truncate text-xs text-muted-foreground">{name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{price == null ? '—' : `$${price.toFixed(2)}`}</span>
+                      <span className="opacity-60">•</span>
+                      <span
+                        className={
+                          change == null
+                            ? 'text-muted-foreground'
+                            : change > 0
+                              ? 'text-green-400'
+                              : change < 0
+                                ? 'text-red-400'
+                                : 'text-muted-foreground'
+                        }
+                      >
+                        {change == null ? '—' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {change == null ? null : change >= 0 ? (
+                      <TrendingUp className="h-4 w-4 text-green-400" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-red-400" />
+                    )}
+                    <button
+                      type="button"
+                      aria-label={starred ? 'Unstar' : 'Star'}
+                      className={`p-1 rounded hover:bg-cyan-500/10 ${!isPro ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      onClick={() => void toggleStar(inst)}
+                      disabled={!isPro || watchlistLoading}
+                      data-testid={`market-star-all-${inst.symbol}`}
+                    >
+                      <Star className={`h-4 w-4 ${starred ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>

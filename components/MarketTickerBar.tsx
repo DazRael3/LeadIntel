@@ -16,7 +16,7 @@ function toQuoteMap(quotes: InstrumentQuote[]): QuoteMap {
 }
 
 export function MarketTickerBar() {
-  const { visible: instruments, error: watchlistError } = useMarketWatchlist()
+  const { tickerInstruments: instruments, error: watchlistError } = useMarketWatchlist()
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [error, setError] = useState<string | null>(null)

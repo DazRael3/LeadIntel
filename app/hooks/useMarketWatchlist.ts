@@ -24,7 +24,8 @@ export function mergeVisibleInstruments(defaults: InstrumentDefinition[], user: 
 }
 
 export function useMarketWatchlist() {
-  const defaults = useMemo(
+  const allInstruments = useMemo(() => DEFAULT_INSTRUMENTS.slice().sort((a, b) => a.order - b.order), [])
+  const defaultTicker = useMemo(
     () => DEFAULT_INSTRUMENTS.filter((i) => i.defaultVisible).slice().sort((a, b) => a.order - b.order),
     []
   )
@@ -60,14 +61,23 @@ export function useMarketWatchlist() {
     void refresh()
   }, [refresh])
 
-  const visible = useMemo(() => mergeVisibleInstruments(defaults, userItems), [defaults, userItems])
+  // Ticker behavior:
+  // - If the user has any starred items, show ONLY those (in saved order).
+  // - Otherwise, fall back to the default ticker list.
+  const tickerInstruments = useMemo(() => {
+    if (userItems.length > 0) return userItems.slice().sort((a, b) => a.order - b.order)
+    return defaultTicker
+  }, [defaultTicker, userItems])
+
+  // Sidebar sections:
+  const yourWatchlist = useMemo(() => userItems.slice().sort((a, b) => a.order - b.order), [userItems])
   const starredKeys = useMemo(() => new Set(userItems.map((i) => `${i.kind}:${i.symbol}`)), [userItems])
 
-  const add = useCallback(async (symbol: string, kind: InstrumentKind) => {
+  const add = useCallback(async (symbol: string, kind: InstrumentKind, displayName?: string) => {
     const res = await fetch('/api/watchlist', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol, kind }),
+      body: JSON.stringify({ symbol, kind, displayName }),
     })
     if (!res.ok) throw new Error(`Failed to add (${res.status})`)
     const json = (await res.json()) as WatchlistApiResponse
@@ -85,6 +95,18 @@ export function useMarketWatchlist() {
     if (isOk(json)) setUserItems(json.data.items ?? [])
   }, [])
 
-  return { defaults, userItems, visible, starredKeys, loading, error, refresh, add, remove }
+  return {
+    allInstruments,
+    defaultTicker,
+    userItems,
+    yourWatchlist,
+    tickerInstruments,
+    starredKeys,
+    loading,
+    error,
+    refresh,
+    add,
+    remove,
+  }
 }
 

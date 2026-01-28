@@ -42,13 +42,13 @@ describe('watchlist service', () => {
 
   it('addInstrumentToWatchlist rejects unknown instruments', async () => {
     const client = makeClientMock()
-    const res = await addInstrumentToWatchlist(client as unknown as SupabaseClient, 'user_1', { symbol: 'NOPE', kind: 'stock' })
+    const res = await addInstrumentToWatchlist(client as unknown as SupabaseClient, 'user_1', { symbol: '***', kind: 'stock' })
     expect(res.ok).toBe(false)
   })
 
   it('removeInstrumentFromWatchlist rejects unknown instruments', async () => {
     const client = makeClientMock()
-    const res = await removeInstrumentFromWatchlist(client as unknown as SupabaseClient, 'user_1', { symbol: 'NOPE', kind: 'stock' })
+    const res = await removeInstrumentFromWatchlist(client as unknown as SupabaseClient, 'user_1', { symbol: '***', kind: 'stock' })
     expect(res.ok).toBe(false)
   })
 })

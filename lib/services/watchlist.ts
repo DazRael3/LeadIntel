@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { InstrumentDefinition, InstrumentKind } from '@/lib/market/instruments'
-import { findDefaultInstrument } from '@/lib/market/instruments'
 
 export type UserWatchlistRow = {
   id: string
@@ -10,6 +9,8 @@ export type UserWatchlistRow = {
   display_name: string
   sort_order: number
 }
+
+const SYMBOL_RE = /^[A-Z0-9][A-Z0-9.\-]{0,23}$/
 
 export async function getUserWatchlist(client: SupabaseClient, userId: string): Promise<InstrumentDefinition[]> {
   const { data, error } = await client
@@ -30,18 +31,21 @@ export async function getUserWatchlist(client: SupabaseClient, userId: string): 
     name: r.display_name,
     kind: r.kind,
     defaultVisible: true,
-    // Put user entries after defaults by default ordering; UI can override with sort_order.
-    order: 1000 + r.sort_order,
+    // For user watchlists, order is the saved sort order.
+    order: r.sort_order,
   }))
 }
 
 export async function addInstrumentToWatchlist(
   client: SupabaseClient,
   userId: string,
-  input: { symbol: string; kind: InstrumentKind }
+  input: { symbol: string; kind: InstrumentKind; displayName?: string }
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const def = findDefaultInstrument(input.symbol, input.kind)
-  if (!def) return { ok: false, message: 'Unknown instrument' }
+  const symbol = input.symbol.trim().toUpperCase()
+  if (!SYMBOL_RE.test(symbol)) return { ok: false, message: 'Invalid symbol' }
+
+  const displayName = (input.displayName ?? symbol).trim()
+  if (!displayName) return { ok: false, message: 'Invalid display name' }
 
   // Determine next sort_order
   const { data: existing } = await client
@@ -57,14 +61,14 @@ export async function addInstrumentToWatchlist(
 
   const { error } = await client.from('user_watchlists').upsert({
     user_id: userId,
-    kind: def.kind,
-    symbol: def.symbol,
-    display_name: def.name,
+    kind: input.kind,
+    symbol,
+    display_name: displayName,
     sort_order: sortOrder,
   })
 
   if (error) {
-    console.error('[watchlist] Failed to add instrument', { userId, symbol: def.symbol, kind: def.kind, message: error.message })
+    console.error('[watchlist] Failed to add instrument', { userId, symbol, kind: input.kind, message: error.message })
     return { ok: false, message: 'Failed to add instrument' }
   }
 
@@ -76,18 +80,18 @@ export async function removeInstrumentFromWatchlist(
   userId: string,
   input: { symbol: string; kind: InstrumentKind }
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const def = findDefaultInstrument(input.symbol, input.kind)
-  if (!def) return { ok: false, message: 'Unknown instrument' }
+  const symbol = input.symbol.trim().toUpperCase()
+  if (!SYMBOL_RE.test(symbol)) return { ok: false, message: 'Invalid symbol' }
 
   const { error } = await client
     .from('user_watchlists')
     .delete()
     .eq('user_id', userId)
-    .eq('kind', def.kind)
-    .eq('symbol', def.symbol)
+    .eq('kind', input.kind)
+    .eq('symbol', symbol)
 
   if (error) {
-    console.error('[watchlist] Failed to remove instrument', { userId, symbol: def.symbol, kind: def.kind, message: error.message })
+    console.error('[watchlist] Failed to remove instrument', { userId, symbol, kind: input.kind, message: error.message })
     return { ok: false, message: 'Failed to remove instrument' }
   }
 
@@ -99,12 +103,12 @@ export async function updateWatchlistOrder(
   userId: string,
   items: Array<{ symbol: string; kind: InstrumentKind; sortOrder: number }>
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  // Only allow ordering for known defaults (keeps symbol universe bounded).
   const rows = items
     .map((it) => {
-      const def = findDefaultInstrument(it.symbol, it.kind)
-      if (!def) return null
-      return { user_id: userId, kind: def.kind, symbol: def.symbol, display_name: def.name, sort_order: it.sortOrder }
+      const symbol = it.symbol.trim().toUpperCase()
+      if (!SYMBOL_RE.test(symbol)) return null
+      if (!Number.isFinite(it.sortOrder) || it.sortOrder < 0) return null
+      return { user_id: userId, kind: it.kind, symbol, sort_order: it.sortOrder }
     })
     .filter((r): r is NonNullable<typeof r> => Boolean(r))
 

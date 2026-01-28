@@ -33,8 +33,7 @@ function dayKey(now: Date): string {
  * Deterministic pseudo quotes (no external API).
  * Produces realistic-looking values that change daily, plus a tiny intra-hour drift.
  */
-export async function fetchInstrumentQuotes(instruments: InstrumentDefinition[]): Promise<InstrumentQuote[]> {
-  const now = new Date()
+export function generateMockInstrumentQuotes(instruments: InstrumentDefinition[], now: Date = new Date()): InstrumentQuote[] {
   const dk = dayKey(now)
   const hour = now.getUTCHours()
 
@@ -66,5 +65,31 @@ export async function fetchInstrumentQuotes(instruments: InstrumentDefinition[])
   })
 
   return quotes
+}
+
+/**
+ * Fetch quotes via server API if available/configured; fall back to deterministic mock quotes.
+ * This keeps local dev + tests working without external providers or secrets.
+ */
+export async function fetchInstrumentQuotes(instruments: InstrumentDefinition[]): Promise<InstrumentQuote[]> {
+  if (instruments.length === 0) return []
+  try {
+    const res = await fetch('/api/market/quotes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instruments: instruments.map((i) => ({ symbol: i.symbol, kind: i.kind, name: i.name })) }),
+    })
+    if (!res.ok) return generateMockInstrumentQuotes(instruments)
+    const json = (await res.json()) as unknown
+    if (typeof json !== 'object' || json === null) return generateMockInstrumentQuotes(instruments)
+    const maybe = json as { ok?: unknown; data?: unknown }
+    if (maybe.ok !== true) return generateMockInstrumentQuotes(instruments)
+    const data = maybe.data as { quotes?: unknown }
+    if (!data || !Array.isArray(data.quotes)) return generateMockInstrumentQuotes(instruments)
+    // Best-effort return; the API already normalizes and falls back per-symbol.
+    return data.quotes as InstrumentQuote[]
+  } catch {
+    return generateMockInstrumentQuotes(instruments)
+  }
 }
 

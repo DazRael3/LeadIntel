@@ -8,7 +8,7 @@ test('pro user can star a market symbol and it persists after reload', async ({ 
   await page.goto('/dashboard')
 
   // Star AAPL from the sidebar
-  const star = page.getByTestId('market-star-AAPL')
+  const star = page.getByTestId('market-star-all-AAPL')
   await expect(star).toBeVisible()
   await expect(star).toBeEnabled({ timeout: 15000 })
   await star.evaluate((n) => (n as HTMLButtonElement).click())
@@ -18,6 +18,6 @@ test('pro user can star a market symbol and it persists after reload', async ({ 
 
   // Refresh and ensure it persists.
   await page.reload()
-  await expect(page.getByTestId('market-star-AAPL').locator('svg')).toHaveClass(/fill-yellow-400/)
+  await expect(page.getByTestId('market-star-all-AAPL').locator('svg')).toHaveClass(/fill-yellow-400/)
 })
 

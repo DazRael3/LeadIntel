@@ -219,6 +219,65 @@ export const POST = withApiGuard(
       )
     }
 
+    // DEMO behavior: if there are no existing trigger events for this company/lead, seed a couple.
+    // Safe to disable later via ENABLE_DEMO_TRIGGER_EVENTS.
+    const demoEnabled =
+      !isE2E() &&
+      !isTestEnv() &&
+      env.ENABLE_DEMO_TRIGGER_EVENTS !== '0' &&
+      env.ENABLE_DEMO_TRIGGER_EVENTS !== 'false'
+
+    if (demoEnabled) {
+      try {
+        const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
+        const existingQuery = supabase
+          .from('trigger_events')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1)
+
+        const { data: existing } = leadId
+          ? await existingQuery.eq('lead_id', leadId)
+          : await existingQuery.eq('company_name', topicName)
+
+        const hasAny = Array.isArray(existing) && existing.length > 0
+        if (!hasAny) {
+          const now = new Date().toISOString()
+          const demoRows = [
+            {
+              user_id: userId,
+              lead_id: leadId,
+              company_name: topicName,
+              company_domain: domain ?? undefined,
+              company_url: domain ? input : undefined,
+              event_type: 'funding',
+              headline: `Demo event: ${topicName} announces fresh funding`,
+              event_description: 'Demo trigger event generated for first-time onboarding. Disable via ENABLE_DEMO_TRIGGER_EVENTS.',
+              source_url: env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com',
+              detected_at: now,
+            },
+            {
+              user_id: userId,
+              lead_id: leadId,
+              company_name: topicName,
+              company_domain: domain ?? undefined,
+              company_url: domain ? input : undefined,
+              event_type: 'expansion',
+              headline: `Demo event: ${topicName} expands go-to-market team`,
+              event_description: 'Demo trigger event generated for first-time onboarding. Disable via ENABLE_DEMO_TRIGGER_EVENTS.',
+              source_url: env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com',
+              detected_at: now,
+            },
+          ]
+
+          // Best-effort insert (RLS enforced by auth cookie). Ignore errors.
+          await supabase.from('trigger_events').insert(demoRows)
+        }
+      } catch {
+        // best-effort demo behavior only
+      }
+    }
+
     const response = {
       pitch,
       battleCard,
