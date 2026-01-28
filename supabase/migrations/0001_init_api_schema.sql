@@ -23,7 +23,7 @@ $$;
 -- SAFE DROP: drops a relation whether it is a table or a view (prevents ERROR 42809)
 do $$
 declare
-  r record;
+  r text;
   targets text[] := array['users','user_settings','leads','trigger_events','subscriptions'];
 begin
   foreach r in array targets loop
