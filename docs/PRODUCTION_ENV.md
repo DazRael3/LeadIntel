@@ -14,6 +14,14 @@ This document lists the **minimum required** environment variables for a safe pr
 - The checkout session uses **subscription mode** for the **$99/month** Pro plan
 - Payment method is collected up-front (no Stripe trial configured)
 
+## Supabase migrations (production branch)
+
+- Migrations are now **strictly sequential** and **zero-padded** (`0001_...` → `00NN_...`) with **no duplicates/gaps**.
+- If you have an existing database created from older, duplicate-numbered migrations, prefer creating a fresh environment and applying the new chain.
+- Local verification (recommended):
+  - `supabase db reset --include-prod-env=false`
+  - `supabase db push`
+
 
 ## Supabase (Auth + DB)
 

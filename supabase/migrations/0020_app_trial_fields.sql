@@ -1,6 +1,6 @@
 begin;
 
--- 0018_app_trial_fields.sql
+-- 0020_app_trial_fields.sql
 -- Adds app-level trial metadata columns to api.users (idempotent).
 
 alter table api.users
