@@ -5,6 +5,13 @@ vi.mock('@/lib/billing/plan', () => ({
   isPro: vi.fn(async () => true),
 }))
 
+vi.mock('@/lib/services/triggerEvents', () => ({
+  ingestRealTriggerEvents: vi.fn(async () => ({ created: 0 })),
+  seedDemoTriggerEventsIfEmpty: vi.fn(async () => ({ created: 2 })),
+  hasAnyTriggerEvents: vi.fn(async () => true),
+  getLatestTriggerEvent: vi.fn(async () => ({ id: 'event_1' })),
+}))
+
 class FakeQuery {
   private table: string
   constructor(table: string) {
@@ -49,11 +56,6 @@ vi.mock('@/lib/supabase/schema-client', () => ({
             single: async () => ({ data: { id: 'lead_1' }, error: null }),
           }),
         }),
-        insert: () => ({
-          select: () => ({
-            single: async () => ({ data: { id: 'event_1' }, error: null }),
-          }),
-        }),
       }),
     }
     return await fn(client)
@@ -69,6 +71,7 @@ vi.mock('@/lib/ai-logic', () => ({
 describe('/api/generate-pitch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    process.env.ENABLE_DEMO_TRIGGER_EVENTS = 'true'
   })
 
   it('returns ok envelope with canonical data.pitch when pitch exists', async () => {
@@ -87,6 +90,24 @@ describe('/api/generate-pitch', () => {
     expect(json.ok).toBe(true)
     expect(typeof json.data?.pitch).toBe('string')
     expect(json.data.pitch).toBe('Mock pitch text')
+  })
+
+  it('seeds demo trigger events when provider inserts none and demo enabled', async () => {
+    const { POST } = await import('./route')
+    const { hasAnyTriggerEvents } = await import('@/lib/services/triggerEvents')
+
+    const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
+      method: 'POST',
+      body: JSON.stringify({ companyUrl: 'lego.com' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.hasTriggerEvent).toBe(true)
+    expect(hasAnyTriggerEvents).toHaveBeenCalled()
   })
 })
 

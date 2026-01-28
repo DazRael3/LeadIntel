@@ -53,10 +53,10 @@ export function TriggerEventsSection({ events, loading, error, onRefresh }: Trig
             <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">No trigger events yet</h3>
             <p className="text-muted-foreground mb-4">
-              Generate your first AI-powered pitch to see trigger events appear here
+              Run your first AI pitch, or wait for new events from the intelligence feed to appear here.
             </p>
             <p className="text-sm text-muted-foreground">
-              Use the pitch generator to get started
+              Events are near real-time and may take a moment to populate.
             </p>
           </div>
         ) : (

@@ -182,17 +182,13 @@ export function MarketSidebar() {
         {quoteError && <div className="text-xs text-muted-foreground">{quoteError}</div>}
 
         <div className="space-y-4 max-h-[520px] overflow-auto pr-1">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold tracking-wide text-muted-foreground">YOUR WATCHLIST</div>
-              <div className="text-xs text-muted-foreground">{yourWatchlist.length}</div>
-            </div>
-            {yourWatchlist.length === 0 ? (
-              <div className="rounded border border-cyan-500/10 bg-background/20 px-3 py-2 text-xs text-muted-foreground">
-                Star instruments below to add them here.
+          {yourWatchlist.length > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold tracking-wide text-muted-foreground">YOUR WATCHLIST (STARRED)</div>
+                <div className="text-xs text-muted-foreground">{yourWatchlist.length}</div>
               </div>
-            ) : (
-              yourWatchlist.map((inst) => {
+              {yourWatchlist.map((inst) => {
                 const q = quotes[inst.symbol]
                 const change = q?.changePct ?? null
                 const price = q?.price ?? null
@@ -249,12 +245,14 @@ export function MarketSidebar() {
                     </div>
                   </div>
                 )
-              })
-            )}
-          </div>
+              })}
+            </div>
+          ) : null}
 
           <div className="space-y-2">
-            <div className="text-xs font-semibold tracking-wide text-muted-foreground">ALL INSTRUMENTS</div>
+            <div className="text-xs font-semibold tracking-wide text-muted-foreground">
+              {yourWatchlist.length > 0 ? 'ALL INSTRUMENTS' : 'ALL INSTRUMENTS (STAR TO PIN)'}
+            </div>
             {allInstruments.map((inst) => {
               const q = quotes[inst.symbol]
               const change = q?.changePct ?? null

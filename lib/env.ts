@@ -100,6 +100,14 @@ const serverEnvSchema = z.object({
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
 
+  // Trigger events ingestion provider (optional)
+  TRIGGER_EVENTS_PROVIDER: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['none', 'newsapi', 'custom']).optional()
+  ),
+  // Cron secret for /api/trigger-events/ingest (optional)
+  TRIGGER_EVENTS_CRON_SECRET: z.string().min(8).optional(),
+
   // Clearbit
   CLEARBIT_REVEAL_API_KEY: z.string().optional(),
   CLEARBIT_API_KEY: z.string().optional(),
@@ -195,6 +203,8 @@ function buildServerEnv(): ServerEnv {
     FEATURE_ZAPIER_PUSH_ENABLED: process.env.FEATURE_ZAPIER_PUSH_ENABLED,
     ENABLE_APP_TRIAL: process.env.ENABLE_APP_TRIAL,
     ENABLE_DEMO_TRIGGER_EVENTS: process.env.ENABLE_DEMO_TRIGGER_EVENTS,
+    TRIGGER_EVENTS_PROVIDER: process.env.TRIGGER_EVENTS_PROVIDER,
+    TRIGGER_EVENTS_CRON_SECRET: process.env.TRIGGER_EVENTS_CRON_SECRET,
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET,

@@ -647,6 +647,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/trigger-events/ingest': {
+    tier: 'CRON',
+    maxBytes: 16384,
+    rateLimit: {
+      authPerMin: 10,
+      ipPerMin: 5,
+    },
+    originRequired: false,
+    authRequired: false, // Auth is via TRIGGER_EVENTS_CRON_SECRET header
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
 }
 
 /**

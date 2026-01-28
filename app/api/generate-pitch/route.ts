@@ -9,6 +9,7 @@ import { CompanyUrlSchema, GeneratePitchOptionsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
 import { isPro as isProPlan } from '@/lib/billing/plan'
+import { ingestRealTriggerEvents, seedDemoTriggerEventsIfEmpty, hasAnyTriggerEvents, getLatestTriggerEvent } from '@/lib/services/triggerEvents'
 
 export const dynamic = "force-dynamic";
 
@@ -194,103 +195,42 @@ export const POST = withApiGuard(
       )
     }
 
-    // Save trigger event (only if we have a domain)
-    let savedTriggerEvent: { data: unknown; error: unknown } = { data: null, error: null }
-    if (domain) {
-      savedTriggerEvent = await queryWithSchemaFallback(
-        request,
-        bridge,
-        async (client) => {
-          const result = await client
-            .from('trigger_events')
-            .insert({
-              user_id: userId,
-              company_name: topicName,
-              company_domain: domain,
-              event_type: 'product_launch',
-              event_description: `Generated AI pitch for ${topicName}`,
-              source_url: input,
-              headline: `AI pitch generated for ${topicName}`,
-            })
-            .select()
-            .single()
-          return { data: result.data, error: result.error }
-        }
-      )
+    const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
+    const triggerInput = {
+      userId,
+      leadId: typeof leadId === 'string' ? leadId : null,
+      companyName: topicName || null,
+      companyDomain: domain,
     }
 
-    // DEMO behavior: if there are no existing trigger events for this company/lead, seed a couple.
-    // Safe to disable later via ENABLE_DEMO_TRIGGER_EVENTS.
-    const demoEnabled =
-      !isE2E() &&
-      !isTestEnv() &&
-      env.ENABLE_DEMO_TRIGGER_EVENTS !== '0' &&
-      env.ENABLE_DEMO_TRIGGER_EVENTS !== 'false'
+    // Production-style Trigger Events ingestion:
+    // 1) Ingest real events first (best effort, may be no-op if provider is none)
+    await ingestRealTriggerEvents(triggerInput)
 
+    // 2) Optionally seed demo events if still empty
+    // Note: Keep this callable in tests; service is mocked there.
+    const demoEnabled = env.ENABLE_DEMO_TRIGGER_EVENTS !== '0' && env.ENABLE_DEMO_TRIGGER_EVENTS !== 'false'
     if (demoEnabled) {
-      try {
-        const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
-        const existingQuery = supabase
-          .from('trigger_events')
-          .select('id')
-          .eq('user_id', userId)
-          .limit(1)
-
-        const { data: existing } = leadId
-          ? await existingQuery.eq('lead_id', leadId)
-          : await existingQuery.eq('company_name', topicName)
-
-        const hasAny = Array.isArray(existing) && existing.length > 0
-        if (!hasAny) {
-          const now = new Date().toISOString()
-          const demoRows = [
-            {
-              user_id: userId,
-              lead_id: leadId,
-              company_name: topicName,
-              company_domain: domain ?? undefined,
-              company_url: domain ? input : undefined,
-              event_type: 'funding',
-              headline: `Demo event: ${topicName} announces fresh funding`,
-              event_description: 'Demo trigger event generated for first-time onboarding. Disable via ENABLE_DEMO_TRIGGER_EVENTS.',
-              source_url: process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com',
-              detected_at: now,
-            },
-            {
-              user_id: userId,
-              lead_id: leadId,
-              company_name: topicName,
-              company_domain: domain ?? undefined,
-              company_url: domain ? input : undefined,
-              event_type: 'expansion',
-              headline: `Demo event: ${topicName} expands go-to-market team`,
-              event_description: 'Demo trigger event generated for first-time onboarding. Disable via ENABLE_DEMO_TRIGGER_EVENTS.',
-              source_url: process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com',
-              detected_at: now,
-            },
-          ]
-
-          // Best-effort insert (RLS enforced by auth cookie). Ignore errors.
-          await supabase.from('trigger_events').insert(demoRows)
-        }
-      } catch {
-        // best-effort demo behavior only
-      }
+      await seedDemoTriggerEventsIfEmpty(triggerInput)
     }
+
+    const hasTriggerEvent = await hasAnyTriggerEvents(triggerInput)
+    const latestTriggerEvent = await getLatestTriggerEvent(triggerInput)
 
     const response = {
       pitch,
       battleCard,
       emailSequence,
       lead: savedLead.data,
-      triggerEvent: savedTriggerEvent.data,
+      triggerEvent: latestTriggerEvent,
+      hasTriggerEvent,
     }
 
     if (isDev) {
       console.log('[generate-pitch] Success:', { 
         hasPitch: !!pitch, 
         hasLead: !!savedLead.data, 
-        hasTriggerEvent: !!savedTriggerEvent.data,
+        hasTriggerEvent,
         schema: dbSchemaUsed,
         fallbackUsed: dbFallbackUsed,
       })
