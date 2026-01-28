@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, ArrowRight, ArrowLeft, Check, Zap, AlertTriangle } from "lucide-react"
+import { Loader2, ArrowRight, ArrowLeft, Check, Zap, AlertTriangle, X } from "lucide-react"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 
 interface OnboardingWizardProps {
   onComplete: () => void
+  onClose?: () => void
 }
 
 // LocalStorage key for onboarding completion fallback
@@ -56,7 +57,7 @@ const INDUSTRY_OPTIONS = [
   'Other',
 ]
 
-export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
+export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps) {
   const supabase = createClient()
   const { toast } = useToast()
   const [step, setStep] = useState(1)
@@ -233,9 +234,21 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             <CardTitle className="text-2xl bloomberg-font neon-cyan">
               5-MINUTE SETUP
             </CardTitle>
-            <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10">
-              Step {step} of 3
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10">
+                Step {step} of 3
+              </Badge>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Close setup"
+                onClick={() => onClose?.()}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <CardDescription className="text-sm">
             Let&apos;s personalize LeadIntel for your business

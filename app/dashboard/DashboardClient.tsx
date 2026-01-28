@@ -46,13 +46,14 @@ export function DashboardClient({
   const [autopilotSaving, setAutopilotSaving] = useState<boolean>(false)
   const router = useRouter()
   const { isPro: planIsPro } = usePlan()
-  const isDev = process.env.NODE_ENV !== 'production'
+  const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
 
   // Data fetching hooks
   const { events, loading: eventsLoading, error: eventsError, loadEvents } = useTriggerEvents()
   const { creditsRemaining, loading: creditsLoading, loadCredits } = useCredits(initialCreditsRemaining, initialSubscriptionTier === 'pro')
   const { totalLeads, loadStats } = useStats()
-  const { showOnboarding, onboardingComplete, onboardingChecked, handleOnboardingComplete } = useOnboarding(initialOnboardingCompleted)
+  const { showOnboarding, onboardingComplete, onboardingChecked, handleOnboardingComplete, dismissOnboarding } =
+    useOnboarding(initialOnboardingCompleted)
   const { debugInfo, showDebug, checkWhoami, hideDebug } = useDebugInfo()
 
   // Sync isPro state with plan hook
@@ -76,15 +77,15 @@ export function DashboardClient({
     <div className="min-h-screen bg-background terminal-grid">
       <DashboardHeader />
       {/* Onboarding Wizard - Only show if server says not completed */}
-      {onboardingChecked && showOnboarding && !onboardingComplete && !initialOnboardingCompleted && !planIsPro && (
-        <OnboardingWizard onComplete={handleOnboardingComplete} />
+      {onboardingChecked && showOnboarding && !onboardingComplete && (
+        <OnboardingWizard onComplete={handleOnboardingComplete} onClose={dismissOnboarding} />
       )}
 
       {/* Header */}
       <DashboardHeaderSection isPro={isPro} creditsRemaining={creditsRemaining} />
 
-      {/* Debug Panel - Only in dev mode */}
-      {isDev && showDebug && debugInfo && (
+      {/* Debug Panel - Guarded behind NEXT_PUBLIC_ENABLE_DEBUG_UI */}
+      {debugEnabled && showDebug && debugInfo && (
         <DebugPanel debugInfo={debugInfo} onClose={hideDebug} />
       )}
 
@@ -93,7 +94,7 @@ export function DashboardClient({
         totalLeads={totalLeads} 
         eventsCount={events.length} 
         isPro={isPro} 
-        isDev={isDev}
+        debugEnabled={debugEnabled}
         onDebugClick={checkWhoami}
       />
 

@@ -54,6 +54,23 @@ function unwrapGeneratePitchPayload(raw: unknown): GeneratePitchPayload {
   return isRecord(raw) ? (raw as GeneratePitchPayload) : {}
 }
 
+function getSavedKey(userId: string | null): string {
+  return `leadintel_saved_companies_${userId || 'anon'}`
+}
+
+function normalizeSaved(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  for (const v of value) {
+    if (typeof v !== 'string') continue
+    const s = v.trim()
+    if (!s) continue
+    if (!out.includes(s)) out.push(s)
+    if (out.length >= 10) break
+  }
+  return out
+}
+
 export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
   const [companyUrl, setCompanyUrl] = useState(initialUrl)
   const [isPro, setIsPro] = useState(false)
@@ -65,8 +82,27 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
   const [authError, setAuthError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [savedCompanies, setSavedCompanies] = useState<string[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  // Initialize user id once so per-user keys work on first render.
+  useEffect(() => {
+    let cancelled = false
+    const init = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (cancelled) return
+        setCurrentUserId(user?.id ?? null)
+      } catch {
+        if (!cancelled) setCurrentUserId(null)
+      }
+    }
+    void init()
+    return () => {
+      cancelled = true
+    }
+  }, [supabase])
 
   const checkSubscription = useCallback(async () => {
     try {
@@ -87,33 +123,94 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
     }
   }, [supabase])
 
+  const loadSaved = useCallback(
+    async (userIdOverride?: string | null) => {
+      const userId = userIdOverride ?? currentUserId
+      try {
+        // Always hydrate from the user-scoped localStorage key first (fast UI).
+        const stored = localStorage.getItem(getSavedKey(userId))
+        const localParsed = stored ? normalizeSaved(JSON.parse(stored)) : []
+        if (localParsed.length > 0) {
+          setSavedCompanies(localParsed)
+        } else if (!userId) {
+          setSavedCompanies([])
+        }
+      } catch {
+        if (!userId) setSavedCompanies([])
+      }
+
+      // If signed in, prefer Supabase (per-user persistence).
+      if (!userId) return
+
+      try {
+        const { data: settingsRow, error } = await supabase
+          .from('user_settings')
+          .select('saved_companies')
+          .eq('user_id', userId)
+          .maybeSingle()
+
+        if (error) {
+          return
+        }
+
+        const dbList = normalizeSaved((settingsRow as { saved_companies?: unknown } | null)?.saved_companies)
+
+        // Optional one-time merge: carry over anon list into the user list if present.
+        let anonList: string[] = []
+        try {
+          const anonStored = localStorage.getItem(getSavedKey(null))
+          anonList = anonStored ? normalizeSaved(JSON.parse(anonStored)) : []
+        } catch {
+          anonList = []
+        }
+
+        const merged = normalizeSaved([...dbList, ...anonList])
+        setSavedCompanies(merged)
+        localStorage.setItem(getSavedKey(userId), JSON.stringify(merged))
+
+        if (anonList.length > 0) {
+          // Persist merged list back to DB and clear anon key to avoid cross-account bleed.
+          await supabase.from('user_settings').upsert({ user_id: userId, saved_companies: merged })
+          localStorage.removeItem(getSavedKey(null))
+        }
+      } catch {
+        // Ignore; local fallback already applied.
+      }
+    },
+    [currentUserId, supabase]
+  )
+
   useEffect(() => {
     if (initialUrl) {
       setCompanyUrl(initialUrl)
     }
     checkSubscription()
-    loadSaved()
-  }, [initialUrl, checkSubscription])
+    void loadSaved()
+    // Keep saved companies scoped to the current authenticated user.
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUserId = session?.user?.id ?? null
+      setCurrentUserId(nextUserId)
+      void loadSaved(nextUserId)
+    })
+    return () => {
+      data.subscription.unsubscribe()
+    }
+  }, [initialUrl, checkSubscription, loadSaved, supabase.auth])
 
-  const loadSaved = () => {
+  const persistSaved = async (url: string) => {
+    const userId = currentUserId
+    const next = [url, ...savedCompanies.filter((u) => u !== url)].slice(0, 10)
+    setSavedCompanies(next)
     try {
-      const stored = localStorage.getItem('leadintel_saved_companies')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed)) {
-          setSavedCompanies(parsed.slice(0, 10))
-        }
-      }
+      localStorage.setItem(getSavedKey(userId), JSON.stringify(next))
     } catch {
       // ignore
     }
-  }
 
-  const persistSaved = (url: string) => {
+    // Persist per-user when authenticated.
+    if (!userId) return
     try {
-      const next = [url, ...savedCompanies.filter(u => u !== url)].slice(0, 10)
-      setSavedCompanies(next)
-      localStorage.setItem('leadintel_saved_companies', JSON.stringify(next))
+      await supabase.from('user_settings').upsert({ user_id: userId, saved_companies: next })
     } catch {
       // ignore
     }
@@ -187,7 +284,7 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
       const pitchText = typeof data.pitch === 'string' ? data.pitch.trim() : ''
       if (pitchText) {
         setPitch(pitchText)
-        persistSaved(companyUrl)
+        await persistSaved(companyUrl)
       } else {
         // Only show this fallback when the request succeeded but the canonical pitch field is empty.
         setPitch('Pitch generation completed, but no pitch text was returned.')

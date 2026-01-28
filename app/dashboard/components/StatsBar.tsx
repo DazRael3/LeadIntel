@@ -7,11 +7,11 @@ interface StatsBarProps {
   totalLeads: number
   eventsCount: number
   isPro: boolean
-  isDev: boolean
+  debugEnabled: boolean
   onDebugClick?: () => void
 }
 
-export function StatsBar({ totalLeads, eventsCount, isPro, onDebugClick, isDev }: StatsBarProps) {
+export function StatsBar({ totalLeads, eventsCount, isPro, onDebugClick, debugEnabled }: StatsBarProps) {
   return (
     <div className="border-b border-cyan-500/10 bg-background/60 backdrop-blur-sm">
       <div className="container mx-auto px-6 py-3">
@@ -57,7 +57,7 @@ export function StatsBar({ totalLeads, eventsCount, isPro, onDebugClick, isDev }
             </div>
           </div>
           {/* Debug Button - Only in dev mode */}
-          {isDev && onDebugClick && (
+          {debugEnabled && onDebugClick && (
             <Button
               size="sm"
               variant="outline"

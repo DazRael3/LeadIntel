@@ -9,6 +9,7 @@ interface UseOnboardingReturn {
   onboardingComplete: boolean
   onboardingChecked: boolean
   handleOnboardingComplete: () => void
+  dismissOnboarding: () => void
 }
 
 /**
@@ -16,15 +17,29 @@ interface UseOnboardingReturn {
  * Handles schema mismatches and missing columns gracefully.
  */
 export function useOnboarding(initialOnboardingCompleted: boolean): UseOnboardingReturn {
-  const [showOnboarding, setShowOnboarding] = useState(!initialOnboardingCompleted)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingComplete, setOnboardingComplete] = useState(initialOnboardingCompleted)
-  const [onboardingChecked, setOnboardingChecked] = useState(initialOnboardingCompleted)
+  const [onboardingChecked, setOnboardingChecked] = useState(false)
   const supabase = createClient()
 
   const checkOnboarding = useCallback(async () => {
+    // Session-scoped "don't flash" flag (prevents open/close flicker during navigation).
+    if (typeof window !== 'undefined') {
+      try {
+        if (window.sessionStorage.getItem('leadintel_onboarding_hide_session') === 'true') {
+          setShowOnboarding(false)
+          setOnboardingChecked(true)
+          return
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // Don't re-check if already completed (server truth)
     if (onboardingComplete || initialOnboardingCompleted) {
       setOnboardingChecked(true)
+      setShowOnboarding(false)
       return
     }
     
@@ -71,6 +86,11 @@ export function useOnboarding(initialOnboardingCompleted: boolean): UseOnboardin
         setShowOnboarding(false)
         if (typeof window !== 'undefined') {
           localStorage.setItem('leadintel_onboarding_completed', 'true')
+          try {
+            window.sessionStorage.setItem('leadintel_onboarding_hide_session', 'true')
+          } catch {
+            // ignore
+          }
         }
       } else {
         // Check localStorage for stale flag
@@ -105,6 +125,11 @@ export function useOnboarding(initialOnboardingCompleted: boolean): UseOnboardin
       setOnboardingChecked(true)
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadintel_onboarding_completed', 'true')
+        try {
+          window.sessionStorage.setItem('leadintel_onboarding_hide_session', 'true')
+        } catch {
+          // ignore
+        }
       }
     } else {
       checkOnboarding()
@@ -117,7 +142,38 @@ export function useOnboarding(initialOnboardingCompleted: boolean): UseOnboardin
     setOnboardingChecked(true)
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadintel_onboarding_completed', 'true')
+      try {
+        window.sessionStorage.setItem('leadintel_onboarding_hide_session', 'true')
+      } catch {
+        // ignore
+      }
     }
+  }, [])
+
+  const dismissOnboarding = useCallback(() => {
+    // Treat explicit dismiss as completion: persist via API best-effort, and never auto-open again.
+    setShowOnboarding(false)
+    setOnboardingComplete(true)
+    setOnboardingChecked(true)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadintel_onboarding_completed', 'true')
+      try {
+        window.sessionStorage.setItem('leadintel_onboarding_hide_session', 'true')
+      } catch {
+        // ignore
+      }
+    }
+    void (async () => {
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ onboarding_completed: true }),
+        })
+      } catch {
+        // best-effort
+      }
+    })()
   }, [])
 
   return {
@@ -125,5 +181,6 @@ export function useOnboarding(initialOnboardingCompleted: boolean): UseOnboardin
     onboardingComplete,
     onboardingChecked,
     handleOnboardingComplete,
+    dismissOnboarding,
   }
 }
