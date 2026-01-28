@@ -9,6 +9,7 @@ import { Sparkles, Loader2, Copy, Check, Mail, Shield, Zap, TrendingDown, Lock, 
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatErrorMessage } from "@/lib/utils/format-error"
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -187,7 +188,7 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
     checkSubscription()
     void loadSaved()
     // Keep saved companies scoped to the current authenticated user.
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       const nextUserId = session?.user?.id ?? null
       setCurrentUserId(nextUserId)
       void loadSaved(nextUserId)
