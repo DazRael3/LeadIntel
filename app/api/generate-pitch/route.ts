@@ -253,7 +253,7 @@ export const POST = withApiGuard(
               event_type: 'funding',
               headline: `Demo event: ${topicName} announces fresh funding`,
               event_description: 'Demo trigger event generated for first-time onboarding. Disable via ENABLE_DEMO_TRIGGER_EVENTS.',
-              source_url: env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com',
+              source_url: process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com',
               detected_at: now,
             },
             {
@@ -265,7 +265,7 @@ export const POST = withApiGuard(
               event_type: 'expansion',
               headline: `Demo event: ${topicName} expands go-to-market team`,
               event_description: 'Demo trigger event generated for first-time onboarding. Disable via ENABLE_DEMO_TRIGGER_EVENTS.',
-              source_url: env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com',
+              source_url: process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com',
               detected_at: now,
             },
           ]
