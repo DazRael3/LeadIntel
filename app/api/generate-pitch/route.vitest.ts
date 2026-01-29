@@ -50,12 +50,27 @@ vi.mock('@/lib/supabase/schema-client', () => ({
   queryWithSchemaFallback: vi.fn(async (_request: unknown, _bridge: unknown, fn: any) => {
     // Execute callback with a minimal client so route logic stays close to reality.
     const client = {
-      from: (_table: string) => ({
+      from: (table: string) => ({
         upsert: () => ({
           select: () => ({
             single: async () => ({ data: { id: 'lead_1' }, error: null }),
           }),
         }),
+        insert: () => {
+          // leads insert returns the created row (id) via select().single()
+          if (table === 'leads') {
+            return {
+              select: () => ({
+                single: async () => ({ data: { id: 'lead_1' }, error: null }),
+              }),
+            }
+          }
+          // pitches insert returns { error } (no select used in route)
+          if (table === 'pitches') {
+            return Promise.resolve({ error: null })
+          }
+          return Promise.resolve({ error: null })
+        },
       }),
     }
     return await fn(client)

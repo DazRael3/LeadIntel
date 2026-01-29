@@ -43,6 +43,22 @@ type GeneratePitchPayload = {
   triggerEvent?: unknown
 }
 
+type LatestPitchResponse = ApiEnvelope<{
+  pitch: {
+    pitchId: string
+    createdAt: string
+    content: string
+    company: {
+      leadId: string
+      companyName: string | null
+      companyDomain: string | null
+      companyUrl: string | null
+      emailSequence: unknown | null
+      battleCard: unknown | null
+    }
+  } | null
+}>
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -195,6 +211,58 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     }
   }, [])
 
+  const hydrateFromLatestPitch = useCallback(
+    async (companyInput: string) => {
+      const trimmed = companyInput.trim()
+      if (!trimmed) return
+      // Avoid network churn while generating.
+      if (loading) return
+
+      const domain = extractDomainFromInput(trimmed)
+      const qs = new URLSearchParams()
+      if (domain) qs.set('companyDomain', domain)
+      else qs.set('companyName', trimmed)
+
+      try {
+        const res = await fetch(`/api/pitch/latest?${qs.toString()}`, { method: 'GET' })
+        if (!res.ok) return
+        const json = (await res.json()) as LatestPitchResponse
+        if (!json || json.ok !== true) return
+        const latest = json.data.pitch
+        if (!latest) {
+          // If we switched companies and there is no saved work, clear the old outputs.
+          setPitch(null)
+          setEmailSequence(null)
+          setBattleCard(null)
+          return
+        }
+
+        setPitch(typeof latest.content === 'string' ? latest.content : null)
+
+        const seq = latest.company?.emailSequence
+        if (isRecord(seq) && typeof seq.part1 === 'string' && typeof seq.part2 === 'string' && typeof seq.part3 === 'string') {
+          setEmailSequence({ part1: seq.part1, part2: seq.part2, part3: seq.part3 })
+        } else {
+          setEmailSequence(null)
+        }
+
+        const bc = latest.company?.battleCard
+        if (isRecord(bc) && Array.isArray(bc.currentTech) && typeof bc.painPoint === 'string' && typeof bc.killerFeature === 'string') {
+          setBattleCard({
+            currentTech: bc.currentTech.filter((t) => typeof t === 'string') as string[],
+            painPoint: bc.painPoint,
+            killerFeature: bc.killerFeature,
+          })
+        } else {
+          setBattleCard(null)
+        }
+      } catch {
+        // best-effort
+      }
+    },
+    [extractDomainFromInput, loading]
+  )
+
   useEffect(() => {
     if (initialUrl) {
       setCompanyUrl(initialUrl)
@@ -211,6 +279,17 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
       data.subscription.unsubscribe()
     }
   }, [initialUrl, checkSubscription, loadSaved, supabase.auth])
+
+  // Hydrate latest saved pitch content whenever company input changes (debounced).
+  useEffect(() => {
+    const trimmed = companyUrl.trim()
+    if (!trimmed) return
+    const t = window.setTimeout(() => {
+      void hydrateFromLatestPitch(trimmed)
+      onCompanyContextChange?.({ companyInput: trimmed, companyDomain: extractDomainFromInput(trimmed) })
+    }, 250)
+    return () => window.clearTimeout(t)
+  }, [companyUrl, hydrateFromLatestPitch, onCompanyContextChange, extractDomainFromInput])
 
   const persistSaved = async (url: string) => {
     const userId = currentUserId

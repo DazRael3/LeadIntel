@@ -377,6 +377,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'GET:/api/pitch/latest': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 0,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/push-to-crm': {
     tier: 'WRITE',
     maxBytes: 2 * 1024 * 1024, // 2MB (lead payload with pitch content)

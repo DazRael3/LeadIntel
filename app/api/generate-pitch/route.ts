@@ -168,16 +168,15 @@ export const POST = withApiGuard(
     const dbSchemaUsed = dbSchema.primary || 'api'
     const dbFallbackUsed = false
 
-    // Save lead to database (only if we have a domain for URL-like inputs)
+    // Save lead to database.
+    // Note: pitches.lead_id is NOT NULL, so we always ensure there is a lead row.
     let savedLead: { data: unknown; error: unknown } = { data: null, error: null }
-    if (domain) {
-      savedLead = await queryWithSchemaFallback(
-        request,
-        bridge,
-        async (client) => {
-          const result = await client
-            .from('leads')
-            .upsert({
+    savedLead = await queryWithSchemaFallback(request, bridge, async (client) => {
+      if (domain) {
+        const result = await client
+          .from('leads')
+          .upsert(
+            {
               user_id: userId,
               company_name: topicName,
               company_domain: domain,
@@ -185,15 +184,31 @@ export const POST = withApiGuard(
               ai_personalized_pitch: pitch,
               battle_card: battleCard,
               email_sequence: emailSequence,
-            }, {
-              onConflict: 'user_id,company_domain'
-            })
-            .select()
-            .single()
-          return { data: result.data, error: result.error }
-        }
-      )
-    }
+            },
+            {
+              onConflict: 'user_id,company_domain',
+            }
+          )
+          .select()
+          .single()
+        return { data: result.data, error: result.error }
+      }
+
+      const result = await client
+        .from('leads')
+        .insert({
+          user_id: userId,
+          company_name: topicName,
+          company_domain: null,
+          company_url: input,
+          ai_personalized_pitch: pitch,
+          battle_card: battleCard,
+          email_sequence: emailSequence,
+        })
+        .select()
+        .single()
+      return { data: result.data, error: result.error }
+    })
 
     const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
     const correlationId = `generate-pitch:${new Date().toISOString()}:${userId}`
@@ -219,6 +234,26 @@ export const POST = withApiGuard(
     const hasTriggerEvent = await hasAnyTriggerEvents(triggerInput)
     const latestTriggerEvent = await getLatestTriggerEvent(triggerInput)
 
+    // Persist pitch history row (best-effort; do not fail the request if this write fails).
+    const warnings: string[] = []
+    if (typeof leadId === 'string' && leadId.length > 0) {
+      try {
+        const persisted = await queryWithSchemaFallback(request, bridge, async (client) => {
+          const { error } = await client.from('pitches').insert({
+            user_id: userId,
+            lead_id: leadId,
+            content: pitch,
+          })
+          return { data: null, error }
+        })
+        if (persisted.error) warnings.push('Pitch history write failed (pitches insert).')
+      } catch {
+        warnings.push('Pitch history write failed (pitches insert).')
+      }
+    } else {
+      warnings.push('Pitch history not saved (missing lead id).')
+    }
+
     const response = {
       pitch,
       battleCard,
@@ -226,6 +261,7 @@ export const POST = withApiGuard(
       lead: savedLead.data,
       triggerEvent: latestTriggerEvent,
       hasTriggerEvent,
+      warnings,
     }
 
     if (isDev) {
