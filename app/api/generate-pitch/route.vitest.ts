@@ -94,7 +94,7 @@ describe('/api/generate-pitch', () => {
 
   it('seeds demo trigger events when provider inserts none and demo enabled', async () => {
     const { POST } = await import('./route')
-    const { hasAnyTriggerEvents } = await import('@/lib/services/triggerEvents')
+    const { hasAnyTriggerEvents, ingestRealTriggerEvents } = await import('@/lib/services/triggerEvents')
 
     const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
       method: 'POST',
@@ -108,6 +108,13 @@ describe('/api/generate-pitch', () => {
     expect(json.ok).toBe(true)
     expect(json.data?.hasTriggerEvent).toBe(true)
     expect(hasAnyTriggerEvents).toHaveBeenCalled()
+    expect(ingestRealTriggerEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user_1',
+        companyDomain: 'lego.com',
+        correlationId: expect.stringMatching(/^generate-pitch:/),
+      })
+    )
   })
 })
 

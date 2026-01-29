@@ -20,6 +20,61 @@ export type ProviderInput = {
 
 export type TriggerEventsProvider = (input: ProviderInput) => Promise<RawTriggerEvent[]>
 
+export type ProviderLogContext = {
+  userId?: string
+  leadId?: string
+  companyDomain?: string | null
+  companyName?: string | null
+  correlationId?: string
+}
+
+type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+function isDebugLoggingEnabled(): boolean {
+  const v = (process.env.TRIGGER_EVENTS_DEBUG_LOGGING ?? '').trim().toLowerCase()
+  return v === 'true' || v === '1'
+}
+
+export function logTriggerProvider(level: LogLevel, message: string, data: Record<string, unknown> = {}): void {
+  const enabled = isDebugLoggingEnabled()
+  if (!enabled && (level === 'debug' || level === 'info')) return
+
+  const method: 'log' | 'info' | 'warn' | 'error' = level === 'debug' ? 'log' : level
+  // Emit a single JSON-like object so Vercel logs are grep-friendly.
+  console[method]({
+    scope: 'trigger-events',
+    message,
+    ...data,
+  })
+}
+
+export async function withProviderLogging(
+  providerName: string,
+  fn: () => Promise<RawTriggerEvent[]>,
+  ctx: ProviderLogContext
+): Promise<RawTriggerEvent[]> {
+  const start = Date.now()
+  try {
+    logTriggerProvider('debug', 'provider.start', { providerName, ...ctx })
+    const results = await fn()
+    logTriggerProvider('info', 'provider.success', {
+      providerName,
+      count: results.length,
+      durationMs: Date.now() - start,
+      ...ctx,
+    })
+    return results
+  } catch (err) {
+    logTriggerProvider('warn', 'provider.error', {
+      providerName,
+      error: err instanceof Error ? err.message : String(err),
+      durationMs: Date.now() - start,
+      ...ctx,
+    })
+    return []
+  }
+}
+
 function safeUrl(value: string | null | undefined): string | null {
   const s = (value ?? '').trim()
   if (!s) return null
@@ -97,44 +152,110 @@ function buildQuery(input: ProviderInput): string {
   return parts.join(' OR ')
 }
 
-export function getProviderByName(name: TriggerEventsProviderName): TriggerEventsProvider {
-  if (name === 'none') return providerNoop()
-  if (name === 'custom') {
-    return async () => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[trigger-events] provider=custom is not configured; returning 0 events')
-      }
-      return []
+type ProviderSpec = {
+  name: TriggerEventsProviderName
+  enabled: boolean
+  skipReason?: string
+  shouldRun?: (input: ProviderInput) => { ok: boolean; reason?: string }
+  run: TriggerEventsProvider
+}
+
+function getProviderSpec(name: TriggerEventsProviderName): ProviderSpec {
+  if (name === 'none') return { name, enabled: false, skipReason: 'disabled', run: providerNoop() }
+  if (name === 'custom')
+    return {
+      name,
+      enabled: true,
+      run: async () => {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[trigger-events] provider=custom is not configured; returning 0 events')
+        }
+        return []
+      },
     }
+  if (name === 'newsapi') return makeNewsApiSpec()
+  if (name === 'finnhub') return makeFinnhubSpec()
+  if (name === 'gdelt') return makeGdeltSpec()
+  if (name === 'crunchbase') return makeCrunchbaseSpec()
+  if (name === 'rss') return makeRssSpec()
+  return { name: 'none', enabled: false, skipReason: 'unknown', run: providerNoop() }
+}
+
+export function getProviderByName(name: TriggerEventsProviderName): TriggerEventsProvider {
+  return getProviderSpec(name).run
+}
+
+export function getCompositeTriggerEventsProvider(args?: {
+  ctx?: ProviderLogContext
+  overrideSpecs?: ProviderSpec[]
+}): TriggerEventsProvider {
+  const ctx = args?.ctx ?? {}
+  const specs = args?.overrideSpecs ?? getConfiguredProviderNames().map(getProviderSpec)
+
+  return async (input: ProviderInput) => {
+    const providerCounts: Record<string, number> = {}
+    const merged: RawTriggerEvent[] = []
+
+    for (const spec of specs) {
+      const providerName = spec.name
+      providerCounts[providerName] = 0
+
+      if (!spec.enabled) {
+        logTriggerProvider('debug', 'provider.skipped', { providerName, reason: spec.skipReason ?? 'disabled', ...ctx })
+        continue
+      }
+      const gate = spec.shouldRun?.(input) ?? { ok: true }
+      if (!gate.ok) {
+        logTriggerProvider('debug', 'provider.skipped', { providerName, reason: gate.reason ?? 'low_specificity', ...ctx })
+        continue
+      }
+
+      const results = await withProviderLogging(providerName, () => spec.run(input), ctx)
+      providerCounts[providerName] = results.length
+      merged.push(...results)
+    }
+
+    const deduped = composeProviders([async () => merged])(input)
+    const out = await deduped
+    logTriggerProvider('info', 'composite.summary', { totalEvents: out.length, providerCounts, ...ctx })
+    return out
   }
-  if (name === 'newsapi') return makeNewsApiProvider()
-  if (name === 'finnhub') return makeFinnhubProvider()
-  if (name === 'gdelt') return makeGdeltProvider()
-  if (name === 'crunchbase') return makeCrunchbaseProvider()
-  if (name === 'rss') return makeRssProvider()
-  return providerNoop()
 }
 
-export function getCompositeTriggerEventsProvider(): TriggerEventsProvider {
-  const names = getConfiguredProviderNames()
-  const providers = names.map(getProviderByName)
-  return composeProviders(providers)
+function hoursAgoIso(hours: number): string {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
 }
 
-function makeNewsApiProvider(): TriggerEventsProvider {
+function makeNewsApiSpec(): ProviderSpec {
   const apiKey = (process.env.NEWSAPI_API_KEY ?? '').trim()
-  if (!apiKey) return providerNoop()
+  if (!apiKey) return { name: 'newsapi', enabled: false, skipReason: 'missing_api_key', run: providerNoop() }
   const max = getMaxPerProvider()
 
-  return async (input) => {
+  function shouldRun(input: ProviderInput) {
+    const name = (input.companyName ?? '').trim()
+    const domain = (input.companyDomain ?? '').trim()
+    if (name.length >= 2 || domain.length >= 2) return { ok: true as const }
+    return { ok: false as const, reason: 'low_specificity' }
+  }
+
+  const run: TriggerEventsProvider = async (input) => {
     const q = buildQuery(input)
     if (!q) return []
 
     try {
       const url = new URL('https://newsapi.org/v2/everything')
-      url.searchParams.set('q', q)
+      // Prefer company-centric queries in title/description with B2B keywords.
+      const b2b =
+        '(funding OR acquisition OR partnership OR contract OR "product launch" OR launches OR hires OR expansion OR "new office" OR appoints OR integrates OR compliance OR security)'
+      url.searchParams.set('q', `(${q}) AND ${b2b}`)
+      // Bias toward company-centric titles when a company name exists.
+      if (input.companyName) {
+        url.searchParams.set('qInTitle', input.companyName)
+      }
+      url.searchParams.set('searchIn', 'title,description')
       url.searchParams.set('language', 'en')
       url.searchParams.set('sortBy', 'publishedAt')
+      url.searchParams.set('from', hoursAgoIso(72))
       url.searchParams.set('pageSize', String(max))
       url.searchParams.set('apiKey', apiKey)
 
@@ -179,30 +300,52 @@ function makeNewsApiProvider(): TriggerEventsProvider {
       return []
     }
   }
+
+  return { name: 'newsapi', enabled: true, shouldRun, run }
 }
 
-function makeFinnhubProvider(): TriggerEventsProvider {
+function makeFinnhubSpec(): ProviderSpec {
   const apiKey = (process.env.FINNHUB_API_KEY ?? process.env.MARKET_DATA_API_KEY ?? '').trim()
-  if (!apiKey) return providerNoop()
+  if (!apiKey) return { name: 'finnhub', enabled: false, skipReason: 'missing_api_key', run: providerNoop() }
   const max = getMaxPerProvider()
 
-  function deriveSymbol(input: ProviderInput): string | null {
+  function shouldRun(input: ProviderInput) {
     const name = (input.companyName ?? '').trim()
-    if (/^[A-Z]{1,6}$/.test(name)) return name
-    const domain = (input.companyDomain ?? '').trim().toLowerCase()
-    if (!domain) return null
-    const base = domain.split('.')[0] || ''
-    const sym = base.replace(/[^a-z0-9]/gi, '').toUpperCase()
-    return sym ? sym.slice(0, 6) : null
+    const domain = (input.companyDomain ?? '').trim()
+    if (name.length >= 2 || domain.length >= 2) return { ok: true as const }
+    return { ok: false as const, reason: 'low_specificity' }
   }
 
-  return async (input) => {
-    const symbol = deriveSymbol(input)
-    if (!symbol) return []
-
+  async function lookupSymbol(q: string): Promise<string | null> {
     try {
+      const url = new URL('https://finnhub.io/api/v1/search')
+      url.searchParams.set('q', q)
+      url.searchParams.set('token', apiKey)
+      const res = await fetch(url.toString(), { method: 'GET' })
+      if (!res.ok) return null
+      const json = (await res.json()) as unknown
+      const results = (json as { result?: unknown }).result
+      if (!Array.isArray(results)) return null
+      const first = results.find((r: any) => typeof r?.symbol === 'string' && (r?.type === 'Common Stock' || r?.type === 'ADR')) ?? results[0]
+      const sym = typeof (first as any)?.symbol === 'string' ? ((first as any).symbol as string) : null
+      return sym ? sym.trim().toUpperCase() : null
+    } catch {
+      return null
+    }
+  }
+
+  const run: TriggerEventsProvider = async (input) => {
+    try {
+      const name = (input.companyName ?? '').trim()
+      const domain = (input.companyDomain ?? '').trim()
+      const q = name || (domain ? domain.split('.')[0] : '')
+      if (!q) return []
+
+      const symbol = (await lookupSymbol(q)) ?? (name && /^[A-Z]{1,6}$/.test(name) ? name : null)
+      if (!symbol) return []
+
       const to = new Date()
-      const from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      const from = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
       const fmt = (d: Date) => d.toISOString().slice(0, 10)
       const url = new URL('https://finnhub.io/api/v1/company-news')
       url.searchParams.set('symbol', symbol)
@@ -241,25 +384,51 @@ function makeFinnhubProvider(): TriggerEventsProvider {
       return []
     }
   }
+
+  return { name: 'finnhub', enabled: true, shouldRun, run }
 }
 
-function makeGdeltProvider(): TriggerEventsProvider {
+function formatGdeltDatetime(d: Date): string {
+  const yyyy = String(d.getUTCFullYear()).padStart(4, '0')
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const hh = String(d.getUTCHours()).padStart(2, '0')
+  const mi = String(d.getUTCMinutes()).padStart(2, '0')
+  const ss = String(d.getUTCSeconds()).padStart(2, '0')
+  return `${yyyy}${mm}${dd}${hh}${mi}${ss}`
+}
+
+function makeGdeltSpec(): ProviderSpec {
   const baseUrl = (process.env.GDELT_BASE_URL ?? 'https://api.gdeltproject.org/api/v2/doc/doc').trim()
   const baseOk = safeUrl(baseUrl)
-  if (!baseOk) return providerNoop()
+  if (!baseOk) return { name: 'gdelt', enabled: false, skipReason: 'invalid_base_url', run: providerNoop() }
   const max = getMaxPerProvider()
 
-  return async (input) => {
+  function shouldRun(input: ProviderInput) {
+    const q = buildQuery(input)
+    if (q) return { ok: true as const }
+    return { ok: false as const, reason: 'low_specificity' }
+  }
+
+  const run: TriggerEventsProvider = async (input) => {
     const q = buildQuery(input)
     if (!q) return []
 
     try {
       const url = new URL(baseOk)
-      url.searchParams.set('query', q)
+      // Keep query specific and recent; bias toward English content.
+      url.searchParams.set('query', `(${q}) sourcelang:english`)
       url.searchParams.set('mode', 'ArtList')
       url.searchParams.set('format', 'json')
       url.searchParams.set('sort', 'datedesc')
       url.searchParams.set('maxrecords', String(max))
+      const end = new Date()
+      const start = new Date(Date.now() - 72 * 60 * 60 * 1000)
+      url.searchParams.set('startdatetime', formatGdeltDatetime(start))
+      url.searchParams.set('enddatetime', formatGdeltDatetime(end))
+      if (input.companyDomain) {
+        url.searchParams.set('domain', input.companyDomain)
+      }
 
       const res = await fetch(url.toString(), { method: 'GET' })
       if (!res.ok) return []
@@ -294,18 +463,20 @@ function makeGdeltProvider(): TriggerEventsProvider {
       return []
     }
   }
+
+  return { name: 'gdelt', enabled: true, shouldRun, run }
 }
 
-function makeCrunchbaseProvider(): TriggerEventsProvider {
+function makeCrunchbaseSpec(): ProviderSpec {
   const apiKey = (process.env.CRUNCHBASE_API_KEY ?? '').trim()
-  if (!apiKey) return providerNoop()
+  if (!apiKey) return { name: 'crunchbase', enabled: false, skipReason: 'missing_api_key', run: providerNoop() }
   // TODO: implement Crunchbase integration. Keep noop for now (minimal, safe).
-  return async () => []
+  return { name: 'crunchbase', enabled: true, run: async () => [] }
 }
 
-function makeRssProvider(): TriggerEventsProvider {
+function makeRssSpec(): ProviderSpec {
   const feedsRaw = (process.env.TRIGGER_EVENTS_RSS_FEEDS ?? '').trim()
-  if (!feedsRaw) return providerNoop()
+  if (!feedsRaw) return { name: 'rss', enabled: false, skipReason: 'missing_feeds', run: providerNoop() }
   const max = getMaxPerProvider()
   const feeds = feedsRaw
     .split(',')
@@ -314,7 +485,7 @@ function makeRssProvider(): TriggerEventsProvider {
     .map((u) => safeUrl(u))
     .filter((u): u is string => Boolean(u))
 
-  if (feeds.length === 0) return providerNoop()
+  if (feeds.length === 0) return { name: 'rss', enabled: false, skipReason: 'no_valid_feeds', run: providerNoop() }
 
   const parser = new Parser()
 
@@ -325,7 +496,25 @@ function makeRssProvider(): TriggerEventsProvider {
     return (name.length > 0 && t.includes(name)) || (domain.length > 0 && t.includes(domain))
   }
 
-  return async (input) => {
+  function linkHostMatches(link: string, domain: string): boolean {
+    try {
+      const u = new URL(link)
+      const host = u.hostname.toLowerCase()
+      const d = domain.toLowerCase()
+      return host === d || host.endsWith(`.${d}`)
+    } catch {
+      return false
+    }
+  }
+
+  function shouldRun(input: ProviderInput) {
+    const name = (input.companyName ?? '').trim()
+    const domain = (input.companyDomain ?? '').trim()
+    if (name.length >= 2 || domain.length >= 2) return { ok: true as const }
+    return { ok: false as const, reason: 'low_specificity' }
+  }
+
+  const run: TriggerEventsProvider = async (input) => {
     if (!input.companyName && !input.companyDomain) return []
     const out: RawTriggerEvent[] = []
 
@@ -336,13 +525,20 @@ function makeRssProvider(): TriggerEventsProvider {
         if (!res.ok) continue
         const xml = await res.text()
         const feed = await parser.parseString(xml)
+        const total = (feed.items ?? []).length
+        let matched = 0
         for (const item of feed.items ?? []) {
           const title = (item.title ?? '').trim()
           const link = (item.link ?? '').trim()
           const urlOk = safeUrl(link)
           if (!title || !urlOk) continue
           const blob = `${title} ${(item.contentSnippet ?? '')} ${(item.content ?? '')}`
-          if (!matches(blob, input)) continue
+          const domain = input.companyDomain ?? ''
+          const pass =
+            matches(blob, input) ||
+            (domain ? linkHostMatches(urlOk, domain) : false)
+          if (!pass) continue
+          matched++
           const occurredAt = item.isoDate ? new Date(item.isoDate) : item.pubDate ? new Date(item.pubDate) : null
           out.push({
             title,
@@ -356,6 +552,7 @@ function makeRssProvider(): TriggerEventsProvider {
           })
           if (out.length >= max) break
         }
+        logTriggerProvider('debug', 'rss.feed.summary', { feedUrl, totalItems: total, matchedItems: matched })
       } catch (err) {
         console.warn('[trigger-events] rss provider failed', { feedUrl, message: err instanceof Error ? err.message : 'unknown' })
         continue
@@ -364,5 +561,7 @@ function makeRssProvider(): TriggerEventsProvider {
 
     return out.slice(0, max)
   }
+
+  return { name: 'rss', enabled: true, shouldRun, run }
 }
 

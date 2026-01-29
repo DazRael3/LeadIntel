@@ -196,11 +196,13 @@ export const POST = withApiGuard(
     }
 
     const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
+    const correlationId = `generate-pitch:${new Date().toISOString()}:${userId}`
     const triggerInput = {
       userId,
       leadId: typeof leadId === 'string' ? leadId : null,
       companyName: topicName || null,
       companyDomain: domain,
+      correlationId,
     }
 
     // Production-style Trigger Events ingestion:

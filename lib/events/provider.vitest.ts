@@ -1,5 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { composeProviders, getConfiguredProviderNames, getProviderByName } from './provider'
+import {
+  composeProviders,
+  getCompositeTriggerEventsProvider,
+  getConfiguredProviderNames,
+  getProviderByName,
+  withProviderLogging,
+} from './provider'
 
 describe('trigger events provider pipeline', () => {
   beforeEach(() => {
@@ -7,6 +13,7 @@ describe('trigger events provider pipeline', () => {
     delete process.env.TRIGGER_EVENTS_PROVIDERS
     process.env.TRIGGER_EVENTS_PROVIDER = 'none'
     delete process.env.NEWSAPI_API_KEY
+    process.env.TRIGGER_EVENTS_DEBUG_LOGGING = 'false'
   })
 
   it('unknown names are ignored and fallback to none', () => {
@@ -32,6 +39,79 @@ describe('trigger events provider pipeline', () => {
     const composite = composeProviders([p1, p2])
     const out = await composite({ companyName: 'Acme', companyDomain: 'acme.com' })
     expect(out.map((e) => e.sourceUrl)).toEqual(['https://example.com/1', 'https://example.com/2', 'https://example.com/3'])
+  })
+
+  it('withProviderLogging emits start+success when enabled', async () => {
+    process.env.TRIGGER_EVENTS_DEBUG_LOGGING = 'true'
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const out = await withProviderLogging(
+      'unit',
+      async () => [{ title: 'A', headline: 'A', sourceUrl: 'https://example.com/a' }],
+      { correlationId: 'c1', companyDomain: 'acme.com', userId: 'u1' }
+    )
+
+    expect(out.length).toBe(1)
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({ scope: 'trigger-events', message: 'provider.start', providerName: 'unit' }))
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'trigger-events', message: 'provider.success', providerName: 'unit', count: 1, correlationId: 'c1' })
+    )
+  })
+
+  it('withProviderLogging returns [] and logs provider.error when fn throws', async () => {
+    process.env.TRIGGER_EVENTS_DEBUG_LOGGING = 'true'
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const out = await withProviderLogging(
+      'unit',
+      async () => {
+        throw new Error('boom')
+      },
+      { correlationId: 'c1' }
+    )
+
+    expect(out).toEqual([])
+    expect(warnSpy).toHaveBeenCalledWith(expect.objectContaining({ scope: 'trigger-events', message: 'provider.error', providerName: 'unit' }))
+  })
+
+  it('composite provider logs summary with providerCounts', async () => {
+    process.env.TRIGGER_EVENTS_DEBUG_LOGGING = 'true'
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const composite = getCompositeTriggerEventsProvider({
+      ctx: { correlationId: 'corr', companyDomain: 'acme.com', companyName: 'Acme', userId: 'u1' },
+      overrideSpecs: [
+        {
+          name: 'newsapi',
+          enabled: true,
+          run: async () => [
+            { title: 'A', headline: 'A', sourceUrl: 'https://example.com/a' },
+            { title: 'B', headline: 'B', sourceUrl: 'https://example.com/b' },
+          ],
+        },
+        {
+          name: 'rss',
+          enabled: true,
+          run: async () => [{ title: 'A dup', headline: 'A dup', sourceUrl: 'https://example.com/a' }],
+        },
+      ] as any,
+    })
+
+    const out = await composite({ companyName: 'Acme', companyDomain: 'acme.com' })
+    expect(out.length).toBe(2)
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'trigger-events',
+        message: 'composite.summary',
+        totalEvents: 2,
+        providerCounts: expect.objectContaining({ newsapi: 2, rss: 1 }),
+        correlationId: 'corr',
+      })
+    )
   })
 
   it('newsapi provider is noop when NEWSAPI_API_KEY is missing', async () => {

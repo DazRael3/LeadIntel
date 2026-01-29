@@ -89,3 +89,9 @@ LeadIntel can ingest Trigger Events from **multiple** news sources and merge/ded
 - No provider is required; missing keys/feeds simply no-op.
 - Legacy single-provider config is still supported via `TRIGGER_EVENTS_PROVIDER=none|newsapi|custom`.
 
+## Trigger Events debug logging (optional)
+
+Set `TRIGGER_EVENTS_DEBUG_LOGGING="true"` to emit **structured provider logs** (per-provider counts, timing, and a correlation id) for easier troubleshooting in local/staging.
+
+Recommended: enable in **local/staging only**; keep off in production by default.
+

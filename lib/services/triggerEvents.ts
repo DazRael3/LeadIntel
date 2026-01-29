@@ -6,6 +6,7 @@ export interface TriggerEventInput {
   leadId: string | null
   companyName: string | null
   companyDomain: string | null
+  correlationId?: string
 }
 
 export interface TriggerEventCandidate {
@@ -57,14 +58,15 @@ function toCandidate(e: RawTriggerEvent): TriggerEventCandidate | null {
 }
 
 export async function ingestRealTriggerEvents(input: TriggerEventInput): Promise<{ created: number }> {
-  const provider = getCompositeTriggerEventsProvider()
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[trigger-events] ingestRealTriggerEvents', {
+  const provider = getCompositeTriggerEventsProvider({
+    ctx: {
       userId: input.userId,
-      companyDomain: input.companyDomain,
-    })
-  }
+      leadId: input.leadId ?? undefined,
+      companyDomain: input.companyDomain ?? null,
+      companyName: input.companyName ?? null,
+      correlationId: input.correlationId,
+    },
+  })
 
   try {
     const providerInput: ProviderInput = { companyName: input.companyName, companyDomain: input.companyDomain }

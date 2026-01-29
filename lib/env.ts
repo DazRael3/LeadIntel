@@ -122,6 +122,10 @@ const serverEnvSchema = z.object({
           .every((name) => allowed.has(name))
       }, 'Invalid TRIGGER_EVENTS_PROVIDERS (allowed: none, newsapi, finnhub, gdelt, crunchbase, rss)')
   ),
+  TRIGGER_EVENTS_DEBUG_LOGGING: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
   // Trigger events provider keys/config (all optional; providers noop when missing)
   NEWSAPI_API_KEY: z.string().optional(),
   FINNHUB_API_KEY: z.string().optional(),
@@ -236,6 +240,7 @@ function buildServerEnv(): ServerEnv {
     ENABLE_DEMO_TRIGGER_EVENTS: process.env.ENABLE_DEMO_TRIGGER_EVENTS,
     TRIGGER_EVENTS_PROVIDER: process.env.TRIGGER_EVENTS_PROVIDER,
     TRIGGER_EVENTS_PROVIDERS: process.env.TRIGGER_EVENTS_PROVIDERS,
+    TRIGGER_EVENTS_DEBUG_LOGGING: process.env.TRIGGER_EVENTS_DEBUG_LOGGING,
     NEWSAPI_API_KEY: process.env.NEWSAPI_API_KEY,
     FINNHUB_API_KEY: process.env.FINNHUB_API_KEY,
     GDELT_BASE_URL: process.env.GDELT_BASE_URL,
