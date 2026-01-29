@@ -5,11 +5,11 @@ vi.mock('@/lib/supabase/admin', () => ({
 }))
 
 vi.mock('@/lib/events/provider', () => ({
-  getTriggerEventsProvider: vi.fn(),
+  getCompositeTriggerEventsProvider: vi.fn(),
 }))
 
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { getTriggerEventsProvider } from '@/lib/events/provider'
+import { getCompositeTriggerEventsProvider } from '@/lib/events/provider'
 import {
   ingestRealTriggerEvents,
   seedDemoTriggerEventsIfEmpty,
@@ -65,38 +65,30 @@ describe('triggerEvents service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.TRIGGER_EVENTS_PROVIDER = 'none'
   })
 
-  it('ingestRealTriggerEvents is no-op when provider kind is none', async () => {
-    ;(getTriggerEventsProvider as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      kind: 'none',
-      provider: { fetchEvents: vi.fn(async () => []) },
-    })
+  it('ingestRealTriggerEvents resolves when provider returns []', async () => {
+    ;(getCompositeTriggerEventsProvider as unknown as ReturnType<typeof vi.fn>).mockReturnValue(async () => [])
     const res = await ingestRealTriggerEvents(input)
     expect(res.created).toBe(0)
     expect(createSupabaseAdminClient).not.toHaveBeenCalled()
   })
 
-  it('ingestRealTriggerEvents inserts rows and dedupes existing headline+detectedAt', async () => {
+  it('ingestRealTriggerEvents inserts rows and dedupes by URL', async () => {
     const admin = makeAdminClientMock({
-      existing: [{ headline: 'A', detected_at: '2026-01-01T00:00:00.000Z' }],
+      existing: [{ headline: 'Existing', detected_at: '2026-01-01T00:00:00.000Z', source_url: 'https://example.com/a' } as any],
     })
     ;(createSupabaseAdminClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(admin.client)
-    ;(getTriggerEventsProvider as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      kind: 'newsapi',
-      provider: {
-        fetchEvents: vi.fn(async () => [
-          { headline: 'A', description: 'dup', sourceUrl: 'https://example.com/a', detectedAt: '2026-01-01T00:00:00.000Z' },
-          { headline: 'B', description: 'new', sourceUrl: 'https://example.com/b', detectedAt: '2026-01-02T00:00:00.000Z' },
-        ]),
-      },
-    })
+    ;(getCompositeTriggerEventsProvider as unknown as ReturnType<typeof vi.fn>).mockReturnValue(async () => [
+      { title: 'Dup', headline: 'Dup', sourceUrl: 'https://example.com/a', description: 'dup', occurredAt: new Date('2026-01-01T00:00:00.000Z') },
+      { title: 'New', headline: 'New', sourceUrl: 'https://example.com/b', description: 'new', occurredAt: new Date('2026-01-02T00:00:00.000Z') },
+      { title: 'New dup url', headline: 'New dup url', sourceUrl: 'https://example.com/b', description: 'new', occurredAt: new Date('2026-01-02T00:00:00.000Z') },
+    ])
 
     const res = await ingestRealTriggerEvents(input)
     expect(res.created).toBe(1)
     expect(admin.state.inserted.length).toBe(1)
-    expect(admin.state.inserted[0].headline).toBe('B')
+    expect(admin.state.inserted[0].source_url).toBe('https://example.com/b')
   })
 
   it('seedDemoTriggerEventsIfEmpty does not insert when events exist', async () => {

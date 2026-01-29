@@ -105,6 +105,37 @@ const serverEnvSchema = z.object({
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
     z.enum(['none', 'newsapi', 'custom']).optional()
   ),
+  // Trigger events ingestion providers (preferred): comma-separated list
+  // Allowed: none, newsapi, finnhub, gdelt, crunchbase, rss
+  TRIGGER_EVENTS_PROVIDERS: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z
+      .string()
+      .optional()
+      .refine((val) => {
+        if (!val) return true
+        const allowed = new Set(['none', 'newsapi', 'finnhub', 'gdelt', 'crunchbase', 'rss'])
+        return val
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .every((name) => allowed.has(name))
+      }, 'Invalid TRIGGER_EVENTS_PROVIDERS (allowed: none, newsapi, finnhub, gdelt, crunchbase, rss)')
+  ),
+  // Trigger events provider keys/config (all optional; providers noop when missing)
+  NEWSAPI_API_KEY: z.string().optional(),
+  FINNHUB_API_KEY: z.string().optional(),
+  GDELT_BASE_URL: z.string().url().optional(),
+  CRUNCHBASE_API_KEY: z.string().optional(),
+  TRIGGER_EVENTS_RSS_FEEDS: z.string().optional(),
+  TRIGGER_EVENTS_MAX_PER_PROVIDER: z.preprocess(
+    (v) => {
+      if (typeof v !== 'string') return v
+      const n = Number.parseInt(v, 10)
+      return Number.isFinite(n) ? n : undefined
+    },
+    z.number().int().min(1).max(25).optional()
+  ),
   // Cron secret for /api/trigger-events/ingest (optional)
   TRIGGER_EVENTS_CRON_SECRET: z.string().min(8).optional(),
 
@@ -204,6 +235,13 @@ function buildServerEnv(): ServerEnv {
     ENABLE_APP_TRIAL: process.env.ENABLE_APP_TRIAL,
     ENABLE_DEMO_TRIGGER_EVENTS: process.env.ENABLE_DEMO_TRIGGER_EVENTS,
     TRIGGER_EVENTS_PROVIDER: process.env.TRIGGER_EVENTS_PROVIDER,
+    TRIGGER_EVENTS_PROVIDERS: process.env.TRIGGER_EVENTS_PROVIDERS,
+    NEWSAPI_API_KEY: process.env.NEWSAPI_API_KEY,
+    FINNHUB_API_KEY: process.env.FINNHUB_API_KEY,
+    GDELT_BASE_URL: process.env.GDELT_BASE_URL,
+    CRUNCHBASE_API_KEY: process.env.CRUNCHBASE_API_KEY,
+    TRIGGER_EVENTS_RSS_FEEDS: process.env.TRIGGER_EVENTS_RSS_FEEDS,
+    TRIGGER_EVENTS_MAX_PER_PROVIDER: process.env.TRIGGER_EVENTS_MAX_PER_PROVIDER,
     TRIGGER_EVENTS_CRON_SECRET: process.env.TRIGGER_EVENTS_CRON_SECRET,
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,

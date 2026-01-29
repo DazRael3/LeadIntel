@@ -1,5 +1,5 @@
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { getTriggerEventsProvider } from '@/lib/events/provider'
+import { getCompositeTriggerEventsProvider, type RawTriggerEvent, type ProviderInput } from '@/lib/events/provider'
 
 export interface TriggerEventInput {
   userId: string
@@ -35,45 +35,42 @@ function getClient(): ReturnType<typeof createSupabaseAdminClient> {
   return createSupabaseAdminClient()
 }
 
-function normalizeCandidate(c: TriggerEventCandidate): TriggerEventCandidate | null {
-  const headline = c.headline.trim()
-  const description = c.description.trim()
-  const sourceUrl = c.sourceUrl.trim()
-  const detectedAt = c.detectedAt.trim()
-  if (!headline || !description || !sourceUrl || !detectedAt) return null
-  // Very basic URL validation; keep conservative.
+function normalizeUrl(value: string): string | null {
+  const s = value.trim()
+  if (!s) return null
   try {
     // eslint-disable-next-line no-new -- validation only
-    new URL(sourceUrl)
+    new URL(s)
+    return s
   } catch {
     return null
   }
-  // ISO validation (best-effort)
-  const t = Date.parse(detectedAt)
-  if (!Number.isFinite(t)) return null
-  return { headline, description, sourceUrl, detectedAt: new Date(t).toISOString() }
 }
 
-function dedupeKey(c: TriggerEventCandidate): string {
-  return `${c.headline}::${c.detectedAt}`
+function toCandidate(e: RawTriggerEvent): TriggerEventCandidate | null {
+  const headline = (e.headline || e.title || '').trim()
+  const url = normalizeUrl(e.sourceUrl)
+  if (!headline || !url) return null
+  const desc = (e.description ?? '').toString().trim() || headline
+  const detectedAt = e.occurredAt && Number.isFinite(e.occurredAt.getTime()) ? e.occurredAt.toISOString() : new Date().toISOString()
+  return { headline, description: desc, sourceUrl: url, detectedAt }
 }
 
 export async function ingestRealTriggerEvents(input: TriggerEventInput): Promise<{ created: number }> {
-  const { kind, provider } = getTriggerEventsProvider()
-  if (kind === 'none') return { created: 0 }
+  const provider = getCompositeTriggerEventsProvider()
 
   if (process.env.NODE_ENV !== 'production') {
     console.log('[trigger-events] ingestRealTriggerEvents', {
       userId: input.userId,
       companyDomain: input.companyDomain,
-      provider: kind,
     })
   }
 
   try {
-    const raw = await provider.fetchEvents(input)
-    const normalized = (raw ?? []).map(normalizeCandidate).filter((c): c is TriggerEventCandidate => Boolean(c))
-    if (normalized.length === 0) return { created: 0 }
+    const providerInput: ProviderInput = { companyName: input.companyName, companyDomain: input.companyDomain }
+    const raw = await provider(providerInput)
+    const candidates = (raw ?? []).map(toCandidate).filter((c): c is TriggerEventCandidate => Boolean(c))
+    if (candidates.length === 0) return { created: 0 }
 
     const client = getClient()
 
@@ -81,9 +78,9 @@ export async function ingestRealTriggerEvents(input: TriggerEventInput): Promise
     // NOTE: Without a DB-level unique constraint, we dedupe at the application layer.
     const q = client
       .from('trigger_events')
-      .select('headline, detected_at')
+      .select('source_url, headline, detected_at')
       .eq('user_id', input.userId)
-      .limit(250)
+      .limit(500)
 
     const { data: existing } = input.companyDomain
       ? await q.eq('company_domain', input.companyDomain)
@@ -91,19 +88,22 @@ export async function ingestRealTriggerEvents(input: TriggerEventInput): Promise
         ? await q.eq('company_name', input.companyName)
         : await q
 
-    const existingKeys = new Set<string>()
-    for (const row of (existing ?? []) as Array<{ headline?: string | null; detected_at?: string | null }>) {
-      if (!row.headline || !row.detected_at) continue
-      existingKeys.add(`${row.headline}::${new Date(row.detected_at).toISOString()}`)
+    const existingUrls = new Set<string>()
+    const existingTitleKeys = new Set<string>()
+    for (const row of (existing ?? []) as Array<{ source_url?: string | null; headline?: string | null; detected_at?: string | null }>) {
+      if (row.source_url) existingUrls.add(row.source_url.toLowerCase())
+      if (row.headline) existingTitleKeys.add(row.headline.toLowerCase())
     }
 
     const unique = new Map<string, TriggerEventCandidate>()
-    for (const c of normalized) {
-      const k = dedupeKey(c)
-      if (!existingKeys.has(k)) unique.set(k, c)
+    for (const c of candidates) {
+      const urlKey = c.sourceUrl.toLowerCase()
+      if (existingUrls.has(urlKey)) continue
+      if (existingTitleKeys.has(c.headline.toLowerCase())) continue
+      unique.set(urlKey, c)
     }
 
-    const toInsert = Array.from(unique.values()).slice(0, 25)
+    const toInsert = Array.from(unique.values()).slice(0, 30)
     if (toInsert.length === 0) return { created: 0 }
 
     const companyUrl = input.companyDomain ? `https://${input.companyDomain}` : null
@@ -114,7 +114,7 @@ export async function ingestRealTriggerEvents(input: TriggerEventInput): Promise
       company_name: input.companyName,
       company_domain: input.companyDomain,
       company_url: companyUrl,
-      event_type: 'expansion',
+      event_type: 'news',
       headline: c.headline,
       event_description: c.description,
       source_url: c.sourceUrl,

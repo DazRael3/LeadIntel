@@ -73,3 +73,19 @@ stripe listen --forward-to http://localhost:3000/api/stripe/webhook
 
 Then set `STRIPE_WEBHOOK_SECRET=whsec_...` in `.env.local` and restart the dev server.
 
+## Trigger Events Providers (optional, recommended)
+
+LeadIntel can ingest Trigger Events from **multiple** news sources and merge/dedupe results.
+
+**Recommended free-tier/dev config**
+- `TRIGGER_EVENTS_PROVIDERS="newsapi,finnhub,gdelt,rss"`
+- `NEWSAPI_API_KEY` (optional; no-ops if missing)
+- `FINNHUB_API_KEY` (optional; can also reuse `MARKET_DATA_API_KEY`)
+- `GDELT_BASE_URL` (optional; defaults to GDELT Doc API base)
+- `TRIGGER_EVENTS_RSS_FEEDS` (optional; comma-separated RSS/Atom URLs)
+- `TRIGGER_EVENTS_MAX_PER_PROVIDER` (optional; default 10)
+
+**Notes**
+- No provider is required; missing keys/feeds simply no-op.
+- Legacy single-provider config is still supported via `TRIGGER_EVENTS_PROVIDER=none|newsapi|custom`.
+
