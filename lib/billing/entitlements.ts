@@ -13,10 +13,38 @@ export type Entitlements = {
   isTrialExpiredNonPro: boolean
 }
 
+export type SubscriptionTrialRow = {
+  trial_end?: string | null
+  trial_ends_at?: string | null
+}
+
+export type UserTrialRow = {
+  trial_ends_at?: string | null
+}
+
 function isFutureIso(ts: string | null | undefined, nowMs: number): boolean {
   if (!ts) return false
   const ms = Date.parse(ts)
   return Number.isFinite(ms) && ms > nowMs
+}
+
+/**
+ * Returns true if the user (or any subscription row) indicates the account has *ever* had a trial.
+ * This is intentionally simple and does not rely on status.
+ */
+export function hasEverHadTrial(input: UserTrialRow | SubscriptionTrialRow[]): boolean {
+  if (Array.isArray(input)) {
+    return input.some((s) => Boolean(s?.trial_end) || Boolean(s?.trial_ends_at))
+  }
+  return Boolean(input?.trial_ends_at)
+}
+
+/**
+ * Default eligibility rule: only one trial per account, ever.
+ * Additional heuristics (role/domain/etc.) can be layered on later.
+ */
+export function isEligibleForNewTrial(user: UserTrialRow, subscriptions: SubscriptionTrialRow[]): boolean {
+  return !hasEverHadTrial(user) && !hasEverHadTrial(subscriptions)
 }
 
 /**
