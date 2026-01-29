@@ -9,7 +9,13 @@ interface UseTriggerEventsReturn {
   events: TriggerEvent[]
   loading: boolean
   error: string | null
-  loadEvents: () => Promise<void>
+  loadEvents: (opts?: UseTriggerEventsOptions) => Promise<void>
+  lastUpdatedAt: string | null
+}
+
+export type UseTriggerEventsOptions = {
+  companyDomain?: string | null
+  companyName?: string | null
 }
 
 type TriggerEventRow = {
@@ -47,9 +53,10 @@ export function useTriggerEvents(): UseTriggerEventsReturn {
   const [events, setEvents] = useState<TriggerEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
   const supabase = createClient()
 
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (opts?: UseTriggerEventsOptions) => {
     setLoading(true)
     setError(null)
     
@@ -59,16 +66,25 @@ export function useTriggerEvents(): UseTriggerEventsReturn {
       if (authError || !user) {
         // Not authenticated is a valid state, not an error
         setEvents([])
+        setLastUpdatedAt(null)
         setLoading(false)
         return
       }
 
       // Query with explicit column selection to handle schema variations
       // If columns don't exist, Supabase returns 400 - we catch and handle gracefully
-      const { data, error: fetchError } = await supabase
+      let q = supabase
         .from('trigger_events')
         .select('id, user_id, company_name, company_domain, company_url, event_type, event_description, headline, source_url, detected_at, created_at')
         .eq('user_id', user.id)
+
+      if (opts?.companyDomain) {
+        q = q.eq('company_domain', opts.companyDomain)
+      } else if (opts?.companyName) {
+        q = q.eq('company_name', opts.companyName)
+      }
+
+      const { data, error: fetchError } = await q
         .order('detected_at', { ascending: false })
         .limit(25)
 
@@ -79,10 +95,12 @@ export function useTriggerEvents(): UseTriggerEventsReturn {
           // Schema mismatch - return empty array, log warning
           console.warn('[useTriggerEvents] Schema mismatch, returning empty events:', errorMsg)
           setEvents([])
+          setLastUpdatedAt(null)
           setError(null) // Don't show error to user for schema issues
         } else {
           setError(errorMsg)
           setEvents([])
+          setLastUpdatedAt(null)
         }
         return
       }
@@ -103,6 +121,7 @@ export function useTriggerEvents(): UseTriggerEventsReturn {
       }))
       
       setEvents(normalizedEvents)
+      setLastUpdatedAt(normalizedEvents[0]?.detected_at ?? null)
       setError(null)
     } catch (err) {
       // Catch-all for unexpected errors
@@ -110,10 +129,11 @@ export function useTriggerEvents(): UseTriggerEventsReturn {
       console.error('[useTriggerEvents] Error loading events:', errorMessage)
       setError(errorMessage)
       setEvents([]) // Safe fallback
+      setLastUpdatedAt(null)
     } finally {
       setLoading(false)
     }
   }, [supabase])
 
-  return { events, loading, error, loadEvents }
+  return { events, loading, error, loadEvents, lastUpdatedAt }
 }

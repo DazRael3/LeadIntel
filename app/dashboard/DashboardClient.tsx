@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { Watchlist } from '@/components/Watchlist'
 import { MarketSidebar } from '@/components/MarketSidebar'
 import { DashboardHeader } from '@/components/DashboardHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PitchGenerator } from '@/components/PitchGenerator'
 import { usePlan } from '@/components/PlanProvider'
 import { useTriggerEvents } from './hooks/useTriggerEvents'
 import { useCredits } from './hooks/useCredits'
@@ -44,12 +45,15 @@ export function DashboardClient({
   const [viewMode, setViewMode] = useState<'startup' | 'enterprise'>('startup')
   const [autopilotEnabled, setAutopilotEnabled] = useState<boolean>(initialAutopilotEnabled)
   const [autopilotSaving, setAutopilotSaving] = useState<boolean>(false)
+  const [activeCompanyInput, setActiveCompanyInput] = useState<string | null>(null)
+  const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
+  const [savedCompanies, setSavedCompanies] = useState<string[]>([])
   const router = useRouter()
   const { isPro: planIsPro } = usePlan()
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
 
   // Data fetching hooks
-  const { events, loading: eventsLoading, error: eventsError, loadEvents } = useTriggerEvents()
+  const { events, loading: eventsLoading, error: eventsError, loadEvents, lastUpdatedAt } = useTriggerEvents()
   const { creditsRemaining, loading: creditsLoading, loadCredits } = useCredits(initialCreditsRemaining, initialSubscriptionTier === 'pro')
   const { totalLeads, loadStats } = useStats()
   const { showOnboarding, onboardingComplete, onboardingChecked, handleOnboardingComplete, dismissOnboarding } =
@@ -68,8 +72,49 @@ export function DashboardClient({
   useEffect(() => {
     loadCredits(planIsPro)
     loadStats()
-    loadEvents()
   }, [loadCredits, loadStats, loadEvents, planIsPro])
+
+  const triggerFilter = useMemo(() => {
+    if (activeCompanyDomain) return { companyDomain: activeCompanyDomain }
+    if (activeCompanyInput) return { companyName: activeCompanyInput }
+    return undefined
+  }, [activeCompanyDomain, activeCompanyInput])
+
+  // Refresh Trigger Events when the active company context changes (debounced).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void loadEvents(triggerFilter)
+    }, 250)
+    return () => clearTimeout(t)
+  }, [loadEvents, triggerFilter])
+
+  const onCompanyContextChange = useCallback((args: { companyInput: string; companyDomain: string | null }) => {
+    setActiveCompanyInput(args.companyInput)
+    setActiveCompanyDomain(args.companyDomain)
+  }, [])
+
+  const extractDomainFromInput = useCallback((value: string): string | null => {
+    const raw = value.trim()
+    if (!raw) return null
+    try {
+      const url = raw.startsWith('http') ? new URL(raw) : new URL('https://' + raw)
+      return url.hostname.replace(/^www\./, '')
+    } catch {
+      const cleaned = raw.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0]
+      return cleaned.includes('.') ? cleaned : null
+    }
+  }, [])
+
+  const onSavedCompaniesChange = useCallback(
+    (companies: string[]) => {
+      setSavedCompanies(companies)
+      if (!activeCompanyInput && companies.length > 0) {
+        setActiveCompanyInput(companies[0])
+        setActiveCompanyDomain(extractDomainFromInput(companies[0]))
+      }
+    },
+    [activeCompanyInput, extractDomainFromInput]
+  )
 
   const loading = creditsLoading
 
@@ -100,16 +145,11 @@ export function DashboardClient({
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-6">
-        {/* Trigger Events Section */}
-        <TriggerEventsSection 
-          events={events}
-          loading={eventsLoading}
-          error={eventsError}
-          onRefresh={loadEvents}
-        />
-
-        <Tabs defaultValue="leads" className="space-y-6">
+        <Tabs defaultValue="command" className="space-y-6">
           <TabsList className="bg-background/50 border border-cyan-500/20">
+            <TabsTrigger value="command" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
+              Command Center
+            </TabsTrigger>
             <TabsTrigger value="leads" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
               Lead Library
             </TabsTrigger>
@@ -139,6 +179,34 @@ export function DashboardClient({
               Settings
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="command" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Primary column */}
+              <div className="lg:col-span-3 space-y-6">
+                <PitchGenerator
+                  onCompanyContextChange={onCompanyContextChange}
+                  onSavedCompaniesChange={onSavedCompaniesChange}
+                />
+              </div>
+
+              {/* Secondary column */}
+              <div className="lg:col-span-1 space-y-6">
+                <TriggerEventsSection
+                  events={events}
+                  loading={eventsLoading}
+                  error={eventsError}
+                  onRefresh={() => loadEvents(triggerFilter)}
+                  companyDomain={activeCompanyDomain}
+                  companyLabel={activeCompanyInput}
+                  lastUpdatedAt={lastUpdatedAt}
+                  debugEnabled={debugEnabled}
+                />
+
+                <MarketSidebar />
+              </div>
+            </div>
+          </TabsContent>
 
           <TabsContent value="leads" className="space-y-6">
             {/* View Mode Toggle */}

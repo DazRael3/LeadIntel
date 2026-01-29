@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Sparkles, Loader2, Copy, Check, Mail, Shield, Zap, TrendingDown, Lock, BarChart3, Clock, DollarSign } from "lucide-react"
+import { Sparkles, Loader2, Copy, Check, Mail, Shield, Zap, TrendingDown, Lock, BarChart3, Clock, DollarSign, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatErrorMessage } from "@/lib/utils/format-error"
@@ -13,6 +13,8 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 interface PitchGeneratorProps {
   initialUrl?: string
+  onCompanyContextChange?: (args: { companyInput: string; companyDomain: string | null }) => void
+  onSavedCompaniesChange?: (companies: string[]) => void
 }
 
 type ApiSuccess<T> = { ok: true; data: T }
@@ -67,12 +69,12 @@ function normalizeSaved(value: unknown): string[] {
     const s = v.trim()
     if (!s) continue
     if (!out.includes(s)) out.push(s)
-    if (out.length >= 10) break
+    if (out.length >= 25) break
   }
   return out
 }
 
-export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
+export function PitchGenerator({ initialUrl = "", onCompanyContextChange, onSavedCompaniesChange }: PitchGeneratorProps) {
   const [companyUrl, setCompanyUrl] = useState(initialUrl)
   const [isPro, setIsPro] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -182,6 +184,22 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
   )
 
   useEffect(() => {
+    onSavedCompaniesChange?.(savedCompanies)
+  }, [savedCompanies, onSavedCompaniesChange])
+
+  const extractDomainFromInput = useCallback((value: string): string | null => {
+    const raw = value.trim()
+    if (!raw) return null
+    try {
+      const url = raw.startsWith('http') ? new URL(raw) : new URL('https://' + raw)
+      return url.hostname.replace(/^www\./, '')
+    } catch {
+      const cleaned = raw.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0]
+      return cleaned.includes('.') ? cleaned : null
+    }
+  }, [])
+
+  useEffect(() => {
     if (initialUrl) {
       setCompanyUrl(initialUrl)
     }
@@ -200,7 +218,7 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
 
   const persistSaved = async (url: string) => {
     const userId = currentUserId
-    const next = [url, ...savedCompanies.filter((u) => u !== url)].slice(0, 10)
+    const next = [url, ...savedCompanies.filter((u) => u !== url)].slice(0, 25)
     setSavedCompanies(next)
     try {
       localStorage.setItem(getSavedKey(userId), JSON.stringify(next))
@@ -216,6 +234,34 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
       // ignore
     }
   }
+
+  const removeSaved = useCallback(
+    async (company: string) => {
+      const userId = currentUserId
+      const next = savedCompanies.filter((c) => c !== company)
+      setSavedCompanies(next)
+      try {
+        localStorage.setItem(getSavedKey(userId), JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+      if (!userId) return
+      try {
+        await supabase.from('user_settings').upsert({ user_id: userId, saved_companies: next })
+      } catch {
+        // ignore
+      }
+    },
+    [currentUserId, savedCompanies, supabase]
+  )
+
+  const selectCompany = useCallback(
+    (company: string) => {
+      setCompanyUrl(company)
+      onCompanyContextChange?.({ companyInput: company, companyDomain: extractDomainFromInput(company) })
+    },
+    [extractDomainFromInput, onCompanyContextChange]
+  )
 
   const handleGenerate = async () => {
     const trimmedInput = companyUrl.trim()
@@ -286,6 +332,10 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
       if (pitchText) {
         setPitch(pitchText)
         await persistSaved(companyUrl)
+        onCompanyContextChange?.({
+          companyInput: companyUrl,
+          companyDomain: extractDomainFromInput(companyUrl),
+        })
       } else {
         // Only show this fallback when the request succeeded but the canonical pitch field is empty.
         setPitch('Pitch generation completed, but no pitch text was returned.')
@@ -394,18 +444,28 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
             </Button>
           </div>
         {savedCompanies.length > 0 && (
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Saved companies:</span>
             {savedCompanies.map((u) => (
-              <Button
-                key={u}
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs"
-                onClick={() => setCompanyUrl(u)}
-              >
-                {u}
-              </Button>
+              <div key={u} className="inline-flex items-center rounded-md border bg-background">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => selectCompany(u)}
+                  title={`Use ${u}`}
+                >
+                  {u}
+                </Button>
+                <button
+                  type="button"
+                  className="h-7 w-7 grid place-items-center border-l text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  aria-label={`Remove ${u}`}
+                  onClick={() => void removeSaved(u)}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
             ))}
           </div>
         )}
