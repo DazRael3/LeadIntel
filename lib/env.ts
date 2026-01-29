@@ -30,6 +30,11 @@ const clientEnvSchema = z.object({
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
+  // Autopilot UI (optional): if "true", show Autopilot section in Settings.
+  NEXT_PUBLIC_ENABLE_AUTOPILOT_UI: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
   // CORS/Origin validation (comma-separated list of allowed origins)
   // Example: "https://app.example.com,https://www.example.com"
   ALLOWED_ORIGINS: z.string().optional(),
@@ -319,6 +324,7 @@ export const clientEnv = (() => {
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_ENABLE_DEBUG_UI: process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI,
+    NEXT_PUBLIC_ENABLE_AUTOPILOT_UI: process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
   })
 

@@ -51,6 +51,7 @@ export function DashboardClient({
   const router = useRouter()
   const { plan, isPro: planIsPro, trial } = usePlan()
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
+  const autopilotUiEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI === 'true'
   const entitlements = useMemo(() => getEntitlements({ plan, trial }), [plan, trial])
 
   // Data fetching hooks
@@ -299,50 +300,62 @@ export function DashboardClient({
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            <Card className="border-cyan-500/20 bg-card/50">
-              <CardContent className="py-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold">Autopilot</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Enable scheduled outreach for your tenant (cron-triggered).
-                    </p>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={autopilotEnabled}
-                      disabled={autopilotSaving}
-                      onChange={async (e) => {
-                        const next = e.target.checked
-                        setAutopilotSaving(true)
-                        try {
-                          const res = await fetch('/api/settings/autopilot', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ enabled: next }),
-                          })
-                          if (res.ok) {
-                            setAutopilotEnabled(next)
-                          } else {
-                            // Keep UI stable; no secret logging.
-                            setAutopilotEnabled((prev) => prev)
-                          }
-                        } finally {
-                          setAutopilotSaving(false)
-                        }
-                      }}
-                    />
-                    <span>{autopilotEnabled ? 'Enabled' : 'Disabled'}</span>
-                  </label>
-                </div>
-                {!isPro && (
-                  <div className="text-sm text-muted-foreground">
-                    Autopilot is a Pro feature. Upgrade to enable scheduled sending.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {autopilotUiEnabled ? (
+              isPro ? (
+                <Card className="border-cyan-500/20 bg-card/50">
+                  <CardContent className="py-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold">Autopilot</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Enable scheduled outreach for your tenant (cron-triggered).
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={autopilotEnabled}
+                          disabled={autopilotSaving}
+                          onChange={async (e) => {
+                            const next = e.target.checked
+                            setAutopilotSaving(true)
+                            try {
+                              const res = await fetch('/api/settings/autopilot', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ enabled: next }),
+                              })
+                              if (res.ok) {
+                                setAutopilotEnabled(next)
+                              } else {
+                                // Keep UI stable; no secret logging.
+                                setAutopilotEnabled((prev) => prev)
+                              }
+                            } finally {
+                              setAutopilotSaving(false)
+                            }
+                          }}
+                        />
+                        <span>{autopilotEnabled ? 'Enabled' : 'Disabled'}</span>
+                      </label>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <ProOnlyCard
+                  title="Autopilot is Pro-only"
+                  description="Upgrade to Pro to enable Autopilot outreach."
+                  icon="lock"
+                  iconColor="purple"
+                />
+              )
+            ) : (
+              <Card className="border-cyan-500/20 bg-card/50">
+                <CardContent className="py-10 text-center text-muted-foreground">
+                  Autopilot settings are disabled in this environment.
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
 

@@ -95,3 +95,14 @@ Set `TRIGGER_EVENTS_DEBUG_LOGGING="true"` to emit **structured provider logs** (
 
 Recommended: enable in **local/staging only**; keep off in production by default.
 
+## Autopilot (optional, advanced)
+
+Autopilot is an **advanced Pro-only feature** and can be fully hidden from the UI.
+
+- `NEXT_PUBLIC_ENABLE_AUTOPILOT_UI=false` (recommended default)
+
+If enabled, Autopilot also requires:
+- A scheduler/cron job hitting `/api/autopilot/run`
+- `autopilot_enabled=true` stored per tenant (managed via Settings)
+- A configured email provider (e.g. Resend) for sending
+
