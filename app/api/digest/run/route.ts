@@ -48,7 +48,8 @@ export const POST = withApiGuard(
 
       const summaries: { user_id: string; delivered: boolean }[] = []
 
-      for (const u of users || []) {
+      type DigestUserRow = { user_id: string; digest_webhook_url?: string | null }
+      for (const u of (users || []) as DigestUserRow[]) {
         // Fetch last 7d pitches
         const { data: pitches } = await supabase
           .from('pitches')
@@ -57,11 +58,12 @@ export const POST = withApiGuard(
           .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .order('created_at', { ascending: false })
 
+        type PitchRow = { content?: string | null; created_at: string }
         const lines = [
           `LeadIntel Weekly Digest`,
           `Pitches this week: ${(pitches || []).length}`,
           '',
-          ...(pitches || []).slice(0, 5).map((p) => `- ${p.created_at}: ${p.content?.slice(0, 140) || ''}`),
+          ...(pitches || []).slice(0, 5).map((p: PitchRow) => `- ${p.created_at}: ${p.content?.slice(0, 140) || ''}`),
         ].join('\n')
 
         let delivered = false

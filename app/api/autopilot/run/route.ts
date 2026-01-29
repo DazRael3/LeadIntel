@@ -115,7 +115,9 @@ export const POST = withApiGuard(
           if (enabledError) {
             return fail(ErrorCode.DATABASE_ERROR, 'Failed to fetch autopilot settings', undefined, undefined, undefined, requestId)
           }
-          targetUserIds = (enabledSettings || []).map((r) => (r as { user_id: string }).user_id)
+          type EnabledSettingRow = { user_id: string }
+          const rows = (enabledSettings ?? []) as EnabledSettingRow[]
+          targetUserIds = rows.map((r) => r.user_id)
         }
       } else {
         // Manual run: restricted to authenticated caller
