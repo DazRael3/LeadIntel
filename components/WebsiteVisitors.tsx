@@ -122,6 +122,20 @@ export function WebsiteVisitors() {
             <p className="text-xs text-muted-foreground">
               Embed the tracking script on your website to start identifying visitors
             </p>
+            <div className="mt-6 mx-auto max-w-xl text-left">
+              <div className="text-xs font-semibold tracking-wide text-muted-foreground mb-2">How to set this up</div>
+              <div className="rounded-lg border border-cyan-500/10 bg-background/30 p-4 space-y-2">
+                <div className="text-xs text-muted-foreground">
+                  1) Paste this script tag into your site (before <code>{'</body>'}</code>):
+                </div>
+                <pre className="text-[11px] overflow-auto rounded bg-background/60 border border-cyan-500/10 p-3">
+{getTrackingScript()}
+                </pre>
+                <div className="text-[11px] text-muted-foreground">
+                  2) Load a page on your site, then come back here. (See `docs/LAUNCH_CHECKLIST.md` → Tracker script smoke test.)
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

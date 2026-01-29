@@ -150,8 +150,22 @@ export function LiveIntent({ isPro }: LiveIntentProps) {
             <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground mb-2">No visitors identified yet</p>
             <p className="text-xs text-muted-foreground">
-              Embed the Ghost Reveal script on your website to start tracking visitors
+              Embed the tracking script on your website to start identifying companies.
             </p>
+            <div className="mt-6 mx-auto max-w-xl text-left">
+              <div className="text-xs font-semibold tracking-wide text-muted-foreground mb-2">How to set this up</div>
+              <div className="rounded-lg border border-purple-500/10 bg-background/30 p-4 space-y-2">
+                <div className="text-xs text-muted-foreground">
+                  1) Install the tracker script (same endpoint used by Website Visitors): <code>/api/tracker</code>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  2) If you enable enrichment (e.g. Clearbit), LeadIntel will attempt to resolve companies from traffic where possible.
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  3) See `docs/LAUNCH_CHECKLIST.md` → Tracker script (`GET /api/tracker`) and POST verification.
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

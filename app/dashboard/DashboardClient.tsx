@@ -10,11 +10,12 @@ import { LeadLibrary } from '@/components/LeadLibrary'
 import { WebsiteVisitors } from '@/components/WebsiteVisitors'
 import { LiveIntent } from '@/components/LiveIntent'
 import { OnboardingWizard } from '@/components/OnboardingWizard'
-import { Watchlist } from '@/components/Watchlist'
 import { MarketSidebar } from '@/components/MarketSidebar'
 import { DashboardHeader } from '@/components/DashboardHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PitchGenerator } from '@/components/PitchGenerator'
+import { MarketPulse } from '@/components/MarketPulse'
+import { MarketWatchlistTab } from '@/components/MarketWatchlistTab'
 import { usePlan } from '@/components/PlanProvider'
 import { getEntitlements } from '@/lib/billing/entitlements'
 import { useTriggerEvents } from './hooks/useTriggerEvents'
@@ -267,11 +268,7 @@ export function DashboardClient({
           <TabsContent value="market" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-3">
-                <Card className="border-cyan-500/20 bg-card/50">
-                  <CardContent className="py-10 text-center text-muted-foreground">
-                    Market view uses the same instruments as the ticker/sidebar.
-                  </CardContent>
-                </Card>
+                <MarketPulse />
               </div>
               <div className="lg:col-span-1">
                 <MarketSidebar />
@@ -280,23 +277,14 @@ export function DashboardClient({
           </TabsContent>
 
           <TabsContent value="watchlist" className="space-y-6">
-            {isPro ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1">
-                  <MarketSidebar />
-                </div>
-                <div className="lg:col-span-2">
-                  <Watchlist isPro={isPro} />
-                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-1">
+                <MarketSidebar />
               </div>
-            ) : (
-              <ProOnlyCard
-                title="Watchlist is Pro-only"
-                description="Save leads and track changes with Watchlist when you upgrade."
-                icon="lock"
-                iconColor="purple"
-              />
-            )}
+              <div className="lg:col-span-3">
+                <MarketWatchlistTab />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
