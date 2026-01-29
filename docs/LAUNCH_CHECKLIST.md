@@ -1,3 +1,52 @@
+## LeadIntel Launch Checklist
+
+### Before deploy (local)
+- `npm run lint`
+- `npm run test:unit`
+- `npm run test:e2e` (or `npm run verify:ready`)
+- `npm run build`
+
+### Supabase
+- **Apply migrations** through `0020_app_trial_fields.sql`.
+- Verify schema is aligned (`api.*` tables exist, RLS enabled).
+- Verify `api.user_watchlists` exists and RLS policies restrict to `auth.uid()`.
+- Verify `api.trigger_events` has expected columns (`company_domain`, `headline`, `source_url`, `detected_at`, etc.).
+
+### Vercel / Environment Variables
+- Copy from `.env.example` and set in Vercel:
+  - **Supabase**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+  - **Stripe**: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO`
+  - **Origins/URLs**: `NEXT_PUBLIC_SITE_URL`, `ALLOWED_ORIGINS`
+  - **Trial**: `ENABLE_APP_TRIAL` (optional)
+  - **Trigger Events**:
+    - `TRIGGER_EVENTS_PROVIDERS`
+    - `NEWSAPI_API_KEY` (optional)
+    - `FINNHUB_API_KEY` (optional; can reuse `MARKET_DATA_API_KEY`)
+    - `GDELT_BASE_URL` (optional)
+    - `TRIGGER_EVENTS_RSS_FEEDS` (optional)
+    - `TRIGGER_EVENTS_MAX_PER_PROVIDER` (optional)
+    - `TRIGGER_EVENTS_CRON_SECRET` (required if using `/api/trigger-events/ingest`)
+    - `TRIGGER_EVENTS_DEBUG_LOGGING` (recommended false in prod)
+    - `ENABLE_DEMO_TRIGGER_EVENTS` (optional)
+  - **Market data**: `MARKET_DATA_PROVIDER`, `MARKET_DATA_API_KEY` (optional)
+  - **Debug UI**: `NEXT_PUBLIC_ENABLE_DEBUG_UI` (recommended false in prod)
+
+### Stripe
+- Confirm webhook endpoint exists:
+  - `/api/stripe/webhook`
+- Confirm webhook events configured:
+  - `checkout.session.completed`
+  - `customer.subscription.updated`
+  - `customer.subscription.deleted`
+
+### Basic smoke tests (production)
+- **Signup → dashboard**: user lands on `/dashboard`, no onboarding flicker.
+- **First pitch**: generate for a company and confirm:
+  - Saved companies updates
+  - Trigger Events shows events (real providers or demo fallback)
+- **Account isolation**: sign out, sign in as a different user, confirm saved companies do not bleed.
+- **Markets**: star symbols (Pro/trial), reload, confirm ticker/Your Watchlist reflect starred list.
+
 ## Launch Checklist (Phase-1 → Production)
 
 This checklist is meant to be **actionable** and aligned with the current repo code.

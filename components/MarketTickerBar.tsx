@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
 import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
+import { formatDistanceToNow } from 'date-fns'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -20,6 +21,7 @@ export function MarketTickerBar() {
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -29,6 +31,7 @@ export function MarketTickerBar() {
         const next = await fetchInstrumentQuotes(instruments)
         if (cancelled) return
         setQuotes(toQuoteMap(next))
+        setLastUpdatedAt(next.map((q) => q.updatedAt).filter((v): v is string => Boolean(v)).sort().at(-1) ?? null)
         setError(null)
       } catch {
         if (cancelled) return
@@ -55,11 +58,12 @@ export function MarketTickerBar() {
         ) : instruments.length === 0 ? (
           <div className="px-6 py-2 text-xs text-muted-foreground">No instruments</div>
         ) : (
-          <div
-            className="flex w-max animate-scroll group-hover:[animation-play-state:paused]"
-            style={{ animationDuration: `${durationSec}s` }}
-            aria-label="Market ticker"
-          >
+          <div className="flex items-center justify-between">
+            <div
+              className="flex w-max animate-scroll group-hover:[animation-play-state:paused]"
+              style={{ animationDuration: `${durationSec}s` }}
+              aria-label="Market ticker"
+            >
             {doubled.map((inst, idx) => {
               const q = quotes[inst.symbol]
               const changePct = q?.changePct ?? null
@@ -95,6 +99,12 @@ export function MarketTickerBar() {
                 </div>
               )
             })}
+            </div>
+            {lastUpdatedAt ? (
+              <div className="hidden sm:block px-4 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                Updated {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}
+              </div>
+            ) : null}
           </div>
         )}
       </div>

@@ -35,6 +35,18 @@ function isDebugLoggingEnabled(): boolean {
   return v === 'true' || v === '1'
 }
 
+async function fetchWithTimeout(input: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
+  const timeoutMs = init.timeoutMs ?? 6500
+  const controller = new AbortController()
+  const t = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const { timeoutMs: _timeout, ...rest } = init
+    return await fetch(input, { ...rest, signal: controller.signal })
+  } finally {
+    clearTimeout(t)
+  }
+}
+
 export function logTriggerProvider(level: LogLevel, message: string, data: Record<string, unknown> = {}): void {
   const enabled = isDebugLoggingEnabled()
   if (!enabled && (level === 'debug' || level === 'info')) return
@@ -259,7 +271,7 @@ function makeNewsApiSpec(): ProviderSpec {
       url.searchParams.set('pageSize', String(max))
       url.searchParams.set('apiKey', apiKey)
 
-      const res = await fetch(url.toString(), { method: 'GET' })
+      const res = await fetchWithTimeout(url.toString(), { method: 'GET' })
       if (!res.ok) return []
       const json = (await res.json()) as unknown
       const articles = (json as { articles?: unknown }).articles
@@ -353,7 +365,7 @@ function makeFinnhubSpec(): ProviderSpec {
       url.searchParams.set('to', fmt(to))
       url.searchParams.set('token', apiKey)
 
-      const res = await fetch(url.toString(), { method: 'GET' })
+      const res = await fetchWithTimeout(url.toString(), { method: 'GET' })
       if (!res.ok) return []
       const json = (await res.json()) as unknown
       if (!Array.isArray(json)) return []
@@ -430,7 +442,7 @@ function makeGdeltSpec(): ProviderSpec {
         url.searchParams.set('domain', input.companyDomain)
       }
 
-      const res = await fetch(url.toString(), { method: 'GET' })
+      const res = await fetchWithTimeout(url.toString(), { method: 'GET' })
       if (!res.ok) return []
       const json = (await res.json()) as unknown
       const articles = (json as { articles?: unknown }).articles
@@ -521,7 +533,7 @@ function makeRssSpec(): ProviderSpec {
     for (const feedUrl of feeds) {
       if (out.length >= max) break
       try {
-        const res = await fetch(feedUrl, { method: 'GET' })
+        const res = await fetchWithTimeout(feedUrl, { method: 'GET' })
         if (!res.ok) continue
         const xml = await res.text()
         const feed = await parser.parseString(xml)

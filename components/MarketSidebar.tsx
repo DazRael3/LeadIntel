@@ -10,6 +10,7 @@ import { usePlan } from '@/components/PlanProvider'
 import { DEFAULT_INSTRUMENTS, findDefaultInstrument, type InstrumentDefinition } from '@/lib/market/instruments'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
 import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
+import { formatDistanceToNow } from 'date-fns'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -25,6 +26,7 @@ export function MarketSidebar() {
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [quoteError, setQuoteError] = useState<string | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
 
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<'stock' | 'crypto'>('stock')
@@ -44,6 +46,7 @@ export function MarketSidebar() {
         const next = await fetchInstrumentQuotes(quoteUniverse)
         if (cancelled) return
         setQuotes(toQuoteMap(next))
+        setLastUpdatedAt(next.map((q) => q.updatedAt).filter((v): v is string => Boolean(v)).sort().at(-1) ?? null)
         setQuoteError(null)
       } catch {
         if (cancelled) return
@@ -103,6 +106,11 @@ export function MarketSidebar() {
             {yourWatchlist.length}
           </Badge>
         </div>
+        {lastUpdatedAt ? (
+          <div className="text-[11px] text-muted-foreground">
+            Last price update {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}
+          </div>
+        ) : null}
         {!isPro ? (
           <div className="text-xs text-muted-foreground">
             Upgrade to customize your watchlist.
