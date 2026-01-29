@@ -72,6 +72,14 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
   const [senderEmail, setSenderEmail] = useState('')
 
   useEffect(() => {
+    // Ensure the wizard is fully visible (no header overlap) and starts at top.
+    if (typeof window !== 'undefined') {
+      try {
+        window.scrollTo(0, 0)
+      } catch {
+        // ignore
+      }
+    }
     // Get current user
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -227,7 +235,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl border-cyan-500/30 bg-card/95">
         <CardHeader className="border-b border-cyan-500/20">
           <div className="flex items-center justify-between mb-4">
