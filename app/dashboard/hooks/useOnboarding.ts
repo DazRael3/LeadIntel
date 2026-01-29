@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatErrorMessage } from '@/lib/utils/format-error'
+import { isE2E } from '@/lib/runtimeFlags'
 
 interface UseOnboardingReturn {
   showOnboarding: boolean
@@ -118,6 +119,12 @@ export function useOnboarding(initialOnboardingCompleted: boolean): UseOnboardin
   }, [supabase, onboardingComplete, initialOnboardingCompleted])
 
   useEffect(() => {
+    // In Playwright/E2E runs, suppress onboarding modals to keep tests deterministic.
+    if (isE2E()) {
+      setShowOnboarding(false)
+      setOnboardingChecked(true)
+      return
+    }
     // Server truth takes precedence
     if (initialOnboardingCompleted) {
       setShowOnboarding(false)

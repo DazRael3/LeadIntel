@@ -196,6 +196,18 @@ export function createE2EBrowserSupabaseClient(): any {
         const uid = getBrowserCookie('li_e2e_uid')
         return { data: { user: authed ? getE2EUser(uid) : null }, error: null }
       },
+      onAuthStateChange: (callback: (event: string, session: any) => void) => {
+        // Minimal compatibility for components that subscribe to auth changes.
+        // We don't attempt to simulate real refresh behavior; we just emit current state once.
+        const authed = typeof document !== 'undefined' && document.cookie.includes('li_e2e_auth=1')
+        const uid = getBrowserCookie('li_e2e_uid')
+        const user = authed ? getE2EUser(uid) : null
+        const session = user ? { user, access_token: 'e2e' } : null
+        setTimeout(() => {
+          callback(authed ? 'SIGNED_IN' : 'SIGNED_OUT', session)
+        }, 0)
+        return { data: { subscription: { unsubscribe: () => {} } } }
+      },
       signInWithPassword: async () => {
         if (typeof document !== 'undefined') {
           document.cookie = 'li_e2e_auth=1; path=/'

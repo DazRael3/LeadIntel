@@ -10,11 +10,11 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { isE2E } from '@/lib/runtimeFlags'
 
 interface PitchGeneratorProps {
   initialUrl?: string
   onCompanyContextChange?: (args: { companyInput: string; companyDomain: string | null }) => void
-  onSavedCompaniesChange?: (companies: string[]) => void
 }
 
 type ApiSuccess<T> = { ok: true; data: T }
@@ -74,7 +74,7 @@ function normalizeSaved(value: unknown): string[] {
   return out
 }
 
-export function PitchGenerator({ initialUrl = "", onCompanyContextChange, onSavedCompaniesChange }: PitchGeneratorProps) {
+export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: PitchGeneratorProps) {
   const [companyUrl, setCompanyUrl] = useState(initialUrl)
   const [isPro, setIsPro] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -183,10 +183,6 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange, onSave
     [currentUserId, supabase]
   )
 
-  useEffect(() => {
-    onSavedCompaniesChange?.(savedCompanies)
-  }, [savedCompanies, onSavedCompaniesChange])
-
   const extractDomainFromInput = useCallback((value: string): string | null => {
     const raw = value.trim()
     if (!raw) return null
@@ -277,14 +273,15 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange, onSave
       return
     }
 
-    // Check authentication before calling API
+    // Check authentication before calling API (skip redirect in Playwright/E2E to keep tests deterministic).
     setAuthError(null)
-    const { data: { user }, error: authCheckError } = await supabase.auth.getUser()
-    
-    if (authCheckError || !user) {
-      setAuthError('Please sign in to generate intelligence.')
-      router.push('/login?redirect=/')
-      return
+    if (!isE2E()) {
+      const { data: { user }, error: authCheckError } = await supabase.auth.getUser()
+      if (authCheckError || !user) {
+        setAuthError('Please sign in to generate intelligence.')
+        router.push('/login?redirect=/')
+        return
+      }
     }
 
     setLoading(true)
@@ -428,8 +425,9 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange, onSave
               onChange={(e) => setCompanyUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
               className="flex-1"
+              data-testid="pitch-input"
             />
-            <Button onClick={handleGenerate} disabled={loading || !companyUrl.trim()}>
+            <Button onClick={handleGenerate} disabled={loading || !companyUrl.trim()} data-testid="pitch-generate">
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

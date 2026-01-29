@@ -245,7 +245,7 @@ export function MarketSidebar() {
                         aria-label={starred ? 'Unstar' : 'Star'}
                         className={`p-1 rounded hover:bg-cyan-500/10 ${!isPro ? 'opacity-40 cursor-not-allowed' : ''}`}
                         onClick={() => void toggleStar(inst)}
-                        disabled={!isPro || watchlistLoading}
+                        disabled={!isPro}
                         data-testid={`market-star-watchlist-${inst.symbol}`}
                       >
                         <Star className={`h-4 w-4 ${starred ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`} />
@@ -311,7 +311,7 @@ export function MarketSidebar() {
                       aria-label={starred ? 'Unstar' : 'Star'}
                       className={`p-1 rounded hover:bg-cyan-500/10 ${!isPro ? 'opacity-40 cursor-not-allowed' : ''}`}
                       onClick={() => void toggleStar(inst)}
-                      disabled={!isPro || watchlistLoading}
+                      disabled={!isPro}
                       data-testid={`market-star-all-${inst.symbol}`}
                     >
                       <Star className={`h-4 w-4 ${starred ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`} />

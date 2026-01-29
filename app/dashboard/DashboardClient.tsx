@@ -47,7 +47,6 @@ export function DashboardClient({
   const [autopilotSaving, setAutopilotSaving] = useState<boolean>(false)
   const [activeCompanyInput, setActiveCompanyInput] = useState<string | null>(null)
   const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
-  const [savedCompanies, setSavedCompanies] = useState<string[]>([])
   const router = useRouter()
   const { isPro: planIsPro } = usePlan()
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
@@ -92,29 +91,6 @@ export function DashboardClient({
     setActiveCompanyInput(args.companyInput)
     setActiveCompanyDomain(args.companyDomain)
   }, [])
-
-  const extractDomainFromInput = useCallback((value: string): string | null => {
-    const raw = value.trim()
-    if (!raw) return null
-    try {
-      const url = raw.startsWith('http') ? new URL(raw) : new URL('https://' + raw)
-      return url.hostname.replace(/^www\./, '')
-    } catch {
-      const cleaned = raw.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0]
-      return cleaned.includes('.') ? cleaned : null
-    }
-  }, [])
-
-  const onSavedCompaniesChange = useCallback(
-    (companies: string[]) => {
-      setSavedCompanies(companies)
-      if (!activeCompanyInput && companies.length > 0) {
-        setActiveCompanyInput(companies[0])
-        setActiveCompanyDomain(extractDomainFromInput(companies[0]))
-      }
-    },
-    [activeCompanyInput, extractDomainFromInput]
-  )
 
   const loading = creditsLoading
 
@@ -186,7 +162,6 @@ export function DashboardClient({
               <div className="lg:col-span-3 space-y-6">
                 <PitchGenerator
                   onCompanyContextChange={onCompanyContextChange}
-                  onSavedCompaniesChange={onSavedCompaniesChange}
                 />
               </div>
 

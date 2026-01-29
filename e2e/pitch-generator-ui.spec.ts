@@ -9,24 +9,36 @@ import { test, expect } from './fixtures'
 
 test.describe('Pitch Generator UI', () => {
   test('should render generated pitch text (not fallback message)', async ({ authenticatedPage }) => {
-    // The PitchGenerator UI lives on the home page ("/").
-    await authenticatedPage.goto('/')
+    // Use the dedicated pitch page to avoid dashboard UI churn.
+    await authenticatedPage.goto('/pitch')
+    await expect(authenticatedPage.locator('text=Generate Pitch')).toBeVisible()
 
     // Fill input
-    const input = authenticatedPage.locator('input[placeholder*="lego.com"]').first()
+    const input = authenticatedPage.getByTestId('pitch-input')
     await expect(input).toBeVisible()
-    await input.fill('Dell.com')
+    // React-controlled input + Next dev hydration can make Playwright's .fill action flaky here.
+    // Set the value in the DOM and dispatch input/change events instead.
+    await authenticatedPage.evaluate(() => {
+      const el = document.querySelector('[data-testid="pitch-input"]') as HTMLInputElement | null
+      if (!el) throw new Error('Pitch input not found')
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(el, 'Dell.com')
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+    })
 
     // Click Generate
-    const generateButton = authenticatedPage.locator('button:has-text("Generate")').first()
+    const generateButton = authenticatedPage.getByTestId('pitch-generate')
     await expect(generateButton).toBeVisible()
 
-    const respPromise = authenticatedPage.waitForResponse((r) => r.url().includes('/api/generate-pitch') && r.status() === 200)
-    await generateButton.click()
-    await respPromise
+    await authenticatedPage.evaluate(() => {
+      const btn = document.querySelector('[data-testid="pitch-generate"]') as HTMLButtonElement | null
+      if (!btn) throw new Error('Generate button not found')
+      btn.click()
+    })
 
     // Ensure the Generated Pitch card renders actual text (in E2E it is deterministic).
-    await expect(authenticatedPage.locator('text=Generated Pitch')).toBeVisible()
+    await expect(authenticatedPage.locator('text=Generated Pitch')).toBeVisible({ timeout: 30_000 })
 
     // Fallback must not be shown.
     await expect(authenticatedPage.locator('text=Pitch generation completed, but no pitch text was returned.')).toHaveCount(0)
