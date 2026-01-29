@@ -4,6 +4,7 @@ import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/
 import { HistoryQuerySchema } from '@/lib/api/schemas'
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
+import { getPlanDetails } from '@/lib/billing/plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,18 @@ const GET_GUARDED = withApiGuard(
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
+
+      const plan = await getPlanDetails(supabase, user.id)
+      if (plan.plan !== 'pro') {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Pitch history is locked. Upgrade to Pro to unlock your saved work.',
+          undefined,
+          undefined,
+          bridge,
+          requestId
+        )
       }
 
   let query = supabase

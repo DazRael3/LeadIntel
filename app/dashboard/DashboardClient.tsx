@@ -16,6 +16,7 @@ import { DashboardHeader } from '@/components/DashboardHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PitchGenerator } from '@/components/PitchGenerator'
 import { usePlan } from '@/components/PlanProvider'
+import { getEntitlements } from '@/lib/billing/entitlements'
 import { useTriggerEvents } from './hooks/useTriggerEvents'
 import { useCredits } from './hooks/useCredits'
 import { useStats } from './hooks/useStats'
@@ -48,8 +49,9 @@ export function DashboardClient({
   const [activeCompanyInput, setActiveCompanyInput] = useState<string | null>(null)
   const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
   const router = useRouter()
-  const { isPro: planIsPro } = usePlan()
+  const { plan, isPro: planIsPro, trial } = usePlan()
   const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
+  const entitlements = useMemo(() => getEntitlements({ plan, trial }), [plan, trial])
 
   // Data fetching hooks
   const { events, loading: eventsLoading, error: eventsError, loadEvents, lastUpdatedAt } = useTriggerEvents()
@@ -198,7 +200,28 @@ export function DashboardClient({
                     </CardContent>
                   </Card>
                 ) : (
-                  <LeadLibrary isPro={isPro} creditsRemaining={creditsRemaining} viewMode={viewMode} />
+                  entitlements.canAccessPitchHistory ? (
+                    <LeadLibrary isPro={isPro} creditsRemaining={creditsRemaining} viewMode={viewMode} />
+                  ) : (
+                    <Card className="border-cyan-500/20 bg-card/50">
+                      <CardContent className="py-12 text-center space-y-3">
+                        <div className="mx-auto inline-flex items-center justify-center h-12 w-12 rounded-full border border-cyan-500/20 bg-cyan-500/10">
+                          <Lock className="h-5 w-5 text-cyan-300" />
+                        </div>
+                        <div className="text-lg font-semibold">Your work is safely stored</div>
+                        <div className="text-sm text-muted-foreground max-w-xl mx-auto">
+                          Upgrade to Pro to unlock your Lead Library, pitch history, and exports—and continue where you left off.
+                        </div>
+                        <Button
+                          size="sm"
+                          className="neon-border hover:glow-effect"
+                          onClick={() => (window.location.href = '/pricing')}
+                        >
+                          Upgrade to Pro
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )
                 )}
               </div>
 
