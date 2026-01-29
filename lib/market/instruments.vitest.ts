@@ -13,5 +13,12 @@ describe('DEFAULT_INSTRUMENTS', () => {
     const keys = DEFAULT_INSTRUMENTS.map((i) => `${i.kind}:${i.symbol}`)
     expect(new Set(keys).size).toBe(keys.length)
   })
+
+  it('includes Netflix as NFLX with correct metadata', () => {
+    const nflx = DEFAULT_INSTRUMENTS.find((i) => i.kind === 'stock' && i.symbol === 'NFLX')
+    expect(nflx).toBeTruthy()
+    expect(nflx?.name).toBe('Netflix')
+    expect(nflx?.defaultVisible).toBe(true)
+  })
 })
 

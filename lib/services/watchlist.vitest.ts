@@ -46,6 +46,27 @@ describe('watchlist service', () => {
     expect(res.ok).toBe(false)
   })
 
+  it('addInstrumentToWatchlist normalizes symbol and persists uppercase', async () => {
+    const client = makeClientMock()
+    const upsertSpy = vi.fn(async () => ({ data: null, error: null }))
+    client.__chain.upsert = upsertSpy
+
+    const res = await addInstrumentToWatchlist(client as unknown as SupabaseClient, 'user_1', {
+      symbol: '  ondo ',
+      kind: 'crypto',
+      displayName: '  Ondo  ',
+    })
+    expect(res.ok).toBe(true)
+    expect(upsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user_1',
+        kind: 'crypto',
+        symbol: 'ONDO',
+        display_name: 'Ondo',
+      })
+    )
+  })
+
   it('removeInstrumentFromWatchlist rejects unknown instruments', async () => {
     const client = makeClientMock()
     const res = await removeInstrumentFromWatchlist(client as unknown as SupabaseClient, 'user_1', { symbol: '***', kind: 'stock' })
