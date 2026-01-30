@@ -56,6 +56,9 @@ node_modules
 /test-results/
 /coverage/
 
+# Owner-only admin exports (keep private; do not commit to public repos)
+/admin-reports/
+
 # Supabase local artifacts
 supabase/.temp/
 
