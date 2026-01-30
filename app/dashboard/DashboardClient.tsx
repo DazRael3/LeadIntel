@@ -29,6 +29,7 @@ import { TriggerEventsSection } from './components/TriggerEventsSection'
 import { DebugPanel } from './components/DebugPanel'
 import { ViewModeToggle } from './components/ViewModeToggle'
 import { ProOnlyCard } from './components/ProOnlyCard'
+import { CommunicationPreferencesCard } from './components/CommunicationPreferencesCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -344,6 +345,8 @@ export function DashboardClient({
                 </CardContent>
               </Card>
             )}
+
+            <CommunicationPreferencesCard />
           </TabsContent>
         </Tabs>
 

@@ -46,6 +46,9 @@ describe('/api/settings', () => {
         team_size: 'solo',
         primary_goal: 'outbound',
         heard_about_us_from: 'Twitter',
+        preferred_contact_channel: 'email',
+        preferred_contact_detail: 'jane@example.com',
+        allow_product_updates: false,
         onboarding_completed: true,
       }),
     })
@@ -58,6 +61,9 @@ describe('/api/settings', () => {
       team_size: 'solo',
       primary_goal: 'outbound',
       heard_about_us_from: 'Twitter',
+      preferred_contact_channel: 'email',
+      preferred_contact_detail: 'jane@example.com',
+      allow_product_updates: false,
     })
   })
 

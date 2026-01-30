@@ -60,6 +60,7 @@ const INDUSTRY_OPTIONS = [
 const ROLE_OPTIONS = ['SDR', 'AE', 'Founder', 'Consultant', 'Investor', 'Marketing', 'RevOps', 'Other'] as const
 const TEAM_SIZE_OPTIONS = ['solo', '2-5', '6-20', '21+'] as const
 const PRIMARY_GOAL_OPTIONS = ['outbound', 'investing', 'competitive_intel', 'pipeline_building', 'market_research'] as const
+const CONTACT_CHANNEL_OPTIONS = ['email', 'phone', 'linkedin', 'slack', 'other'] as const
 
 export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps) {
   const supabase = createClient()
@@ -78,6 +79,9 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
   const [teamSize, setTeamSize] = useState<string>('')
   const [primaryGoal, setPrimaryGoal] = useState<string>('')
   const [heardAbout, setHeardAbout] = useState<string>('')
+  const [preferredContactChannel, setPreferredContactChannel] = useState<string>('')
+  const [preferredContactDetail, setPreferredContactDetail] = useState<string>('')
+  const [allowProductUpdates, setAllowProductUpdates] = useState<boolean>(true)
 
   useEffect(() => {
     // Ensure the wizard is fully visible (no header overlap) and starts at top.
@@ -145,6 +149,9 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
           team_size: teamSize || undefined,
           primary_goal: primaryGoal || undefined,
           heard_about_us_from: heardAbout.trim() || undefined,
+          preferred_contact_channel: preferredContactChannel || undefined,
+          preferred_contact_detail: preferredContactDetail.trim() || undefined,
+          allow_product_updates: allowProductUpdates,
         }),
       })
 
@@ -472,6 +479,63 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
                 <p className="text-xs text-muted-foreground mt-2">
                   This will be used as the &quot;From&quot; address when sending pitches (Pro feature)
                 </p>
+              </div>
+
+              <div className="pt-2 border-t border-cyan-500/10">
+                <h3 className="text-base font-bold mb-3">How should we reach you?</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="preferredContactChannel" className="text-sm font-semibold mb-2 block">
+                      Preferred channel <span className="text-muted-foreground">(optional)</span>
+                    </Label>
+                    <select
+                      id="preferredContactChannel"
+                      value={preferredContactChannel}
+                      onChange={(e) => setPreferredContactChannel(e.target.value)}
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                    >
+                      <option value="">No preference</option>
+                      {CONTACT_CHANNEL_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="preferredContactDetail" className="text-sm font-semibold mb-2 block">
+                      Contact detail <span className="text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Input
+                      id="preferredContactDetail"
+                      placeholder={
+                        preferredContactChannel === 'phone'
+                          ? '+1 (555) 123-4567'
+                          : preferredContactChannel === 'linkedin'
+                            ? 'linkedin.com/in/your-handle'
+                            : preferredContactChannel === 'slack'
+                              ? '@yourhandle or workspace'
+                              : preferredContactChannel === 'email'
+                                ? 'you@company.com'
+                                : 'Handle / link'
+                      }
+                      value={preferredContactDetail}
+                      onChange={(e) => setPreferredContactDetail(e.target.value)}
+                      className="bloomberg-font"
+                    />
+                  </div>
+                </div>
+
+                <label className="mt-4 flex items-start gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={allowProductUpdates}
+                    onChange={(e) => setAllowProductUpdates(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>Send me product updates and tips (you can change this later in Settings)</span>
+                </label>
               </div>
 
               <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-4">
