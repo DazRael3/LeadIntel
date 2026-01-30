@@ -116,6 +116,14 @@ const serverEnvSchema = z.object({
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
 
+  // Site health reporting (optional)
+  ENABLE_SITE_REPORTS: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  SITE_REPORT_CRON_SECRET: z.string().optional(),
+  ADMIN_USER_ID: z.string().uuid().optional(),
+
   // Demo behavior (optional): seed synthetic trigger events after pitch generation.
   ENABLE_DEMO_TRIGGER_EVENTS: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
@@ -261,6 +269,9 @@ function buildServerEnv(): ServerEnv {
     ENABLE_APP_TRIAL: process.env.ENABLE_APP_TRIAL,
     ENABLE_TRIAL_FINGERPRINTING: process.env.ENABLE_TRIAL_FINGERPRINTING,
     ENABLE_PRODUCT_ANALYTICS: process.env.ENABLE_PRODUCT_ANALYTICS,
+    ENABLE_SITE_REPORTS: process.env.ENABLE_SITE_REPORTS,
+    SITE_REPORT_CRON_SECRET: process.env.SITE_REPORT_CRON_SECRET,
+    ADMIN_USER_ID: process.env.ADMIN_USER_ID,
     ENABLE_DEMO_TRIGGER_EVENTS: process.env.ENABLE_DEMO_TRIGGER_EVENTS,
     TRIGGER_EVENTS_PROVIDER: process.env.TRIGGER_EVENTS_PROVIDER,
     TRIGGER_EVENTS_PROVIDERS: process.env.TRIGGER_EVENTS_PROVIDERS,

@@ -45,6 +45,17 @@
 - `NEXT_PUBLIC_ANALYTICS_ENABLED=true` (optional)
 - Ensure keys are present: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_PRICE_ID_PRO` (or `STRIPE_PRICE_ID`), and a provider key like `FINNHUB_API_KEY` if you enable those providers.
 
+### Site Health & Reporting (optional)
+- **Enable**: `ENABLE_SITE_REPORTS=true`
+- **Cron secret**: set `SITE_REPORT_CRON_SECRET` to a long random string.
+- **Owner access**: set `ADMIN_USER_ID` to your Supabase Auth user id (UUID).
+- **Cron call** (once per day):
+  - `POST /api/admin/site-report/run`
+  - Header: `x-cron-secret: <SITE_REPORT_CRON_SECRET>`
+- **Fetch reports locally (owner-only)**:
+  - Run: `npx ts-node scripts/fetch-site-reports.ts --days 7`
+  - Output folder: `admin-reports/` (should remain private / not pushed to public repos)
+
 ### Stripe
 - Confirm webhook endpoint exists:
   - `/api/stripe/webhook`

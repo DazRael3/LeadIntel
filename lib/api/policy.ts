@@ -403,6 +403,32 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/admin/site-report/run': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: true,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/admin/site-report/latest': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 0,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/push-to-crm': {
     tier: 'WRITE',
     maxBytes: 2 * 1024 * 1024, // 2MB (lead payload with pitch content)
