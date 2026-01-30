@@ -229,7 +229,10 @@ export const POST = withApiGuard(
 
     // 2) Optionally seed demo events if still empty
     // Note: Keep this callable in tests; service is mocked there.
-    const demoEnabled = env.ENABLE_DEMO_TRIGGER_EVENTS !== '0' && env.ENABLE_DEMO_TRIGGER_EVENTS !== 'false'
+    // Demo trigger events are a dev/test convenience and should be OFF by default in production.
+    const demoEnabled = isE2E() || isTestEnv()
+      ? env.ENABLE_DEMO_TRIGGER_EVENTS !== '0' && env.ENABLE_DEMO_TRIGGER_EVENTS !== 'false'
+      : env.ENABLE_DEMO_TRIGGER_EVENTS === '1' || env.ENABLE_DEMO_TRIGGER_EVENTS === 'true'
     if (demoEnabled) {
       await seedDemoTriggerEventsIfEmpty(triggerInput)
     }

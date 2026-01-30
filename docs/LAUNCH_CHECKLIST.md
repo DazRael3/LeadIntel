@@ -7,7 +7,7 @@
 - `npm run build`
 
 ### Supabase
-- **Apply migrations** through `0020_app_trial_fields.sql`.
+- **Apply migrations** through `0021_product_analytics_and_onboarding_fields.sql`.
 - Verify schema is aligned (`api.*` tables exist, RLS enabled).
 - Verify `api.user_watchlists` exists and RLS policies restrict to `auth.uid()`.
 - Verify `api.trigger_events` has expected columns (`company_domain`, `headline`, `source_url`, `detected_at`, etc.).
@@ -18,6 +18,8 @@
   - **Stripe**: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO`
   - **Origins/URLs**: `NEXT_PUBLIC_SITE_URL`, `ALLOWED_ORIGINS`
   - **Trial**: `ENABLE_APP_TRIAL` (optional)
+- **Trial abuse hardening**: `ENABLE_TRIAL_FINGERPRINTING` (optional; recommended)
+- **Product analytics**: `ENABLE_PRODUCT_ANALYTICS` (optional) and `NEXT_PUBLIC_ANALYTICS_ENABLED` (optional)
   - **Trigger Events**:
     - `TRIGGER_EVENTS_PROVIDERS`
     - `NEWSAPI_API_KEY` (optional)
@@ -30,6 +32,18 @@
     - `ENABLE_DEMO_TRIGGER_EVENTS` (optional)
   - **Market data**: `MARKET_DATA_PROVIDER`, `MARKET_DATA_API_KEY` (optional)
   - **Debug UI**: `NEXT_PUBLIC_ENABLE_DEBUG_UI` (recommended false in prod)
+- **Autopilot UI**: `NEXT_PUBLIC_ENABLE_AUTOPILOT_UI` (recommended false in prod unless you are running Autopilot)
+
+### Production config (recommended)
+- `ENABLE_DEMO_TRIGGER_EVENTS=false`
+- `TRIGGER_EVENTS_PROVIDERS=...` (real providers)
+- `TRIGGER_EVENTS_DEBUG_LOGGING=false`
+- `NEXT_PUBLIC_ENABLE_DEBUG_UI=false`
+- `NEXT_PUBLIC_ENABLE_AUTOPILOT_UI=false` (unless you are really wiring Autopilot crons)
+- `ENABLE_TRIAL_FINGERPRINTING=true` (optional, but recommended)
+- `ENABLE_PRODUCT_ANALYTICS=true` (optional)
+- `NEXT_PUBLIC_ANALYTICS_ENABLED=true` (optional)
+- Ensure keys are present: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_PRICE_ID_PRO` (or `STRIPE_PRICE_ID`), and a provider key like `FINNHUB_API_KEY` if you enable those providers.
 
 ### Stripe
 - Confirm webhook endpoint exists:
