@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { Lead } from "@/lib/supabaseClient"
 import { formatDate } from "@/lib/utils"
 import { useLeadLibrary } from "@/app/dashboard/hooks/useLeadLibrary"
+import { track } from '@/lib/analytics'
 import { 
   Search, 
   Filter, 
@@ -71,6 +72,12 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    track('lead_library_viewed')
+    // fire once per mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleToggleStar = async (lead: Lead) => {
     if (!isPro) return

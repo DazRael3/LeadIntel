@@ -6,6 +6,7 @@ import { RefreshCw, Activity, AlertCircle, TrendingUp } from 'lucide-react'
 import { formatErrorMessage } from '@/lib/utils/format-error'
 import type { TriggerEvent } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
+import { track } from '@/lib/analytics'
 
 interface TriggerEventsSectionProps {
   events: TriggerEvent[]
@@ -124,6 +125,13 @@ export function TriggerEventsSection({
                         target="_blank"
                         rel="noreferrer"
                         className="text-sm text-cyan-200 hover:underline line-clamp-2"
+                        onClick={() =>
+                          track('trigger_event_opened', {
+                            source_url: event.source_url,
+                            company_domain: event.company_domain,
+                            company_name: event.company_name,
+                          })
+                        }
                       >
                         {event.headline || event.event_description}
                       </a>

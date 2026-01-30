@@ -40,6 +40,7 @@ describe('API Policy', () => {
     'POST:/api/digest/test',
     'POST:/api/dev/create-user',
     'GET:/api/test-error',
+    'POST:/api/analytics/track',
   ]
 
   it('should have policies for all required routes', () => {

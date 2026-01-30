@@ -9,7 +9,10 @@ import { CompanyUrlSchema, GeneratePitchOptionsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
 import { isPro as isProPlan } from '@/lib/billing/plan'
+import { getPlanDetails } from '@/lib/billing/plan'
 import { ingestRealTriggerEvents, seedDemoTriggerEventsIfEmpty, hasAnyTriggerEvents, getLatestTriggerEvent } from '@/lib/services/triggerEvents'
+import { serverEnv } from '@/lib/env'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = "force-dynamic";
 
@@ -262,6 +265,26 @@ export const POST = withApiGuard(
       triggerEvent: latestTriggerEvent,
       hasTriggerEvent,
       warnings,
+    }
+
+    // Product analytics (best-effort; behind env flag).
+    if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+      try {
+        const details = await getPlanDetails(supabase, userId)
+        await logProductEvent({
+          userId,
+          eventName: 'pitch_generated',
+          eventProps: {
+            company_domain: domain,
+            company_name: topicName,
+            hasTriggerEvent,
+            plan: details.plan,
+            isAppTrial: Boolean(details.isAppTrial),
+          },
+        })
+      } catch {
+        // best-effort
+      }
     }
 
     if (isDev) {

@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { usePlan } from "@/components/PlanProvider"
 import { formatErrorMessage } from "@/lib/utils/format-error"
+import { track } from '@/lib/analytics'
 
 /**
  * Safely parses JSON, returning null if parsing fails
@@ -89,6 +90,7 @@ export function Pricing() {
     setCheckoutError(null)
     
     try {
+      track('pricing_cta_clicked', { source: 'pricing' })
       // Check authentication before calling /api/checkout
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       

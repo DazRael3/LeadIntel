@@ -11,6 +11,7 @@ import { DEFAULT_INSTRUMENTS, findDefaultInstrument, type InstrumentDefinition }
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
 import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 import { formatDistanceToNow } from 'date-fns'
+import { track } from '@/lib/analytics'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -74,8 +75,10 @@ export function MarketSidebar() {
     try {
       if (starredKeys.has(key)) {
         await remove(inst.symbol, inst.kind)
+        track('watchlist_symbol_unstarred', { symbol: inst.symbol, kind: inst.kind })
       } else {
         await add(inst.symbol, inst.kind)
+        track('watchlist_symbol_starred', { symbol: inst.symbol, kind: inst.kind })
       }
     } catch {
       setActionError('Failed to update watchlist')
@@ -89,6 +92,7 @@ export function MarketSidebar() {
     try {
       const match = DEFAULT_INSTRUMENTS.find((i) => i.symbol === symbol)
       await add(symbol, (match?.kind ?? kind) as InstrumentDefinition['kind'], match?.name)
+      track('watchlist_symbol_added', { symbol, kind: (match?.kind ?? kind) })
       setQuery('')
     } catch {
       setActionError('Failed to update watchlist')

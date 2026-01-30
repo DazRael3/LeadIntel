@@ -35,6 +35,11 @@ const clientEnvSchema = z.object({
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
+  // Client analytics (optional): when enabled, client will POST a few high-signal events.
+  NEXT_PUBLIC_ANALYTICS_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
   // CORS/Origin validation (comma-separated list of allowed origins)
   // Example: "https://app.example.com,https://www.example.com"
   ALLOWED_ORIGINS: z.string().optional(),
@@ -101,6 +106,12 @@ const serverEnvSchema = z.object({
 
   // Trial abuse hardening (optional): record soft fingerprints and use them to deny new trials.
   ENABLE_TRIAL_FINGERPRINTING: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+
+  // Product analytics (optional): enable server-side logging into api.product_analytics.
+  ENABLE_PRODUCT_ANALYTICS: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
@@ -249,6 +260,7 @@ function buildServerEnv(): ServerEnv {
     FEATURE_ZAPIER_PUSH_ENABLED: process.env.FEATURE_ZAPIER_PUSH_ENABLED,
     ENABLE_APP_TRIAL: process.env.ENABLE_APP_TRIAL,
     ENABLE_TRIAL_FINGERPRINTING: process.env.ENABLE_TRIAL_FINGERPRINTING,
+    ENABLE_PRODUCT_ANALYTICS: process.env.ENABLE_PRODUCT_ANALYTICS,
     ENABLE_DEMO_TRIGGER_EVENTS: process.env.ENABLE_DEMO_TRIGGER_EVENTS,
     TRIGGER_EVENTS_PROVIDER: process.env.TRIGGER_EVENTS_PROVIDER,
     TRIGGER_EVENTS_PROVIDERS: process.env.TRIGGER_EVENTS_PROVIDERS,
@@ -332,6 +344,7 @@ export const clientEnv = (() => {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_ENABLE_DEBUG_UI: process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI,
     NEXT_PUBLIC_ENABLE_AUTOPILOT_UI: process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI,
+    NEXT_PUBLIC_ANALYTICS_ENABLED: process.env.NEXT_PUBLIC_ANALYTICS_ENABLED,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
   })
 

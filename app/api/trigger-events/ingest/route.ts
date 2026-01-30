@@ -5,6 +5,8 @@ import { ok, fail, ErrorCode, createCookieBridge, asHttpError } from '@/lib/api/
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { ingestRealTriggerEvents } from '@/lib/services/triggerEvents'
 import { serverEnv } from '@/lib/env'
+import { getConfiguredProviderNames } from '@/lib/events/provider'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +53,8 @@ export const POST = withApiGuard(
       }
 
       let totalCreated = 0
+      const providersAttempted = getConfiguredProviderNames()
+      const providerCounts: Record<string, number> = Object.fromEntries(providersAttempted.map((p) => [p, 0]))
       for (const lead of leads ?? []) {
         const created = await ingestRealTriggerEvents({
           userId: lead.user_id,
@@ -59,6 +63,21 @@ export const POST = withApiGuard(
           companyDomain: lead.company_domain ?? null,
         })
         totalCreated += created.created
+      }
+
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        void logProductEvent({
+          userId: null,
+          eventName: 'trigger_events_ingested',
+          eventProps: {
+            company_domain: companyDomain,
+            company_name: companyName,
+            leadsProcessed: (leads ?? []).length,
+            created: totalCreated,
+            providersAttempted,
+            providerCounts,
+          },
+        })
       }
 
       return ok({ leadsProcessed: (leads ?? []).length, created: totalCreated }, undefined, bridge, requestId)

@@ -7,6 +7,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { serverEnv } from '@/lib/env'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createHash } from 'crypto'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -143,6 +144,18 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
     const isTrialing = details.subscriptionStatus === 'trialing' && Boolean(trialEndsAt)
     const appTrialEndsAt = details.appTrialEndsAt ?? null
     const isAppTrial = Boolean(details.isAppTrial) && Boolean(appTrialEndsAt)
+
+    // Product analytics (best-effort; behind env flag).
+    if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+      void logProductEvent({
+        userId: user.id,
+        eventName: 'plan_checked',
+        eventProps: {
+          plan: details.plan,
+          isAppTrial,
+        },
+      })
+    }
     return ok(
       {
         plan: details.plan,
