@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { logProductEvent } from './analytics'
 
-const insertMock = vi.fn(async () => ({ data: null, error: null }))
+type InsertResult = { data: null; error: null }
+const insertMock = vi.fn<[], Promise<InsertResult>>(async () => ({ data: null, error: null }))
 const fromMock = vi.fn(() => ({ insert: insertMock }))
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -29,7 +30,7 @@ describe('logProductEvent', () => {
   it('swallows errors', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     fromMock.mockReturnValueOnce({
-      insert: vi.fn(async () => {
+      insert: vi.fn(async (): Promise<InsertResult> => {
         throw new Error('db down')
       }),
     })

@@ -79,11 +79,12 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
                 .eq('signup_user_agent_hash', uaHash)
                 .limit(25)
 
+              const typedFpRows = (fpRows ?? []) as Array<{ user_id: string | null }>
               const otherUserIds = Array.from(
                 new Set(
-                  (fpRows ?? [])
-                    .map((r) => (r as { user_id?: string | null }).user_id)
-                    .filter((v): v is string => typeof v === 'string' && v.length > 0 && v !== user.id)
+                  typedFpRows
+                    .map((r: { user_id: string | null }) => r.user_id)
+                    .filter((v: string | null): v is string => typeof v === 'string' && v.length > 0 && v !== user.id)
                 )
               )
 
@@ -123,15 +124,15 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
             // Also mark "ever had trial" for this account if missing (optional): skipped.
             // eslint-disable-next-line no-empty
           } else {
-          const startsAt = new Date().toISOString()
-          const endsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-          // Safe under RLS: user can upsert their own row.
-          await supabase.from('users').upsert({
-            id: user.id,
-            email: user.email ?? undefined,
-            trial_starts_at: startsAt,
-            trial_ends_at: endsAt,
-          })
+            const startsAt = new Date().toISOString()
+            const endsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+            // Safe under RLS: user can upsert their own row.
+            await supabase.from('users').upsert({
+              id: user.id,
+              email: user.email ?? undefined,
+              trial_starts_at: startsAt,
+              trial_ends_at: endsAt,
+            })
           }
         }
       } catch {
