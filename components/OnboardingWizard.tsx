@@ -57,6 +57,10 @@ const INDUSTRY_OPTIONS = [
   'Other',
 ]
 
+const ROLE_OPTIONS = ['SDR', 'AE', 'Founder', 'Consultant', 'Investor', 'Marketing', 'RevOps', 'Other'] as const
+const TEAM_SIZE_OPTIONS = ['solo', '2-5', '6-20', '21+'] as const
+const PRIMARY_GOAL_OPTIONS = ['outbound', 'investing', 'competitive_intel', 'pipeline_building', 'market_research'] as const
+
 export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps) {
   const supabase = createClient()
   const { toast } = useToast()
@@ -70,6 +74,10 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([])
   const [senderName, setSenderName] = useState('')
   const [senderEmail, setSenderEmail] = useState('')
+  const [role, setRole] = useState<string>('')
+  const [teamSize, setTeamSize] = useState<string>('')
+  const [primaryGoal, setPrimaryGoal] = useState<string>('')
+  const [heardAbout, setHeardAbout] = useState<string>('')
 
   useEffect(() => {
     // Ensure the wizard is fully visible (no header overlap) and starts at top.
@@ -101,7 +109,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
   }
 
   const handleNext = () => {
-    if (step === 1 && whatYouSell && idealCustomer) {
+    if (step === 1 && whatYouSell && idealCustomer && role && teamSize && primaryGoal) {
       setStep(2)
     } else if (step === 2 && selectedIndustries.length > 0) {
       setStep(3)
@@ -133,6 +141,10 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
           from_email: senderEmail || '',
           from_name: senderName || whatYouSell,
           onboarding_completed: true,
+          role: role || undefined,
+          team_size: teamSize || undefined,
+          primary_goal: primaryGoal || undefined,
+          heard_about_us_from: heardAbout.trim() || undefined,
         }),
       })
 
@@ -228,7 +240,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
   }
 
   const canProceed = () => {
-    if (step === 1) return whatYouSell.trim() && idealCustomer.trim()
+    if (step === 1) return whatYouSell.trim() && idealCustomer.trim() && role.trim() && teamSize.trim() && primaryGoal.trim()
     if (step === 2) return selectedIndustries.length > 0
     if (step === 3) return senderName.trim() && senderEmail.trim()
     return false
@@ -320,6 +332,78 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
                 <p className="text-xs text-muted-foreground mt-2">
                   Describe the type of company that would benefit most from your solution
                 </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="role" className="text-base font-bold mb-2 block">
+                    Your role <span className="text-red-400">*</span>
+                  </Label>
+                  <select
+                    id="role"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                  >
+                    <option value="">Select…</option>
+                    {ROLE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="teamSize" className="text-base font-bold mb-2 block">
+                    Team size <span className="text-red-400">*</span>
+                  </Label>
+                  <select
+                    id="teamSize"
+                    value={teamSize}
+                    onChange={(e) => setTeamSize(e.target.value)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                  >
+                    <option value="">Select…</option>
+                    {TEAM_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="primaryGoal" className="text-base font-bold mb-2 block">
+                    Primary goal <span className="text-red-400">*</span>
+                  </Label>
+                  <select
+                    id="primaryGoal"
+                    value={primaryGoal}
+                    onChange={(e) => setPrimaryGoal(e.target.value)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                  >
+                    <option value="">Select…</option>
+                    {PRIMARY_GOAL_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="heardAbout" className="text-base font-bold mb-2 block">
+                  How did you hear about LeadIntel? <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="heardAbout"
+                  placeholder="e.g., Twitter, friend, newsletter, Google…"
+                  value={heardAbout}
+                  onChange={(e) => setHeardAbout(e.target.value)}
+                  className="bloomberg-font"
+                />
               </div>
             </div>
           )}

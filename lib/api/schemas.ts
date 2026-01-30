@@ -55,9 +55,15 @@ export const TagNameSchema = z.object({
  * Settings schemas
  */
 export const UserSettingsSchema = z.object({
-  display_name: z.string().min(1, 'Display name is required').max(200),
-  from_email: z.string().email('Invalid email address'),
+  // Profile fields (optional; onboarding will provide these)
+  display_name: z.string().min(1).max(200).optional(),
+  from_email: z.string().email('Invalid email address').optional(),
   from_name: z.string().max(200).optional(),
+  role: z.string().max(64).optional(),
+  team_size: z.string().max(32).optional(),
+  primary_goal: z.string().max(64).optional(),
+  heard_about_us_from: z.string().max(120).optional(),
+  onboarding_completed: z.boolean().optional(),
   digest_enabled: z.boolean().optional().default(false),
   digest_dow: z.number().int().min(0).max(6).optional().default(1),
   digest_hour: z.number().int().min(0).max(23).optional().default(9),

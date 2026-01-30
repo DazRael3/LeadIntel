@@ -17,28 +17,38 @@ export const POST = withApiGuard(
       }
 
       const input = body as typeof UserSettingsSchema._type
-      const display_name = input.display_name
-      const from_email = input.from_email
-      const from_name = input.from_name || display_name || null
+      const display_name = typeof input.display_name === 'string' ? input.display_name : undefined
+      const from_email = typeof input.from_email === 'string' ? input.from_email : undefined
+      const from_name = typeof input.from_name === 'string' ? input.from_name : display_name || null
       const digest_enabled = input.digest_enabled ?? false
       const digest_dow = input.digest_dow ?? 1
       const digest_hour = input.digest_hour ?? 9
       const digest_webhook_url = input.digest_webhook_url || null
       const autopilot_enabled = typeof input.autopilot_enabled === 'boolean' ? input.autopilot_enabled : undefined
+      const role = typeof input.role === 'string' ? input.role : undefined
+      const team_size = typeof input.team_size === 'string' ? input.team_size : undefined
+      const primary_goal = typeof input.primary_goal === 'string' ? input.primary_goal : undefined
+      const heard_about_us_from = typeof input.heard_about_us_from === 'string' ? input.heard_about_us_from : undefined
+      const onboarding_completed =
+        typeof input.onboarding_completed === 'boolean' ? input.onboarding_completed : true
 
       const { error, data: updated } = await supabase
         .from('user_settings')
         .upsert(
           {
             user_id: user.id,
-            display_name,
-            from_email,
+            ...(display_name !== undefined ? { display_name } : {}),
+            ...(from_email !== undefined ? { from_email } : {}),
             from_name: from_name || null,
-            onboarding_completed: true,
+            onboarding_completed,
             digest_enabled,
             digest_dow,
             digest_hour,
             digest_webhook_url: digest_webhook_url || null,
+            ...(role !== undefined ? { role } : {}),
+            ...(team_size !== undefined ? { team_size } : {}),
+            ...(primary_goal !== undefined ? { primary_goal } : {}),
+            ...(heard_about_us_from !== undefined ? { heard_about_us_from } : {}),
             ...(autopilot_enabled !== undefined ? { autopilot_enabled } : {}),
             updated_at: new Date().toISOString(),
           },
@@ -46,7 +56,7 @@ export const POST = withApiGuard(
             onConflict: 'user_id',
           }
         )
-        .select('user_id, onboarding_completed, digest_enabled, digest_dow, digest_hour, digest_webhook_url, updated_at')
+        .select('user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, digest_enabled, digest_dow, digest_hour, digest_webhook_url, updated_at')
         .single()
 
       if (error) {
