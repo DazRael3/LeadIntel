@@ -1,8 +1,9 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
-import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
+import { ok, fail, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { UserSettingsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
@@ -10,10 +11,11 @@ export const POST = withApiGuard(
     try {
       const supabase = createRouteClient(request, bridge)
 
-      // Authenticated user (guard should have enforced, but we still fetch for cookie bridging)
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError || !user) {
-        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      // Authenticated user (guard should have enforced, but we still fetch for cookie bridging).
+      // Use safe-auth so refresh_token_not_found becomes a clean "logged out" state.
+      const user = await getUserSafe(supabase)
+      if (!user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
       }
 
       const input = body as typeof UserSettingsSchema._type
@@ -92,12 +94,26 @@ export const POST = withApiGuard(
           )
         }
 
-        return fail(ErrorCode.DATABASE_ERROR, 'Failed to save settings', undefined, undefined, bridge, requestId)
+        // Fall through to the generic handler for consistent dev-friendly errors.
+        throw error
       }
 
       return ok({ settings: updated }, undefined, bridge, requestId)
-    } catch (error) {
-      return asHttpError(error, '/api/settings', undefined, bridge, requestId)
+    } catch (error: unknown) {
+      // Structured server log (no secrets)
+      const errObj = error as { code?: string; message?: string }
+      console.error('[api/settings] Error saving settings', error instanceof Error ? error : {
+        code: typeof errObj?.code === 'string' ? errObj.code : undefined,
+        message: typeof errObj?.message === 'string' ? errObj.message : String(error),
+      })
+
+      return NextResponse.json(
+        {
+          error: 'Failed to save settings',
+          details: process.env.NODE_ENV === 'development' ? String(error) : undefined,
+        },
+        { status: 500 }
+      )
     }
   },
   { bodySchema: UserSettingsSchema }
