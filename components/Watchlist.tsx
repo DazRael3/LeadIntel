@@ -9,6 +9,7 @@ import type { Lead, WatchlistItem } from "@/lib/supabaseClient"
 import { formatDate } from "@/lib/utils"
 import { Star, Building2, TrendingUp, AlertCircle, X } from "lucide-react"
 import { LeadDetailView } from "@/components/LeadDetailView"
+import { getUserSafe } from "@/lib/supabase/safe-auth"
 
 interface WatchlistProps {
   isPro: boolean
@@ -22,7 +23,7 @@ export function Watchlist({ isPro }: WatchlistProps) {
 
   const loadWatchlist = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUserSafe(supabase)
       if (!user) return
 
       const { data, error } = await supabase
@@ -76,7 +77,7 @@ export function Watchlist({ isPro }: WatchlistProps) {
 
   const removeFromWatchlist = async (leadId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUserSafe(supabase)
       if (!user) return
 
       const { error } = await supabase
@@ -95,7 +96,7 @@ export function Watchlist({ isPro }: WatchlistProps) {
 
   const addToWatchlist = async (lead: Lead) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUserSafe(supabase)
       if (!user) return
 
       const expiresAt = new Date()

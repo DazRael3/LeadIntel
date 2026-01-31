@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client"
 import { usePlan } from "@/components/PlanProvider"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import { track } from '@/lib/analytics'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 /**
  * Safely parses JSON, returning null if parsing fails
@@ -92,9 +93,8 @@ export function Pricing() {
     try {
       track('pricing_cta_clicked', { source: 'pricing' })
       // Check authentication before calling /api/checkout
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      
-      if (authError || !user) {
+      const user = await getUserSafe(supabase)
+      if (!user) {
         // Not authenticated - redirect to login
         router.push('/login?mode=signin&redirect=/pricing')
         return

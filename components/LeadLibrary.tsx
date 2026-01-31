@@ -10,6 +10,7 @@ import type { Lead } from "@/lib/supabaseClient"
 import { formatDate } from "@/lib/utils"
 import { useLeadLibrary } from "@/app/dashboard/hooks/useLeadLibrary"
 import { track } from '@/lib/analytics'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { 
   Search, 
   Filter, 
@@ -48,7 +49,7 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
     if (!isPro) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUserSafe(supabase)
       if (!user) return
 
       const { data } = await supabase
@@ -87,7 +88,7 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
     if (isStarred) {
       // Remove from watchlist
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         if (!user) return
 
         await supabase

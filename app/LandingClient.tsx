@@ -14,6 +14,7 @@ import { TopNav } from "@/components/TopNav"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import Link from "next/link"
 import { BrandHero } from "@/components/BrandHero"
+import { getUserSafe } from "@/lib/supabase/safe-auth"
 
 type TriggerEventRow = {
   id: string
@@ -47,6 +48,7 @@ export default function LandingClient() {
   const [loading, setLoading] = useState(true)
   const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'pro'>('free')
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [quickStats, setQuickStats] = useState<{ eventsToday: number; activeMonitors: number; pitchesGenerated: number } | null>(null)
   const router = useRouter()
   const { supabase } = useMemo(() => {
     try {
@@ -110,7 +112,7 @@ export default function LandingClient() {
   const checkSubscription = useCallback(async () => {
     try {
       if (!supabase) return
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUserSafe(supabase)
       if (!user) {
         return
       }
@@ -140,6 +142,39 @@ export default function LandingClient() {
     }
   }, [supabase])
 
+  const loadQuickStats = useCallback(async () => {
+    if (!supabase) {
+      setQuickStats(null)
+      return
+    }
+    const user = await getUserSafe(supabase)
+    if (!user) {
+      setQuickStats(null)
+      return
+    }
+
+    // UTC "today"
+    const now = new Date()
+    const startUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0))
+    const startIso = startUtc.toISOString()
+
+    try {
+      const [{ count: eventsToday }, { count: monitors }, { count: pitches }] = await Promise.all([
+        supabase.from('trigger_events').select('id', { count: 'exact', head: true }).gte('detected_at', startIso),
+        supabase.from('leads').select('id', { count: 'exact', head: true }),
+        supabase.from('pitches').select('id', { count: 'exact', head: true }),
+      ])
+
+      setQuickStats({
+        eventsToday: typeof eventsToday === 'number' ? eventsToday : 0,
+        activeMonitors: typeof monitors === 'number' ? monitors : 0,
+        pitchesGenerated: typeof pitches === 'number' ? pitches : 0,
+      })
+    } catch {
+      setQuickStats({ eventsToday: 0, activeMonitors: 0, pitchesGenerated: 0 })
+    }
+  }, [supabase])
+
   useEffect(() => {
     let cancelled = false
 
@@ -154,7 +189,7 @@ export default function LandingClient() {
       }
 
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         if (cancelled) return
         const loggedIn = !!user
         setIsLoggedIn(loggedIn)
@@ -163,16 +198,19 @@ export default function LandingClient() {
         if (loggedIn) {
           loadEvents()
           checkSubscription()
+          loadQuickStats()
         } else {
           setLoading(false)
           setEvents([])
           setSubscriptionTier('free')
+          setQuickStats(null)
         }
       } catch {
         if (!cancelled) {
           setIsLoggedIn(false)
           setLoading(false)
           setEvents([])
+          setQuickStats(null)
         }
       }
     }
@@ -181,7 +219,7 @@ export default function LandingClient() {
     return () => {
       cancelled = true
     }
-  }, [supabase, loadEvents, checkSubscription])
+  }, [supabase, loadEvents, checkSubscription, loadQuickStats])
 
   const handleGeneratePitch = (companyUrl: string, companyName: string) => {
     router.push(`/pitch?url=${encodeURIComponent(companyUrl)}&name=${encodeURIComponent(companyName)}`)
@@ -299,16 +337,23 @@ export default function LandingClient() {
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Events Today</p>
-                  <p className="text-2xl font-bold">{events.length}</p>
+                  <p className="text-2xl font-bold">{quickStats?.eventsToday ?? 0}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Active Monitors</p>
-                  <p className="text-2xl font-bold">12</p>
+                  <p className="text-2xl font-bold">{quickStats?.activeMonitors ?? 0}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Pitches Generated</p>
-                  <p className="text-2xl font-bold">47</p>
+                  <p className="text-2xl font-bold">{quickStats?.pitchesGenerated ?? 0}</p>
                 </div>
+                {isLoggedIn && quickStats && quickStats.eventsToday === 0 && quickStats.activeMonitors === 0 && quickStats.pitchesGenerated === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No activity yet — start by generating your first pitch.
+                  </p>
+                ) : !isLoggedIn ? (
+                  <p className="text-xs text-muted-foreground">Sign in to see your stats.</p>
+                ) : null}
               </CardContent>
             </Card>
           </div>

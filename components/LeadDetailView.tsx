@@ -15,6 +15,7 @@ import type { Lead } from "@/lib/supabaseClient"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { formatErrorMessage } from "@/lib/utils/format-error"
+import { getUserSafe } from "@/lib/supabase/safe-auth"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -73,7 +74,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     // Load user settings for personalization
     const loadUserSettings = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         if (user) {
           const { data } = await supabase
             .from('user_settings')

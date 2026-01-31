@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, ArrowRight, ArrowLeft, Check, Zap, AlertTriangle, X } from "lucide-react"
 import { formatErrorMessage } from "@/lib/utils/format-error"
+import { getUserSafe } from "@/lib/supabase/safe-auth"
 
 interface OnboardingWizardProps {
   onComplete: () => void
@@ -40,6 +41,13 @@ function isLocalEnvironment(): boolean {
   if (typeof window === 'undefined') return false
   const hostname = window.location.hostname
   return hostname === 'localhost' || hostname === '127.0.0.1'
+}
+
+function isValidEmail(email: string): boolean {
+  const s = email.trim()
+  if (!s) return false
+  // Simple, user-friendly validation (server does strict zod validation too).
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
 }
 
 const INDUSTRY_OPTIONS = [
@@ -94,7 +102,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
     }
     // Get current user
     void (async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUserSafe(supabase)
       if (user) {
         setUserId(user.id)
         // Try to get email and name from user
@@ -102,7 +110,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
         setSenderName(user.user_metadata?.full_name || user.email?.split('@')[0] || '')
       }
     })()
-  }, [supabase.auth])
+  }, [supabase])
 
   const handleIndustryToggle = (industry: string) => {
     setSelectedIndustries(prev =>
@@ -136,13 +144,22 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
     setError(null)
     
     try {
+      if (!senderName.trim()) {
+        setError('Please enter your name.')
+        return
+      }
+      if (!isValidEmail(senderEmail)) {
+        setError('Please enter a valid email address.')
+        return
+      }
+
       // Save user settings via API route (ensures correct schema/RLS)
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           display_name: senderName || whatYouSell,
-          from_email: senderEmail || '',
+          from_email: senderEmail.trim(),
           from_name: senderName || whatYouSell,
           onboarding_completed: true,
           role: role || undefined,
@@ -255,7 +272,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
 
   return (
     <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl border-cyan-500/30 bg-card/95">
+      <Card className="w-full max-w-2xl border-cyan-500/30 bg-card/95 max-h-[calc(100vh-2rem)] flex flex-col">
         <CardHeader className="border-b border-cyan-500/20">
           <div className="flex items-center justify-between mb-4">
             <CardTitle className="text-2xl bloomberg-font neon-cyan">
@@ -290,7 +307,8 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
           </div>
         </CardHeader>
 
-        <CardContent className="pt-6 space-y-6">
+        <CardContent className="flex-1 overflow-hidden p-0">
+          <div className="px-6 pt-6 pb-4 space-y-6 overflow-y-auto">
           {/* Error Display */}
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
@@ -551,47 +569,50 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
               </div>
             </div>
           )}
+          </div>
 
-          {/* Navigation Buttons */}
-          <div className="flex items-center justify-between pt-4 border-t border-cyan-500/20">
-            <Button
-              variant="ghost"
-              onClick={() => setStep(Math.max(1, step - 1))}
-              disabled={step === 1 || loading}
-              className="hover:bg-background/50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
+          {/* Sticky Footer Navigation */}
+          <div className="px-6 py-4 border-t border-cyan-500/20 bg-card/95">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                onClick={() => setStep(Math.max(1, step - 1))}
+                disabled={step === 1 || loading}
+                className="hover:bg-background/50"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
 
-            {step < 3 ? (
-              <Button
-                onClick={handleNext}
-                disabled={!canProceed()}
-                className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
-              >
-                Next
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            ) : (
-              <Button
-                onClick={handleComplete}
-                disabled={!canProceed() || loading}
-                className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Complete Setup
-                  </>
-                )}
-              </Button>
-            )}
+              {step < 3 ? (
+                <Button
+                  onClick={handleNext}
+                  disabled={!canProceed()}
+                  className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleComplete}
+                  disabled={!canProceed() || loading}
+                  className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Complete Setup
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

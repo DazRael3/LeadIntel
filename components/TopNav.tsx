@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 export function TopNav() {
   const router = useRouter()
@@ -23,7 +24,7 @@ export function TopNav() {
         const supabase = createClient()
         
         // Check initial auth state
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         setIsLoggedIn(!!user)
         setLoading(false)
 
@@ -34,7 +35,7 @@ export function TopNav() {
         })
         subscription = data.subscription
       } catch (error) {
-        console.error('[TopNav] Failed to initialize auth:', error)
+        // Avoid noisy auth errors in dev; show logged-out CTAs instead.
         setSupabaseError(true)
         setLoading(false)
       }

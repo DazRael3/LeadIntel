@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { track } from '@/lib/analytics'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 type Channel = 'email' | 'phone' | 'linkedin' | 'slack' | 'other'
 
@@ -31,7 +32,7 @@ export function CommunicationPreferencesCard() {
     let cancelled = false
     void (async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         if (!user) {
           if (!cancelled) setLoading(false)
           return

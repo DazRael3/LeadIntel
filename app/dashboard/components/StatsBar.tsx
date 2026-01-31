@@ -12,6 +12,7 @@ interface StatsBarProps {
 }
 
 export function StatsBar({ totalLeads, eventsCount, isPro, onDebugClick, debugEnabled }: StatsBarProps) {
+  const showEmptyHint = totalLeads === 0 && eventsCount === 0
   return (
     <div className="border-b border-cyan-500/10 bg-background/60 backdrop-blur-sm">
       <div className="container mx-auto px-6 py-3">
@@ -33,6 +34,9 @@ export function StatsBar({ totalLeads, eventsCount, isPro, onDebugClick, debugEn
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Events</p>
                 <p className="text-xl font-bold neon-green">{eventsCount}</p>
+                {showEmptyHint ? (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">No activity yet</p>
+                ) : null}
               </div>
             </div>
             <div className="flex items-center gap-3">

@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { isE2E } from '@/lib/runtimeFlags'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -109,13 +110,9 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   useEffect(() => {
     let cancelled = false
     const init = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (cancelled) return
-        setCurrentUserId(user?.id ?? null)
-      } catch {
-        if (!cancelled) setCurrentUserId(null)
-      }
+      const user = await getUserSafe(supabase)
+      if (cancelled) return
+      setCurrentUserId(user?.id ?? null)
     }
     void init()
     return () => {
@@ -125,7 +122,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
 
   const checkSubscription = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUserSafe(supabase)
       if (user) {
         const { data } = await supabase
           .from('users')
@@ -138,7 +135,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
         }
       }
     } catch (error) {
-      console.error('Error checking subscription:', error)
+      // Best-effort: avoid noisy auth/token logs on client
     }
   }, [supabase])
 
@@ -355,8 +352,8 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     // Check authentication before calling API (skip redirect in Playwright/E2E to keep tests deterministic).
     setAuthError(null)
     if (!isE2E()) {
-      const { data: { user }, error: authCheckError } = await supabase.auth.getUser()
-      if (authCheckError || !user) {
+      const user = await getUserSafe(supabase)
+      if (!user) {
         setAuthError('Please sign in to generate intelligence.')
         router.push('/login?redirect=/')
         return
@@ -382,20 +379,24 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
           router.push('/login?redirect=/')
           return
         }
-        const errorData = await response.json().catch(() => null)
-        // Extract error message from various response formats
+        // Prefer the standardized error envelope; fall back to response text if JSON parsing fails.
+        const rawText = await response.text().catch(() => '')
+        let errorData: unknown = null
+        try {
+          errorData = rawText ? (JSON.parse(rawText) as unknown) : null
+        } catch {
+          errorData = null
+        }
         let errorMessage = 'Failed to generate pitch. Please try again.'
         if (errorData) {
-          // Handle { error: { message } } format
-          if (typeof errorData.error?.message === 'string') {
-            errorMessage = errorData.error.message
-          // Handle { error: string } format
-          } else if (typeof errorData.error === 'string') {
-            errorMessage = errorData.error
-          // Handle { message: string } format
-          } else if (typeof errorData.message === 'string') {
-            errorMessage = errorData.message
-          }
+          const obj = errorData as any
+          if (typeof obj.error?.message === 'string') errorMessage = obj.error.message
+          else if (typeof obj.error === 'string') errorMessage = obj.error
+          else if (typeof obj.message === 'string') errorMessage = obj.message
+        } else if (rawText.trim()) {
+          errorMessage = rawText.trim().slice(0, 200)
+        } else if (response.status === 424) {
+          errorMessage = 'Database migration required. Please apply latest Supabase migrations.'
         }
         throw new Error(errorMessage)
       }
