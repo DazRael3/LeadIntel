@@ -94,6 +94,7 @@ export function getClientIp(request: NextRequest): string {
  * Prevents spam in development logs
  */
 let hasLoggedWarning = false
+let cachedRedisConfig: { url: string; token: string } | null | undefined
 
 /**
  * Check if we're in a test/e2e environment where rate limiting should be disabled
@@ -105,6 +106,31 @@ function isTestEnvironment(): boolean {
     process.env.E2E === '1' ||
     process.env.CI === 'true'
   )
+}
+
+function getUpstashRedisConfig(): { url: string; token: string } | null {
+  if (cachedRedisConfig !== undefined) return cachedRedisConfig
+
+  const url = (process.env.UPSTASH_REDIS_REST_URL ?? '').trim()
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN ?? '').trim()
+
+  const hasValidUrl = /^https?:\/\//.test(url)
+  const hasValidToken = token.length > 0
+
+  if (!hasValidUrl || !hasValidToken) {
+    if (serverEnv.NODE_ENV !== 'production' && !hasLoggedWarning) {
+      console.warn(
+        '[ratelimit] Upstash Redis not configured (missing/invalid UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN). ' +
+          'Rate limiting disabled.'
+      )
+      hasLoggedWarning = true
+    }
+    cachedRedisConfig = null
+    return cachedRedisConfig
+  }
+
+  cachedRedisConfig = { url, token }
+  return cachedRedisConfig
 }
 
 /**
@@ -122,20 +148,9 @@ function createRedisClient(): Redis | null {
     return null
   }
   
-  try {
-    // Redis.fromEnv() automatically reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
-    return Redis.fromEnv()
-  } catch (error) {
-    // Redis.fromEnv() throws if env vars are missing
-    const isDev = serverEnv.NODE_ENV === 'development'
-    
-    if (isDev && !hasLoggedWarning) {
-      console.warn('[ratelimit] Upstash Redis not configured (UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN required). Rate limiting disabled.')
-      hasLoggedWarning = true
-    }
-    
-    return null
-  }
+  const cfg = getUpstashRedisConfig()
+  if (!cfg) return null
+  return new Redis({ url: cfg.url, token: cfg.token })
 }
 
 /**

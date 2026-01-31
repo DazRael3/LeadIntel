@@ -75,9 +75,15 @@ export async function checkSupabaseApi(): Promise<HealthComponent> {
 
 export async function checkRedis(): Promise<HealthComponent> {
   if (isTestLikeEnv()) return componentOk('skipped in test-like env')
+  const url = (process.env.UPSTASH_REDIS_REST_URL ?? '').trim()
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN ?? '').trim()
+  const hasValidUrl = /^https?:\/\//.test(url)
+  const hasValidToken = token.length > 0
+  if (!hasValidUrl || !hasValidToken) {
+    return serverEnv.NODE_ENV === 'production' ? componentDown('redis not configured') : componentDegraded('not configured')
+  }
   try {
-    // Redis.fromEnv throws if env missing
-    const redis = Redis.fromEnv()
+    const redis = new Redis({ url, token })
     // Use a read-only operation (no writes)
     await redis.get('@leadintel/health')
     return componentOk('ok')

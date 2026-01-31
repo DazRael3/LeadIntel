@@ -19,12 +19,39 @@ import { checkPolicyRateLimitMemory } from './ratelimit-memory'
  * Prevents spam in development logs
  */
 let hasLoggedWarning = false
+let cachedRedisConfig: { url: string; token: string } | null | undefined
 
 /**
  * Check if we're in a test/e2e environment where we should use in-memory limiter
  */
 function shouldUseMemoryLimiter(): boolean {
   return isE2E() || isTestEnv() || isCI()
+}
+
+function getUpstashRedisConfig(): { url: string; token: string } | null {
+  if (cachedRedisConfig !== undefined) return cachedRedisConfig
+
+  // Read directly from process.env so missing env vars don't throw.
+  const url = (process.env.UPSTASH_REDIS_REST_URL ?? '').trim()
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN ?? '').trim()
+
+  const hasValidUrl = /^https?:\/\//.test(url)
+  const hasValidToken = token.length > 0
+
+  if (!hasValidUrl || !hasValidToken) {
+    if (serverEnv.NODE_ENV !== 'production' && !hasLoggedWarning) {
+      console.warn(
+        '[ratelimit] Upstash Redis not configured (missing/invalid UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN). ' +
+          'Disabling rate limiting in this environment.'
+      )
+      hasLoggedWarning = true
+    }
+    cachedRedisConfig = null
+    return cachedRedisConfig
+  }
+
+  cachedRedisConfig = { url, token }
+  return cachedRedisConfig
 }
 
 /**
@@ -42,20 +69,11 @@ function createRedisClient(): Redis | null {
     return null
   }
   
-  try {
-    // Redis.fromEnv() automatically reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
-    return Redis.fromEnv()
-  } catch (error) {
-    // Redis.fromEnv() throws if env vars are missing
-    const isDev = serverEnv.NODE_ENV === 'development'
-    
-    if (isDev && !hasLoggedWarning) {
-      console.warn('[ratelimit] Upstash Redis not configured (UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN required). Rate limiting disabled.')
-      hasLoggedWarning = true
-    }
-    
-    return null
-  }
+  const cfg = getUpstashRedisConfig()
+  if (!cfg) return null
+
+  // IMPORTANT: never call Redis.fromEnv() when env is missing; it may log and still create a broken client.
+  return new Redis({ url: cfg.url, token: cfg.token })
 }
 
 /**
@@ -121,13 +139,12 @@ export async function checkPolicyRateLimit(
     return checkPolicyRateLimitMemory(request, userId, route, policy)
   }
   
-  // Get Redis client
-  const redis = createRedisClient()
-  if (!redis) {
-    // In production, throw error to return 503
-    // In development, return null to disable rate limiting
+  // If Upstash isn't configured, disable rate limiting in non-prod; in prod, return 503 (existing behavior).
+  if (!getUpstashRedisConfig()) {
     if (serverEnv.NODE_ENV === 'production') {
-      throw new RedisNotConfiguredError('Rate limiting service unavailable. UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be configured in production.')
+      throw new RedisNotConfiguredError(
+        'Rate limiting service unavailable. UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be configured in production.'
+      )
     }
     return null
   }
