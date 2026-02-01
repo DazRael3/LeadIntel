@@ -23,6 +23,9 @@ export function CommunicationPreferencesCard() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastErrorStatus, setLastErrorStatus] = useState<number | null>(null)
+  const [lastErrorCode, setLastErrorCode] = useState<string | null>(null)
+  const [lastCorrelationId, setLastCorrelationId] = useState<string | null>(null)
 
   const [preferredContactChannel, setPreferredContactChannel] = useState<Channel | ''>('')
   const [preferredContactDetail, setPreferredContactDetail] = useState<string>('')
@@ -98,6 +101,12 @@ export function CommunicationPreferencesCard() {
           console.warn('[CommunicationPreferencesCard] /api/settings returned non-JSON error', { status: res.status, raw })
         }
 
+        setLastErrorStatus(res.status)
+        setLastErrorCode(typeof (payload as any)?.code === 'string' ? (payload as any).code : null)
+        setLastCorrelationId(
+          (typeof (payload as any)?.correlationId === 'string' ? (payload as any).correlationId : null) ??
+            res.headers.get('x-correlation-id')
+        )
         setError(msg)
         return
       }
@@ -175,6 +184,17 @@ export function CommunicationPreferencesCard() {
                 {saving ? 'Saving…' : 'Save preferences'}
               </Button>
             </div>
+
+            {process.env.NODE_ENV !== 'production' ? (
+              <div className="mt-2 rounded border text-xs px-2 py-1 text-muted-foreground bg-muted/40">
+                <div className="font-mono">
+                  <span>DEBUG: </span>
+                  <span>status={lastErrorStatus ?? 'none'} </span>
+                  <span>code={lastErrorCode ?? 'none'} </span>
+                  <span>correlationId={lastCorrelationId ?? 'none'}</span>
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </CardContent>

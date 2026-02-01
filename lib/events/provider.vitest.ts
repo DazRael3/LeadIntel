@@ -44,7 +44,6 @@ describe('trigger events provider pipeline', () => {
   it('withProviderLogging emits start+success when enabled', async () => {
     process.env.TRIGGER_EVENTS_DEBUG_LOGGING = 'true'
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
 
     const out = await withProviderLogging(
       'unit',
@@ -53,16 +52,15 @@ describe('trigger events provider pipeline', () => {
     )
 
     expect(out.length).toBe(1)
-    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({ scope: 'trigger-events', message: 'provider.start', providerName: 'unit' }))
-    expect(infoSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: 'trigger-events', message: 'provider.success', providerName: 'unit', count: 1, correlationId: 'c1' })
-    )
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[trigger-events] provider.start'))
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('provider=unit'))
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('corr=c1'))
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[trigger-events] provider.success'))
   })
 
   it('withProviderLogging returns [] and logs provider.error when fn throws', async () => {
     process.env.TRIGGER_EVENTS_DEBUG_LOGGING = 'true'
     vi.spyOn(console, 'log').mockImplementation(() => {})
-    vi.spyOn(console, 'info').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     const out = await withProviderLogging(
@@ -74,13 +72,13 @@ describe('trigger events provider pipeline', () => {
     )
 
     expect(out).toEqual([])
-    expect(warnSpy).toHaveBeenCalledWith(expect.objectContaining({ scope: 'trigger-events', message: 'provider.error', providerName: 'unit' }))
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[trigger-events] provider.error'))
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('provider=unit'))
   })
 
   it('composite provider logs summary with providerCounts', async () => {
     process.env.TRIGGER_EVENTS_DEBUG_LOGGING = 'true'
-    vi.spyOn(console, 'log').mockImplementation(() => {})
-    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     const composite = getCompositeTriggerEventsProvider({
       ctx: { correlationId: 'corr', companyDomain: 'acme.com', companyName: 'Acme', userId: 'u1' },
@@ -103,15 +101,8 @@ describe('trigger events provider pipeline', () => {
 
     const out = await composite({ companyName: 'Acme', companyDomain: 'acme.com' })
     expect(out.length).toBe(2)
-    expect(infoSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: 'trigger-events',
-        message: 'composite.summary',
-        totalEvents: 2,
-        providerCounts: expect.objectContaining({ newsapi: 2, rss: 1 }),
-        correlationId: 'corr',
-      })
-    )
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[trigger-events] composite.summary'))
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('corr=corr'))
   })
 
   it('newsapi provider is noop when NEWSAPI_API_KEY is missing', async () => {

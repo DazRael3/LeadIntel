@@ -4,6 +4,7 @@ import { ok, fail, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { UserSettingsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { createCorrelationId, logError, logWarn } from '@/lib/logging'
 
 type SupabaseWriteError = { code?: string; message?: string; details?: string | null; hint?: string | null }
 
@@ -21,6 +22,7 @@ function isRlsOrPermissionError(err: SupabaseWriteError): boolean {
 export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
     const bridge = createCookieBridge()
+    let correlationId = createCorrelationId('settings', requestId)
     try {
       const supabase = createRouteClient(request, bridge)
 
@@ -28,14 +30,34 @@ export const POST = withApiGuard(
       // Use safe-auth so refresh_token_not_found becomes a clean "logged out" state.
       const user = await getUserSafe(supabase)
       if (!user) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+        const res = NextResponse.json(
+          { error: 'Not authenticated', code: 'not_authenticated', correlationId },
+          { status: 401 }
+        )
+        res.headers.set('x-correlation-id', correlationId)
+        return res
       }
+      correlationId = createCorrelationId('settings', requestId, user.id)
 
       const parsed = UserSettingsSchema.safeParse(body)
       if (!parsed.success) {
-        return NextResponse.json(
+        logWarn({
+          scope: 'settings',
+          message: 'save.invalid_payload',
+          statusCode: 400,
+          correlationId,
+          userId: user.id,
+          errorCode: 'invalid_payload',
+          details:
+            process.env.NODE_ENV === 'development'
+              ? parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
+              : undefined,
+        })
+        const res = NextResponse.json(
           {
             error: 'Invalid settings payload',
+            code: 'invalid_payload',
+            correlationId,
             details:
               process.env.NODE_ENV === 'development'
                 ? parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
@@ -43,6 +65,8 @@ export const POST = withApiGuard(
           },
           { status: 400 }
         )
+        res.headers.set('x-correlation-id', correlationId)
+        return res
       }
       const input = parsed.data
       const display_name = typeof input.display_name === 'string' ? input.display_name : undefined
@@ -94,9 +118,17 @@ export const POST = withApiGuard(
         .single()
 
       if (error) {
-        console.error('[api/settings] Supabase upsert error', {
-          code: (error as SupabaseWriteError).code,
-          message: (error as SupabaseWriteError).message,
+        logError({
+          scope: 'settings',
+          message: 'save.supabase_upsert_failed',
+          statusCode: 500,
+          correlationId,
+          userId: user.id,
+          errorCode: (error as SupabaseWriteError).code ?? 'supabase_upsert_failed',
+          details:
+            process.env.NODE_ENV === 'development'
+              ? { code: (error as SupabaseWriteError).code, message: (error as SupabaseWriteError).message }
+              : undefined,
         })
 
         // Detect PostgREST schema cache errors or missing column errors
@@ -111,24 +143,24 @@ export const POST = withApiGuard(
           error.hint?.includes('schema cache')
 
         if (isSchemaCacheError) {
-          return fail(
-            ErrorCode.SCHEMA_MIGRATION_REQUIRED,
-            'Database schema migration required. Please apply the latest Supabase migrations and reload schema cache.',
+          const res = NextResponse.json(
             {
-              action: 'Apply migrations and reload schema cache',
-              migration_file: 'supabase/migrations/',
-              sqlHint: "After running the migration, execute: NOTIFY pgrst, 'reload schema';",
+              error: 'Database schema migration required. Please apply the latest Supabase migrations and reload schema cache.',
+              code: ErrorCode.SCHEMA_MIGRATION_REQUIRED,
+              correlationId,
             },
-            undefined,
-            bridge,
-            requestId
+            { status: 424 }
           )
+          res.headers.set('x-correlation-id', correlationId)
+          return res
         }
 
         if (isRlsOrPermissionError(error as SupabaseWriteError)) {
-          return NextResponse.json(
+          const res = NextResponse.json(
             {
               error: 'Forbidden',
+              code: 'forbidden',
+              correlationId,
               details:
                 process.env.NODE_ENV === 'development'
                   ? `${(error as SupabaseWriteError).code ?? ''} ${(error as SupabaseWriteError).message ?? ''}`.trim()
@@ -136,12 +168,16 @@ export const POST = withApiGuard(
             },
             { status: 403 }
           )
+          res.headers.set('x-correlation-id', correlationId)
+          return res
         }
 
         // Default: treat as server-side save failure but with a clear payload.
-        return NextResponse.json(
+        const res = NextResponse.json(
           {
             error: 'Failed to save settings',
+            code: 'settings_save_failed',
+            correlationId,
             details:
               process.env.NODE_ENV === 'development'
                 ? `${(error as SupabaseWriteError).code ?? ''} ${(error as SupabaseWriteError).message ?? ''}`.trim()
@@ -149,24 +185,32 @@ export const POST = withApiGuard(
           },
           { status: 500 }
         )
+        res.headers.set('x-correlation-id', correlationId)
+        return res
       }
 
       return ok({ settings: updated }, undefined, bridge, requestId)
     } catch (error: unknown) {
-      // Structured server log (no secrets)
-      const errObj = error as { code?: string; message?: string }
-      console.error('[api/settings] Error saving settings', error instanceof Error ? error : {
-        code: typeof errObj?.code === 'string' ? errObj.code : undefined,
-        message: typeof errObj?.message === 'string' ? errObj.message : String(error),
+      logError({
+        scope: 'settings',
+        message: 'save.failed',
+        statusCode: 500,
+        correlationId,
+        errorCode: 'unexpected_error',
+        details: process.env.NODE_ENV === 'development' ? { error: String(error) } : undefined,
       })
 
-      return NextResponse.json(
+      const res = NextResponse.json(
         {
           error: 'Failed to save settings',
+          code: 'settings_save_failed',
+          correlationId,
           details: process.env.NODE_ENV === 'development' ? String(error) : undefined,
         },
         { status: 500 }
       )
+      res.headers.set('x-correlation-id', correlationId)
+      return res
     }
   },
   // We validate inside the handler so we can return a dev-friendly 400 payload.

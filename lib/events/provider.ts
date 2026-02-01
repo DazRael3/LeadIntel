@@ -1,4 +1,5 @@
 import Parser from 'rss-parser'
+import { logError, logInfo, logWarn } from '@/lib/logging'
 
 export type TriggerEventsProviderName = 'none' | 'newsapi' | 'finnhub' | 'gdelt' | 'crunchbase' | 'rss' | 'custom'
 
@@ -51,13 +52,15 @@ export function logTriggerProvider(level: LogLevel, message: string, data: Recor
   const enabled = isDebugLoggingEnabled()
   if (!enabled && (level === 'debug' || level === 'info')) return
 
-  const method: 'log' | 'info' | 'warn' | 'error' = level === 'debug' ? 'log' : level
-  // Emit a single JSON-like object so Vercel logs are grep-friendly.
-  console[method]({
+  const event = {
     scope: 'trigger-events',
     message,
-    ...data,
-  })
+    ...(data ?? {}),
+  } as const
+
+  if (level === 'warn') return logWarn(event)
+  if (level === 'error') return logError(event)
+  return logInfo(event)
 }
 
 export async function withProviderLogging(
@@ -213,7 +216,19 @@ export function getCompositeTriggerEventsProvider(args?: {
       providerCounts[providerName] = 0
 
       if (!spec.enabled) {
-        logTriggerProvider('debug', 'provider.skipped', { providerName, reason: spec.skipReason ?? 'disabled', ...ctx })
+        const reason = spec.skipReason ?? 'disabled'
+        // Missing API keys are worth a warn (but keep it concise; no secrets).
+        if (reason === 'missing_api_key') {
+          logTriggerProvider('warn', 'provider.skipped', {
+            providerName,
+            reason,
+            expectedEnvVar: providerName === 'newsapi' ? 'NEWSAPI_API_KEY' : undefined,
+            errorCode: `${providerName}_missing_key`,
+            ...ctx,
+          })
+        } else {
+          logTriggerProvider('debug', 'provider.skipped', { providerName, reason, ...ctx })
+        }
         continue
       }
       const gate = spec.shouldRun?.(input) ?? { ok: true }
