@@ -1,5 +1,5 @@
 import Parser from 'rss-parser'
-import { logError, logInfo, logWarn } from '@/lib/logging'
+import { log, logError, logInfo, logWarn } from '@/lib/logging/logger'
 
 export type TriggerEventsProviderName = 'none' | 'newsapi' | 'finnhub' | 'gdelt' | 'crunchbase' | 'rss' | 'custom'
 
@@ -60,6 +60,7 @@ export function logTriggerProvider(level: LogLevel, message: string, data: Recor
 
   if (level === 'warn') return logWarn(event)
   if (level === 'error') return logError(event)
+  if (level === 'debug') return log({ ...event, level: 'debug' })
   return logInfo(event)
 }
 

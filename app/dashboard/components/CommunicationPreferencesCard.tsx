@@ -23,9 +23,11 @@ export function CommunicationPreferencesCard() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lastErrorStatus, setLastErrorStatus] = useState<number | null>(null)
-  const [lastErrorCode, setLastErrorCode] = useState<string | null>(null)
-  const [lastCorrelationId, setLastCorrelationId] = useState<string | null>(null)
+  const [lastErrorMeta, setLastErrorMeta] = useState<{
+    status?: number
+    code?: string
+    correlationId?: string | null
+  } | null>(null)
 
   const [preferredContactChannel, setPreferredContactChannel] = useState<Channel | ''>('')
   const [preferredContactDetail, setPreferredContactDetail] = useState<string>('')
@@ -83,33 +85,33 @@ export function CommunicationPreferencesCard() {
       })
       if (!res.ok) {
         const raw = await res.text().catch(() => '')
-        let payload: unknown = null
+        let parsed: any = null
         try {
-          payload = raw ? (JSON.parse(raw) as unknown) : null
+          parsed = raw ? JSON.parse(raw) : null
         } catch {
-          payload = null
+          parsed = null
         }
 
-        const msg =
-          typeof (payload as any)?.error === 'string'
-            ? (payload as any).error
-            : typeof (payload as any)?.error?.message === 'string'
-              ? (payload as any).error.message
-              : 'Failed to save preferences'
+        const msg = parsed?.error || parsed?.message || 'Failed to save preferences'
 
-        if (process.env.NODE_ENV === 'development' && raw && !payload) {
+        const correlationId = res.headers.get('x-correlation-id') ?? parsed?.correlationId ?? null
+        const code = parsed?.code ?? parsed?.errorCode ?? parsed?.statusCode ?? null
+
+        setLastErrorMeta({
+          status: res.status,
+          code: typeof code === 'string' ? code : undefined,
+          correlationId: typeof correlationId === 'string' ? correlationId : null,
+        })
+
+        const IS_DEV = process.env.NODE_ENV === 'development'
+        if (IS_DEV && raw && !parsed) {
           console.warn('[CommunicationPreferencesCard] /api/settings returned non-JSON error', { status: res.status, raw })
         }
 
-        setLastErrorStatus(res.status)
-        setLastErrorCode(typeof (payload as any)?.code === 'string' ? (payload as any).code : null)
-        setLastCorrelationId(
-          (typeof (payload as any)?.correlationId === 'string' ? (payload as any).correlationId : null) ??
-            res.headers.get('x-correlation-id')
-        )
         setError(msg)
         return
       }
+      setLastErrorMeta(null)
       track('user.updated_communication_preferences', {
         channel: preferredContactChannel || null,
         allow_product_updates: allowProductUpdates,
@@ -120,6 +122,8 @@ export function CommunicationPreferencesCard() {
       setSaving(false)
     }
   }
+
+  const IS_DEV = process.env.NODE_ENV === 'development'
 
   return (
     <Card className="border-cyan-500/20 bg-card/50">
@@ -185,13 +189,12 @@ export function CommunicationPreferencesCard() {
               </Button>
             </div>
 
-            {process.env.NODE_ENV !== 'production' ? (
-              <div className="mt-2 rounded border text-xs px-2 py-1 text-muted-foreground bg-muted/40">
-                <div className="font-mono">
-                  <span>DEBUG: </span>
-                  <span>status={lastErrorStatus ?? 'none'} </span>
-                  <span>code={lastErrorCode ?? 'none'} </span>
-                  <span>correlationId={lastCorrelationId ?? 'none'}</span>
+            {IS_DEV && lastErrorMeta ? (
+              <div className="mt-3 rounded-md border border-dashed border-yellow-500/40 bg-yellow-950/40 px-3 py-1.5 text-xs font-mono text-yellow-200">
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  <span>status={lastErrorMeta.status ?? 'n/a'}</span>
+                  <span>code={lastErrorMeta.code ?? 'n/a'}</span>
+                  <span>correlationId={lastErrorMeta.correlationId ?? 'n/a'}</span>
                 </div>
               </div>
             ) : null}

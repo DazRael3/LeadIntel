@@ -52,10 +52,12 @@ describe('trigger events provider pipeline', () => {
     )
 
     expect(out.length).toBe(1)
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[trigger-events] provider.start'))
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('provider=unit'))
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('corr=c1'))
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[trigger-events] provider.success'))
+    const first = logSpy.mock.calls[0]?.[0]
+    const second = logSpy.mock.calls[1]?.[0]
+    expect(typeof first).toBe('string')
+    expect(typeof second).toBe('string')
+    expect(JSON.parse(first as string)).toMatchObject({ scope: 'trigger-events', message: 'provider.start', providerName: 'unit', correlationId: 'c1' })
+    expect(JSON.parse(second as string)).toMatchObject({ scope: 'trigger-events', message: 'provider.success', providerName: 'unit', correlationId: 'c1' })
   })
 
   it('withProviderLogging returns [] and logs provider.error when fn throws', async () => {
@@ -72,8 +74,9 @@ describe('trigger events provider pipeline', () => {
     )
 
     expect(out).toEqual([])
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[trigger-events] provider.error'))
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('provider=unit'))
+    const line = warnSpy.mock.calls[0]?.[0]
+    expect(typeof line).toBe('string')
+    expect(JSON.parse(line as string)).toMatchObject({ scope: 'trigger-events', message: 'provider.error', providerName: 'unit', correlationId: 'c1' })
   })
 
   it('composite provider logs summary with providerCounts', async () => {
@@ -101,8 +104,9 @@ describe('trigger events provider pipeline', () => {
 
     const out = await composite({ companyName: 'Acme', companyDomain: 'acme.com' })
     expect(out.length).toBe(2)
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[trigger-events] composite.summary'))
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('corr=corr'))
+    const last = logSpy.mock.calls[logSpy.mock.calls.length - 1]?.[0]
+    expect(typeof last).toBe('string')
+    expect(JSON.parse(last as string)).toMatchObject({ scope: 'trigger-events', message: 'composite.summary', correlationId: 'corr' })
   })
 
   it('newsapi provider is noop when NEWSAPI_API_KEY is missing', async () => {
