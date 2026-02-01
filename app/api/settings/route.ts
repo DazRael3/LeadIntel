@@ -31,7 +31,20 @@ export const POST = withApiGuard(
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
       }
 
-      const input = body as typeof UserSettingsSchema._type
+      const parsed = UserSettingsSchema.safeParse(body)
+      if (!parsed.success) {
+        return NextResponse.json(
+          {
+            error: 'Invalid settings payload',
+            details:
+              process.env.NODE_ENV === 'development'
+                ? parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
+                : undefined,
+          },
+          { status: 400 }
+        )
+      }
+      const input = parsed.data
       const display_name = typeof input.display_name === 'string' ? input.display_name : undefined
       const from_email = typeof input.from_email === 'string' ? input.from_email : undefined
       const from_name = typeof input.from_name === 'string' ? input.from_name : display_name || null
@@ -156,5 +169,5 @@ export const POST = withApiGuard(
       )
     }
   },
-  { bodySchema: UserSettingsSchema }
+  // We validate inside the handler so we can return a dev-friendly 400 payload.
 )

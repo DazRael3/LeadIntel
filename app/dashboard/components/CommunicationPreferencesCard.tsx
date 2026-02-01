@@ -79,13 +79,25 @@ export function CommunicationPreferencesCard() {
         }),
       })
       if (!res.ok) {
-        const payload = await res.json().catch(() => null)
+        const raw = await res.text().catch(() => '')
+        let payload: unknown = null
+        try {
+          payload = raw ? (JSON.parse(raw) as unknown) : null
+        } catch {
+          payload = null
+        }
+
         const msg =
           typeof (payload as any)?.error === 'string'
             ? (payload as any).error
             : typeof (payload as any)?.error?.message === 'string'
               ? (payload as any).error.message
               : 'Failed to save preferences'
+
+        if (process.env.NODE_ENV === 'development' && raw && !payload) {
+          console.warn('[CommunicationPreferencesCard] /api/settings returned non-JSON error', { status: res.status, raw })
+        }
+
         setError(msg)
         return
       }
