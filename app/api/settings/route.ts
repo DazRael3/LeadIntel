@@ -5,6 +5,19 @@ import { UserSettingsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 
+type SupabaseWriteError = { code?: string; message?: string; details?: string | null; hint?: string | null }
+
+function isRlsOrPermissionError(err: SupabaseWriteError): boolean {
+  const msg = (err.message ?? '').toLowerCase()
+  const code = (err.code ?? '').toLowerCase()
+  return (
+    code === '42501' ||
+    msg.includes('row-level security') ||
+    msg.includes('permission denied') ||
+    msg.includes('insufficient privilege')
+  )
+}
+
 export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
     const bridge = createCookieBridge()
@@ -68,6 +81,11 @@ export const POST = withApiGuard(
         .single()
 
       if (error) {
+        console.error('[api/settings] Supabase upsert error', {
+          code: (error as SupabaseWriteError).code,
+          message: (error as SupabaseWriteError).message,
+        })
+
         // Detect PostgREST schema cache errors or missing column errors
         const isSchemaCacheError =
           error.message?.includes('schema cache') ||
@@ -82,10 +100,10 @@ export const POST = withApiGuard(
         if (isSchemaCacheError) {
           return fail(
             ErrorCode.SCHEMA_MIGRATION_REQUIRED,
-            'Database schema migration required. The digest settings columns are missing from the user_settings table.',
+            'Database schema migration required. Please apply the latest Supabase migrations and reload schema cache.',
             {
-              action: 'Run migration 0004_digest_settings.sql and reload schema cache',
-              migration_file: 'supabase/migrations/0004_digest_settings.sql',
+              action: 'Apply migrations and reload schema cache',
+              migration_file: 'supabase/migrations/',
               sqlHint: "After running the migration, execute: NOTIFY pgrst, 'reload schema';",
             },
             undefined,
@@ -94,8 +112,30 @@ export const POST = withApiGuard(
           )
         }
 
-        // Fall through to the generic handler for consistent dev-friendly errors.
-        throw error
+        if (isRlsOrPermissionError(error as SupabaseWriteError)) {
+          return NextResponse.json(
+            {
+              error: 'Forbidden',
+              details:
+                process.env.NODE_ENV === 'development'
+                  ? `${(error as SupabaseWriteError).code ?? ''} ${(error as SupabaseWriteError).message ?? ''}`.trim()
+                  : undefined,
+            },
+            { status: 403 }
+          )
+        }
+
+        // Default: treat as server-side save failure but with a clear payload.
+        return NextResponse.json(
+          {
+            error: 'Failed to save settings',
+            details:
+              process.env.NODE_ENV === 'development'
+                ? `${(error as SupabaseWriteError).code ?? ''} ${(error as SupabaseWriteError).message ?? ''}`.trim()
+                : undefined,
+          },
+          { status: 500 }
+        )
       }
 
       return ok({ settings: updated }, undefined, bridge, requestId)

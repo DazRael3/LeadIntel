@@ -20,6 +20,7 @@ import { parseJson, PayloadTooLargeError, validationError } from './validate'
 import { fail, ErrorCode, createCookieBridge } from './http'
 import { getRequestId } from './with-request-id'
 import { createRouteClient } from '@/lib/supabase/route'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { serverEnv } from '@/lib/env'
@@ -129,9 +130,8 @@ export function withApiGuard(
     let userId: string | undefined = undefined
     if (policy.authRequired && !isCron) {
       const supabase = createRouteClient(request, bridge)
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      
-      if (authError || !user) {
+      const user = await getUserSafe(supabase)
+      if (!user) {
         return fail(
           ErrorCode.UNAUTHORIZED,
           'Authentication required',
@@ -238,7 +238,7 @@ export function withApiGuard(
       // Get user for rate limiting (if not already fetched during auth check)
       if (!policy.authRequired && !isCron) {
         const supabase = createRouteClient(request, bridge)
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         userId = user?.id || undefined
       }
 

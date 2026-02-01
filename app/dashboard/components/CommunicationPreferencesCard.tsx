@@ -79,7 +79,14 @@ export function CommunicationPreferencesCard() {
         }),
       })
       if (!res.ok) {
-        setError('Failed to save preferences')
+        const payload = await res.json().catch(() => null)
+        const msg =
+          typeof (payload as any)?.error === 'string'
+            ? (payload as any).error
+            : typeof (payload as any)?.error?.message === 'string'
+              ? (payload as any).error.message
+              : 'Failed to save preferences'
+        setError(msg)
         return
       }
       track('user.updated_communication_preferences', {

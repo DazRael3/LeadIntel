@@ -5,6 +5,9 @@ import { Toaster } from "@/components/ui/toaster"
 export const metadata: Metadata = {
   title: "LeadIntel - B2B Lead Intelligence Portal",
   description: "Advanced B2B lead intelligence and personalized pitch generation",
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({
