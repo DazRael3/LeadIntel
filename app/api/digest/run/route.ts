@@ -5,6 +5,11 @@ import { DigestRunSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { captureBreadcrumb, captureException } from '@/lib/observability/sentry'
+import { logError, logInfo, logWarn } from '@/lib/observability/logger'
+import { buildUserDigest } from '@/lib/services/digest'
+import { renderDailyDigestEmailHtml, renderDailyDigestEmailText } from '@/lib/email/templates'
+import { sendEmailWithResend } from '@/lib/email/resend'
+import { insertEmailLog } from '@/lib/email/email-logs'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +24,7 @@ async function sendWebhook(url: string, text: string) {
 export const POST = withApiGuard(
   async (request: NextRequest, { body, isCron, requestId }) => {
     const bridge = createCookieBridge()
+    const runCorrelationId = `digest:${requestId ?? new Date().toISOString()}`
 
     try {
       // Authorization:
@@ -43,6 +49,12 @@ export const POST = withApiGuard(
 
       if (usersError) {
         captureException(usersError, { route: '/api/digest/run', requestId, isCron })
+        logError({
+          scope: 'digest',
+          message: 'digest.fetch_users_failed',
+          correlationId: runCorrelationId,
+          isCron,
+        })
         return fail(ErrorCode.DATABASE_ERROR, 'Failed to fetch users', undefined, undefined, bridge, requestId)
       }
 
@@ -50,30 +62,122 @@ export const POST = withApiGuard(
 
       type DigestUserRow = { user_id: string; digest_webhook_url?: string | null }
       for (const u of (users || []) as DigestUserRow[]) {
-        // Fetch last 7d pitches
-        const { data: pitches } = await supabase
-          .from('pitches')
-          .select('content, created_at')
-          .eq('user_id', u.user_id)
-          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false })
+        const userCorrelationId = `${runCorrelationId}:${u.user_id}`
+        logInfo({ scope: 'digest', message: 'digest.user_start', userId: u.user_id, correlationId: userCorrelationId })
 
-        type PitchRow = { content?: string | null; created_at: string }
-        const lines = [
-          `LeadIntel Weekly Digest`,
-          `Pitches this week: ${(pitches || []).length}`,
-          '',
-          ...(pitches || []).slice(0, 5).map((p: PitchRow) => `- ${p.created_at}: ${p.content?.slice(0, 140) || ''}`),
-        ].join('\n')
+        // Build digest (best-effort).
+        const built = await buildUserDigest({ userId: u.user_id, correlationId: userCorrelationId })
+        if (!built.ok) {
+          logInfo({
+            scope: 'digest',
+            message: 'digest.skip',
+            userId: u.user_id,
+            correlationId: userCorrelationId,
+            reason: built.reason,
+          })
+          summaries.push({ user_id: u.user_id, delivered: false })
+          continue
+        }
+
+        // Resolve user email (best-effort).
+        let toEmail: string | null = null
+        try {
+          const { data: userRow } = await supabase.from('users').select('email').eq('id', u.user_id).maybeSingle()
+          toEmail = (userRow as { email?: string | null } | null)?.email ?? null
+        } catch {
+          toEmail = null
+        }
+
+        // Prepare digest content.
+        const brandName = 'LeadIntel'
+        const subject = `Your LeadIntel Daily Digest — ${built.summary.dateIso}`
+        const html = renderDailyDigestEmailHtml({
+          brandName,
+          dateIso: built.summary.dateIso,
+          summary: {
+            highPriorityLeadCount: built.summary.highPriorityLeadCount,
+            triggerEventCount: built.summary.triggerEventCount,
+          },
+          leads: built.summary.leads,
+          footerText: 'You are receiving this digest because you enabled digests in LeadIntel Settings.',
+        })
+        const text = renderDailyDigestEmailText({
+          brandName,
+          dateIso: built.summary.dateIso,
+          summary: {
+            highPriorityLeadCount: built.summary.highPriorityLeadCount,
+            triggerEventCount: built.summary.triggerEventCount,
+          },
+          leads: built.summary.leads,
+        })
 
         let delivered = false
+
+        // Webhook delivery (legacy; keep fail-open).
         if (u.digest_webhook_url) {
           try {
-            await sendWebhook(u.digest_webhook_url, lines)
+            await sendWebhook(u.digest_webhook_url, text)
             delivered = true
           } catch {
             delivered = false
           }
+        }
+
+        // Email delivery (new; best-effort, safe for missing config).
+        if (toEmail) {
+          const fromEmail = serverEnv.RESEND_FROM_EMAIL || 'noreply@leadintel.com'
+          const sendRes = await sendEmailWithResend({
+            from: fromEmail,
+            to: toEmail,
+            subject,
+            html,
+            text,
+            tags: [
+              { name: 'kind', value: 'digest' },
+              { name: 'user_id', value: u.user_id },
+              { name: 'corr', value: userCorrelationId },
+            ],
+          })
+
+          if (sendRes.ok) {
+            delivered = true
+            await insertEmailLog(supabase as any, {
+              userId: u.user_id,
+              leadId: null,
+              toEmail,
+              fromEmail,
+              subject,
+              provider: 'resend',
+              status: 'sent',
+              resendMessageId: sendRes.messageId,
+              kind: 'digest',
+            })
+          } else {
+            logWarn({
+              scope: 'digest',
+              message: 'digest.email_send_failed',
+              userId: u.user_id,
+              correlationId: userCorrelationId,
+            })
+            await insertEmailLog(supabase as any, {
+              userId: u.user_id,
+              leadId: null,
+              toEmail,
+              fromEmail,
+              subject,
+              provider: 'resend',
+              status: 'failed',
+              error: sendRes.errorMessage,
+              kind: 'digest',
+            })
+          }
+        } else {
+          logWarn({
+            scope: 'digest',
+            message: 'digest.user_email_missing',
+            userId: u.user_id,
+            correlationId: userCorrelationId,
+          })
         }
 
         try {

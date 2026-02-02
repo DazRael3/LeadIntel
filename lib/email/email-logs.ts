@@ -13,7 +13,7 @@ export type EmailLogInsert = {
   error?: string | null
   resendMessageId?: string | null
   sequenceStep?: number | null
-  kind?: 'manual' | 'autopilot'
+  kind?: 'manual' | 'autopilot' | 'digest'
 }
 
 /**

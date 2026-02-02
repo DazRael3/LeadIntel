@@ -1,6 +1,26 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
+vi.mock('@/lib/services/digest', () => ({
+  buildUserDigest: vi.fn(async () => ({
+    ok: true,
+    summary: {
+      dateIso: '2026-01-01',
+      highPriorityLeadCount: 1,
+      triggerEventCount: 2,
+      leads: [],
+    },
+  })),
+}))
+
+vi.mock('@/lib/email/resend', () => ({
+  sendEmailWithResend: vi.fn(async () => ({ ok: true, messageId: 'msg_1' })),
+}))
+
+vi.mock('@/lib/email/email-logs', () => ({
+  insertEmailLog: vi.fn(async () => ({ ok: true })),
+}))
+
 vi.mock('@/lib/supabase/admin', () => ({
   createSupabaseAdminClient: vi.fn(() => ({
     from: (table: string) => {
@@ -14,13 +34,11 @@ vi.mock('@/lib/supabase/admin', () => ({
           }),
         }
       }
-      if (table === 'pitches') {
+      if (table === 'users') {
         return {
           select: () => ({
             eq: () => ({
-              gte: () => ({
-                order: async () => ({ data: [], error: null }),
-              }),
+              maybeSingle: async () => ({ data: { email: 'u1@example.com' }, error: null }),
             }),
           }),
         }
