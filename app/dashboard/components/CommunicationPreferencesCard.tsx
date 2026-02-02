@@ -111,7 +111,11 @@ export function CommunicationPreferencesCard() {
         setError(msg)
         return
       }
-      setLastErrorMeta(null)
+      setLastErrorMeta({
+        status: res.status,
+        code: undefined,
+        correlationId: res.headers.get('x-correlation-id'),
+      })
       track('user.updated_communication_preferences', {
         channel: preferredContactChannel || null,
         allow_product_updates: allowProductUpdates,
