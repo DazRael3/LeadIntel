@@ -92,7 +92,7 @@ export function CommunicationPreferencesCard() {
           parsed = null
         }
 
-        const msg = parsed?.error || parsed?.message || 'Failed to save preferences'
+        const msg = parsed?.error || parsed?.message || 'Failed to save settings. Please try again.'
 
         const correlationId = res.headers.get('x-correlation-id') ?? parsed?.correlationId ?? null
         const code = parsed?.code ?? parsed?.errorCode ?? parsed?.statusCode ?? null
@@ -103,7 +103,7 @@ export function CommunicationPreferencesCard() {
           correlationId: typeof correlationId === 'string' ? correlationId : null,
         })
 
-        const IS_DEV = process.env.NODE_ENV === 'development'
+        const IS_DEV = process.env.NODE_ENV !== 'production'
         if (IS_DEV && raw && !parsed) {
           console.warn('[CommunicationPreferencesCard] /api/settings returned non-JSON error', { status: res.status, raw })
         }
@@ -121,13 +121,13 @@ export function CommunicationPreferencesCard() {
         allow_product_updates: allowProductUpdates,
       })
     } catch {
-      setError('Failed to save preferences')
+      setError('Failed to save settings. Please try again.')
     } finally {
       setSaving(false)
     }
   }
 
-  const IS_DEV = process.env.NODE_ENV === 'development'
+  const IS_DEV = process.env.NODE_ENV !== 'production'
 
   return (
     <Card className="border-cyan-500/20 bg-card/50">

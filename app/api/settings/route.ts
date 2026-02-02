@@ -1,10 +1,20 @@
+/**
+ * /api/settings
+ * - 200: settings saved successfully
+ * - 400: invalid payload (Zod validation failed)
+ * - 401: not authenticated
+ * - 403: forbidden by RLS
+ * - 424: schema/migration issue (see logs)
+ * - 500: unexpected internal error
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
 import { ok, fail, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { UserSettingsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { IS_DEV, logError, logInfo, logWarn } from '@/lib/logging/logger'
+import { IS_DEV, logError, logInfo, logWarn } from '@/lib/observability/logger'
 
 type SupabaseWriteError = { code?: string; message?: string; details?: string | null; hint?: string | null }
 
@@ -56,10 +66,7 @@ export const POST = withApiGuard(
         return NextResponse.json(
           {
             error: 'Invalid settings payload',
-            details:
-              process.env.NODE_ENV === 'development'
-                ? parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
-                : undefined,
+            details: IS_DEV ? parsed.error.issues : undefined,
           },
           { status: 400, headers: { 'x-correlation-id': correlationId } }
         )
@@ -155,15 +162,11 @@ export const POST = withApiGuard(
             correlationId,
             userId: user.id,
             supabaseCode: (error as SupabaseWriteError).code,
-            supabaseMessage: IS_DEV ? (error as SupabaseWriteError).message : undefined,
           })
           return NextResponse.json(
             {
               error: 'Forbidden',
-              details:
-                process.env.NODE_ENV === 'development'
-                  ? `${(error as SupabaseWriteError).code ?? ''} ${(error as SupabaseWriteError).message ?? ''}`.trim()
-                  : undefined,
+              details: IS_DEV ? { code: (error as SupabaseWriteError).code } : undefined,
             },
             { status: 403, headers: { 'x-correlation-id': correlationId } }
           )
@@ -176,15 +179,11 @@ export const POST = withApiGuard(
           correlationId,
           userId: user.id,
           supabaseCode: (error as SupabaseWriteError).code,
-          supabaseMessage: IS_DEV ? (error as SupabaseWriteError).message : undefined,
         })
         return NextResponse.json(
           {
             error: 'Failed to save settings',
-            details:
-              process.env.NODE_ENV === 'development'
-                ? `${(error as SupabaseWriteError).code ?? ''} ${(error as SupabaseWriteError).message ?? ''}`.trim()
-                : undefined,
+            details: IS_DEV ? { code: (error as SupabaseWriteError).code } : undefined,
           },
           { status: 500, headers: { 'x-correlation-id': correlationId } }
         )
@@ -208,7 +207,7 @@ export const POST = withApiGuard(
       return NextResponse.json(
         {
           error: 'Failed to save settings',
-          details: process.env.NODE_ENV === 'development' ? String(error) : undefined,
+          details: IS_DEV ? { error: String(error) } : undefined,
         },
         { status: 500, headers: { 'x-correlation-id': correlationId } }
       )
