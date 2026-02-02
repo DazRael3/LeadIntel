@@ -272,7 +272,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
 
   return (
     <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl border-cyan-500/30 bg-card/95 max-h-[calc(100vh-2rem)] flex flex-col">
+      <Card className="w-full max-w-2xl border-cyan-500/30 bg-card/95 flex flex-col max-h-[90vh] overflow-hidden">
         <CardHeader className="border-b border-cyan-500/20">
           <div className="flex items-center justify-between mb-4">
             <CardTitle className="text-2xl bloomberg-font neon-cyan">
@@ -307,8 +307,8 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
           </div>
         </CardHeader>
 
-        <CardContent className="flex-1 overflow-hidden p-0">
-          <div className="px-6 pt-6 pb-4 space-y-6 overflow-y-auto">
+        <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
+          <div className="flex-1 overflow-y-auto pr-2 px-6 pt-6 pb-4 space-y-6">
           {/* Error Display */}
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
@@ -571,8 +571,8 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
           )}
           </div>
 
-          {/* Sticky Footer Navigation */}
-          <div className="px-6 py-4 border-t border-cyan-500/20 bg-card/95">
+          {/* Footer Navigation (always visible) */}
+          <div className="shrink-0 px-6 py-4 border-t border-slate-800/60 bg-slate-950/90 backdrop-blur">
             <div className="flex items-center justify-between">
               <Button
                 variant="ghost"

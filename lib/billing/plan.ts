@@ -114,3 +114,26 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
     return { plan }
   }
 }
+
+/**
+ * Display-only plan metadata for UI (copy only; does not affect billing).
+ *
+ * Mapping:
+ * - free -> Starter (Free, limited)
+ * - pro  -> Closer ($79 / month)
+ *
+ * Note: "Team" is marketing-only for now; billing/plan IDs are unchanged.
+ */
+export function getDisplayPlanMeta(plan: Plan | null | undefined): {
+  label: string
+  subtitle?: string
+  isFree: boolean
+} {
+  if (!plan || plan === 'free') {
+    return { label: 'Starter', subtitle: 'Free (limited)', isFree: true }
+  }
+  if (plan === 'pro') {
+    return { label: 'Closer', subtitle: '$79 / month', isFree: false }
+  }
+  return { label: 'Starter', subtitle: 'Free (limited)', isFree: true }
+}

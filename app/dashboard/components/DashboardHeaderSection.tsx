@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { SignOutButton } from '@/components/SignOutButton'
 import { useStripePortal } from '../hooks/useStripePortal'
 import { usePlan } from '@/components/PlanProvider'
+import { getDisplayPlanMeta } from '@/lib/billing/plan'
 
 interface DashboardHeaderSectionProps {
   isPro: boolean
@@ -17,12 +18,8 @@ interface DashboardHeaderSectionProps {
 export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHeaderSectionProps) {
   const router = useRouter()
   const { openPortal } = useStripePortal()
-  const { trial } = usePlan()
-
-  const trialDaysLeft =
-    trial.active && trial.endsAt
-      ? Math.max(0, Math.ceil((new Date(trial.endsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-      : null
+  const { plan } = usePlan()
+  const planMeta = getDisplayPlanMeta(plan)
 
   return (
     <header className="border-b border-cyan-500/20 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
@@ -40,29 +37,31 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">Credits</p>
                   <p className="text-sm font-bold neon-cyan">
-                    {isPro ? '∞ Unlimited' : creditsRemaining}
+                    {planMeta.isFree ? 'Starter (limited)' : '∞ Unlimited'}
                   </p>
                 </div>
               </div>
             </Card>
 
-            {/* Subscription Badge - Only show Pro badge, never show Free badge */}
-            {isPro && (
-              <div className="flex items-center gap-2">
-                <Badge 
-                  variant="default" 
-                  className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
-                >
-                  <Shield className="h-3 w-3 mr-1" />
-                  Pro
+            {/* Subscription Badge */}
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={planMeta.isFree ? 'outline' : 'default'}
+                className={
+                  planMeta.isFree
+                    ? 'border-slate-700/70 bg-slate-900/70 text-slate-100'
+                    : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                }
+              >
+                <Shield className="h-3 w-3 mr-1" />
+                {planMeta.label}
+              </Badge>
+              {planMeta.subtitle ? (
+                <Badge variant="outline" className="border-slate-700/70 bg-slate-900/70 text-slate-300">
+                  {planMeta.subtitle}
                 </Badge>
-                {trialDaysLeft !== null && (
-                  <Badge variant="outline" className="border-purple-500/30 text-purple-300 bg-purple-500/10">
-                    Free trial • {trialDaysLeft}d left
-                  </Badge>
-                )}
-              </div>
-            )}
+              ) : null}
+            </div>
 
             {/* Upgrade button - Only show for Free users */}
             {!isPro && (
@@ -72,7 +71,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 className="neon-border hover:glow-effect"
               >
                 <DollarSign className="h-4 w-4 mr-2" />
-                Upgrade to Pro
+                Upgrade to Closer
               </Button>
             )}
             {isPro && (
