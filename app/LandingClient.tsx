@@ -274,90 +274,290 @@ export default function LandingClient() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Dashboard Stats */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-3xl font-bold">Trigger Events</h2>
-                <p className="text-muted-foreground mt-1">
-                  Real-time B2B intelligence alerts
+        {!isLoggedIn ? (
+          <div className="space-y-16">
+            {/* Hero */}
+            <section className="pt-6">
+              <div className="max-w-4xl">
+                <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
+                  Wake up to a daily shortlist of accounts ready to talk.
+                </h2>
+                <p className="text-lg text-muted-foreground mt-4 max-w-3xl">
+                  LeadIntel turns noisy markets into a <span className="font-semibold text-foreground">Daily Deal Digest</span>, scores your accounts
+                  <span className="font-semibold text-foreground"> 0–100</span>, and generates <span className="font-semibold text-foreground">conversion-ready pitch templates</span> so you can
+                  spend mornings booking meetings — not researching.
                 </p>
-              </div>
-              <Button variant="outline" onClick={loadEvents}>
-                <Zap className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
+                <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                  <Button asChild size="lg">
+                    <Link href="/signup?redirect=/dashboard">Start free</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg">
+                    <Link href="#sample-digest">See a sample digest</Link>
+                  </Button>
+                </div>
 
-            {loading ? (
-              <div className="text-center py-12">
-                <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
-                <p className="text-muted-foreground">Loading events...</p>
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="border-cyan-500/10 bg-card/50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <TrendingUp className="h-4 w-4 text-cyan-400" />
+                        Daily Deal Digest
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Once a day, get a ranked shortlist of accounts and events worth acting on.
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-cyan-500/10 bg-card/50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <Zap className="h-4 w-4 text-cyan-400" />
+                        Deeper Lead Scoring
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Deterministic 0–100 scores with reasons so you know where to spend time.
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-cyan-500/10 bg-card/50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <Shield className="h-4 w-4 text-cyan-400" />
+                        Pitch Templates
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Pick a template (email, call opener, LinkedIn DM) and generate a pitch you can send.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            ) : events.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold mb-2">No trigger events yet</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Generate your first AI-powered pitch to see trigger events appear here
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Use the pitch generator on the right to get started
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {events.map((event) => (
-                  <TriggerEventCard
-                    key={event.id}
-                    event={event}
-                    onGeneratePitch={handleGeneratePitch}
-                  />
-                ))}
+            </section>
+
+            {/* How it works */}
+            <section id="how-it-works" className="scroll-mt-24">
+              <div className="max-w-5xl">
+                <h3 className="text-2xl font-bold">How LeadIntel works</h3>
+                <p className="text-muted-foreground mt-2 max-w-3xl">
+                  A tight loop that turns signals into action — without the tab chaos.
+                </p>
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="border-cyan-500/10 bg-card/50">
+                    <CardHeader>
+                      <CardTitle className="text-base">1) Connect & choose your ICP</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground">
+                      Tell us what you sell and who you sell to. LeadIntel uses it to prioritize the right accounts.
+                    </CardContent>
+                  </Card>
+                  <Card className="border-cyan-500/10 bg-card/50">
+                    <CardHeader>
+                      <CardTitle className="text-base">2) We monitor, score, and summarize</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground">
+                      We ingest trigger events, score leads 0–100, and roll it into a Daily Deal Digest.
+                    </CardContent>
+                  </Card>
+                  <Card className="border-cyan-500/10 bg-card/50">
+                    <CardHeader>
+                      <CardTitle className="text-base">3) You send better pitches faster</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground">
+                      Pick a template (short email, call opener, LinkedIn DM) and generate a pitch with “why now” context.
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            )}
+            </section>
+
+            {/* Sample digest */}
+            <section id="sample-digest" className="scroll-mt-24">
+              <div className="max-w-5xl">
+                <h3 className="text-2xl font-bold">Daily Deal Digest (sample)</h3>
+                <p className="text-muted-foreground mt-2 max-w-3xl">
+                  Turn trigger events into a focused list you can act on today.
+                </p>
+                <Card className="mt-6 border-cyan-500/20 bg-card/50">
+                  <CardContent className="pt-6">
+                    <pre className="text-xs md:text-sm whitespace-pre-wrap font-mono text-muted-foreground">
+{`LeadIntel Daily Digest (Sample)
+High-priority leads: 2
+Trigger events (7d): 6
+
+- Acme Logistics (acme.com) — score 84/100
+  • 2026-01-22: Raises Series A to expand outbound [funding, score=92]
+  • 2026-01-21: Launches new enterprise product tier [product_launch, score=78]
+
+- Northwind Security (northwind.io) — score 73/100
+  • 2026-01-20: Partners with a major cloud provider [partnership, score=74]
+
+Open LeadIntel to take action.`}
+                    </pre>
+                  </CardContent>
+                </Card>
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                  <Button asChild size="lg">
+                    <Link href="/signup?redirect=/dashboard">Start free</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg">
+                    <Link href="/pricing">See pricing</Link>
+                  </Button>
+                </div>
+              </div>
+            </section>
+
+            {/* Pricing preview + ROI */}
+            <section className="scroll-mt-24">
+              <div className="max-w-6xl">
+                <h3 className="text-2xl font-bold">Pricing</h3>
+                <p className="text-muted-foreground mt-2 max-w-3xl">
+                  Premium, ROI-focused outbound — built to save hours and create pipeline.
+                </p>
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <Card className="border-cyan-500/10 bg-card/50">
+                    <CardHeader>
+                      <CardTitle className="text-xl">Starter (Free)</CardTitle>
+                      <p className="text-3xl font-bold">$0</p>
+                      <p className="text-sm text-muted-foreground">Kick the tires with basic pitches.</p>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground space-y-2">
+                      <p>• Basic pitch generation</p>
+                      <p>• Limited scoring and signals</p>
+                      <p>• Upgrade any time</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-cyan-500/30 bg-card/80">
+                    <CardHeader>
+                      <CardTitle className="text-xl">Closer</CardTitle>
+                      <p className="text-3xl font-bold">$79<span className="text-base text-muted-foreground"> / month</span></p>
+                      <p className="text-sm text-muted-foreground">
+                        For solo reps who want a daily deal shortlist and templates that convert.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground space-y-2">
+                      <p>• Daily Deal Digest email with ranked accounts</p>
+                      <p>• Lead scoring (0–100) with reasons</p>
+                      <p>• AI pitch templates (email, call opener, LinkedIn DM)</p>
+                      <p>• Monitor more accounts and trigger events</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-cyan-500/10 bg-card/50">
+                    <CardHeader>
+                      <CardTitle className="text-xl">Team</CardTitle>
+                      <p className="text-3xl font-bold">$249<span className="text-base text-muted-foreground"> / month</span></p>
+                      <p className="text-sm text-muted-foreground">
+                        For small teams who want shared digests, watchlists, and consistent messaging.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground space-y-2">
+                      <p>• Multiple seats (shared watchlists and digests)</p>
+                      <p>• Stronger rate limits and priority processing</p>
+                      <p>• Standardize winning messaging with templates</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="mt-10">
+                  <h4 className="text-xl font-bold">One meeting pays for the month.</h4>
+                  <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                    <p>• Stop spraying sequences at cold lists — focus on accounts with real buying signals.</p>
+                    <p>• Spend mornings in your inbox and on calls, not bouncing between tabs.</p>
+                    <p>• Standardize winning messaging across your team with templates that convert.</p>
+                  </div>
+                </div>
+
+                <div className="mt-8 flex gap-3">
+                  <Button asChild size="lg">
+                    <Link href="/signup?redirect=/dashboard">Start free</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg">
+                    <Link href="/pricing">See full pricing</Link>
+                  </Button>
+                </div>
+              </div>
+            </section>
 
             {/* Brand visual */}
-            <div className="mt-10 max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto">
               <BrandHero />
             </div>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Dashboard Stats */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold">Trigger Events</h2>
+                  <p className="text-muted-foreground mt-1">Real-time B2B intelligence alerts</p>
+                </div>
+                <Button variant="outline" onClick={loadEvents}>
+                  <Zap className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
 
-          {/* Right Column - Pitch Generator */}
-          <div className="space-y-6">
-            <PitchGenerator />
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Stats</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Events Today</p>
-                  <p className="text-2xl font-bold">{quickStats?.eventsToday ?? 0}</p>
+              {loading ? (
+                <div className="text-center py-12">
+                  <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
+                  <p className="text-muted-foreground">Loading events...</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Active Monitors</p>
-                  <p className="text-2xl font-bold">{quickStats?.activeMonitors ?? 0}</p>
+              ) : events.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">No trigger events yet</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Generate your first AI-powered pitch to see trigger events appear here
+                    </p>
+                    <p className="text-sm text-muted-foreground">Use the pitch generator on the right to get started</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {events.map((event) => (
+                    <TriggerEventCard key={event.id} event={event} onGeneratePitch={handleGeneratePitch} />
+                  ))}
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Pitches Generated</p>
-                  <p className="text-2xl font-bold">{quickStats?.pitchesGenerated ?? 0}</p>
-                </div>
-                {isLoggedIn && quickStats && quickStats.eventsToday === 0 && quickStats.activeMonitors === 0 && quickStats.pitchesGenerated === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    No activity yet — start by generating your first pitch.
-                  </p>
-                ) : !isLoggedIn ? (
-                  <p className="text-xs text-muted-foreground">Sign in to see your stats.</p>
-                ) : null}
-              </CardContent>
-            </Card>
+              )}
+
+              {/* Brand visual */}
+              <div className="mt-10 max-w-4xl mx-auto">
+                <BrandHero />
+              </div>
+            </div>
+
+            {/* Right Column - Pitch Generator */}
+            <div className="space-y-6">
+              <PitchGenerator />
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quick Stats</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Events Today</p>
+                    <p className="text-2xl font-bold">{quickStats?.eventsToday ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Active Monitors</p>
+                    <p className="text-2xl font-bold">{quickStats?.activeMonitors ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pitches Generated</p>
+                    <p className="text-2xl font-bold">{quickStats?.pitchesGenerated ?? 0}</p>
+                  </div>
+                  {quickStats && quickStats.eventsToday === 0 && quickStats.activeMonitors === 0 && quickStats.pitchesGenerated === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No activity yet — start by generating your first pitch.
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   )
