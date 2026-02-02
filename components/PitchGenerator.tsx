@@ -105,6 +105,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const [savedCompanies, setSavedCompanies] = useState<string[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [templateId, setTemplateId] = useState<PitchTemplateId>('default')
+  const [freeLimitError, setFreeLimitError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -367,6 +368,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     setEmailSequence(null)
     setBattleCard(null)
     setWarnings([])
+    setFreeLimitError(null)
 
     try {
       const response = await fetch('/api/generate-pitch', {
@@ -389,6 +391,29 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
         } catch {
           errorData = null
         }
+        const code =
+          (errorData as any)?.code ??
+          (errorData as any)?.error?.code ??
+          null
+        if (response.status === 429 && code === 'FREE_PLAN_LIMIT_REACHED') {
+          const headerLimit = Number(response.headers.get('x-free-plan-limit') || '')
+          const limit =
+            (errorData as any)?.meta?.limit ??
+            (errorData as any)?.error?.details?.limit ??
+            (Number.isFinite(headerLimit) ? headerLimit : undefined)
+
+          const msg =
+            (errorData as any)?.message ??
+            (errorData as any)?.error?.message ??
+            (typeof limit === 'number'
+              ? `You’ve reached today’s free limit (${limit} pitches) on the Starter plan. Upgrade to Closer for higher limits.`
+              : `You’ve reached today’s free limit on the Starter plan. Upgrade to Closer for higher limits.`)
+
+          setFreeLimitError(msg)
+          setAuthError(msg)
+          return
+        }
+
         let errorMessage = 'Failed to generate pitch. Please try again.'
         if (errorData) {
           const obj = errorData as any
@@ -545,6 +570,18 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               )}
             </Button>
           </div>
+          {freeLimitError ? (
+            <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-100 flex items-center justify-between gap-3">
+              <span>{freeLimitError}</span>
+              <button
+                type="button"
+                className="rounded-md bg-amber-400/90 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-amber-300"
+                onClick={() => router.push('/pricing')}
+              >
+                Upgrade to Closer
+              </button>
+            </div>
+          ) : null}
         {savedCompanies.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Saved companies:</span>

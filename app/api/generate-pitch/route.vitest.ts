@@ -83,6 +83,10 @@ vi.mock('@/lib/ai-logic', () => ({
   generateEmailSequence: vi.fn(async () => ({ part1: 'P1', part2: 'P2', part3: 'P3' })),
 }))
 
+vi.mock('@/lib/billing/usage', () => ({
+  checkStarterPitchUsage: vi.fn(async () => ({ ok: true, remaining: 999, limit: 20 })),
+}))
+
 describe('/api/generate-pitch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -130,6 +134,27 @@ describe('/api/generate-pitch', () => {
         correlationId: expect.stringMatching(/^generate-pitch:/),
       })
     )
+  })
+
+  it('returns 429 when Starter daily cap is reached', async () => {
+    const { POST } = await import('./route')
+    const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
+    const { generatePitch } = await import('@/lib/ai-logic')
+
+    ;(checkStarterPitchUsage as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: false, limit: 20 })
+
+    const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
+      method: 'POST',
+      body: JSON.stringify({ companyUrl: 'dell.com' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(429)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('FREE_PLAN_LIMIT_REACHED')
+    expect(generatePitch).not.toHaveBeenCalled()
   })
 })
 

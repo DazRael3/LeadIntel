@@ -5,7 +5,7 @@ import { generatePitch, generateBattleCard, generateEmailSequence } from '@/lib/
 import { queryWithSchemaFallback } from '@/lib/supabase/schema-client'
 import { getDbSchema } from '@/lib/supabase/schema'
 import { getServerEnv } from '@/lib/env'
-import { ok, asHttpError, createCookieBridge } from '@/lib/api/http'
+import { ok, asHttpError, createCookieBridge, fail } from '@/lib/api/http'
 import { CompanyUrlSchema, GeneratePitchOptionsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
@@ -17,6 +17,7 @@ import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
+import { checkStarterPitchUsage } from '@/lib/billing/usage'
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +113,13 @@ export const POST = withApiGuard(
 
     const supabase = createRouteClient(request, bridge)
     
-    const isPro = await isProPlan(supabase, userId)
+    let isPro = false
+    try {
+      isPro = await isProPlan(supabase, userId)
+    } catch {
+      // Fail closed to Starter for abuse prevention (cap check still fail-open if Redis isn't configured).
+      isPro = false
+    }
 
     // Get user settings for personalization
     const { data: userSettings } = await supabase
@@ -160,6 +167,27 @@ export const POST = withApiGuard(
     } catch {
       // best-effort enrichment only
       whyNowBullets = []
+    }
+
+    // Starter daily usage cap (per user, per UTC day). Paid plans are not capped.
+    const planId = isPro ? 'closer' : 'starter'
+    const usage = await checkStarterPitchUsage({ userId, planId, correlationId })
+    if (!usage.ok) {
+      const res = fail(
+        'FREE_PLAN_LIMIT_REACHED',
+        `You’ve reached today’s free limit for the Starter plan. Upgrade to Closer for higher limits.`,
+        { limit: usage.limit, window: '1 day' },
+        {
+          status: 429,
+          headers: {
+            'x-upgrade-plan': 'closer',
+            'x-free-plan-limit': String(usage.limit),
+          },
+        },
+        bridge,
+        requestId
+      )
+      return res
     }
 
     // Generate pitch using AI
