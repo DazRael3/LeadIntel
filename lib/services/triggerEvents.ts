@@ -1,5 +1,7 @@
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { getCompositeTriggerEventsProvider, type RawTriggerEvent, type ProviderInput } from '@/lib/events/provider'
+import { classifyAndScoreEvents, type TriggerEventCategory, type TriggerEvent as EngineEvent } from '@/lib/services/trigger-events/engine'
+import { IS_DEV, logError, logWarn } from '@/lib/logging/logger'
 
 export interface TriggerEventInput {
   userId: string
@@ -14,6 +16,7 @@ export interface TriggerEventCandidate {
   description: string
   sourceUrl: string
   detectedAt: string // ISO
+  eventType: string
 }
 
 type TriggerEventRow = {
@@ -48,13 +51,42 @@ function normalizeUrl(value: string): string | null {
   }
 }
 
+function toDbEventType(category: TriggerEventCategory): string {
+  if (category === 'funding') return 'funding'
+  if (category === 'product_launch') return 'product_launch'
+  if (category === 'market_expansion') return 'expansion'
+  if (category === 'partnership') return 'partnership'
+  if (category === 'leadership_change') return 'new_hires'
+  // Keep within existing allowed event types; fall back to expansion.
+  return 'expansion'
+}
+
+function toEngineEvent(e: RawTriggerEvent): EngineEvent | null {
+  const title = (e.headline || e.title || '').trim()
+  const url = normalizeUrl(e.sourceUrl)
+  if (!title || !url) return null
+  const publishedAt =
+    e.occurredAt && Number.isFinite(e.occurredAt.getTime()) ? e.occurredAt.toISOString() : new Date().toISOString()
+  return {
+    id: `${title.toLowerCase()}::${url.toLowerCase()}::${publishedAt}`,
+    source: (e.sourceName ?? 'unknown').toString(),
+    title,
+    url,
+    publishedAt,
+    summary: (e.description ?? '').toString().trim() || null,
+  }
+}
+
 function toCandidate(e: RawTriggerEvent): TriggerEventCandidate | null {
   const headline = (e.headline || e.title || '').trim()
   const url = normalizeUrl(e.sourceUrl)
   if (!headline || !url) return null
   const desc = (e.description ?? '').toString().trim() || headline
   const detectedAt = e.occurredAt && Number.isFinite(e.occurredAt.getTime()) ? e.occurredAt.toISOString() : new Date().toISOString()
-  return { headline, description: desc, sourceUrl: url, detectedAt }
+  const engine = toEngineEvent(e)
+  const scored = engine ? classifyAndScoreEvents([engine])[0] : null
+  const eventType = scored ? toDbEventType(scored.category) : 'expansion'
+  return { headline, description: desc, sourceUrl: url, detectedAt, eventType }
 }
 
 export async function ingestRealTriggerEvents(input: TriggerEventInput): Promise<{ created: number }> {
@@ -116,7 +148,7 @@ export async function ingestRealTriggerEvents(input: TriggerEventInput): Promise
       company_name: input.companyName,
       company_domain: input.companyDomain,
       company_url: companyUrl,
-      event_type: 'news',
+      event_type: c.eventType,
       headline: c.headline,
       event_description: c.description,
       source_url: c.sourceUrl,
@@ -125,13 +157,25 @@ export async function ingestRealTriggerEvents(input: TriggerEventInput): Promise
 
     const { error } = await client.from('trigger_events').insert(rows)
     if (error) {
-      console.error('[trigger-events] ingest insert failed', { message: error.message })
+      logError({
+        scope: 'trigger-events',
+        message: 'ingest.insert_failed',
+        error: IS_DEV ? error.message : undefined,
+        userId: input.userId,
+        correlationId: input.correlationId,
+      })
       return { created: 0 }
     }
 
     return { created: rows.length }
   } catch (err) {
-    console.error('[trigger-events] ingest failed', { message: err instanceof Error ? err.message : 'unknown' })
+    logError({
+      scope: 'trigger-events',
+      message: 'ingest.failed',
+      error: IS_DEV ? (err instanceof Error ? err.message : String(err)) : undefined,
+      userId: input.userId,
+      correlationId: input.correlationId,
+    })
     return { created: 0 }
   }
 }
@@ -187,12 +231,24 @@ export async function seedDemoTriggerEventsIfEmpty(input: TriggerEventInput): Pr
 
     const { error } = await client.from('trigger_events').insert(rows)
     if (error) {
-      console.error('[trigger-events] seed demo insert failed', { message: error.message })
+      logWarn({
+        scope: 'trigger-events',
+        message: 'demo_seed.insert_failed',
+        userId: input.userId,
+        correlationId: input.correlationId,
+        supabaseMessage: IS_DEV ? error.message : undefined,
+      })
       return { created: 0 }
     }
     return { created: rows.length }
   } catch (err) {
-    console.error('[trigger-events] seed demo failed', { message: err instanceof Error ? err.message : 'unknown' })
+    logWarn({
+      scope: 'trigger-events',
+      message: 'demo_seed.failed',
+      userId: input.userId,
+      correlationId: input.correlationId,
+      error: IS_DEV ? (err instanceof Error ? err.message : String(err)) : undefined,
+    })
     return { created: 0 }
   }
 }

@@ -197,6 +197,13 @@ function getProviderSpec(name: TriggerEventsProviderName): ProviderSpec {
   return { name: 'none', enabled: false, skipReason: 'unknown', run: providerNoop() }
 }
 
+// Exported for the higher-level trigger-events engine (parallel orchestration, scoring, etc.).
+export type TriggerEventsProviderSpec = ProviderSpec
+
+export function getConfiguredProviderSpecs(): TriggerEventsProviderSpec[] {
+  return getConfiguredProviderNames().map(getProviderSpec)
+}
+
 export function getProviderByName(name: TriggerEventsProviderName): TriggerEventsProvider {
   return getProviderSpec(name).run
 }
