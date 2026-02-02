@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { createRouteClient } from '@/lib/supabase/route'
 import { generatePitch, generateBattleCard, generateEmailSequence } from '@/lib/ai-logic'
 import { queryWithSchemaFallback } from '@/lib/supabase/schema-client'
@@ -14,6 +15,8 @@ import { ingestRealTriggerEvents, seedDemoTriggerEventsIfEmpty, hasAnyTriggerEve
 import { serverEnv } from '@/lib/env'
 import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
+import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
+import { logInfo } from '@/lib/observability/logger'
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +87,7 @@ export const POST = withApiGuard(
       return asHttpError(new Error('Authentication required'), '/api/generate-pitch', undefined, bridge, requestId)
     }
 
-    const data = body as { companyUrl: string; options?: unknown }
+    const data = body as { companyUrl: string; options?: unknown; templateId?: unknown }
     const { companyUrl } = data
     
     // Normalize input
@@ -131,6 +134,16 @@ export const POST = withApiGuard(
     }
 
     const correlationId = `generate-pitch:${requestId ?? new Date().toISOString()}:${userId}`
+    const templateId = (typeof data.templateId === 'string' ? (data.templateId as PitchTemplateId) : undefined) ?? 'default'
+    const template = getPitchTemplate(templateId)
+    logInfo({
+      scope: 'pitch',
+      message: 'generate.start',
+      userId,
+      correlationId,
+      templateId: template.id,
+      hasDomain: Boolean(domain),
+    })
     // Fetch top scored trigger events for "Why now?" enrichment (fail-open).
     let whyNowBullets: string[] = []
     try {
@@ -160,6 +173,8 @@ export const POST = withApiGuard(
         idealCustomer: userSettings?.ideal_customer || '',
       },
       whyNowBullets.length > 0 ? { bullets: whyNowBullets } : undefined
+      ,
+      template.id
     )
 
     // Generate battle card and email sequence for Pro users
@@ -326,6 +341,7 @@ export const POST = withApiGuard(
   {
     bodySchema: CompanyUrlSchema.extend({
       options: GeneratePitchOptionsSchema.omit({ companyUrl: true }).optional(),
+      templateId: z.enum(['default', 'short_email', 'call_opener', 'linkedin_dm']).optional(),
     }),
   }
 )

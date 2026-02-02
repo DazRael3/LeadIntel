@@ -12,6 +12,7 @@ import { formatErrorMessage } from "@/lib/utils/format-error"
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { isE2E } from '@/lib/runtimeFlags'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { PITCH_TEMPLATES, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -103,6 +104,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const [warnings, setWarnings] = useState<string[]>([])
   const [savedCompanies, setSavedCompanies] = useState<string[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [templateId, setTemplateId] = useState<PitchTemplateId>('default')
   const router = useRouter()
   const supabase = createClient()
 
@@ -370,7 +372,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
       const response = await fetch('/api/generate-pitch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyUrl }),
+        body: JSON.stringify({ companyUrl, templateId }),
       })
 
       if (!response.ok) {
@@ -480,6 +482,28 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-2">
+              <label className="text-sm font-semibold mb-2 block" htmlFor="pitch_template">
+                Template
+              </label>
+              <select
+                id="pitch_template"
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value as PitchTemplateId)}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+              >
+                {PITCH_TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <div className="text-xs text-muted-foreground mt-1">
+                {PITCH_TEMPLATES.find((t) => t.id === templateId)?.description ?? ''}
+              </div>
+            </div>
+          </div>
           {authError && (
             <div className="text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded p-2">
               {authError}

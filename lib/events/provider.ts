@@ -295,7 +295,13 @@ function makeNewsApiSpec(): ProviderSpec {
       url.searchParams.set('apiKey', apiKey)
 
       const res = await fetchWithTimeout(url.toString(), { method: 'GET' })
-      if (!res.ok) return []
+      if (!res.ok) {
+        // Keep this concise (no secrets). Useful for digest + ops visibility.
+        if (res.status === 429) {
+          logTriggerProvider('warn', 'provider.rate_limited', { providerName: 'newsapi', status: res.status })
+        }
+        return []
+      }
       const json = (await res.json()) as unknown
       const articles = (json as { articles?: unknown }).articles
       if (!Array.isArray(articles)) return []

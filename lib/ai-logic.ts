@@ -21,6 +21,7 @@ const WEBSITE_HOST = (() => {
 import { serverEnv } from './env'
 import { isE2E, isTestEnv } from './runtimeFlags'
 import { captureException, captureMessage } from './observability/sentry'
+import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 
 // Lazy initialization of OpenAI client
 function getOpenAIClient(): OpenAI {
@@ -317,7 +318,8 @@ export async function generatePitch(
   },
   whyNow?: {
     bullets: string[]
-  }
+  },
+  templateId?: PitchTemplateId
 ): Promise<string> {
   // In E2E/test mode, return deterministic mock response instantly
   if (isE2E() || isTestEnv()) {
@@ -326,6 +328,7 @@ export async function generatePitch(
 
   try {
     const openai = getOpenAIClient()
+    const template = getPitchTemplate(templateId ?? 'default')
     const whyNowText =
       whyNow?.bullets && whyNow.bullets.length > 0
         ? `\n\nWhy now (use ONLY these points, do not add new claims):\n- ${whyNow.bullets.slice(0, 3).join('\n- ')}`
@@ -335,14 +338,7 @@ export async function generatePitch(
       messages: [
         {
           role: 'system',
-          content: `You are a world-class sales strategist. Write concise, high-converting sales emails that:
-- Are exactly 3-4 sentences long
-- Have a helpful, not salesy tone
-- NEVER mention calls, meetings, or scheduling
-- Focus on driving the recipient to visit a website and sign up
-- The key message: "I've already generated a competitive intelligence report for you. View it here."
-- Always end with a clear call-to-action linking to ${WEBSITE_URL}
-- Make it feel like valuable intelligence is waiting for them, not a sales pitch`,
+          content: template.systemInstruction.replaceAll('the provided website URL', WEBSITE_URL),
         },
         {
           role: 'user',
