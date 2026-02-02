@@ -314,6 +314,9 @@ export async function generatePitch(
   userSettings?: {
     whatYouSell?: string
     idealCustomer?: string
+  },
+  whyNow?: {
+    bullets: string[]
   }
 ): Promise<string> {
   // In E2E/test mode, return deterministic mock response instantly
@@ -323,6 +326,10 @@ export async function generatePitch(
 
   try {
     const openai = getOpenAIClient()
+    const whyNowText =
+      whyNow?.bullets && whyNow.bullets.length > 0
+        ? `\n\nWhy now (use ONLY these points, do not add new claims):\n- ${whyNow.bullets.slice(0, 3).join('\n- ')}`
+        : ''
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -343,11 +350,13 @@ export async function generatePitch(
 
 Reference their recent ${triggerEvent} specifically.
 
+If relevant, incorporate up to 1-2 of the "Why now" points below into the email (no bullet lists in the final email; weave them naturally). Never invent events.
+
 The tone should convey: "I've already generated a competitive intelligence report for you. View it here."
 
 ${companyInfo ? `Additional context: ${companyInfo}` : ''}
 ${userSettings?.whatYouSell ? `We sell: ${userSettings.whatYouSell}` : ''}
-${userSettings?.idealCustomer ? `Our ideal customer: ${userSettings.idealCustomer}` : ''}
+${userSettings?.idealCustomer ? `Our ideal customer: ${userSettings.idealCustomer}` : ''}${whyNowText}
 
 End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant Intelligence.`,
         },

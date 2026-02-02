@@ -13,6 +13,7 @@ import { getPlanDetails } from '@/lib/billing/plan'
 import { ingestRealTriggerEvents, seedDemoTriggerEventsIfEmpty, hasAnyTriggerEvents, getLatestTriggerEvent } from '@/lib/services/triggerEvents'
 import { serverEnv } from '@/lib/env'
 import { logProductEvent } from '@/lib/services/analytics'
+import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +130,25 @@ export const POST = withApiGuard(
       companyInfo = generateContextInfo(input, false)
     }
 
+    const correlationId = `generate-pitch:${requestId ?? new Date().toISOString()}:${userId}`
+    // Fetch top scored trigger events for "Why now?" enrichment (fail-open).
+    let whyNowBullets: string[] = []
+    try {
+      const scored = await getCompositeTriggerEvents({
+        companyName: topicName,
+        companyDomain: domain,
+        userId,
+        correlationId,
+      })
+      whyNowBullets = scored
+        .filter((e) => e.score >= 60)
+        .slice(0, 5)
+        .map((e) => `${e.publishedAt.slice(0, 10)}: ${e.title} [${e.category}, score=${e.score}]`)
+    } catch {
+      // best-effort enrichment only
+      whyNowBullets = []
+    }
+
     // Generate pitch using AI
     const pitch = await generatePitch(
       topicName,
@@ -138,7 +158,8 @@ export const POST = withApiGuard(
       {
         whatYouSell: userSettings?.what_you_sell || '',
         idealCustomer: userSettings?.ideal_customer || '',
-      }
+      },
+      whyNowBullets.length > 0 ? { bullets: whyNowBullets } : undefined
     )
 
     // Generate battle card and email sequence for Pro users
@@ -214,7 +235,6 @@ export const POST = withApiGuard(
     })
 
     const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
-    const correlationId = `generate-pitch:${new Date().toISOString()}:${userId}`
     const triggerInput = {
       userId,
       leadId: typeof leadId === 'string' ? leadId : null,
