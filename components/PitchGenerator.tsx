@@ -109,6 +109,8 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const router = useRouter()
   const supabase = createClient()
 
+  const MISSING_LEAD_WARNING = 'Pitch history not saved (missing lead id).'
+
   // Initialize user id once so per-user keys work on first render.
   useEffect(() => {
     let cancelled = false
@@ -446,7 +448,28 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
       }
 
       // Parse warnings array defensively (non-blocking)
-      setWarnings(Array.isArray(data.warnings) ? (data.warnings as string[]) : [])
+      const parsedWarnings = Array.isArray(data.warnings)
+        ? (data.warnings as unknown[]).filter((w): w is string => typeof w === 'string')
+        : []
+
+      // Soft case: pitch generated but no lead_id to attach. Don't show UI banner.
+      const hasSoftMissingLead =
+        pitchText.length > 0 &&
+        parsedWarnings.length > 0 &&
+        parsedWarnings.every((w) => w === MISSING_LEAD_WARNING)
+
+      if (hasSoftMissingLead) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(
+            '[Pitch persistence] Pitch generated but lead_id is missing. ' +
+              'If you rely on pitch history, ensure Supabase migrations for leads/pitches are fully applied.'
+          )
+        }
+        setWarnings([])
+      } else {
+        // Only show "hard" persistence warnings (schema/RLS/insert failures).
+        setWarnings(parsedWarnings.filter((w) => w !== MISSING_LEAD_WARNING))
+      }
 
       // Update isPro from response (if present)
       if (typeof data.isPro === 'boolean') {
@@ -543,7 +566,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                 ))}
               </ul>
               <p className="text-xs mt-2 text-muted-foreground">
-                Pitch generated successfully, but some data may not have been saved. Check Supabase schema configuration.
+                Pitch generated, but it could not be saved to history (Supabase schema or RLS issue). Your content is safe to copy.
               </p>
             </div>
           )}
