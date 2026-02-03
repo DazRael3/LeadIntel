@@ -11,7 +11,6 @@ import { usePlan } from "@/components/PlanProvider"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { getDisplayPlanMeta } from '@/lib/billing/plan'
 
 /**
  * Safely parses JSON, returning null if parsing fails
@@ -79,8 +78,7 @@ export function Pricing() {
   const supabase = createClient()
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
-  const { isPro, plan } = usePlan()
-  const planMeta = getDisplayPlanMeta(plan)
+  const { isPro } = usePlan()
 
   useEffect(() => {
     if (isPro) {
@@ -282,7 +280,7 @@ export function Pricing() {
                 ) : (
                   <>
                     <Zap className="h-5 w-5 mr-2" />
-                    {planMeta.ctaLabel ?? 'Upgrade to Team'}
+                    Upgrade to Closer
                   </>
                 )}
               </Button>
