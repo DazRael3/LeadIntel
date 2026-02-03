@@ -71,7 +71,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 className="neon-border hover:glow-effect"
               >
                 <DollarSign className="h-4 w-4 mr-2" />
-                Upgrade to Closer
+                {planMeta.ctaLabel ?? 'Upgrade to Team'}
               </Button>
             )}
             {isPro && (

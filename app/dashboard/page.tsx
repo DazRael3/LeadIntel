@@ -6,6 +6,26 @@ import { PlanProvider } from '@/components/PlanProvider'
 
 export const dynamic = 'force-dynamic'
 
+let hasLoggedApiSchemaHint = false
+
+function maybeLogApiSchemaHint(error: unknown): void {
+  if (process.env.NODE_ENV === 'production') return
+  if (hasLoggedApiSchemaHint) return
+
+  const err = error as { code?: unknown; message?: unknown }
+  const code = typeof err?.code === 'string' ? err.code : ''
+  const message = typeof err?.message === 'string' ? err.message : ''
+
+  if (code === 'PGRST106' && message.toLowerCase().includes('invalid schema')) {
+    console.warn(
+      '[Supabase config] REST API is not exposing the "api" schema. ' +
+        'In Supabase → Settings → API, add `api` to the "Exposed schemas" list, ' +
+        'then save and retry.'
+    )
+    hasLoggedApiSchemaHint = true
+  }
+}
+
 export default async function DashboardPage() {
   const supabase = createClient()
   
@@ -27,6 +47,7 @@ export default async function DashboardPage() {
     subscriptionTier = await getPlan(supabase as Parameters<typeof getPlan>[0], user.id)
   } catch (err) {
     console.warn('[Dashboard] Error getting plan, defaulting to free:', err)
+    maybeLogApiSchemaHint(err)
     subscriptionTier = 'free'
   }
 
@@ -45,6 +66,7 @@ export default async function DashboardPage() {
         console.warn('[Dashboard] Schema mismatch on users table, using defaults')
       } else {
         console.error('[Dashboard] Error loading user data:', userError)
+        maybeLogApiSchemaHint(userError)
       }
     } else if (userData) {
       // Use subscription_tier from users table if available
@@ -84,6 +106,7 @@ export default async function DashboardPage() {
     }
   } catch (err) {
     console.warn('[Dashboard] Error loading user data, using defaults:', err)
+    maybeLogApiSchemaHint(err)
   }
 
   // Try to get onboarding status (may fail if column doesn't exist)
@@ -100,6 +123,7 @@ export default async function DashboardPage() {
         console.warn('[Dashboard] Schema mismatch on user_settings, using localStorage fallback')
       } else {
         console.error('[Dashboard] Error loading user settings:', settingsError)
+        maybeLogApiSchemaHint(settingsError)
       }
     } else {
       onboardingCompleted = Boolean(settingsRow?.onboarding_completed)
@@ -107,6 +131,7 @@ export default async function DashboardPage() {
     }
   } catch (err) {
     console.warn('[Dashboard] Error loading settings, using defaults:', err)
+    maybeLogApiSchemaHint(err)
   }
 
   return (

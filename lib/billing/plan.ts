@@ -128,9 +128,11 @@ export function getDisplayPlanMeta(plan: Plan | null | undefined): {
   label: string
   subtitle?: string
   isFree: boolean
+  /** Display-only CTA copy (does not affect billing). */
+  ctaLabel?: string
 } {
   if (!plan || plan === 'free') {
-    return { label: 'Starter', subtitle: 'Free (limited)', isFree: true }
+    return { label: 'Starter', subtitle: 'Free (limited)', isFree: true, ctaLabel: 'Upgrade to Team' }
   }
   if (plan === 'pro') {
     return { label: 'Closer', subtitle: '$79 / month', isFree: false }

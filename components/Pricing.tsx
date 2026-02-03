@@ -11,6 +11,7 @@ import { usePlan } from "@/components/PlanProvider"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { getDisplayPlanMeta } from '@/lib/billing/plan'
 
 /**
  * Safely parses JSON, returning null if parsing fails
@@ -78,7 +79,8 @@ export function Pricing() {
   const supabase = createClient()
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
-  const { isPro } = usePlan()
+  const { isPro, plan } = usePlan()
+  const planMeta = getDisplayPlanMeta(plan)
 
   useEffect(() => {
     if (isPro) {
@@ -169,12 +171,12 @@ export function Pricing() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
-              <CardTitle className="text-2xl bloomberg-font">Starter (Free)</CardTitle>
+              <CardTitle className="text-2xl bloomberg-font">Starter</CardTitle>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">$0</span>
                 <span className="text-muted-foreground">/month</span>
               </div>
-              <CardDescription>Kick the tires with limited scoring and basic pitches.</CardDescription>
+              <CardDescription>Free (limited) — kick the tires with limited scoring and basic pitches.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <ul className="space-y-3 text-sm text-muted-foreground">
@@ -280,7 +282,7 @@ export function Pricing() {
                 ) : (
                   <>
                     <Zap className="h-5 w-5 mr-2" />
-                    Upgrade to Closer
+                    {planMeta.ctaLabel ?? 'Upgrade to Team'}
                   </>
                 )}
               </Button>
@@ -299,7 +301,7 @@ export function Pricing() {
                 <span className="text-muted-foreground">/month</span>
               </div>
               <CardDescription>
-                For small teams who want shared digests, watchlists, and consistent messaging.
+                For small outbound teams who want shared digests, watchlists, and consistent messaging.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -318,7 +320,7 @@ export function Pricing() {
                 </li>
               </ul>
               <Button asChild variant="outline" className="w-full h-11">
-                <a href="/signup?redirect=/dashboard">Start with Closer</a>
+                <a href="/signup?redirect=/dashboard">Start Team</a>
               </Button>
             </CardContent>
           </Card>
