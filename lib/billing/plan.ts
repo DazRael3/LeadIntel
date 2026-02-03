@@ -18,6 +18,8 @@ export interface PlanDetails {
   isAppTrial?: boolean
 }
 
+export type PlanTier = 'starter' | 'closer' | 'team'
+
 function isAppTrialEnabled(): boolean {
   const raw = (process.env.ENABLE_APP_TRIAL || '').trim().toLowerCase()
   return raw === '1' || raw === 'true'
@@ -125,52 +127,56 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
  * Note: "Team" is marketing-only for now; billing/plan IDs are unchanged.
  */
 export type DisplayPlanMeta = {
-  tier: 'starter' | 'closer' | 'team'
-  label: string
-  subtitle?: string
-  isFree: boolean
-  isPaid: boolean
+  tier: PlanTier
+  creditsLabel: string
+  planBubbleLabel: string
+  canUpgradeToCloser: boolean
+  canUpgradeToTeam: boolean
 }
 
-export function getDisplayPlanMeta(plan: Plan | 'team' | null | undefined): DisplayPlanMeta {
-  if (!plan || plan === 'free') {
+function normalizeTier(input: unknown): PlanTier {
+  if (input === 'starter' || input === 'closer' || input === 'team') return input
+  // Back-compat with older/other values.
+  if (input === 'free') return 'starter'
+  if (input === 'pro') return 'closer'
+  return 'starter'
+}
+
+/**
+ * Pure display metadata for Starter / Closer / Team.
+ * Accepts either the /api/plan payload (preferred) or legacy plan strings.
+ */
+export function getDisplayPlanMeta(plan: { tier?: unknown; plan?: unknown } | Plan | null | undefined): DisplayPlanMeta {
+  const tier =
+    typeof plan === 'string'
+      ? normalizeTier(plan)
+      : normalizeTier((plan as { tier?: unknown; plan?: unknown } | null)?.tier ?? (plan as any)?.plan)
+
+  if (tier === 'starter') {
     return {
-      tier: 'starter',
-      label: 'Starter',
-      subtitle: 'Free (limited)',
-      isFree: true,
-      isPaid: false,
+      tier,
+      creditsLabel: 'Starter (limited)',
+      planBubbleLabel: 'Starter (limited)',
+      canUpgradeToCloser: true,
+      canUpgradeToTeam: true,
     }
   }
 
-  // Display-only support (future): if a Team tier is introduced, map it here without changing billing IDs.
-  if (plan === 'team') {
+  if (tier === 'closer') {
     return {
-      tier: 'team',
-      label: 'Team',
-      subtitle: '$249 / month',
-      isFree: false,
-      isPaid: true,
+      tier,
+      creditsLabel: '∞ Unlimited',
+      planBubbleLabel: 'Closer • $79 / month',
+      canUpgradeToCloser: false,
+      canUpgradeToTeam: true,
     }
   }
 
-  // Current paid tier (billing plan IDs unchanged).
-  if (plan === 'pro') {
-    return {
-      tier: 'closer',
-      label: 'Closer',
-      subtitle: '$79 / month',
-      isFree: false,
-      isPaid: true,
-    }
-  }
-
-  // Fallback: treat unknown as Starter.
   return {
-    tier: 'starter',
-    label: 'Starter',
-    subtitle: 'Free (limited)',
-    isFree: true,
-    isPaid: false,
+    tier: 'team',
+    creditsLabel: '∞ Unlimited',
+    planBubbleLabel: 'Team • $249 / month',
+    canUpgradeToCloser: false,
+    canUpgradeToTeam: false,
   }
 }

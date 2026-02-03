@@ -33,8 +33,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
 
         const userTrial = (userRow as UserTrialRow | null) ?? null
         const needsInit = !userRow || !(userTrial as { trial_ends_at?: string | null })?.trial_ends_at
-        const tier = (userRow as { subscription_tier?: 'free' | 'pro' } | null)?.subscription_tier ?? 'free'
-        if (needsInit && tier !== 'pro') {
+        const tier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? 'free'
+        if (needsInit && tier !== 'pro' && tier !== 'team') {
           const fingerprintingEnabled =
             serverEnv.ENABLE_TRIAL_FINGERPRINTING === '1' || serverEnv.ENABLE_TRIAL_FINGERPRINTING === 'true'
           const userAgent = request.headers.get('user-agent') || ''
@@ -146,6 +146,31 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
     const appTrialEndsAt = details.appTrialEndsAt ?? null
     const isAppTrial = Boolean(details.isAppTrial) && Boolean(appTrialEndsAt)
 
+    // Stable tier for UI: starter | closer | team.
+    // Keep existing `plan` field for backwards compatibility (PlanProvider, etc.).
+    let tier: 'starter' | 'closer' | 'team' = details.plan === 'free' ? 'starter' : 'closer'
+    let planId: string | null = details.plan === 'free' ? null : 'pro'
+
+    // Best-effort Team detection: do not change billing logic or Stripe mapping.
+    if (details.plan !== 'free') {
+      try {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('subscription_tier')
+          .eq('id', user.id)
+          .maybeSingle()
+        const subTier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? null
+        if (subTier === 'team') {
+          tier = 'team'
+          planId = 'team'
+        }
+      } catch {
+        // fail-open: keep tier as 'closer' for paid/legacy users
+        tier = 'closer'
+        planId = 'pro'
+      }
+    }
+
     // Product analytics (best-effort; behind env flag).
     if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
       void logProductEvent({
@@ -160,6 +185,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
     return ok(
       {
         plan: details.plan,
+        tier,
+        planId,
         trial:
           isTrialing
             ? { active: true, endsAt: trialEndsAt }

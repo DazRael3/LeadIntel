@@ -18,8 +18,8 @@ interface DashboardHeaderSectionProps {
 export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHeaderSectionProps) {
   const router = useRouter()
   const { openPortal } = useStripePortal()
-  const { plan } = usePlan()
-  const planMeta = getDisplayPlanMeta(plan)
+  const { tier } = usePlan()
+  const planMeta = getDisplayPlanMeta({ tier })
   const isStarter = planMeta.tier === 'starter'
   const isCloser = planMeta.tier === 'closer'
   const isTeam = planMeta.tier === 'team'
@@ -40,7 +40,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">Credits</p>
                   <p className="text-sm font-bold neon-cyan">
-                    {isStarter ? 'Starter (limited)' : '∞ Unlimited'}
+                    {planMeta.creditsLabel}
                   </p>
                 </div>
               </div>
@@ -49,47 +49,51 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
             {/* Subscription Badge */}
             <div className="flex items-center gap-2">
               <Badge
-                variant={planMeta.isFree ? 'outline' : 'default'}
+                variant={isStarter ? 'outline' : 'default'}
                 className={
-                  planMeta.isFree
+                  isStarter
                     ? 'border-slate-700/70 bg-slate-900/70 text-slate-100'
                     : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
                 }
               >
                 <Shield className="h-3 w-3 mr-1" />
-                {planMeta.label}
+                {planMeta.planBubbleLabel}
               </Badge>
-              {planMeta.subtitle ? (
-                <Badge variant="outline" className="border-slate-700/70 bg-slate-900/70 text-slate-300">
-                  {planMeta.subtitle}
-                </Badge>
-              ) : null}
             </div>
 
             {/* Upgrade / Billing CTAs */}
             {isStarter ? (
-              <Button
-                variant="outline"
-                onClick={() => router.push('/pricing')}
-                className="neon-border hover:glow-effect"
-              >
-                <DollarSign className="h-4 w-4 mr-2" />
-                Upgrade to Closer
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/pricing?target=closer')}
+                  className="neon-border hover:glow-effect"
+                >
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Upgrade to Closer
+                </Button>
+                <button
+                  type="button"
+                  className="text-xs text-cyan-300/90 hover:text-cyan-200 underline underline-offset-4"
+                  onClick={() => router.push('/pricing?target=team')}
+                >
+                  View Team plan
+                </button>
+              </div>
             ) : (
               <>
                 {isCloser ? (
                   <Button
                     variant="outline"
-                    onClick={() => router.push('/pricing')}
+                    onClick={() => router.push('/pricing?target=team')}
                     className="neon-border hover:glow-effect"
                   >
                     <DollarSign className="h-4 w-4 mr-2" />
                     Upgrade to Team
                   </Button>
                 ) : null}
-                {/* Team users: no upgrade CTA, only manage billing */}
-                {(isCloser || isTeam || isPro) && (
+                {/* Team users: no upgrade CTA */}
+                {(isCloser || isTeam || isPro) ? (
                   <Button
                     variant="outline"
                     onClick={openPortal}
@@ -98,7 +102,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                     <Shield className="h-4 w-4 mr-2" />
                     Manage billing
                   </Button>
-                )}
+                ) : null}
               </>
             )}
             <SignOutButton />

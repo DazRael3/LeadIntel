@@ -75,16 +75,42 @@ function isStripeConfigError(message: string): boolean {
 
 export function Pricing() {
   const router = useRouter()
+  const [target, setTarget] = useState<string | null>(null) // optional: closer | team
   const supabase = createClient()
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const { isPro } = usePlan()
 
   useEffect(() => {
-    if (isPro) {
+    // Client-only query parsing (avoid useSearchParams() suspense requirement during prerender).
+    try {
+      const qs = new URLSearchParams(window.location.search)
+      const t = qs.get('target')
+      setTarget(t)
+    } catch {
+      setTarget(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Default behavior: paid users are sent to dashboard.
+    // Exception: allow /pricing?target=team so Closer users can view the Team tier.
+    if (isPro && target !== 'team') {
       router.replace('/dashboard')
     }
-  }, [isPro, router])
+  }, [isPro, router, target])
+
+  useEffect(() => {
+    if (!target) return
+    const id = target === 'team' ? 'plan-team' : target === 'closer' ? 'plan-closer' : null
+    if (!id) return
+    // Let layout settle before scrolling.
+    const t = setTimeout(() => {
+      const el = document.getElementById(id)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+    return () => clearTimeout(t)
+  }, [target])
 
   const handleCheckout = async () => {
     setIsCheckoutLoading(true)
@@ -167,6 +193,7 @@ export function Pricing() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          <div id="plan-starter">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
               <CardTitle className="text-2xl bloomberg-font">Starter</CardTitle>
@@ -196,7 +223,9 @@ export function Pricing() {
               </Button>
             </CardContent>
           </Card>
+          </div>
 
+          <div id="plan-closer">
           <Card className="border-cyan-500/30 bg-card/80 glow-effect relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-gradient-to-l from-cyan-500/20 to-transparent w-32 h-32 blur-3xl" />
             <div className="absolute bottom-0 left-0 bg-gradient-to-r from-blue-500/20 to-transparent w-32 h-32 blur-3xl" />
@@ -290,7 +319,9 @@ export function Pricing() {
               </p>
             </CardContent>
           </Card>
+          </div>
 
+          <div id="plan-team">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
               <CardTitle className="text-2xl bloomberg-font">Team</CardTitle>
@@ -322,6 +353,7 @@ export function Pricing() {
               </Button>
             </CardContent>
           </Card>
+          </div>
         </div>
 
         <div className="mt-12 max-w-4xl mx-auto">
