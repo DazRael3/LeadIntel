@@ -124,18 +124,53 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
  *
  * Note: "Team" is marketing-only for now; billing/plan IDs are unchanged.
  */
-export function getDisplayPlanMeta(plan: Plan | null | undefined): {
+export type DisplayPlanMeta = {
+  tier: 'starter' | 'closer' | 'team'
   label: string
   subtitle?: string
   isFree: boolean
-  /** Display-only CTA copy (does not affect billing). */
-  ctaLabel?: string
-} {
+  isPaid: boolean
+}
+
+export function getDisplayPlanMeta(plan: Plan | 'team' | null | undefined): DisplayPlanMeta {
   if (!plan || plan === 'free') {
-    return { label: 'Starter', subtitle: 'Free (limited)', isFree: true, ctaLabel: 'Upgrade to Team' }
+    return {
+      tier: 'starter',
+      label: 'Starter',
+      subtitle: 'Free (limited)',
+      isFree: true,
+      isPaid: false,
+    }
   }
+
+  // Display-only support (future): if a Team tier is introduced, map it here without changing billing IDs.
+  if (plan === 'team') {
+    return {
+      tier: 'team',
+      label: 'Team',
+      subtitle: '$249 / month',
+      isFree: false,
+      isPaid: true,
+    }
+  }
+
+  // Current paid tier (billing plan IDs unchanged).
   if (plan === 'pro') {
-    return { label: 'Closer', subtitle: '$79 / month', isFree: false }
+    return {
+      tier: 'closer',
+      label: 'Closer',
+      subtitle: '$79 / month',
+      isFree: false,
+      isPaid: true,
+    }
   }
-  return { label: 'Starter', subtitle: 'Free (limited)', isFree: true }
+
+  // Fallback: treat unknown as Starter.
+  return {
+    tier: 'starter',
+    label: 'Starter',
+    subtitle: 'Free (limited)',
+    isFree: true,
+    isPaid: false,
+  }
 }

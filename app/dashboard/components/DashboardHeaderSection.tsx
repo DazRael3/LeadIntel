@@ -20,6 +20,9 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
   const { openPortal } = useStripePortal()
   const { plan } = usePlan()
   const planMeta = getDisplayPlanMeta(plan)
+  const isStarter = planMeta.tier === 'starter'
+  const isCloser = planMeta.tier === 'closer'
+  const isTeam = planMeta.tier === 'team'
 
   return (
     <header className="border-b border-cyan-500/20 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
@@ -37,7 +40,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">Credits</p>
                   <p className="text-sm font-bold neon-cyan">
-                    {planMeta.isFree ? 'Starter (limited)' : '∞ Unlimited'}
+                    {isStarter ? 'Starter (limited)' : '∞ Unlimited'}
                   </p>
                 </div>
               </div>
@@ -63,26 +66,40 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
               ) : null}
             </div>
 
-            {/* Upgrade button - Only show for Free users */}
-            {!isPro && (
-              <Button 
-                variant="outline" 
+            {/* Upgrade / Billing CTAs */}
+            {isStarter ? (
+              <Button
+                variant="outline"
                 onClick={() => router.push('/pricing')}
                 className="neon-border hover:glow-effect"
               >
                 <DollarSign className="h-4 w-4 mr-2" />
-                {planMeta.ctaLabel ?? 'Upgrade to Team'}
+                Upgrade to Closer
               </Button>
-            )}
-            {isPro && (
-              <Button
-                variant="outline"
-                onClick={openPortal}
-                className="neon-border hover:glow-effect"
-              >
-                <Shield className="h-4 w-4 mr-2" />
-                Manage billing
-              </Button>
+            ) : (
+              <>
+                {isCloser ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push('/pricing')}
+                    className="neon-border hover:glow-effect"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Upgrade to Team
+                  </Button>
+                ) : null}
+                {/* Team users: no upgrade CTA, only manage billing */}
+                {(isCloser || isTeam || isPro) && (
+                  <Button
+                    variant="outline"
+                    onClick={openPortal}
+                    className="neon-border hover:glow-effect"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Manage billing
+                  </Button>
+                )}
+              </>
             )}
             <SignOutButton />
           </div>
