@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
-import { getPlanDetails } from '@/lib/billing/plan'
 import { hasEverHadTrial, isEligibleForNewTrial, type SubscriptionTrialRow, type UserTrialRow } from '@/lib/billing/entitlements'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
@@ -10,6 +9,12 @@ import { createHash } from 'crypto'
 import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
+
+type PlanTier = 'starter' | 'closer' | 'team'
+
+function isActiveStatus(status: string | null | undefined): boolean {
+  return status === 'active' || status === 'trialing'
+}
 
 export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
@@ -140,34 +145,62 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
       }
     }
 
-    const details = await getPlanDetails(supabase, user.id)
-    const trialEndsAt = details.trialEndsAt ?? null
-    const isTrialing = details.subscriptionStatus === 'trialing' && Boolean(trialEndsAt)
-    const appTrialEndsAt = details.appTrialEndsAt ?? null
-    const isAppTrial = Boolean(details.isAppTrial) && Boolean(appTrialEndsAt)
+    // Stripe subscription is the source of truth for Starter vs paid tiers:
+    // - No active subscription => Starter
+    // - Active/trialing subscription => paid (Closer or Team based on price id)
+    const { data: subRow } = await supabase
+      .schema('api')
+      .from('subscriptions')
+      .select('status, stripe_price_id, price_id, trial_end, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-    // Stable tier for UI: starter | closer | team.
-    // Keep existing `plan` field for backwards compatibility (PlanProvider, etc.).
-    let tier: 'starter' | 'closer' | 'team' = details.plan === 'free' ? 'starter' : 'closer'
-    let planId: string | null = details.plan === 'free' ? null : 'pro'
+    const status = (subRow as { status?: string | null } | null)?.status ?? null
+    const hasActiveSubscription = isActiveStatus(status)
 
-    // Best-effort Team detection: do not change billing logic or Stripe mapping.
-    if (details.plan !== 'free') {
+    let tier: PlanTier = 'starter'
+    let planId: string | null = null
+
+    if (hasActiveSubscription) {
+      const configuredCloserPrice = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim()
+      const subPrice =
+        (subRow as { stripe_price_id?: string | null } | null)?.stripe_price_id ??
+        (subRow as { price_id?: string | null } | null)?.price_id ??
+        null
+
+      // If the subscription price differs from the configured "Closer" price, treat as Team.
+      // (No Stripe ID changes here; this is detection only.)
+      if (configuredCloserPrice && typeof subPrice === 'string' && subPrice.length > 0 && subPrice !== configuredCloserPrice) {
+        tier = 'team'
+        planId = 'team'
+      } else {
+        tier = 'closer'
+        planId = 'pro'
+      }
+    }
+
+    // Trial display is best-effort and MUST NOT promote a user into paid tiers.
+    const stripeTrialEnd = (subRow as { trial_end?: string | null } | null)?.trial_end ?? null
+    const isStripeTrialing = status === 'trialing' && Boolean(stripeTrialEnd)
+    let trial: { active: boolean; endsAt: string | null } = isStripeTrialing
+      ? { active: true, endsAt: stripeTrialEnd }
+      : { active: false, endsAt: null }
+
+    if (!trial.active && enableAppTrial) {
       try {
         const { data: userRow } = await supabase
           .from('users')
-          .select('subscription_tier')
+          .select('trial_ends_at')
           .eq('id', user.id)
           .maybeSingle()
-        const subTier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? null
-        if (subTier === 'team') {
-          tier = 'team'
-          planId = 'team'
+        const appTrialEndsAt = (userRow as { trial_ends_at?: string | null } | null)?.trial_ends_at ?? null
+        if (appTrialEndsAt && Date.parse(appTrialEndsAt) > Date.now()) {
+          trial = { active: true, endsAt: appTrialEndsAt }
         }
       } catch {
-        // fail-open: keep tier as 'closer' for paid/legacy users
-        tier = 'closer'
-        planId = 'pro'
+        // fail-open
       }
     }
 
@@ -177,22 +210,17 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         userId: user.id,
         eventName: 'plan_checked',
         eventProps: {
-          plan: details.plan,
-          isAppTrial,
+          tier,
         },
       })
     }
     return ok(
       {
-        plan: details.plan,
+        // Keep legacy `plan` (used by existing clients) but do NOT infer paid access from app-level trial.
+        plan: tier === 'starter' ? 'free' : 'pro',
         tier,
         planId,
-        trial:
-          isTrialing
-            ? { active: true, endsAt: trialEndsAt }
-            : isAppTrial
-              ? { active: true, endsAt: appTrialEndsAt }
-              : { active: false, endsAt: null },
+        trial,
       },
       undefined,
       bridge,

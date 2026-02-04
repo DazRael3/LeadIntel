@@ -8,6 +8,7 @@ type Tier = 'starter' | 'closer' | 'team'
 interface PlanContextValue {
   plan: Plan
   tier: Tier
+  planId: string | null
   isPro: boolean
   trial: { active: boolean; endsAt: string | null }
   loading: boolean
@@ -23,7 +24,8 @@ interface PlanProviderProps {
 
 export function PlanProvider({ initialPlan = 'free', children }: PlanProviderProps) {
   const [plan, setPlan] = useState<Plan>(initialPlan)
-  const [tier, setTier] = useState<Tier>(initialPlan === 'pro' ? 'closer' : 'starter')
+  const [tier, setTier] = useState<Tier>('starter')
+  const [planId, setPlanId] = useState<string | null>(null)
   const [trial, setTrial] = useState<{ active: boolean; endsAt: string | null }>({ active: false, endsAt: null })
   const [loading, setLoading] = useState(false)
 
@@ -48,13 +50,17 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
       const payload = data?.data ?? data
       if (payload?.plan === 'pro' || payload?.plan === 'free') {
         setPlan(payload.plan)
-        // Derive tier if API doesn't provide it (backwards compatibility).
-        if (payload?.tier !== 'starter' && payload?.tier !== 'closer' && payload?.tier !== 'team') {
-          setTier(payload.plan === 'pro' ? 'closer' : 'starter')
-        }
       }
       if (payload?.tier === 'starter' || payload?.tier === 'closer' || payload?.tier === 'team') {
         setTier(payload.tier)
+      } else {
+        // Safe default: treat unknown/missing as Starter.
+        setTier('starter')
+      }
+      if (typeof payload?.planId === 'string') {
+        setPlanId(payload.planId)
+      } else {
+        setPlanId(null)
       }
       if (payload?.trial && typeof payload.trial === 'object') {
         const nextTrial = payload.trial as { active?: unknown; endsAt?: unknown }
@@ -82,12 +88,13 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
     () => ({
       plan,
       tier,
+      planId,
       isPro: plan === 'pro',
       trial,
       loading,
       refresh,
     }),
-    [plan, tier, trial, loading, refresh]
+    [plan, tier, planId, trial, loading, refresh]
   )
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>

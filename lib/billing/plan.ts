@@ -136,9 +136,6 @@ export type DisplayPlanMeta = {
 
 function normalizeTier(input: unknown): PlanTier {
   if (input === 'starter' || input === 'closer' || input === 'team') return input
-  // Back-compat with older/other values.
-  if (input === 'free') return 'starter'
-  if (input === 'pro') return 'closer'
   return 'starter'
 }
 
@@ -150,7 +147,7 @@ export function getDisplayPlanMeta(plan: { tier?: unknown; plan?: unknown } | Pl
   const tier =
     typeof plan === 'string'
       ? normalizeTier(plan)
-      : normalizeTier((plan as { tier?: unknown; plan?: unknown } | null)?.tier ?? (plan as any)?.plan)
+      : normalizeTier((plan as { tier?: unknown } | null)?.tier)
 
   if (tier === 'starter') {
     return {
@@ -166,7 +163,7 @@ export function getDisplayPlanMeta(plan: { tier?: unknown; plan?: unknown } | Pl
     return {
       tier,
       creditsLabel: '∞ Unlimited',
-      planBubbleLabel: 'Closer • $79 / month',
+      planBubbleLabel: 'Closer · $79 / month',
       canUpgradeToCloser: false,
       canUpgradeToTeam: true,
     }
@@ -175,7 +172,7 @@ export function getDisplayPlanMeta(plan: { tier?: unknown; plan?: unknown } | Pl
   return {
     tier: 'team',
     creditsLabel: '∞ Unlimited',
-    planBubbleLabel: 'Team • $249 / month',
+    planBubbleLabel: 'Team · $249 / month',
     canUpgradeToCloser: false,
     canUpgradeToTeam: false,
   }
