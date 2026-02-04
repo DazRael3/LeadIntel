@@ -25,7 +25,9 @@ class FakeQuery {
     if (this.table === 'users') {
       return Promise.resolve({ data: { stripe_customer_id: 'cus_123' }, error: null })
     }
-    // subscriptions: no active subscription in tests
+    if (this.table === 'subscriptions') {
+      return Promise.resolve({ data: mockExistingSubscription, error: null })
+    }
     return Promise.resolve({ data: null, error: null })
   }
   maybeSingle() {
@@ -43,6 +45,8 @@ class FakeQuery {
   }
 }
 
+let mockExistingSubscription: unknown = null
+
 // Minimal Supabase route client mock (auth + db stubs).
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
@@ -55,6 +59,7 @@ vi.mock('@/lib/supabase/route', () => ({
 
 // Stripe mock: ensure we can assert server-side mapping of price ids.
 const createSession = vi.fn(async (_args: unknown) => ({ url: 'https://checkout.stripe.com/test_session' }))
+const createPortalSession = vi.fn(async () => ({ url: 'https://billing.stripe.com/test_portal' }))
 vi.mock('@/lib/stripe', () => ({
   stripe: {
     customers: {
@@ -65,12 +70,18 @@ vi.mock('@/lib/stripe', () => ({
         create: createSession,
       },
     },
+    billingPortal: {
+      sessions: {
+        create: createPortalSession,
+      },
+    },
   },
 }))
 
 describe('/api/checkout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockExistingSubscription = null
     // Ensure env vars exist for route config checks.
     process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
     process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
@@ -142,6 +153,23 @@ describe('/api/checkout', () => {
     expect(createSession).toHaveBeenCalledTimes(1)
     const arg = createSession.mock.calls[0]?.[0] as any
     expect(arg?.line_items?.[0]?.price).toBe(process.env.STRIPE_PRICE_ID_TEAM)
+  })
+
+  it('POST for Team returns billing portal url when already subscribed', async () => {
+    mockExistingSubscription = { id: 'sub_1', status: 'active' }
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'team' }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.url).toBe('https://billing.stripe.com/test_portal')
+    expect(createPortalSession).toHaveBeenCalledTimes(1)
+    expect(createSession).not.toHaveBeenCalled()
   })
 
   it('POST returns 400 for unsupported planId', async () => {

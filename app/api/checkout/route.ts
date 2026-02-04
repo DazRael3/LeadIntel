@@ -215,6 +215,22 @@ const POST_GUARDED = withApiGuard(
       .single()
 
     if (existingSubscription) {
+      // If the user is already subscribed and is attempting to move to Team,
+      // send them to the Stripe Billing Portal for a safe upgrade flow.
+      if (planId === 'team') {
+        try {
+          const portal = await stripe.billingPortal.sessions.create({
+            customer: customerId,
+            return_url: `${siteUrl}/pricing?target=team`,
+          })
+          const url = portal.url
+          if (typeof url === 'string' && url.length > 0) {
+            return ok({ url }, undefined, bridge, requestId)
+          }
+        } catch {
+          // Fall through to conflict (client can use Manage billing).
+        }
+      }
       return fail(
         ErrorCode.CONFLICT,
         'Already subscribed',
