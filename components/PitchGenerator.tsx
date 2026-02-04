@@ -13,6 +13,7 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { isE2E } from '@/lib/runtimeFlags'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { PITCH_TEMPLATES, type PitchTemplateId } from '@/lib/ai/pitch-templates'
+import { ProGate } from '@/components/ProGate'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -680,24 +681,30 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
           </CardContent>
         </Card>
       ) : emailSequence ? (
-        <Card className="border-purple-500/20 bg-card/50">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-purple-400" />
-                <CardTitle className="text-lg bloomberg-font">EMAIL SEQUENCER</CardTitle>
+        <ProGate
+          requiredTier="closer"
+          upgradeTarget="closer"
+          label="Email Sequencer (Pro)"
+          description="Unlock full email sequencing and automation with the Closer plan."
+        >
+          <Card className="border-purple-500/20 bg-card/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-purple-400" />
+                  <CardTitle className="text-lg bloomberg-font">EMAIL SEQUENCER</CardTitle>
+                </div>
+                <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
+                  <Shield className="h-3 w-3 mr-1" />
+                  Pro
+                </Badge>
               </div>
-              <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
-                <Shield className="h-3 w-3 mr-1" />
-                Pro
-              </Badge>
-            </div>
-            <CardDescription className="text-xs uppercase tracking-wider">
-              Enterprise Intelligence • 3-Part Automated Sequence
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
+              <CardDescription className="text-xs uppercase tracking-wider">
+                Enterprise Intelligence • 3-Part Automated Sequence
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
               {/* Part 1: Helpful */}
               <div className="p-4 rounded-lg border border-green-500/10 bg-background/30">
                   <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -775,46 +782,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
             </div>
           </CardContent>
         </Card>
-      ) : !isPro ? (
-        <Card className="border-purple-500/20 bg-card/50 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-500/20 to-transparent w-32 h-32 blur-3xl" />
-          </div>
-          <CardHeader className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Lock className="h-5 w-5 text-purple-400" />
-                <CardTitle className="text-lg bloomberg-font neon-purple">EMAIL SEQUENCER</CardTitle>
-              </div>
-              <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
-                <Lock className="h-3 w-3 mr-1" />
-                Pro Only
-              </Badge>
-            </div>
-            <CardDescription className="text-xs uppercase tracking-wider">
-              Enterprise Intelligence • 3-Part Automated Sequence
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-center py-12">
-              <div className="mb-6">
-                <Mail className="h-16 w-16 mx-auto mb-4 text-purple-400/50" />
-                <h3 className="text-lg font-bold mb-2 text-purple-400">Enterprise Feature Locked</h3>
-                <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-                  Automate your outreach with a 3-part email sequence: Helpful opener, data-driven follow-up, and final reminder. 
-                  Each email is AI-optimized for maximum engagement.
-                </p>
-              </div>
-              <Button
-                onClick={() => router.push('/pricing')}
-                className="neon-border hover:glow-effect bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
-              >
-                <DollarSign className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="text-center">Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        </ProGate>
       ) : null}
 
       {/* Battle Card */}
@@ -826,24 +794,30 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
           </CardContent>
         </Card>
       ) : battleCard ? (
-        <Card className="border-purple-500/20 bg-card/50">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-purple-400" />
-                <CardTitle className="text-lg bloomberg-font">BATTLE CARD</CardTitle>
+        <ProGate
+          requiredTier="closer"
+          upgradeTarget="closer"
+          label="Battle Card (Pro)"
+          description="Unlock competitive intelligence and positioning with the Closer plan."
+        >
+          <Card className="border-purple-500/20 bg-card/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-purple-400" />
+                  <CardTitle className="text-lg bloomberg-font">BATTLE CARD</CardTitle>
+                </div>
+                <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
+                  <Shield className="h-3 w-3 mr-1" />
+                  Pro
+                </Badge>
               </div>
-              <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
-                <Shield className="h-3 w-3 mr-1" />
-                Pro
-              </Badge>
-            </div>
-            <CardDescription className="text-xs uppercase tracking-wider">
-              Enterprise Intelligence • 3-Point Competitive Intelligence
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+              <CardDescription className="text-xs uppercase tracking-wider">
+                Enterprise Intelligence • 3-Point Competitive Intelligence
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
               {/* Current Tech */}
               <div className="p-4 rounded-lg border border-cyan-500/10 bg-background/30">
                 <div className="flex items-center gap-2 mb-3">
@@ -893,45 +867,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
             </div>
           </CardContent>
         </Card>
-      ) : !isPro ? (
-        <Card className="border-purple-500/20 bg-card/50 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-500/20 to-transparent w-32 h-32 blur-3xl" />
-          </div>
-          <CardHeader className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Lock className="h-5 w-5 text-purple-400" />
-                <CardTitle className="text-lg bloomberg-font neon-purple">BATTLE CARD</CardTitle>
-              </div>
-              <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
-                <Lock className="h-3 w-3 mr-1" />
-                Pro Only
-              </Badge>
-            </div>
-            <CardDescription className="text-xs uppercase tracking-wider">
-              Enterprise Intelligence • 3-Point Competitive Intelligence
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-center py-12">
-              <div className="mb-6">
-                <Shield className="h-16 w-16 mx-auto mb-4 text-purple-400/50" />
-                <h3 className="text-lg font-bold mb-2 text-purple-400">Enterprise Feature Locked</h3>
-                <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-                  Get instant competitive intelligence: Current tech stack, pain points, and your killer feature that solves their challenge.
-                </p>
-              </div>
-              <Button
-                onClick={() => router.push('/pricing')}
-                className="neon-border hover:glow-effect bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
-              >
-                <DollarSign className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="text-center">Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        </ProGate>
       ) : null}
     </div>
   )

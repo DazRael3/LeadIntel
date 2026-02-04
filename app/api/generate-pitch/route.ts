@@ -246,29 +246,28 @@ export const POST = withApiGuard(
       template.id
     )
 
-    // Generate battle card and email sequence for Pro users
-    let battleCard = null
-    let emailSequence = null
-    if (isPro) {
-      battleCard = await generateBattleCard(
-        topicName,
-        null, // triggerEvent
-        companyInfo,
-        {
+    // Generate battle card and email sequence (best-effort).
+    // These outputs are visually gated in the UI for Starter users, but we still compute them here
+    // so Starter users can preview blurred content and upgrade.
+    let battleCard: unknown | null = null
+    let emailSequence: unknown | null = null
+    try {
+      const [bc, seq] = await Promise.allSettled([
+        generateBattleCard(topicName, null, companyInfo, {
           whatYouSell: userSettings?.what_you_sell || '',
           idealCustomer: userSettings?.ideal_customer || '',
-        }
-      )
-      emailSequence = await generateEmailSequence(
-        topicName,
-        null, // triggerEvent
-        null, // ceoName
-        companyInfo,
-        {
+        }),
+        generateEmailSequence(topicName, null, null, companyInfo, {
           whatYouSell: userSettings?.what_you_sell || '',
           idealCustomer: userSettings?.ideal_customer || '',
-        }
-      )
+        }),
+      ])
+      if (bc.status === 'fulfilled') battleCard = bc.value
+      if (seq.status === 'fulfilled') emailSequence = seq.value
+    } catch {
+      // Best-effort only; do not block pitch generation.
+      battleCard = null
+      emailSequence = null
     }
 
     // Get database schema
