@@ -7,6 +7,9 @@ import { formatErrorMessage } from '@/lib/utils/format-error'
 import type { TriggerEvent } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
 import { track } from '@/lib/analytics'
+import { usePlan } from '@/components/PlanProvider'
+import { ProGate } from '@/components/ProGate'
+import { useRouter } from 'next/navigation'
 
 interface TriggerEventsSectionProps {
   events: TriggerEvent[]
@@ -37,6 +40,10 @@ export function TriggerEventsSection({
   lastUpdatedAt,
   debugEnabled,
 }: TriggerEventsSectionProps) {
+  const { tier } = usePlan()
+  const router = useRouter()
+  const isStarter = tier === 'starter'
+
   const title = companyDomain
     ? `Trigger Events for ${companyLabel || companyDomain}`
     : companyLabel
@@ -99,62 +106,90 @@ export function TriggerEventsSection({
           <div className="text-center py-12">
             <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">No trigger events yet</h3>
-            <p className="text-muted-foreground mb-4">
-              We’re watching the feeds — check back soon, or generate a pitch to start tracking a company.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Events are near real-time and may take a moment to populate.
-            </p>
+            {isStarter ? (
+              <>
+                <p className="text-muted-foreground mb-4">
+                  No matched trigger events yet. We’ll keep watching the feeds — upgrade to Closer to unlock full signal
+                  history and more event sources.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push('/pricing?target=closer')}
+                  className="neon-border hover:glow-effect"
+                >
+                  Upgrade to Closer
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-muted-foreground mb-4">
+                  We’re watching the feeds — check back soon, or generate a pitch to start tracking a company.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Events are near real-time and may take a moment to populate.
+                </p>
+              </>
+            )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {events.map((event) => (
-              <div
-                key={event.id}
-                className="p-4 rounded-lg border border-cyan-500/20 bg-background/30 hover:bg-background/50 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold">{event.company_name}</h3>
-                      {event.company_domain ? <span className="text-xs text-muted-foreground">({event.company_domain})</span> : null}
-                    </div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <a
-                        href={event.source_url || '#'}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm text-cyan-200 hover:underline line-clamp-2"
-                        onClick={() =>
-                          track('trigger_event_opened', {
-                            source_url: event.source_url,
-                            company_domain: event.company_domain,
-                            company_name: event.company_name,
-                          })
-                        }
-                      >
-                        {event.headline || event.event_description}
-                      </a>
-                    </div>
-                    {event.event_description ? (
-                      <p className="text-xs text-muted-foreground line-clamp-2">{event.event_description}</p>
-                    ) : null}
-
-                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      {event.source_url ? (
-                        <span className="rounded border border-cyan-500/10 bg-background/20 px-2 py-0.5">
-                          {hostFromUrl(event.source_url) ?? 'Source'}
-                        </span>
+          <ProGate
+            requiredTier="closer"
+            upgradeTarget="closer"
+            label="Trigger Events (Pro)"
+            description="Unlock full signal history and more event sources with the Closer plan."
+          >
+            <div className="space-y-3">
+              {events.map((event) => (
+                <div
+                  key={event.id}
+                  className="p-4 rounded-lg border border-cyan-500/20 bg-background/30 hover:bg-background/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold">{event.company_name}</h3>
+                        {event.company_domain ? (
+                          <span className="text-xs text-muted-foreground">({event.company_domain})</span>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <a
+                          href={event.source_url || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm text-cyan-200 hover:underline line-clamp-2"
+                          onClick={() =>
+                            track('trigger_event_opened', {
+                              source_url: event.source_url,
+                              company_domain: event.company_domain,
+                              company_name: event.company_name,
+                            })
+                          }
+                        >
+                          {event.headline || event.event_description}
+                        </a>
+                      </div>
+                      {event.event_description ? (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{event.event_description}</p>
                       ) : null}
-                      <span title={new Date(event.detected_at).toLocaleString()}>
-                        {formatDistanceToNow(new Date(event.detected_at), { addSuffix: true })}
-                      </span>
+
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        {event.source_url ? (
+                          <span className="rounded border border-cyan-500/10 bg-background/20 px-2 py-0.5">
+                            {hostFromUrl(event.source_url) ?? 'Source'}
+                          </span>
+                        ) : null}
+                        <span title={new Date(event.detected_at).toLocaleString()}>
+                          {formatDistanceToNow(new Date(event.detected_at), { addSuffix: true })}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </ProGate>
         )}
       </CardContent>
     </Card>

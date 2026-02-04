@@ -30,6 +30,7 @@ import { DebugPanel } from './components/DebugPanel'
 import { ViewModeToggle } from './components/ViewModeToggle'
 import { ProOnlyCard } from './components/ProOnlyCard'
 import { CommunicationPreferencesCard } from './components/CommunicationPreferencesCard'
+import { ProGate } from '@/components/ProGate'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -247,29 +248,34 @@ export function DashboardClient({
           </TabsContent>
 
           <TabsContent value="live-intent" className="space-y-6">
-            {isPro ? (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <div className="lg:col-span-3">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-3">
+                <ProGate
+                  requiredTier="closer"
+                  upgradeTarget="closer"
+                  label="Live Intent (Pro)"
+                  description="Unlock real-time intent signals and enrichment with the Closer plan."
+                >
                   <LiveIntent isPro={isPro} />
-                </div>
-                <div className="lg:col-span-1">
-                  <MarketSidebar />
-                </div>
+                </ProGate>
               </div>
-            ) : (
-              <ProOnlyCard
-                title="Live Intent is Pro-only"
-                description="Upgrade to Pro to unlock real-time intent signals and enrichment."
-                icon="shield"
-                iconColor="cyan"
-              />
-            )}
+              <div className="lg:col-span-1">
+                <MarketSidebar />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="market" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-3">
-                <MarketPulse />
+                <ProGate
+                  requiredTier="closer"
+                  upgradeTarget="closer"
+                  label="Market Pulse (Pro)"
+                  description="Unlock real-time market pulse and alerts with the Closer plan."
+                >
+                  <MarketPulse />
+                </ProGate>
               </div>
               <div className="lg:col-span-1">
                 <MarketSidebar />
@@ -283,7 +289,14 @@ export function DashboardClient({
                 <MarketSidebar />
               </div>
               <div className="lg:col-span-3">
-                <MarketWatchlistTab />
+                <ProGate
+                  requiredTier="closer"
+                  upgradeTarget="closer"
+                  label="Watchlist (Pro)"
+                  description="Unlock custom watchlists and alerts with the Closer plan."
+                >
+                  <MarketWatchlistTab />
+                </ProGate>
               </div>
             </div>
           </TabsContent>
