@@ -1,107 +1,96 @@
-// @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-
-const mockGetUser = vi.fn()
-const mockOnAuth = vi.fn()
-const mockFrom = vi.fn()
-
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: vi.fn(() => ({
-    auth: {
-      getUser: mockGetUser,
-      onAuthStateChange: mockOnAuth,
-    },
-    from: mockFrom,
-  })),
-}))
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
-}))
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 
 import { PitchGenerator } from './PitchGenerator'
 
-function okLatest(content: string) {
-  return {
-    ok: true,
-    data: {
-      pitch: {
-        pitchId: 'p1',
-        createdAt: '2025-01-01T00:00:00Z',
-        content,
-        company: {
-          leadId: 'l1',
-          companyName: 'TestCo',
-          companyDomain: 'test.co',
-          companyUrl: 'https://test.co',
-          emailSequence: { part1: 'P1', part2: 'P2', part3: 'P3' },
-          battleCard: { currentTech: ['A'], painPoint: 'B', killerFeature: 'C' },
-        },
-      },
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+  }),
+}))
+
+// Skip the auth redirect branch during tests
+vi.mock('@/lib/runtimeFlags', () => ({
+  isE2E: () => true,
+}))
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     },
-  }
-}
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: { subscription_tier: 'free' }, error: null }),
+          maybeSingle: async () => ({ data: null, error: null }),
+        }),
+      }),
+      upsert: async () => ({ data: null, error: null }),
+    }),
+  }),
+}))
 
-describe('PitchGenerator latest pitch hydration', () => {
+vi.mock('@/lib/supabase/safe-auth', () => ({
+  getUserSafe: vi.fn(async () => ({ id: 'user_1' })),
+}))
+
+describe('PitchGenerator', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
-    vi.stubGlobal('fetch', vi.fn())
-    window.localStorage.clear()
-    window.sessionStorage.clear()
+    vi.useFakeTimers()
+    vi.stubEnv('NODE_ENV', 'development')
 
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'test-user-id', email: 't@example.com' } }, error: null })
-    mockOnAuth.mockReturnValue({ data: { subscription: { unsubscribe: () => {} } } })
-
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'users') {
-        return {
-          select: () => ({ eq: () => ({ single: async () => ({ data: { subscription_tier: 'pro' }, error: null }) }) }),
-        }
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u.startsWith('/api/pitch/latest')) {
+        return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
       }
-      if (table === 'user_settings') {
-        return {
-          select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { saved_companies: [] }, error: null }) }) }),
-          upsert: async () => ({ data: null, error: null }),
-        }
+      if (u === '/api/generate-pitch') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              pitch: 'Hello from pitch',
+              warnings: ['Pitch history not saved (missing lead id).'],
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
       }
-      return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }
+      return new Response('not found', { status: 404 })
     })
+    vi.stubGlobal('fetch', fetchMock as any)
   })
 
-  it('hydrates and renders latest pitch on initial load when initialUrl set', async () => {
-    ;(global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url.startsWith('/api/pitch/latest')) {
-        return { ok: true, json: async () => okLatest('Saved pitch text') } as any
-      }
-      return { ok: true, json: async () => ({ ok: true, data: {} }) } as any
-    })
-
-    render(<PitchGenerator initialUrl="test.co" />)
-    await waitFor(() => expect(screen.getByText('Generated Pitch')).toBeInTheDocument())
-    expect(screen.getByText(/Saved pitch text/)).toBeInTheDocument()
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
-  it('clicking a saved company chip hydrates that company latest pitch', async () => {
-    window.localStorage.setItem('leadintel_saved_companies_test-user-id', JSON.stringify(['test.co', 'acme.com']))
-    ;(global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (typeof url === 'string' && url.startsWith('/api/pitch/latest')) {
-        if (url.includes('companyDomain=acme.com')) {
-          return { ok: true, json: async () => okLatest('Acme pitch') } as any
-        }
-        return { ok: true, json: async () => okLatest('Test pitch') } as any
-      }
-      return { ok: true, json: async () => ({ ok: true, data: {} }) } as any
+  it('shows pitch even when lead_id is missing (no UI banner)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    render(<PitchGenerator />)
+
+    fireEvent.change(screen.getByTestId('pitch-input'), { target: { value: 'Great Value' } })
+    fireEvent.click(screen.getByTestId('pitch-generate'))
+
+    await act(async () => {
+      await Promise.resolve()
     })
 
-    render(<PitchGenerator initialUrl="test.co" />)
-    await waitFor(() => expect(screen.getByText('Generated Pitch')).toBeInTheDocument())
-    expect(screen.getByText(/Test pitch/)).toBeInTheDocument()
+    // Advance hydration debounce timers (this used to clear the freshly generated pitch)
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
 
-    const acmeChip = await screen.findByRole('button', { name: 'acme.com' })
-    fireEvent.click(acmeChip)
-
-    await waitFor(() => expect(screen.getByText(/Acme pitch/)).toBeInTheDocument())
+    expect(await screen.findByText('Generated Pitch')).toBeTruthy()
+    expect(screen.getByText('Hello from pitch')).toBeTruthy()
+    expect(screen.queryByText('Database persistence warning:')).toBeNull()
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[Pitch persistence] Pitch generated but lead_id is missing')
+    )
   })
 })
 

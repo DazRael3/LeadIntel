@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -110,6 +110,11 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const supabase = createClient()
 
   const MISSING_LEAD_WARNING = 'Pitch history not saved (missing lead id).'
+  const loadingRef = useRef<boolean>(false)
+
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
 
   // Initialize user id once so per-user keys work on first render.
   useEffect(() => {
@@ -218,7 +223,9 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
       const trimmed = companyInput.trim()
       if (!trimmed) return
       // Avoid network churn while generating.
-      if (loading) return
+      // IMPORTANT: use a ref so this callback stays stable across loading toggles
+      // (otherwise it retriggers the companyUrl hydration effect and can clear freshly-generated pitch output).
+      if (loadingRef.current) return
 
       const domain = extractDomainFromInput(trimmed)
       const qs = new URLSearchParams()
@@ -262,7 +269,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
         // best-effort
       }
     },
-    [extractDomainFromInput, loading]
+    [extractDomainFromInput]
   )
 
   useEffect(() => {
