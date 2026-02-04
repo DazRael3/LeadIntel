@@ -23,6 +23,12 @@ class FakeQuery {
   eq() {
     return this
   }
+  order() {
+    return this
+  }
+  limit() {
+    return this
+  }
   single() {
     if (this.table === 'users') {
       return Promise.resolve({ data: { subscription_tier: 'pro' }, error: null })
@@ -33,15 +39,23 @@ class FakeQuery {
     if (this.table === 'user_settings') {
       return Promise.resolve({ data: { what_you_sell: 'Widgets', ideal_customer: 'B2B teams' }, error: null })
     }
+    if (this.table === 'subscriptions') {
+      return Promise.resolve({ data: mockSubscriptionRow, error: null })
+    }
     return Promise.resolve({ data: null, error: null })
   }
 }
+
+let mockSubscriptionRow: any = null
 
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
     auth: {
       getUser: vi.fn(async () => ({ data: { user: { id: 'user_1' } }, error: null })),
     },
+    schema: () => ({
+      from: (table: string) => new FakeQuery(table),
+    }),
     from: (table: string) => new FakeQuery(table),
   })),
 }))
@@ -91,10 +105,12 @@ describe('/api/generate-pitch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.ENABLE_DEMO_TRIGGER_EVENTS = 'true'
+    mockSubscriptionRow = null
   })
 
-  it('returns ok envelope with canonical data.pitch when pitch exists', async () => {
+  it('starter user under limit can generate pitch', async () => {
     const { POST } = await import('./route')
+    const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
 
     const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
       method: 'POST',
@@ -109,6 +125,7 @@ describe('/api/generate-pitch', () => {
     expect(json.ok).toBe(true)
     expect(typeof json.data?.pitch).toBe('string')
     expect(json.data.pitch).toBe('Mock pitch text')
+    expect(checkStarterPitchUsage).toHaveBeenCalledTimes(1)
   })
 
   it('seeds demo trigger events when provider inserts none and demo enabled', async () => {
@@ -136,7 +153,7 @@ describe('/api/generate-pitch', () => {
     )
   })
 
-  it('returns 429 when Starter daily cap is reached', async () => {
+  it('starter user over limit gets 429 and FREE_PLAN_LIMIT_REACHED (with header)', async () => {
     const { POST } = await import('./route')
     const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
     const { generatePitch } = await import('@/lib/ai-logic')
@@ -151,10 +168,46 @@ describe('/api/generate-pitch', () => {
 
     const res = await POST(req)
     expect(res.status).toBe(429)
+    expect(res.headers.get('x-free-plan-limit')).toBe('20')
     const json = await res.json()
     expect(json.ok).toBe(false)
     expect(json.error?.code).toBe('FREE_PLAN_LIMIT_REACHED')
     expect(generatePitch).not.toHaveBeenCalled()
+  })
+
+  it('closer user ignores starter cap and can generate pitch', async () => {
+    mockSubscriptionRow = { status: 'active', stripe_price_id: process.env.STRIPE_PRICE_ID_PRO ?? 'price_test_pro' }
+    const { POST } = await import('./route')
+    const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
+
+    const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
+      method: 'POST',
+      body: JSON.stringify({ companyUrl: 'dell.com' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(checkStarterPitchUsage).not.toHaveBeenCalled()
+  })
+
+  it('team user ignores starter cap and can generate pitch', async () => {
+    mockSubscriptionRow = { status: 'active', stripe_price_id: 'price_team_123' }
+    process.env.STRIPE_PRICE_ID_PRO = 'price_test_pro_123'
+    process.env.STRIPE_PRICE_ID = 'price_test_pro_123'
+    process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
+    const { POST } = await import('./route')
+    const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
+
+    const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
+      method: 'POST',
+      body: JSON.stringify({ companyUrl: 'dell.com' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(checkStarterPitchUsage).not.toHaveBeenCalled()
   })
 })
 

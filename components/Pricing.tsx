@@ -112,12 +112,12 @@ export function Pricing() {
     return () => clearTimeout(t)
   }, [target])
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (planId: 'pro' | 'team') => {
     setIsCheckoutLoading(true)
     setCheckoutError(null)
     
     try {
-      track('pricing_cta_clicked', { source: 'pricing' })
+      track('pricing_cta_clicked', { source: 'pricing', planId })
       // Check authentication before calling /api/checkout
       const user = await getUserSafe(supabase)
       if (!user) {
@@ -130,7 +130,7 @@ export function Pricing() {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: 'pro' }),
+        body: JSON.stringify({ planId }),
       })
 
       // Parse response safely: read as text, then JSON.parse if present.
@@ -296,7 +296,7 @@ export function Pricing() {
               )}
 
               <Button 
-                onClick={handleCheckout}
+                onClick={() => void handleCheckout('pro')}
                 disabled={isCheckoutLoading}
                 className="w-full h-12 text-lg font-bold neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
                 size="lg"
@@ -348,8 +348,14 @@ export function Pricing() {
                   Best for founders, sales leaders, and small pods
                 </li>
               </ul>
-              <Button asChild variant="outline" className="w-full h-11">
-                <a href="/signup?redirect=/dashboard">Start Team</a>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11"
+                onClick={() => void handleCheckout('team')}
+                disabled={isCheckoutLoading}
+              >
+                Start Team
               </Button>
             </CardContent>
           </Card>

@@ -12,25 +12,33 @@ import { captureMessage } from '@/lib/observability/sentry'
  * Validates required Stripe environment variables
  * @throws Error with clear message if validation fails
  */
-function validateStripeEnv(): { priceId: string; siteUrl: string } {
+function validateStripeEnv(): { proPriceId: string; teamPriceId: string | null; siteUrl: string } {
   // STRIPE_SECRET_KEY is already validated in lib/stripe.ts via serverEnv
 
   // Validate STRIPE_PRICE_ID (accept STRIPE_PRICE_ID_PRO as override)
-  const priceId = serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID
+  const proPriceId = serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID
   
-  if (!priceId) {
+  if (!proPriceId) {
     throw new Error('STRIPE_PRICE_ID or STRIPE_PRICE_ID_PRO must be set')
   }
   
-  if (!priceId.startsWith('price_')) {
-    const prefix = priceId.substring(0, Math.min(8, priceId.length))
+  if (!proPriceId.startsWith('price_')) {
+    const prefix = proPriceId.substring(0, Math.min(8, proPriceId.length))
     throw new Error(`Invalid STRIPE_PRICE_ID. Expected price_... but got ${prefix}...`)
+  }
+
+  // Optional Team price id (kept outside env schema for backward compatibility)
+  const teamPriceIdRaw = (process.env.STRIPE_PRICE_ID_TEAM ?? '').trim()
+  const teamPriceId = teamPriceIdRaw.length > 0 ? teamPriceIdRaw : null
+  if (teamPriceId && !teamPriceId.startsWith('price_')) {
+    const prefix = teamPriceId.substring(0, Math.min(8, teamPriceId.length))
+    throw new Error(`Invalid STRIPE_PRICE_ID_TEAM. Expected price_... but got ${prefix}...`)
   }
 
   // Get site URL (optional, defaults to request origin)
   const siteUrl = clientEnv.NEXT_PUBLIC_SITE_URL || ''
 
-  return { priceId, siteUrl }
+  return { proPriceId, teamPriceId, siteUrl }
 }
 
 export async function POST(request: NextRequest) {
@@ -48,7 +56,8 @@ export async function GET(_request: NextRequest) {
 }
 
 const CheckoutBodySchema = z.object({
-  planId: z.literal('pro'),
+  // Validate supported values manually so we can return a stable 400 for unsupported plans.
+  planId: z.string().min(1),
 })
 
 const POST_GUARDED = withApiGuard(
@@ -115,13 +124,39 @@ const POST_GUARDED = withApiGuard(
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
+    const planId = parsedBody.planId
+    if (planId !== 'pro' && planId !== 'team') {
+      return fail(
+        'INVALID_CHECKOUT_PLAN',
+        'Invalid or unsupported planId',
+        { planId },
+        { status: 400 },
+        bridge,
+        requestId
+      )
+    }
+
     // Validate Stripe environment variables
     let priceId: string
     let siteUrl: string
     try {
       const env = validateStripeEnv()
       // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
-      priceId = env.priceId
+      if (planId === 'team') {
+        if (!env.teamPriceId) {
+          return fail(
+            'INVALID_CHECKOUT_PLAN',
+            'Invalid or unsupported planId',
+            { planId },
+            { status: 400 },
+            bridge,
+            requestId
+          )
+        }
+        priceId = env.teamPriceId
+      } else {
+        priceId = env.proPriceId
+      }
       siteUrl = env.siteUrl || request.nextUrl.origin
     } catch (error) {
       captureMessage('checkout_not_configured', {

@@ -21,6 +21,43 @@ import { checkStarterPitchUsage } from '@/lib/billing/usage'
 
 export const dynamic = "force-dynamic";
 
+type Tier = 'starter' | 'closer' | 'team'
+
+function isActiveStatus(status: string | null | undefined): boolean {
+  return status === 'active' || status === 'trialing'
+}
+
+async function resolveTierForUser(supabase: unknown, userId: string): Promise<Tier> {
+  try {
+    // Use schema('api') when available; fall back to default client otherwise.
+    const client = (supabase as any).schema ? (supabase as any).schema('api') : (supabase as any)
+    const { data: subRow } = await client
+      .from('subscriptions')
+      .select('status, stripe_price_id, price_id, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const status = (subRow as { status?: string | null } | null)?.status ?? null
+    if (!isActiveStatus(status)) return 'starter'
+
+    const configuredCloserPrice = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim()
+    const teamPrice = (process.env.STRIPE_PRICE_ID_TEAM || '').trim()
+    const subPrice =
+      (subRow as { stripe_price_id?: string | null } | null)?.stripe_price_id ??
+      (subRow as { price_id?: string | null } | null)?.price_id ??
+      null
+
+    if (teamPrice && subPrice === teamPrice) return 'team'
+    if (configuredCloserPrice && subPrice && subPrice !== configuredCloserPrice) return 'team'
+    return 'closer'
+  } catch {
+    // Safe default: treat as Starter for usage cap (cap check itself is fail-open if Redis missing).
+    return 'starter'
+  }
+}
+
 /**
  * Check if a string looks like a URL or domain
  * e.g., "lego.com", "https://lego.com", "www.lego.com"
@@ -169,25 +206,29 @@ export const POST = withApiGuard(
       whyNowBullets = []
     }
 
-    // Starter daily usage cap (per user, per UTC day). Paid plans are not capped.
-    const planId = isPro ? 'closer' : 'starter'
-    const usage = await checkStarterPitchUsage({ userId, planId, correlationId })
-    if (!usage.ok) {
-      const res = fail(
-        'FREE_PLAN_LIMIT_REACHED',
-        `You’ve reached today’s free limit for the Starter plan. Upgrade to Closer for higher limits.`,
-        { limit: usage.limit, window: '1 day' },
-        {
-          status: 429,
-          headers: {
-            'x-upgrade-plan': 'closer',
-            'x-free-plan-limit': String(usage.limit),
+    // Tier gating rules (explicit):
+    // - starter: enforce daily usage cap
+    // - closer/team: no usage cap in this patch
+    const tier = await resolveTierForUser(supabase, userId)
+    if (tier === 'starter') {
+      const usage = await checkStarterPitchUsage({ userId, planId: 'starter', correlationId })
+      if (!usage.ok) {
+        const res = fail(
+          'FREE_PLAN_LIMIT_REACHED',
+          `You’ve reached today’s free limit for the Starter plan. Upgrade to Closer for higher limits.`,
+          { limit: usage.limit, window: '1 day' },
+          {
+            status: 429,
+            headers: {
+              'x-upgrade-plan': 'closer',
+              'x-free-plan-limit': String(usage.limit),
+            },
           },
-        },
-        bridge,
-        requestId
-      )
-      return res
+          bridge,
+          requestId
+        )
+        return res
+      }
     }
 
     // Generate pitch using AI

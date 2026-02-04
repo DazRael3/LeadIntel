@@ -1,0 +1,94 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+
+let mockSubRow: unknown = null
+
+class FakeQuery {
+  private table: string
+  constructor(table: string) {
+    this.table = table
+  }
+  select() {
+    return this
+  }
+  eq() {
+    return this
+  }
+  order() {
+    return this
+  }
+  limit() {
+    return this
+  }
+  maybeSingle() {
+    if (this.table === 'subscriptions') {
+      return Promise.resolve({ data: mockSubRow, error: null })
+    }
+    return Promise.resolve({ data: null, error: null })
+  }
+  schema() {
+    return this
+  }
+}
+
+vi.mock('@/lib/supabase/route', () => ({
+  createRouteClient: vi.fn(() => ({
+    auth: {
+      getUser: vi.fn(async () => ({ data: { user: { id: 'user_1' } }, error: null })),
+    },
+    schema: () => ({
+      from: (table: string) => new FakeQuery(table),
+    }),
+    from: (table: string) => new FakeQuery(table),
+  })),
+}))
+
+describe('/api/plan', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSubRow = null
+    process.env.ENABLE_APP_TRIAL = '0'
+    process.env.STRIPE_PRICE_ID_PRO = 'price_pro_123'
+    process.env.STRIPE_PRICE_ID = 'price_pro_123'
+    process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
+  })
+
+  it('user with no subscription row -> starter, planId null, plan free', async () => {
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('starter')
+    expect(json.data?.planId).toBe(null)
+    expect(json.data?.plan).toBe('free')
+  })
+
+  it('active subscription with closer price -> closer tier, planId pro', async () => {
+    mockSubRow = { status: 'active', stripe_price_id: 'price_pro_123' }
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('closer')
+    expect(json.data?.planId).toBe('pro')
+    expect(json.data?.plan).toBe('pro')
+  })
+
+  it('active subscription with team price -> team tier, planId team', async () => {
+    mockSubRow = { status: 'active', stripe_price_id: 'price_team_123' }
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('team')
+    expect(json.data?.planId).toBe('team')
+    expect(json.data?.plan).toBe('pro')
+  })
+})
+

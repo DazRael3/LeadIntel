@@ -75,6 +75,7 @@ describe('/api/checkout', () => {
     process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
     process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
     process.env.STRIPE_PRICE_ID_PRO = process.env.STRIPE_PRICE_ID_PRO || 'price_test_pro_123'
+    process.env.STRIPE_PRICE_ID_TEAM = process.env.STRIPE_PRICE_ID_TEAM || 'price_test_team_123'
     process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key'
@@ -123,6 +124,38 @@ describe('/api/checkout', () => {
     expect(createSession).toHaveBeenCalledTimes(1)
     const arg = createSession.mock.calls[0]?.[0] as any
     expect(arg?.line_items?.[0]?.price).toBe(process.env.STRIPE_PRICE_ID_PRO)
+  })
+
+  it('POST creates checkout session for Team (planId: team)', async () => {
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'team' }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(typeof json.data?.url).toBe('string')
+
+    expect(createSession).toHaveBeenCalledTimes(1)
+    const arg = createSession.mock.calls[0]?.[0] as any
+    expect(arg?.line_items?.[0]?.price).toBe(process.env.STRIPE_PRICE_ID_TEAM)
+  })
+
+  it('POST returns 400 for unsupported planId', async () => {
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'enterprise' }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('INVALID_CHECKOUT_PLAN')
   })
 })
 
