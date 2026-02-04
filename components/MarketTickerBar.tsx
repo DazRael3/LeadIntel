@@ -5,6 +5,7 @@ import { TrendingDown, TrendingUp } from 'lucide-react'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
 import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 import { formatDistanceToNow } from 'date-fns'
+import { InstrumentLogo } from '@/components/InstrumentLogo'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -74,6 +75,7 @@ export function MarketTickerBar() {
                   key={idx < instruments.length ? inst.symbol : `${inst.symbol}:dup`}
                   className="flex items-center gap-3 px-6 py-2 whitespace-nowrap border-r border-cyan-500/10"
                 >
+                  <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
                   <span className="font-bold bloomberg-font text-cyan-400 text-sm">{inst.symbol}</span>
                   <span className="text-xs text-muted-foreground">{price == null ? '—' : `$${price.toFixed(2)}`}</span>
                   <div className="flex items-center gap-1">

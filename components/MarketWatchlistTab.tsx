@@ -9,6 +9,7 @@ import { usePlan } from '@/components/PlanProvider'
 import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
 import { formatDistanceToNow } from 'date-fns'
+import { InstrumentLogo } from '@/components/InstrumentLogo'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -108,6 +109,7 @@ export function MarketWatchlistTab() {
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
+                      <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
                       <span className="font-bold text-cyan-300">{inst.symbol}</span>
                       <span className="truncate text-xs text-muted-foreground">{inst.name}</span>
                     </div>

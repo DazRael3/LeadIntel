@@ -31,6 +31,44 @@ type QuotesBody = z.infer<typeof QuotesBodySchema>
 const cache = new Map<string, { at: number; quotes: InstrumentQuote[] }>()
 const CACHE_TTL_MS = 20_000
 
+const logoCache = new Map<string, { at: number; logoUrl: string | null }>()
+const logoInflight = new Map<string, Promise<string | null>>()
+const LOGO_TTL_MS = 24 * 60 * 60 * 1000
+
+async function fetchFinnhubLogo(symbol: string, apiKey: string): Promise<string | null> {
+  const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(apiKey)}`
+  const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } })
+  if (!res.ok) return null
+  const json = (await res.json()) as unknown
+  const logo = (json as any)?.logo
+  return typeof logo === 'string' && logo.trim().length > 0 ? logo.trim() : null
+}
+
+async function getLogoUrl(symbol: string, apiKey: string): Promise<string | null> {
+  const key = symbol.trim().toUpperCase()
+  const now = Date.now()
+  const cached = logoCache.get(key)
+  if (cached && now - cached.at < LOGO_TTL_MS) return cached.logoUrl
+
+  const inflight = logoInflight.get(key)
+  if (inflight) return inflight
+
+  const p = (async () => {
+    try {
+      const logoUrl = await fetchFinnhubLogo(key, apiKey)
+      logoCache.set(key, { at: now, logoUrl })
+      return logoUrl
+    } catch {
+      logoCache.set(key, { at: now, logoUrl: null })
+      return null
+    } finally {
+      logoInflight.delete(key)
+    }
+  })()
+  logoInflight.set(key, p)
+  return p
+}
+
 function toInstrumentDefs(input: QuotesBody['instruments']): InstrumentDefinition[] {
   return input.map((i, idx) => ({
     symbol: i.symbol,
@@ -87,6 +125,18 @@ export const POST = withApiGuard(
             updatedAt: l.updatedAt ?? q.updatedAt,
           }
         })
+      }
+
+      // Best-effort logo lookup (Finnhub), cached in-memory.
+      const finnhubKey = (env.FINNHUB_API_KEY ?? '').trim()
+      if (finnhubKey) {
+        const logos = await Promise.all(
+          quotes.map(async (q) => {
+            if (q.kind !== 'stock') return null
+            return await getLogoUrl(q.symbol, finnhubKey)
+          })
+        )
+        quotes = quotes.map((q, idx) => ({ ...q, logoUrl: logos[idx] }))
       }
 
       cache.set(cacheKey, { at: now, quotes })

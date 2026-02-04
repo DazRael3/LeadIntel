@@ -6,6 +6,7 @@ export interface InstrumentQuote {
   changePct: number | null
   kind: InstrumentKind
   updatedAt: string | null
+  logoUrl?: string | null
 }
 
 function stableHash(input: string): number {
