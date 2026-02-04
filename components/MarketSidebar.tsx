@@ -13,6 +13,7 @@ import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 import { formatDistanceToNow } from 'date-fns'
 import { track } from '@/lib/analytics'
 import { InstrumentLogo } from '@/components/InstrumentLogo'
+import { ProGate } from '@/components/ProGate'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -116,25 +117,16 @@ export function MarketSidebar() {
             Last price update {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}
           </div>
         ) : null}
-        {!isPro ? (
-          <div className="text-xs text-muted-foreground">
-            Upgrade to customize your watchlist.
-            <Button
-              size="sm"
-              variant="ghost"
-              className="ml-2 text-purple-300 hover:bg-purple-500/10"
-              onClick={() => (window.location.href = '/pricing')}
-            >
-              Upgrade
-            </Button>
-          </div>
-        ) : (
-          <div className="text-xs text-muted-foreground">Star symbols to pin them to your personal watchlist.</div>
-        )}
+        <div className="text-xs text-muted-foreground">Star symbols to pin them to your personal watchlist.</div>
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {isPro && (
+        <ProGate
+          requiredTier="closer"
+          upgradeTarget="closer"
+          label="Watchlist customization (Pro)"
+          description="Add and star symbols to build a personal watchlist with the Closer plan."
+        >
           <div className="space-y-2">
             <div className="flex gap-2">
               <Input
@@ -166,7 +158,7 @@ export function MarketSidebar() {
                   Crypto
                 </Button>
               </div>
-              <Button onClick={addFromQuery} disabled={!query.trim()} className="h-9" data-testid="market-sidebar-add">
+              <Button onClick={addFromQuery} disabled={!query.trim() || !isPro} className="h-9" data-testid="market-sidebar-add">
                 Add
               </Button>
             </div>
@@ -189,7 +181,7 @@ export function MarketSidebar() {
               </div>
             )}
           </div>
-        )}
+        </ProGate>
 
         {actionError && <div className="text-xs text-red-400">{actionError}</div>}
         {quoteError && <div className="text-xs text-muted-foreground">{quoteError}</div>}
