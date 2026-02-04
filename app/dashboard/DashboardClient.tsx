@@ -148,6 +148,11 @@ export function DashboardClient({
             </TabsTrigger>
             <TabsTrigger value="market" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
               Market Pulse
+              {!isPro && (
+                <Badge variant="outline" className="ml-2 border-purple-500/30 text-purple-400 bg-purple-500/10 text-xs h-4 px-1">
+                  Pro
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="watchlist" className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400">
               Watchlist

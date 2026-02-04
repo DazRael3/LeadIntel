@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { formatDate } from "@/lib/utils"
 import { Building2, Globe, Activity, Copy, Check } from "lucide-react"
+import { getAppBaseUrl } from "@/lib/app-url"
 
 interface WebsiteVisitor {
   id: string
@@ -60,7 +61,7 @@ export function WebsiteVisitors() {
   }, [loadVisitors, supabase])
 
   const getTrackingScript = () => {
-    const script = `<script src="${window.location.origin}/api/tracker"></script>`
+    const script = `<script src="${getAppBaseUrl()}/api/tracker"></script>`
     return script
   }
 
@@ -131,6 +132,9 @@ export function WebsiteVisitors() {
                 <pre className="text-[11px] overflow-auto rounded bg-background/60 border border-cyan-500/10 p-3">
 {getTrackingScript()}
                 </pre>
+                <div className="text-[11px] text-muted-foreground">
+                  In production this will use the live app URL, not localhost.
+                </div>
                 <div className="text-[11px] text-muted-foreground">
                   2) Load a page on your site, then come back here. (See `docs/LAUNCH_CHECKLIST.md` → Tracker script smoke test.)
                 </div>

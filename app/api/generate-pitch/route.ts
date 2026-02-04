@@ -18,6 +18,7 @@ import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
 import { checkStarterPitchUsage } from '@/lib/billing/usage'
+import { makeNameCompanyKey } from '@/lib/company-key'
 
 export const dynamic = "force-dynamic";
 
@@ -277,7 +278,10 @@ export const POST = withApiGuard(
 
     // Save lead to database.
     // Note: pitches.lead_id is NOT NULL, so we always ensure there is a lead row.
+    // IMPORTANT: `api.leads.company_domain` is NOT NULL (default '' in prod schema). For name-only inputs,
+    // we store a deterministic name-key so the unique constraint (user_id, company_domain) remains usable.
     let savedLead: { data: unknown; error: unknown } = { data: null, error: null }
+    const leadCompanyDomain = domain ? domain : makeNameCompanyKey(topicName || input)
     savedLead = await queryWithSchemaFallback(request, bridge, async (client) => {
       if (domain) {
         const result = await client
@@ -286,7 +290,7 @@ export const POST = withApiGuard(
             {
               user_id: userId,
               company_name: topicName,
-              company_domain: domain,
+              company_domain: leadCompanyDomain,
               company_url: input,
               ai_personalized_pitch: pitch,
               battle_card: battleCard,
@@ -306,7 +310,7 @@ export const POST = withApiGuard(
         .insert({
           user_id: userId,
           company_name: topicName,
-          company_domain: null,
+          company_domain: leadCompanyDomain,
           company_url: input,
           ai_personalized_pitch: pitch,
           battle_card: battleCard,

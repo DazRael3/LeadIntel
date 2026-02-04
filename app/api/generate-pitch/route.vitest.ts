@@ -128,6 +128,26 @@ describe('/api/generate-pitch', () => {
     expect(checkStarterPitchUsage).toHaveBeenCalledTimes(1)
   })
 
+  it('name-only input persists lead + pitch (no missing lead id warning)', async () => {
+    const { POST } = await import('./route')
+
+    const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
+      method: 'POST',
+      body: JSON.stringify({ companyUrl: 'Redpath' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    // lead should be returned by the mocked insert/select().single()
+    expect(json.data?.lead).toBeTruthy()
+    // and warnings should not include missing lead id
+    const warnings = Array.isArray(json.data?.warnings) ? json.data.warnings : []
+    expect(warnings.join(' ')).not.toMatch(/missing lead id/i)
+  })
+
   it('seeds demo trigger events when provider inserts none and demo enabled', async () => {
     const { POST } = await import('./route')
     const { hasAnyTriggerEvents, ingestRealTriggerEvents } = await import('@/lib/services/triggerEvents')

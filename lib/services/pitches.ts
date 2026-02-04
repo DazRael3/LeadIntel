@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { looksLikeDomain, makeNameCompanyKey } from '@/lib/company-key'
 
 export type LatestPitchCompany = {
   leadId: string
@@ -40,34 +41,57 @@ export async function getLatestPitchForCompany(
 
   if (!companyDomain && !companyName) return null
 
-  let q = supabase
-    .from('pitches')
-    .select(
-      `
-      id,
-      lead_id,
-      content,
-      created_at,
-      leads:lead_id (
+  const base = () =>
+    supabase
+      .from('pitches')
+      .select(
+        `
         id,
-        company_name,
-        company_domain,
-        company_url,
-        email_sequence,
-        battle_card
+        lead_id,
+        content,
+        created_at,
+        leads:lead_id (
+          id,
+          company_name,
+          company_domain,
+          company_url,
+          email_sequence,
+          battle_card
+        )
+      `
       )
-    `
-    )
-    .eq('user_id', query.userId)
+      .eq('user_id', query.userId)
+
+  let data: unknown[] | null = null
+  let error: unknown = null
 
   if (companyDomain) {
-    q = q.eq('leads.company_domain', companyDomain)
+    if (looksLikeDomain(companyDomain)) {
+      const res = await base().eq('leads.company_domain', companyDomain).order('created_at', { ascending: false }).limit(1)
+      data = res.data as unknown[] | null
+      error = res.error
+    } else {
+      // Name-only "domain" queries can happen while the user types; try the deterministic name key first.
+      const key = makeNameCompanyKey(companyDomain)
+      const resKey = await base().eq('leads.company_domain', key).order('created_at', { ascending: false }).limit(1)
+      if (!resKey.error && Array.isArray(resKey.data) && resKey.data.length > 0) {
+        data = resKey.data as unknown[]
+        error = resKey.error
+      } else {
+        const resName = await base()
+          .ilike('leads.company_name', `%${escapeLike(companyDomain)}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+        data = resName.data as unknown[] | null
+        error = resName.error
+      }
+    }
   } else if (companyName) {
-    // Case-insensitive match on name; allow partial match for robustness.
-    q = q.ilike('leads.company_name', `%${escapeLike(companyName)}%`)
+    const res = await base().ilike('leads.company_name', `%${escapeLike(companyName)}%`).order('created_at', { ascending: false }).limit(1)
+    data = res.data as unknown[] | null
+    error = res.error
   }
 
-  const { data, error } = await q.order('created_at', { ascending: false }).limit(1)
   if (error) return null
   const row = (data?.[0] ?? null) as
     | {
