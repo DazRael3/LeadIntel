@@ -189,7 +189,7 @@ class E2EQuery<T = unknown> {
  * `li_e2e_auth=1`.
  */
 export function createE2EBrowserSupabaseClient(): any {
-  return {
+  const client: any = {
     auth: {
       getUser: async (): Promise<AuthResponse> => {
         const authed = typeof document !== 'undefined' && document.cookie.includes('li_e2e_auth=1')
@@ -242,10 +242,14 @@ export function createE2EBrowserSupabaseClient(): any {
       return new E2EQuery(table, { userId: uid, plan })
     },
   }
+  // Supabase JS supports `supabase.schema('api').from('table')`.
+  // In E2E shim, schema is a no-op (tables are already modeled without schema prefix).
+  client.schema = (_schema: string) => client
+  return client
 }
 
 export function createE2EServerSupabaseClient(args: { getCookie: (name: string) => string | undefined }): any {
-  return {
+  const client: any = {
     auth: {
       getUser: async (): Promise<AuthResponse> => {
         const authed = args.getCookie('li_e2e_auth') === '1'
@@ -260,6 +264,8 @@ export function createE2EServerSupabaseClient(args: { getCookie: (name: string) 
       return new E2EQuery(table, { userId: uid, plan })
     },
   }
+  client.schema = (_schema: string) => client
+  return client
 }
 
 

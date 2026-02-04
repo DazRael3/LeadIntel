@@ -583,6 +583,12 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               placeholder="e.g., lego.com, SaaS analytics tool, webinar for HR leaders"
               value={companyUrl}
               onChange={(e) => setCompanyUrl(e.target.value)}
+              onInput={(e) => {
+                // E2E + some browser automation flows dispatch `input` events directly.
+                // Keep state in sync so the Generate button enables deterministically.
+                const next = (e.target as HTMLInputElement | null)?.value
+                if (typeof next === 'string') setCompanyUrl(next)
+              }}
               onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
               className="flex-1"
               data-testid="pitch-input"
