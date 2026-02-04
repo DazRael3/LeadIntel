@@ -104,6 +104,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const [authError, setAuthError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [savedCompanies, setSavedCompanies] = useState<string[]>([])
+  const [savedCompanyNotice, setSavedCompanyNotice] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [templateId, setTemplateId] = useState<PitchTemplateId>('default')
   const [freeLimitError, setFreeLimitError] = useState<string | null>(null)
@@ -112,6 +113,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
 
   const MISSING_LEAD_WARNING = 'Pitch history not saved (missing lead id).'
   const loadingRef = useRef<boolean>(false)
+  const selectedSavedCompanyRef = useRef<string | null>(null)
 
   useEffect(() => {
     loadingRef.current = loading
@@ -235,18 +237,38 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
 
       try {
         const res = await fetch(`/api/pitch/latest?${qs.toString()}`, { method: 'GET' })
-        if (!res.ok) return
+        if (!res.ok) {
+          if (selectedSavedCompanyRef.current === trimmed) {
+            setSavedCompanyNotice(`Could not load the latest pitch for ${trimmed}.`)
+            selectedSavedCompanyRef.current = null
+          }
+          return
+        }
         const json = (await res.json()) as LatestPitchResponse
-        if (!json || json.ok !== true) return
+        if (!json || json.ok !== true) {
+          if (selectedSavedCompanyRef.current === trimmed) {
+            setSavedCompanyNotice(`Could not load the latest pitch for ${trimmed}.`)
+            selectedSavedCompanyRef.current = null
+          }
+          return
+        }
         const latest = json.data.pitch
         if (!latest) {
           // If we switched companies and there is no saved work, clear the old outputs.
           setPitch(null)
           setEmailSequence(null)
           setBattleCard(null)
+          if (selectedSavedCompanyRef.current === trimmed) {
+            setSavedCompanyNotice(`No previous pitch found for ${trimmed} — generate one to save it.`)
+            selectedSavedCompanyRef.current = null
+          }
           return
         }
 
+        if (selectedSavedCompanyRef.current === trimmed) {
+          setSavedCompanyNotice(null)
+          selectedSavedCompanyRef.current = null
+        }
         setPitch(typeof latest.content === 'string' ? latest.content : null)
 
         const seq = latest.company?.emailSequence
@@ -342,10 +364,16 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
 
   const selectCompany = useCallback(
     (company: string) => {
-      setCompanyUrl(company)
-      onCompanyContextChange?.({ companyInput: company, companyDomain: extractDomainFromInput(company) })
+      const trimmed = company.trim()
+      if (!trimmed) return
+      setSavedCompanyNotice(null)
+      selectedSavedCompanyRef.current = trimmed
+      setCompanyUrl(trimmed)
+      onCompanyContextChange?.({ companyInput: trimmed, companyDomain: extractDomainFromInput(trimmed) })
+      // Fetch latest pitch immediately so the chip feels responsive; does NOT count toward generation caps.
+      void hydrateFromLatestPitch(trimmed)
     },
-    [extractDomainFromInput, onCompanyContextChange]
+    [extractDomainFromInput, hydrateFromLatestPitch, onCompanyContextChange]
   )
 
   const handleGenerate = async () => {
@@ -619,6 +647,11 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               </button>
             </div>
           ) : null}
+          {savedCompanyNotice ? (
+            <div className="mt-2 text-xs text-muted-foreground" role="status">
+              {savedCompanyNotice}
+            </div>
+          ) : null}
         {savedCompanies.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Saved companies:</span>
@@ -630,6 +663,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                   className="h-7 px-2 text-xs"
                   onClick={() => selectCompany(u)}
                   title={`Use ${u}`}
+                  aria-label={`Load latest pitch for ${u}`}
                 >
                   {u}
                 </Button>

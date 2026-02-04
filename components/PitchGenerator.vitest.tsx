@@ -61,6 +61,9 @@ describe('PitchGenerator', () => {
       return new Response('not found', { status: 404 })
     })
     vi.stubGlobal('fetch', fetchMock as any)
+
+    // Seed saved companies for the mocked user id (user_1).
+    localStorage.setItem('leadintel_saved_companies_user_1', JSON.stringify(['visa.com']))
   })
 
   afterEach(() => {
@@ -91,6 +94,34 @@ describe('PitchGenerator', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('[Pitch persistence] Pitch generated but lead_id is missing')
     )
+  })
+
+  it('clicking a saved company chip loads latest pitch for that company', async () => {
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+
+    render(<PitchGenerator />)
+
+    // Let initial effects run (loadSaved + debounce timers).
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // Chip should render from localStorage.
+    const chip = await screen.findByRole('button', { name: /load latest pitch for visa\.com/i })
+
+    // Clear any hydration calls during mount.
+    fetchMock.mockClear()
+
+    fireEvent.click(chip)
+
+    // Click path triggers immediate fetch (no debounce required).
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(fetchMock).toHaveBeenCalled()
+    const calls = fetchMock.mock.calls.map((c: unknown[]) => String(c[0]))
+    expect(calls.some((u) => u.startsWith('/api/pitch/latest?') && u.includes('companyDomain=visa.com'))).toBe(true)
   })
 })
 

@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { RefreshCw, Activity, AlertCircle, TrendingUp } from 'lucide-react'
+import { RefreshCw, Activity, AlertCircle, TrendingUp, DollarSign } from 'lucide-react'
 import { formatErrorMessage } from '@/lib/utils/format-error'
 import type { TriggerEvent } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
@@ -113,11 +113,11 @@ export function TriggerEventsSection({
                   history and more event sources.
                 </p>
                 <Button
-                  size="sm"
                   variant="outline"
                   onClick={() => router.push('/pricing?target=closer')}
                   className="neon-border hover:glow-effect"
                 >
+                  <DollarSign className="h-4 w-4 mr-2" />
                   Upgrade to Closer
                 </Button>
               </>
