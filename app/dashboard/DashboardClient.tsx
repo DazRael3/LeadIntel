@@ -53,7 +53,8 @@ export function DashboardClient({
   const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
   const router = useRouter()
   const { plan, isPro: planIsPro, trial } = usePlan()
-  const debugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
+  // Debug UI should never render in production even if misconfigured env vars are present.
+  const debugEnabled = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
   const autopilotUiEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI === 'true'
   const entitlements = useMemo(() => getEntitlements({ plan, trial }), [plan, trial])
 

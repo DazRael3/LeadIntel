@@ -10,6 +10,12 @@
 
 import { z } from 'zod'
 
+const siteUrlSchema = z
+  .preprocess((v) => (typeof v === 'string' ? v.trim() : ''), z.string().url().or(z.literal('')))
+  .refine((val) => process.env.NODE_ENV !== 'production' || val.length > 0, {
+    message: 'NEXT_PUBLIC_SITE_URL is required in production',
+  })
+
 /**
  * Client-safe environment variables (NEXT_PUBLIC_* only)
  * These are exposed to the browser and must not contain secrets.
@@ -24,7 +30,7 @@ const clientEnvSchema = z.object({
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_', 'Invalid Stripe publishable key format'),
   
   // Application
-  NEXT_PUBLIC_SITE_URL: z.string().url().optional().or(z.literal('')),
+  NEXT_PUBLIC_SITE_URL: siteUrlSchema,
   // Debug UI (optional): if "true", show /api/whoami debug panel in dashboard.
   NEXT_PUBLIC_ENABLE_DEBUG_UI: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
@@ -50,6 +56,12 @@ const clientEnvSchema = z.object({
  * These are only available in server-side code (API routes, server components).
  */
 const serverEnvSchema = z.object({
+  // Public env (validated here too so serverEnv can be a single source for ops checks)
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url('Invalid Supabase URL'),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'Supabase anon key required'),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_', 'Invalid Stripe publishable key format'),
+  NEXT_PUBLIC_SITE_URL: siteUrlSchema,
+
   // Supabase (server-only secrets)
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'Supabase service role key required'),
   SUPABASE_DB_SCHEMA: z.string().optional(),
@@ -244,6 +256,10 @@ function buildServerEnv(): ServerEnv {
   }
 
   const parsed = serverEnvSchema.safeParse({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     SUPABASE_DB_SCHEMA: process.env.SUPABASE_DB_SCHEMA,
     SUPABASE_DB_SCHEMA_FALLBACK: process.env.SUPABASE_DB_SCHEMA_FALLBACK,

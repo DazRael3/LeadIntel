@@ -158,6 +158,24 @@ describe('/api/checkout', () => {
     expect(createSession).not.toHaveBeenCalled()
   })
 
+  it('POST returns 500 when Stripe price ID is missing for team', async () => {
+    delete process.env.STRIPE_PRICE_ID_TEAM
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'team' }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(500)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('CHECKOUT_NOT_CONFIGURED')
+    expect(String(json.error?.message || '')).toMatch(/missing stripe price id for plan: team/i)
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
   it('POST creates checkout session for Team (planId: team)', async () => {
     process.env.STRIPE_PRICE_ID_TEAM = 'price_test_team_123'
     const { POST } = await import('./route')
