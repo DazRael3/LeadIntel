@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { LeadDetailView } from "@/components/LeadDetailView"
 import { addLeadToWatchlist } from "@/components/Watchlist"
+import { computeStarterLeadUsage, STARTER_MAX_LEADS } from '@/lib/billing/leads-usage'
 
 type WatchlistRow = {
   lead_id: string
@@ -35,7 +36,7 @@ interface LeadLibraryProps {
   viewMode?: 'startup' | 'enterprise'
 }
 
-export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: LeadLibraryProps) {
+export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMode = 'startup' }: LeadLibraryProps) {
   const supabase = createClient()
   const { leads, isLoading: loading, error, refresh } = useLeadLibrary()
   const [searchQuery, setSearchQuery] = useState("")
@@ -193,6 +194,12 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
     a.click()
   }
 
+  const starterUsage = useMemo(() => {
+    // Canonical Starter usage model is derived from the number of distinct leads unlocked/saved.
+    // We clamp to avoid negative credits or counts above the cap in the UI.
+    return computeStarterLeadUsage(leads.length, STARTER_MAX_LEADS)
+  }, [leads.length])
+
   return (
     <Card className="border-cyan-500/20 bg-card/50">
       <CardHeader>
@@ -200,8 +207,17 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
           <div>
             <CardTitle className="text-xl bloomberg-font neon-cyan">LEAD LIBRARY</CardTitle>
             <CardDescription className="text-xs uppercase tracking-wider mt-1">
-              {filteredLeads.length} of {leads.length} leads
-              {!isPro && ` • ${creditsRemaining} credits remaining`}
+              {isPro ? (
+                <>
+                  {filteredLeads.length} of {leads.length} leads
+                </>
+              ) : (
+                <>
+                  {starterUsage.leadsUsed} of {starterUsage.maxLeads} leads • {starterUsage.creditsRemaining} credits
+                  {' '}
+                  remaining
+                </>
+              )}
             </CardDescription>
           </div>
           <Button
@@ -307,9 +323,9 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
               </thead>
               <tbody>
                 {filteredLeads.map((lead, index) => {
-                  // Free users: blur leads after their daily credit (1 lead)
-                  // Pro users: see everything
-                  const shouldBlur = !isPro && index >= creditsRemaining
+                  // Starter: visually gate rows beyond the starter lead cap.
+                  // Pro: show everything.
+                  const shouldBlur = !isPro && index >= starterUsage.maxLeads
                   const highlightClass =
                     viewMode === 'startup'
                       ? 'border-l-2 border-l-green-500/10'

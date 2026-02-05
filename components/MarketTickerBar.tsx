@@ -73,11 +73,13 @@ export function MarketTickerBar() {
               return (
                 <div
                   key={idx < instruments.length ? inst.symbol : `${inst.symbol}:dup`}
-                  className="flex items-center gap-3 px-6 py-2 whitespace-nowrap border-r border-cyan-500/10"
+                  className="flex items-center gap-3 px-5 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap border-r border-cyan-500/10"
                 >
                   <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
-                  <span className="font-bold bloomberg-font text-cyan-400 text-sm">{inst.symbol}</span>
-                  <span className="text-xs text-muted-foreground">{price == null ? '—' : `$${price.toFixed(2)}`}</span>
+                  <span className="font-bold bloomberg-font text-cyan-400 text-sm sm:text-base md:text-[15px]">
+                    {inst.symbol}
+                  </span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">{price == null ? '—' : `$${price.toFixed(2)}`}</span>
                   <div className="flex items-center gap-1">
                     {changePct == null ? null : changePct >= 0 ? (
                       <TrendingUp className="h-3 w-3 text-green-400" />
@@ -85,7 +87,7 @@ export function MarketTickerBar() {
                       <TrendingDown className="h-3 w-3 text-red-400" />
                     )}
                     <span
-                      className={`text-xs font-medium ${
+                      className={`text-xs sm:text-sm font-medium ${
                         changePct == null
                           ? 'text-muted-foreground'
                           : changePct > 0

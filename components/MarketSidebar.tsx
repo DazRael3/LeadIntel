@@ -117,6 +117,7 @@ export function MarketSidebar() {
             Last price update {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}
           </div>
         ) : null}
+        <div className="text-[11px] text-muted-foreground">Equity prices may be delayed.</div>
         <div className="text-xs text-muted-foreground">Star symbols to pin them to your personal watchlist.</div>
       </CardHeader>
 
