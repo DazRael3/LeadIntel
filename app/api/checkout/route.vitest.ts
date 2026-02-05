@@ -156,6 +156,7 @@ describe('/api/checkout', () => {
     expect(json.error?.code).toBe('CHECKOUT_NOT_CONFIGURED')
     expect(String(json.error?.message || '')).toMatch(/missing stripe price id for plan: pro/i)
     expect(createSession).not.toHaveBeenCalled()
+    expect(createPortalSession).not.toHaveBeenCalled()
   })
 
   it('POST returns 500 when Stripe price ID is missing for team', async () => {
@@ -174,6 +175,7 @@ describe('/api/checkout', () => {
     expect(json.error?.code).toBe('CHECKOUT_NOT_CONFIGURED')
     expect(String(json.error?.message || '')).toMatch(/missing stripe price id for plan: team/i)
     expect(createSession).not.toHaveBeenCalled()
+    expect(createPortalSession).not.toHaveBeenCalled()
   })
 
   it('POST creates checkout session for Team (planId: team)', async () => {
