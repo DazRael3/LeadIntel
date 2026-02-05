@@ -97,5 +97,75 @@ describe('getLatestPitchForCompany', () => {
     // Should not need the name ilike fallback when key hits.
     expect(ilikeSpy).not.toHaveBeenCalled()
   })
+
+  it('when companyDomain is already a name-key, the derived key path is preferred (no ilike fallback)', async () => {
+    const chain: any = {}
+    const eqSpy = vi.fn(() => chain)
+    const ilikeSpy = vi.fn(() => chain)
+
+    Object.assign(chain, {
+      select: () => chain,
+      eq: eqSpy,
+      ilike: ilikeSpy,
+      order: () => chain,
+      limit: () =>
+        Promise.resolve({
+          data: [
+            {
+              id: 'p1',
+              lead_id: 'l1',
+              content: 'hello',
+              created_at: '2025-01-01T00:00:00Z',
+              leads: { company_domain: 'name__name-redpath', company_name: 'Redpath', company_url: 'Redpath' },
+            },
+          ],
+          error: null,
+        }),
+    })
+
+    const supabase = { from: () => chain } as unknown as SupabaseClient
+    const res = await getLatestPitchForCompany(supabase, { userId: 'u1', companyDomain: 'name__redpath' })
+
+    // Current behavior: since companyDomain does not look like a real domain, we derive a name-key from it.
+    expect(eqSpy).toHaveBeenCalledWith('leads.company_domain', 'name__name-redpath')
+    expect(res?.content).toBe('hello')
+    expect(ilikeSpy).not.toHaveBeenCalled()
+  })
+
+  it('when companyDomain is a plain string and name-key lookup yields no match, falls back to ilike(company_name)', async () => {
+    const chain: any = {}
+    const eqSpy = vi.fn(() => chain)
+    const ilikeSpy = vi.fn(() => chain)
+    const limitSpy = vi
+      .fn()
+      // First call: name-key lookup => no rows
+      .mockResolvedValueOnce({ data: [], error: null })
+      // Second call: ilike fallback => a row
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'p2',
+            lead_id: 'l2',
+            content: 'from-ilike',
+            created_at: '2025-01-02T00:00:00Z',
+            leads: { company_domain: 'name__redpath', company_name: 'Redpath', company_url: 'Redpath' },
+          },
+        ],
+        error: null,
+      })
+
+    Object.assign(chain, {
+      select: () => chain,
+      eq: eqSpy,
+      ilike: ilikeSpy,
+      order: () => chain,
+      limit: limitSpy,
+    })
+
+    const supabase = { from: () => chain } as unknown as SupabaseClient
+    const res = await getLatestPitchForCompany(supabase, { userId: 'u1', companyDomain: 'redpath' })
+    expect(res?.content).toBe('from-ilike')
+    expect(ilikeSpy).toHaveBeenCalled()
+  })
 })
 
