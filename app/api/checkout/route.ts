@@ -12,28 +12,24 @@ import { captureMessage } from '@/lib/observability/sentry'
  * Validates required Stripe environment variables
  * @throws Error with clear message if validation fails
  */
-function validateStripeEnv(): { proPriceId: string; teamPriceId: string | null; siteUrl: string } {
+function validateStripeEnv(): { proPriceId: string | null; teamPriceId: string | null; siteUrl: string } {
   // STRIPE_SECRET_KEY is already validated in lib/stripe.ts via serverEnv
 
-  // Validate STRIPE_PRICE_ID (accept STRIPE_PRICE_ID_PRO as override)
-  const proPriceId = serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID
-  
-  if (!proPriceId) {
-    throw new Error('STRIPE_PRICE_ID or STRIPE_PRICE_ID_PRO must be set')
-  }
-  
-  if (!proPriceId.startsWith('price_')) {
-    const prefix = proPriceId.substring(0, Math.min(8, proPriceId.length))
-    throw new Error(`Invalid STRIPE_PRICE_ID. Expected price_... but got ${prefix}...`)
-  }
+  /**
+   * Price IDs are environment-provided and MUST be Stripe TEST (sandbox) prices in development:
+   * - `STRIPE_PRICE_ID_PRO` (or legacy fallback `STRIPE_PRICE_ID`) for Closer/Pro
+   * - `STRIPE_PRICE_ID_TEAM` for Team
+   *
+   * These should look like `price_...` in both test and live mode. The *key* (sk_test_ vs sk_live_)
+   * determines whether Stripe treats it as sandbox vs production. No code changes are required for go-live;
+   * just swap env vars to live keys + live price IDs.
+   */
 
-  // Optional Team price id (kept outside env schema for backward compatibility)
-  const teamPriceIdRaw = (process.env.STRIPE_PRICE_ID_TEAM ?? '').trim()
-  const teamPriceId = teamPriceIdRaw.length > 0 ? teamPriceIdRaw : null
-  if (teamPriceId && !teamPriceId.startsWith('price_')) {
-    const prefix = teamPriceId.substring(0, Math.min(8, teamPriceId.length))
-    throw new Error(`Invalid STRIPE_PRICE_ID_TEAM. Expected price_... but got ${prefix}...`)
-  }
+  // Pro/Closer price id (accept legacy STRIPE_PRICE_ID fallback).
+  const proPriceId = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim() || null
+
+  // Team price id (optional overall, but required when planId === 'team').
+  const teamPriceId = (serverEnv.STRIPE_PRICE_ID_TEAM || '').trim() || null
 
   // Get site URL (optional, defaults to request origin)
   const siteUrl = clientEnv.NEXT_PUBLIC_SITE_URL || ''
@@ -110,7 +106,8 @@ const POST_GUARDED = withApiGuard(
         requestId,
         planId: parsedBody.planId,
         hasStripeSecretKey: Boolean(serverEnv.STRIPE_SECRET_KEY),
-        hasStripePriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
+        hasProPriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
+        hasTeamPriceId: Boolean(serverEnv.STRIPE_PRICE_ID_TEAM),
       })
     }
 
@@ -144,17 +141,29 @@ const POST_GUARDED = withApiGuard(
       // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
       if (planId === 'team') {
         if (!env.teamPriceId) {
+          captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId })
           return fail(
-            'INVALID_CHECKOUT_PLAN',
-            'Invalid or unsupported planId',
-            { planId },
-            { status: 400 },
+            'CHECKOUT_NOT_CONFIGURED',
+            'Missing Stripe price ID for plan: team',
+            { error: 'Missing Stripe price ID for plan: team', required: ['STRIPE_PRICE_ID_TEAM'] },
+            { status: 500 },
             bridge,
             requestId
           )
         }
         priceId = env.teamPriceId
       } else {
+        if (!env.proPriceId) {
+          captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId })
+          return fail(
+            'CHECKOUT_NOT_CONFIGURED',
+            'Missing Stripe price ID for plan: pro',
+            { error: 'Missing Stripe price ID for plan: pro', required: ['STRIPE_PRICE_ID_PRO (recommended)', 'STRIPE_PRICE_ID (legacy)'] },
+            { status: 500 },
+            bridge,
+            requestId
+          )
+        }
         priceId = env.proPriceId
       }
       siteUrl = env.siteUrl || request.nextUrl.origin
@@ -165,11 +174,11 @@ const POST_GUARDED = withApiGuard(
       })
       return fail(
         'CHECKOUT_NOT_CONFIGURED',
-        'Checkout is not configured',
+        `Checkout is not configured for plan: ${planId}`,
         {
           // Do not leak env values; just explain what is missing.
           message: error instanceof Error ? error.message : 'Missing Stripe configuration',
-          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID_PRO (recommended)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
+          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID_PRO (recommended)', 'STRIPE_PRICE_ID_TEAM (for team)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
         },
         { status: 500 },
         bridge,

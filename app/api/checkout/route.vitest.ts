@@ -81,17 +81,17 @@ vi.mock('@/lib/stripe', () => ({
 describe('/api/checkout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.resetModules()
     mockExistingSubscription = null
     // Ensure env vars exist for route config checks.
     process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
     process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
-    process.env.STRIPE_PRICE_ID_PRO = process.env.STRIPE_PRICE_ID_PRO || 'price_test_pro_123'
-    process.env.STRIPE_PRICE_ID_TEAM = process.env.STRIPE_PRICE_ID_TEAM || 'price_test_team_123'
     process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key'
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_123'
     process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
+    process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test-openai'
   })
 
   it('GET returns 405 METHOD_NOT_ALLOWED JSON', async () => {
@@ -119,6 +119,7 @@ describe('/api/checkout', () => {
   })
 
   it('POST ignores client-provided priceId and uses server plan mapping', async () => {
+    process.env.STRIPE_PRICE_ID_PRO = 'price_test_pro_123'
     const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/checkout', {
       method: 'POST',
@@ -137,7 +138,28 @@ describe('/api/checkout', () => {
     expect(arg?.line_items?.[0]?.price).toBe(process.env.STRIPE_PRICE_ID_PRO)
   })
 
+  it('POST returns 500 when Stripe price ID is missing for pro', async () => {
+    // Ensure pro price id is missing (do not set STRIPE_PRICE_ID_PRO or STRIPE_PRICE_ID)
+    delete process.env.STRIPE_PRICE_ID_PRO
+    delete process.env.STRIPE_PRICE_ID
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'pro' }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(500)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('CHECKOUT_NOT_CONFIGURED')
+    expect(String(json.error?.message || '')).toMatch(/missing stripe price id for plan: pro/i)
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
   it('POST creates checkout session for Team (planId: team)', async () => {
+    process.env.STRIPE_PRICE_ID_TEAM = 'price_test_team_123'
     const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/checkout', {
       method: 'POST',
