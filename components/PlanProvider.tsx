@@ -17,6 +17,16 @@ interface PlanContextValue {
 
 const PlanContext = createContext<PlanContextValue | undefined>(undefined)
 
+const fallbackPlanValue: PlanContextValue = {
+  plan: 'free',
+  tier: 'starter',
+  planId: null,
+  isPro: false,
+  trial: { active: false, endsAt: null },
+  loading: false,
+  refresh: async () => {},
+}
+
 interface PlanProviderProps {
   initialPlan?: Plan
   children: React.ReactNode
@@ -103,7 +113,11 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
 export function usePlan() {
   const ctx = useContext(PlanContext)
   if (!ctx) {
-    throw new Error('usePlan must be used within a PlanProvider')
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+      // Soft warning in dev so we notice missing providers, but never crash the app.
+      console.warn('[PlanProvider] usePlan called outside of PlanProvider; using starter fallback context.')
+    }
+    return fallbackPlanValue
   }
   return ctx
 }

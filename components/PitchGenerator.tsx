@@ -304,7 +304,16 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
 
   useEffect(() => {
     let cancelled = false
+    // Skip usage fetch for anonymous marketing visitors.
+    if (!currentUserId) return
+
     const loadUsage = async () => {
+      // If the user is paid, never apply Starter cap behavior; clear any stale usage state.
+      if (tier !== 'starter') {
+        setPitchUsage(null)
+        return
+      }
+
       try {
         const res = await fetch('/api/usage/pitch-summary', { method: 'GET', cache: 'no-store', credentials: 'include' })
         if (!res.ok) return
@@ -319,17 +328,21 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
         // ignore
       }
     }
+
     void loadUsage()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [currentUserId, tier])
 
-  const isPitchCapReached =
-    isStarter && pitchUsage?.pitchesLimit != null && pitchUsage.pitchesUsed >= pitchUsage.pitchesLimit
+  const isPitchCapReached = (() => {
+    const limit = pitchUsage?.pitchesLimit
+    const used = pitchUsage?.pitchesUsed ?? 0
+    return isStarter && typeof limit === 'number' && used >= limit
+  })()
 
   const visibleSavedCompanies =
-    isStarter && pitchUsage?.pitchesLimit != null ? savedCompanies.slice(0, pitchUsage.pitchesLimit) : savedCompanies
+    isPitchCapReached ? savedCompanies.slice(0, pitchUsage?.pitchesLimit ?? 3) : savedCompanies
 
   // Hydrate latest saved pitch content whenever company input changes (debounced).
   useEffect(() => {
@@ -605,28 +618,6 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               </div>
             </div>
           ) : null}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2">
-              <label className="text-sm font-semibold mb-2 block" htmlFor="pitch_template">
-                Template
-              </label>
-              <select
-                id="pitch_template"
-                value={templateId}
-                onChange={(e) => setTemplateId(e.target.value as PitchTemplateId)}
-                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
-              >
-                {PITCH_TEMPLATES.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-              <div className="text-xs text-muted-foreground mt-1">
-                {PITCH_TEMPLATES.find((t) => t.id === templateId)?.description ?? ''}
-              </div>
-            </div>
-          </div>
           {authError && (
             <div className="text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded p-2">
               {authError}
@@ -645,39 +636,90 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               </p>
             </div>
           )}
-          <div className={`flex gap-2 ${isPitchCapReached ? 'pointer-events-none opacity-50' : ''}`}>
-            <Input
-              placeholder="e.g., lego.com, SaaS analytics tool, webinar for HR leaders"
-              value={companyUrl}
-              onChange={(e) => setCompanyUrl(e.target.value)}
-              onInput={(e) => {
-                // E2E + some browser automation flows dispatch `input` events directly.
-                // Keep state in sync so the Generate button enables deterministically.
-                const next = (e.target as HTMLInputElement | null)?.value
-                if (typeof next === 'string') setCompanyUrl(next)
-              }}
-              onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-              className="flex-1"
-              data-testid="pitch-input"
-              disabled={isPitchCapReached}
-            />
-            <Button
-              onClick={handleGenerate}
-              disabled={isPitchCapReached || loading || !companyUrl.trim()}
-              data-testid="pitch-generate"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate
-                </>
-              )}
-            </Button>
+          <div className="relative">
+            <div className={isPitchCapReached ? 'pointer-events-none opacity-50' : ''}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <label className="text-sm font-semibold mb-2 block" htmlFor="pitch_template">
+                    Template
+                  </label>
+                  <select
+                    id="pitch_template"
+                    value={templateId}
+                    onChange={(e) => setTemplateId(e.target.value as PitchTemplateId)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                    disabled={isPitchCapReached}
+                  >
+                    {PITCH_TEMPLATES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {PITCH_TEMPLATES.find((t) => t.id === templateId)?.description ?? ''}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-3">
+                <Input
+                  placeholder="e.g., lego.com, SaaS analytics tool, webinar for HR leaders"
+                  value={companyUrl}
+                  onChange={(e) => setCompanyUrl(e.target.value)}
+                  onInput={(e) => {
+                    // E2E + some browser automation flows dispatch `input` events directly.
+                    // Keep state in sync so the Generate button enables deterministically.
+                    const next = (e.target as HTMLInputElement | null)?.value
+                    if (typeof next === 'string') setCompanyUrl(next)
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+                  className="flex-1"
+                  data-testid="pitch-input"
+                  disabled={isPitchCapReached}
+                />
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isPitchCapReached || loading || !companyUrl.trim()}
+                  data-testid="pitch-generate"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {isPitchCapReached ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="rounded-lg border border-cyan-500/20 bg-background/80 px-4 py-3 text-center backdrop-blur-sm">
+                  <p className="text-sm font-semibold text-cyan-200">You’ve used your 3 free pitches.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Upgrade to unlock unlimited pitches.</p>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push('/pricing?target=closer')}
+                      className="neon-border hover:glow-effect"
+                    >
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Upgrade to Closer
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => router.push('/pricing?target=team')}>
+                      View Team
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
           {freeLimitError ? (
             <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-100 flex items-center justify-between gap-3">
@@ -706,6 +748,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                   variant="ghost"
                   className="h-7 px-2 text-xs"
                   onClick={() => selectCompany(u)}
+                  disabled={isPitchCapReached}
                   title={`Use ${u}`}
                   aria-label={`Load latest pitch for ${u}`}
                 >
@@ -716,6 +759,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                   className="h-7 w-7 grid place-items-center border-l text-muted-foreground hover:text-foreground hover:bg-muted/30"
                   aria-label={`Remove ${u}`}
                   onClick={() => void removeSaved(u)}
+                  disabled={isPitchCapReached}
                 >
                   <X className="h-3 w-3" />
                 </button>

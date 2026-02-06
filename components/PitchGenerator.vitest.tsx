@@ -32,8 +32,17 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
+let tierMock: 'starter' | 'closer' | 'team' = 'starter'
 vi.mock('@/components/PlanProvider', () => ({
-  usePlan: () => ({ tier: 'starter', plan: 'free', isPro: false, trial: { active: false, endsAt: null }, loading: false, refresh: vi.fn(), planId: null }),
+  usePlan: () => ({
+    tier: tierMock,
+    plan: tierMock === 'starter' ? 'free' : 'pro',
+    isPro: tierMock !== 'starter',
+    trial: { active: false, endsAt: null },
+    loading: false,
+    refresh: vi.fn(),
+    planId: tierMock === 'team' ? 'team' : tierMock === 'closer' ? 'pro' : null,
+  }),
 }))
 
 vi.mock('@/lib/supabase/safe-auth', () => ({
@@ -44,6 +53,7 @@ describe('PitchGenerator', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.stubEnv('NODE_ENV', 'development')
+    tierMock = 'starter'
 
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
@@ -151,6 +161,96 @@ describe('PitchGenerator', () => {
     expect(await screen.findByText(/You’ve used your 3 free pitches/i)).toBeTruthy()
     expect(screen.getByTestId('pitch-input')).toBeDisabled()
     expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(3)
+  })
+
+  it('Starter at 2/3 pitches keeps prompt enabled and does not hide extra saved chips', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u === '/api/usage/pitch-summary') {
+        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 2, pitchesLimit: 3 } }), { status: 200 })
+      }
+      if (u.startsWith('/api/pitch/latest')) {
+        return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock as any)
+
+    localStorage.setItem('leadintel_saved_companies_user_1', JSON.stringify(['a.com', 'b.com', 'c.com', 'd.com']))
+    render(<PitchGenerator />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText(/You’ve used your 3 free pitches/i)).toBeNull()
+    expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
+    expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(4)
+  })
+
+  it('Closer never blurs/locks even if usage response would imply cap', async () => {
+    tierMock = 'closer'
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u === '/api/usage/pitch-summary') {
+        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 999, pitchesLimit: 3 } }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock as any)
+
+    render(<PitchGenerator />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText(/You’ve used your 3 free pitches/i)).toBeNull()
+    expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
+  })
+
+  it('Team never blurs/locks even if Starter cap was previously reached', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u === '/api/usage/pitch-summary') {
+        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 3, pitchesLimit: 3 } }), { status: 200 })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock as any)
+
+    localStorage.setItem('leadintel_saved_companies_user_1', JSON.stringify(['a.com', 'b.com', 'c.com', 'd.com']))
+
+    const { rerender } = render(<PitchGenerator />)
+
+    expect(await screen.findByText(/You’ve used your 3 free pitches/i)).toBeTruthy()
+    expect(screen.getByTestId('pitch-input')).toBeDisabled()
+
+    tierMock = 'team'
+    rerender(<PitchGenerator />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText(/You’ve used your 3 free pitches/i)).toBeNull()
+    expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
+  })
+
+  it('anonymous (no user) does not call /api/usage/pitch-summary', async () => {
+    const { getUserSafe } = await import('@/lib/supabase/safe-auth')
+    ;(getUserSafe as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null)
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockClear()
+
+    render(<PitchGenerator />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const calls = fetchMock.mock.calls.map((c: unknown[]) => String(c[0]))
+    expect(calls.some((u) => u === '/api/usage/pitch-summary')).toBe(false)
   })
 })
 
