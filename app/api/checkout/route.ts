@@ -7,6 +7,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { z } from 'zod'
 import { readBodyWithLimit } from '@/lib/api/validate'
 import { captureMessage } from '@/lib/observability/sentry'
+import { logger } from '@/lib/observability/logger'
 
 /**
  * Validates required Stripe environment variables
@@ -186,6 +187,19 @@ const POST_GUARDED = withApiGuard(
       )
     }
 
+    const stripeMode = serverEnv.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test'
+
+    logger.info({
+      level: 'info',
+      scope: 'checkout',
+      message: 'config.summary',
+      planId,
+      stripeMode,
+      hasStripeSecretKey: !!serverEnv.STRIPE_SECRET_KEY,
+      proPriceId: serverEnv.STRIPE_PRICE_ID_PRO ?? serverEnv.STRIPE_PRICE_ID ?? null,
+      teamPriceId: serverEnv.STRIPE_PRICE_ID_TEAM ?? null,
+    })
+
     // Check if user already has a Stripe customer ID
     let { data: userData } = await supabase
       .from('users')
@@ -280,10 +294,19 @@ const POST_GUARDED = withApiGuard(
         allow_promotion_codes: true,
       })
       sessionUrl = session.url ?? null
-    } catch (err) {
+    } catch (error) {
+      logger.error({
+        level: 'error',
+        scope: 'checkout',
+        message: 'session.create_failed',
+        planId,
+        stripeMode,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
       const details =
         serverEnv.NODE_ENV === 'development'
-          ? { message: err instanceof Error ? err.message : String(err) }
+          ? { message: error instanceof Error ? error.message : String(error) }
           : undefined
       return fail(
         ErrorCode.EXTERNAL_API_ERROR,
