@@ -496,6 +496,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'GET:/api/billing/verify-checkout-session': {
+    tier: 'D',
+    maxBytes: 8192, // 8KB
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 20,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'GET:/api/history': {
     tier: 'D',
     maxBytes: 8192, // 8KB

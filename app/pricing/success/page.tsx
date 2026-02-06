@@ -9,6 +9,10 @@ import { formatErrorMessage } from '@/lib/utils/format-error'
 
 type PollStatus = 'pending' | 'pro' | 'timeout' | 'error'
 
+type VerifyResponse =
+  | { ok: true; data: { verified: boolean; plan: 'free' | 'pro'; tier?: string; planId?: string } }
+  | { ok: false; error?: { message?: string } }
+
 function PricingSuccessContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -27,20 +31,19 @@ function PricingSuccessContent() {
 
     const poll = async () => {
       try {
-        const resp = await fetch('/api/plan', { method: 'GET', cache: 'no-store' })
+        if (!sessionId) {
+          throw new Error('Missing session_id')
+        }
+
+        // Verify against a local API route (same Next.js app).
+        // This is important in dev/staging where Stripe webhooks may not be running.
+        const url = `/api/billing/verify-checkout-session?session_id=${encodeURIComponent(sessionId)}`
+        const resp = await fetch(url, { method: 'GET', cache: 'no-store', credentials: 'include' })
         if (!resp.ok) throw new Error(`Status ${resp.status}`)
-        const text = await resp.text()
-        if (!text || text.trim().length === 0) {
-          throw new Error('Empty response from /api/plan')
-        }
-        let data
-        try {
-          data = JSON.parse(text)
-        } catch (parseError: unknown) {
-          const msg = parseError instanceof Error ? parseError.message : 'Unknown parse error'
-          throw new Error(`Invalid JSON: ${msg}`)
-        }
-        if (data?.plan === 'pro') {
+        const data = (await resp.json()) as VerifyResponse
+        const plan = data.ok === true ? data.data.plan : null
+
+        if (plan === 'pro') {
           if (!cancelled) {
             setStatus('pro')
             setError(null)
@@ -50,7 +53,9 @@ function PricingSuccessContent() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setError(formatErrorMessage(err))
+          // Friendly mapping: avoid surfacing raw "Failed to fetch" for transient network issues.
+          const msg = formatErrorMessage(err)
+          setError(msg.toLowerCase().includes('failed to fetch') ? 'Network issue while verifying subscription. Please refresh.' : msg)
           setStatus('error')
         }
       }
@@ -67,7 +72,7 @@ function PricingSuccessContent() {
     return () => {
       cancelled = true
     }
-  }, [router])
+  }, [router, sessionId])
 
   const heading =
     status === 'pro'
