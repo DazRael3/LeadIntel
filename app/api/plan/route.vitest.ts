@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 let mockSubRow: unknown = null
+let mockUserRow: unknown = null
 
 class FakeQuery {
   private table: string
@@ -23,6 +24,9 @@ class FakeQuery {
   maybeSingle() {
     if (this.table === 'subscriptions') {
       return Promise.resolve({ data: mockSubRow, error: null })
+    }
+    if (this.table === 'users') {
+      return Promise.resolve({ data: mockUserRow, error: null })
     }
     return Promise.resolve({ data: null, error: null })
   }
@@ -47,6 +51,7 @@ describe('/api/plan', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSubRow = null
+    mockUserRow = null
     process.env.ENABLE_APP_TRIAL = '0'
     process.env.STRIPE_PRICE_ID_PRO = 'price_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_pro_123'
@@ -63,6 +68,19 @@ describe('/api/plan', () => {
     expect(json.data?.tier).toBe('starter')
     expect(json.data?.planId).toBe(null)
     expect(json.data?.plan).toBe('free')
+  })
+
+  it('user row marked pro but no subscription row -> closer tier, planId pro', async () => {
+    mockUserRow = { subscription_tier: 'pro' }
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('closer')
+    expect(json.data?.planId).toBe('pro')
+    expect(json.data?.plan).toBe('pro')
   })
 
   it('active subscription with closer price -> closer tier, planId pro', async () => {

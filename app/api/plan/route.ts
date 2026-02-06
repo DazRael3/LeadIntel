@@ -7,6 +7,7 @@ import { serverEnv } from '@/lib/env'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createHash } from 'crypto'
 import { logProductEvent } from '@/lib/services/analytics'
+import { logger } from '@/lib/observability/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -180,6 +181,26 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         planId = 'pro'
       }
     }
+    // Fallback: if the user row already indicates Pro (e.g., after verify route/webhook),
+    // treat as Closer when no active subscription row is visible yet.
+    // This keeps UI consistent immediately after checkout redirect.
+    if (!hasActiveSubscription && tier === 'starter') {
+      try {
+        const { data: userRow } = await supabase
+          .schema('api')
+          .from('users')
+          .select('subscription_tier')
+          .eq('id', user.id)
+          .maybeSingle()
+        const subTier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? null
+        if (subTier === 'pro') {
+          tier = 'closer'
+          planId = 'pro'
+        }
+      } catch {
+        // fail-open: keep starter
+      }
+    }
 
     // Trial display is best-effort and MUST NOT promote a user into paid tiers.
     const stripeTrialEnd = (subRow as { trial_end?: string | null } | null)?.trial_end ?? null
@@ -214,6 +235,15 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         },
       })
     }
+
+    logger.info({
+      level: 'info',
+      scope: 'plan',
+      message: 'resolve.success',
+      userId: user.id,
+      tier,
+    })
+
     return ok(
       {
         // Keep legacy `plan` (used by existing clients) but do NOT infer paid access from app-level trial.

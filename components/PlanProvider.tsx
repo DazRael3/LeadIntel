@@ -77,10 +77,10 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
   }, [])
 
   useEffect(() => {
-    // If initial plan is free, verify once to avoid flicker after checkout.
-    if (initialPlan === 'free') {
-      refresh()
-    }
+    // Always refresh once on mount so tier (starter/closer/team) is accurate.
+    // This prevents a "Starter" UI from sticking for upgraded accounts where `initialPlan` is 'pro'.
+    // The API response is the source of truth for tier labels and upgrade CTAs.
+    refresh()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

@@ -14,6 +14,7 @@ import { isE2E } from '@/lib/runtimeFlags'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { PITCH_TEMPLATES, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { ProGate } from '@/components/ProGate'
+import { usePlan } from '@/components/PlanProvider'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -62,6 +63,12 @@ type LatestPitchResponse = ApiEnvelope<{
   } | null
 }>
 
+type PitchUsageSummary = ApiEnvelope<{
+  tier: 'starter' | 'closer' | 'team'
+  pitchesUsed: number
+  pitchesLimit: number | null
+}>
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -95,7 +102,7 @@ function normalizeSaved(value: unknown): string[] {
 
 export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: PitchGeneratorProps) {
   const [companyUrl, setCompanyUrl] = useState(initialUrl)
-  const [isPro, setIsPro] = useState(false)
+  const { tier } = usePlan()
   const [loading, setLoading] = useState(false)
   const [pitch, setPitch] = useState<string | null>(null)
   const [emailSequence, setEmailSequence] = useState<EmailSequence | null>(null)
@@ -108,6 +115,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [templateId, setTemplateId] = useState<PitchTemplateId>('default')
   const [freeLimitError, setFreeLimitError] = useState<string | null>(null)
+  const [pitchUsage, setPitchUsage] = useState<{ pitchesUsed: number; pitchesLimit: number | null } | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -133,24 +141,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     }
   }, [supabase])
 
-  const checkSubscription = useCallback(async () => {
-    try {
-      const user = await getUserSafe(supabase)
-      if (user) {
-        const { data } = await supabase
-          .from('users')
-          .select('subscription_tier')
-          .eq('id', user.id)
-          .single()
-        
-        if (data) {
-          setIsPro(data.subscription_tier === 'pro')
-        }
-      }
-    } catch (error) {
-      // Best-effort: avoid noisy auth/token logs on client
-    }
-  }, [supabase])
+  const isStarter = tier === 'starter'
 
   const loadSaved = useCallback(
     async (userIdOverride?: string | null) => {
@@ -299,7 +290,6 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     if (initialUrl) {
       setCompanyUrl(initialUrl)
     }
-    checkSubscription()
     void loadSaved()
     // Keep saved companies scoped to the current authenticated user.
     const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
@@ -310,7 +300,36 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     return () => {
       data.subscription.unsubscribe()
     }
-  }, [initialUrl, checkSubscription, loadSaved, supabase.auth])
+  }, [initialUrl, loadSaved, supabase.auth])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadUsage = async () => {
+      try {
+        const res = await fetch('/api/usage/pitch-summary', { method: 'GET', cache: 'no-store', credentials: 'include' })
+        if (!res.ok) return
+        const json = (await res.json()) as PitchUsageSummary
+        if (!json || json.ok !== true) return
+        if (cancelled) return
+        setPitchUsage({
+          pitchesUsed: typeof json.data.pitchesUsed === 'number' ? json.data.pitchesUsed : Number(json.data.pitchesUsed) || 0,
+          pitchesLimit: typeof json.data.pitchesLimit === 'number' ? json.data.pitchesLimit : null,
+        })
+      } catch {
+        // ignore
+      }
+    }
+    void loadUsage()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const isPitchCapReached =
+    isStarter && pitchUsage?.pitchesLimit != null && pitchUsage.pitchesUsed >= pitchUsage.pitchesLimit
+
+  const visibleSavedCompanies =
+    isStarter && pitchUsage?.pitchesLimit != null ? savedCompanies.slice(0, pitchUsage.pitchesLimit) : savedCompanies
 
   // Hydrate latest saved pitch content whenever company input changes (debounced).
   useEffect(() => {
@@ -507,11 +526,6 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
         setWarnings(parsedWarnings.filter((w) => w !== MISSING_LEAD_WARNING))
       }
 
-      // Update isPro from response (if present)
-      if (typeof data.isPro === 'boolean') {
-        setIsPro(data.isPro)
-      }
-
       // Set email sequence (3-part) - Enterprise Intelligence feature
       if (isRecord(data.emailSequence)) {
         const seq = data.emailSequence as Record<string, unknown>
@@ -566,6 +580,31 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isPitchCapReached ? (
+            <div className="rounded-lg border border-cyan-500/20 bg-background/40 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-cyan-200">
+                    You’ve used your 3 free pitches on the Starter plan.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upgrade to Closer or Team to unlock unlimited pitches.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push('/pricing?target=closer')}
+                    className="neon-border hover:glow-effect whitespace-nowrap"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Upgrade
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
               <label className="text-sm font-semibold mb-2 block" htmlFor="pitch_template">
@@ -606,7 +645,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               </p>
             </div>
           )}
-          <div className="flex gap-2">
+          <div className={`flex gap-2 ${isPitchCapReached ? 'pointer-events-none opacity-50' : ''}`}>
             <Input
               placeholder="e.g., lego.com, SaaS analytics tool, webinar for HR leaders"
               value={companyUrl}
@@ -620,8 +659,13 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
               className="flex-1"
               data-testid="pitch-input"
+              disabled={isPitchCapReached}
             />
-            <Button onClick={handleGenerate} disabled={loading || !companyUrl.trim()} data-testid="pitch-generate">
+            <Button
+              onClick={handleGenerate}
+              disabled={isPitchCapReached || loading || !companyUrl.trim()}
+              data-testid="pitch-generate"
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -652,10 +696,10 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               {savedCompanyNotice}
             </div>
           ) : null}
-        {savedCompanies.length > 0 && (
+        {visibleSavedCompanies.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Saved companies:</span>
-            {savedCompanies.map((u) => (
+            {visibleSavedCompanies.map((u) => (
               <div key={u} className="inline-flex items-center rounded-md border bg-background">
                 <Button
                   size="sm"

@@ -32,6 +32,10 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
+vi.mock('@/components/PlanProvider', () => ({
+  usePlan: () => ({ tier: 'starter', plan: 'free', isPro: false, trial: { active: false, endsAt: null }, loading: false, refresh: vi.fn(), planId: null }),
+}))
+
 vi.mock('@/lib/supabase/safe-auth', () => ({
   getUserSafe: vi.fn(async () => ({ id: 'user_1' })),
 }))
@@ -43,6 +47,9 @@ describe('PitchGenerator', () => {
 
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
+      if (u === '/api/usage/pitch-summary') {
+        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 0, pitchesLimit: 3 } }), { status: 200 })
+      }
       if (u.startsWith('/api/pitch/latest')) {
         return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
       }
@@ -122,6 +129,28 @@ describe('PitchGenerator', () => {
     expect(fetchMock).toHaveBeenCalled()
     const calls = fetchMock.mock.calls.map((c: unknown[]) => String(c[0]))
     expect(calls.some((u) => u.startsWith('/api/pitch/latest?') && u.includes('companyDomain=visa.com'))).toBe(true)
+  })
+
+  it('Starter at 3/3 pitches disables input and shows upgrade prompt, and only shows 3 saved chips', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u === '/api/usage/pitch-summary') {
+        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 3, pitchesLimit: 3 } }), { status: 200 })
+      }
+      if (u.startsWith('/api/pitch/latest')) {
+        return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock as any)
+
+    localStorage.setItem('leadintel_saved_companies_user_1', JSON.stringify(['a.com', 'b.com', 'c.com', 'd.com']))
+
+    render(<PitchGenerator />)
+
+    expect(await screen.findByText(/You’ve used your 3 free pitches/i)).toBeTruthy()
+    expect(screen.getByTestId('pitch-input')).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(3)
   })
 })
 

@@ -509,6 +509,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'GET:/api/usage/pitch-summary': {
+    tier: 'D',
+    maxBytes: 8192, // 8KB
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'GET:/api/history': {
     tier: 'D',
     maxBytes: 8192, // 8KB
