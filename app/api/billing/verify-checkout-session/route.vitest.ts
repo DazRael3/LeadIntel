@@ -13,6 +13,17 @@ const adminUpdateEq = vi.fn(async () => ({ error: null }))
 const adminUpsert = vi.fn(async () => ({ error: null }))
 vi.mock('@/lib/supabase/admin', () => ({
   createSupabaseAdminClient: () => ({
+    schema: () => ({
+      from: (table: string) => {
+        if (table === 'users') {
+          return { update: () => ({ eq: adminUpdateEq }) }
+        }
+        if (table === 'subscriptions') {
+          return { upsert: adminUpsert }
+        }
+        return { update: () => ({ eq: adminUpdateEq }), upsert: adminUpsert }
+      },
+    }),
     from: (table: string) => {
       if (table === 'users') {
         return { update: () => ({ eq: adminUpdateEq }) }

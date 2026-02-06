@@ -3,7 +3,6 @@ import { NextRequest } from 'next/server'
 
 let mockSubRow: unknown = null
 let mockUserRow: unknown = null
-let mockPitchCount: number | null = null
 
 class FakeQuery {
   private table: string
@@ -36,16 +35,7 @@ vi.mock('@/lib/supabase/route', () => ({
     },
     from: (table: string) => new FakeQuery(table),
     schema: () => ({
-      from: (table: string) => {
-        if (table === 'pitches') {
-          return {
-            select: () => ({
-              eq: async () => ({ count: mockPitchCount, data: null, error: null }),
-            }),
-          }
-        }
-        return new FakeQuery(table)
-      },
+      from: (table: string) => new FakeQuery(table),
     }),
   })),
 }))
@@ -56,7 +46,6 @@ describe('/api/usage/pitch-summary', () => {
     vi.resetModules()
     mockSubRow = null
     mockUserRow = null
-    mockPitchCount = 0
 
     process.env.STRIPE_PRICE_ID_PRO = 'price_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_pro_123'
@@ -71,6 +60,36 @@ describe('/api/usage/pitch-summary', () => {
     expect(json.data?.tier).toBe('starter')
     expect(json.data?.pitchesLimit).toBe(3)
     expect(json.data?.pitchesUsed).toBe(0)
+  })
+
+  it('increments pitchesUsed via in-memory fallback when Redis is missing', async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL
+    delete process.env.UPSTASH_REDIS_REST_TOKEN
+
+    const { recordStarterPitchCapUsage } = await import('@/lib/billing/usage')
+    const { GET } = await import('./route')
+
+    await recordStarterPitchCapUsage({ userId: 'user_1' })
+    await recordStarterPitchCapUsage({ userId: 'user_1' })
+
+    const res = await GET(new NextRequest('http://localhost:3000/api/usage/pitch-summary', { method: 'GET' }))
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('starter')
+    expect(json.data?.pitchesLimit).toBe(3)
+    expect(json.data?.pitchesUsed).toBe(2)
+  })
+
+  it('paid tier returns pitchesLimit null (no 3-pitch cap)', async () => {
+    mockSubRow = { status: 'active', stripe_price_id: 'price_pro_123' }
+    const { GET } = await import('./route')
+    const res = await GET(new NextRequest('http://localhost:3000/api/usage/pitch-summary', { method: 'GET' }))
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('closer')
+    expect(json.data?.pitchesLimit).toBe(null)
   })
 })
 

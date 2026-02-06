@@ -5,8 +5,15 @@ import { IS_DEV, logWarn, logInfo } from '@/lib/observability/logger'
 export type PlanId = 'starter' | 'closer' | 'team' | string
 
 let hasLoggedDisabled = false
+let hasLoggedFallbackEnabled = false
 let cachedRedisConfig: { url: string; token: string } | null | undefined
 let cachedRedis: Redis | null | undefined
+
+// In-memory fallback for local dev when Redis isn't configured.
+// NOTE: this is process-local and will reset on server restarts.
+const starterPitchCapMemory = new Map<string, number>()
+
+export const STARTER_PITCH_CAP_LIMIT = 3
 
 function getDailyLimit(): number {
   const raw = (process.env.STARTER_PITCH_DAILY_LIMIT ?? '').trim()
@@ -62,6 +69,92 @@ function getRedis(): Redis | null {
   return cachedRedis
 }
 
+function ensureFallbackLog(reason: string): void {
+  // Keep the existing warning log line for visibility.
+  if (!hasLoggedDisabled) {
+    logWarn({
+      scope: 'usage',
+      message: 'starter.cap.disabled',
+      reason,
+      fallback: 'memory',
+    })
+    hasLoggedDisabled = true
+  }
+  if (!hasLoggedFallbackEnabled) {
+    logInfo({
+      scope: 'usage',
+      message: 'starter.cap.fallback_enabled',
+      limiter: 'memory',
+    })
+    hasLoggedFallbackEnabled = true
+  }
+}
+
+function starterCapKey(userId: string): string {
+  // This cap is per-user (not per-day). It exists to power the Starter 3-pitch UX without DB writes.
+  return `li:cap:pitch:${userId}`
+}
+
+export async function getStarterPitchCapSummary(args: {
+  userId: string
+}): Promise<{ used: number; limit: number }> {
+  const limit = STARTER_PITCH_CAP_LIMIT
+  const redis = getRedis()
+  if (!redis) {
+    ensureFallbackLog('redis_not_configured')
+    const used = starterPitchCapMemory.get(args.userId) ?? 0
+    return { used, limit }
+  }
+  try {
+    const raw = await redis.get(starterCapKey(args.userId))
+    const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number.parseInt(raw, 10) : 0
+    const used = Number.isFinite(n) ? Math.max(0, n) : 0
+    return { used, limit }
+  } catch {
+    // Fail-open for summary reads.
+    if (IS_DEV) {
+      logWarn({
+        scope: 'usage',
+        message: 'starter.cap.read_failed',
+        userId: args.userId,
+      })
+    }
+    const used = starterPitchCapMemory.get(args.userId) ?? 0
+    return { used, limit }
+  }
+}
+
+export async function recordStarterPitchCapUsage(args: {
+  userId: string
+  correlationId?: string
+}): Promise<{ used: number; limit: number }> {
+  const limit = STARTER_PITCH_CAP_LIMIT
+  const redis = getRedis()
+  if (!redis) {
+    ensureFallbackLog('redis_not_configured')
+    const next = (starterPitchCapMemory.get(args.userId) ?? 0) + 1
+    starterPitchCapMemory.set(args.userId, next)
+    return { used: next, limit }
+  }
+  try {
+    const used = await redis.incr(starterCapKey(args.userId))
+    return { used: Math.max(0, used), limit }
+  } catch {
+    // Fail-open: still increment the in-memory fallback so local UX remains functional.
+    if (IS_DEV) {
+      logWarn({
+        scope: 'usage',
+        message: 'starter.cap.write_failed',
+        userId: args.userId,
+        correlationId: args.correlationId,
+      })
+    }
+    const next = (starterPitchCapMemory.get(args.userId) ?? 0) + 1
+    starterPitchCapMemory.set(args.userId, next)
+    return { used: next, limit }
+  }
+}
+
 export async function checkStarterPitchUsage(args: {
   userId: string
   planId: PlanId
@@ -80,14 +173,7 @@ export async function checkStarterPitchUsage(args: {
 
   // Fail-open if Redis isn't configured (common in local dev).
   if (!redis) {
-    if (!hasLoggedDisabled) {
-      logWarn({
-        scope: 'usage',
-        message: 'starter.cap.disabled',
-        reason: 'redis_not_configured',
-      })
-      hasLoggedDisabled = true
-    }
+    ensureFallbackLog('redis_not_configured')
     return { ok: true, remaining: limit, limit }
   }
 

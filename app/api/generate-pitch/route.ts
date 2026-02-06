@@ -17,7 +17,7 @@ import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
-import { checkStarterPitchUsage } from '@/lib/billing/usage'
+import { checkStarterPitchUsage, recordStarterPitchCapUsage } from '@/lib/billing/usage'
 import { makeNameCompanyKey } from '@/lib/company-key'
 
 export const dynamic = "force-dynamic";
@@ -365,6 +365,16 @@ export const POST = withApiGuard(
       }
     } else {
       warnings.push('Pitch history not saved (missing lead id).')
+    }
+
+    // Record Starter usage for the 3‑pitch lock UX (best-effort; no DB schema required).
+    // This is independent from the Redis-backed daily cap (which is fail-open when Redis is missing).
+    if (tier === 'starter' && typeof pitch === 'string' && pitch.trim().length > 0) {
+      try {
+        await recordStarterPitchCapUsage({ userId, correlationId })
+      } catch {
+        // best-effort
+      }
     }
 
     const response = {

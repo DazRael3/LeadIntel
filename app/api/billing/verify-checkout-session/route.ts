@@ -95,34 +95,34 @@ export const GET = withApiGuard(
 
       // Upsert subscription + mark user as paid (Pro) via service role (RLS-safe).
       const admin = createSupabaseAdminClient()
+      const adminApi = (admin as unknown as { schema?: (s: string) => unknown }).schema
+        ? (admin as unknown as { schema: (s: string) => any }).schema('api')
+        : (admin as any)
 
       // Keep app behavior consistent: users table stores free/pro, while tier (closer/team) is inferred from price id.
-      await admin.from('users').update({ subscription_tier: 'pro' }).eq('id', user.id)
+      await adminApi.from('users').update({ subscription_tier: 'pro' }).eq('id', user.id)
 
       const customer = session.customer
       const customerId = typeof customer === 'string' ? customer : customer?.id ?? null
 
       // Write the subscription row (fields are best-effort; schema drift tolerated).
-      await admin
+      const subPayload = {
+        user_id: user.id,
+        stripe_subscription_id: subscriptionId,
+        stripe_customer_id: customerId,
+        status,
+        current_period_end: subscription?.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
+        current_period_start: subscription?.current_period_start
+          ? new Date(subscription.current_period_start * 1000).toISOString()
+          : null,
+        cancel_at_period_end: Boolean(subscription?.cancel_at_period_end),
+        trial_end: subscription?.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+        stripe_price_id: priceId,
+      }
+
+      await adminApi
         .from('subscriptions')
-        .upsert(
-          {
-            user_id: user.id,
-            stripe_subscription_id: subscriptionId,
-            stripe_customer_id: customerId,
-            status,
-            current_period_end: subscription?.current_period_end
-              ? new Date(subscription.current_period_end * 1000).toISOString()
-              : null,
-            current_period_start: subscription?.current_period_start
-              ? new Date(subscription.current_period_start * 1000).toISOString()
-              : null,
-            cancel_at_period_end: Boolean(subscription?.cancel_at_period_end),
-            trial_end: subscription?.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
-            stripe_price_id: priceId,
-          },
-          { onConflict: 'stripe_subscription_id' }
-        )
+        .upsert(subPayload, { onConflict: subscriptionId ? 'stripe_subscription_id' : 'user_id' })
 
       const proPrice = configuredProPriceId()
       const isTeam = Boolean(priceId && proPrice && priceId !== proPrice)

@@ -6,6 +6,7 @@ import { ok, asHttpError, createCookieBridge, fail, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { serverEnv } from '@/lib/env'
 import { logger } from '@/lib/observability/logger'
+import { getStarterPitchCapSummary, STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/usage'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,20 +66,16 @@ export const GET = withApiGuard(
         if (subTier === 'pro') tier = 'closer'
       }
 
-      // Count pitches (best-effort). This is for UI gating only.
       let pitchesUsed = 0
-      try {
-        const { count } = await supabase
-          .schema('api')
-          .from('pitches')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-        pitchesUsed = typeof count === 'number' && Number.isFinite(count) ? count : 0
-      } catch {
+      let pitchesLimit: number | null = null
+      if (tier === 'starter') {
+        const cap = await getStarterPitchCapSummary({ userId: user.id })
+        pitchesUsed = cap.used
+        pitchesLimit = STARTER_PITCH_CAP_LIMIT
+      } else {
         pitchesUsed = 0
+        pitchesLimit = null
       }
-
-      const pitchesLimit = tier === 'starter' ? 3 : null
 
       logger.info({
         level: 'info',
