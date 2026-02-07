@@ -9,6 +9,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { serverEnv } from '@/lib/env'
 import { stripe } from '@/lib/stripe'
 import { logger } from '@/lib/observability/logger'
+import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,9 @@ export const GET = withApiGuard(
 
     try {
       const { session_id } = query as z.infer<typeof VerifyQuerySchema>
+      // Production safety: block accidental Stripe test keys.
+      // (No effect in dev/staging; enforced only when NEXT_PUBLIC_APP_ENV === "production".)
+      assertProdStripeConfig()
 
       const supabase = createRouteClient(request, bridge)
       const { data: { user }, error: authError } = await supabase.auth.getUser()

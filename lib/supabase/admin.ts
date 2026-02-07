@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { clientEnv, serverEnv } from '@/lib/env'
 import { isE2E } from '@/lib/runtimeFlags'
 import { createE2EServerSupabaseClient } from '@/lib/supabase/e2e'
+import { assertSupabaseServiceRoleConfigured } from '@/lib/config/runtimeEnv'
 
 /**
  * Supabase admin client (service role).
@@ -17,6 +18,7 @@ export function createSupabaseAdminClient() {
       getCookie: () => undefined,
     })
   }
+  assertSupabaseServiceRoleConfigured()
   return createClient(clientEnv.NEXT_PUBLIC_SUPABASE_URL, serverEnv.SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       autoRefreshToken: false,

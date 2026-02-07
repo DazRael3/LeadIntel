@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { readBodyWithLimit } from '@/lib/api/validate'
 import { captureMessage } from '@/lib/observability/sentry'
 import { logger } from '@/lib/observability/logger'
+import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
 
 /**
  * Validates required Stripe environment variables
@@ -133,6 +134,10 @@ const POST_GUARDED = withApiGuard(
         requestId
       )
     }
+
+    // Production safety: block accidental Stripe test keys.
+    // (No effect in dev/staging; enforced only when NEXT_PUBLIC_APP_ENV === "production".)
+    assertProdStripeConfig()
 
     // Validate Stripe environment variables
     let priceId: string
