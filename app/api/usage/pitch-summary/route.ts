@@ -6,7 +6,8 @@ import { ok, asHttpError, createCookieBridge, fail, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { serverEnv } from '@/lib/env'
 import { logger } from '@/lib/observability/logger'
-import { getStarterLeadCountFromDb, STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/usage'
+import { getStarterLeadCountFromDb } from '@/lib/billing/usage'
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +82,17 @@ export const GET = withApiGuard(
         level: 'info',
         scope: 'usage',
         message: 'pitch.summary',
+        userId: user.id,
+        tier,
+        pitchesUsed,
+        pitchesLimit,
+      })
+
+      // Additional log line (keep existing one above intact).
+      logger.info({
+        level: 'info',
+        scope: 'usage',
+        message: 'pitch_summary',
         userId: user.id,
         tier,
         pitchesUsed,

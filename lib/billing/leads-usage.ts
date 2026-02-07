@@ -7,7 +7,9 @@
  * NOTE: This file is intentionally display-focused; it does not enforce caps.
  */
 
-export const STARTER_MAX_LEADS = 3
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
+
+export const STARTER_MAX_LEADS = STARTER_PITCH_CAP_LIMIT
 
 function clampInt(value: number, min: number, max: number): number {
   const n = Number.isFinite(value) ? Math.trunc(value) : 0

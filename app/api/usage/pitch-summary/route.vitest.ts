@@ -1,12 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
 let mockSubRow: unknown = null
 let mockUserRow: unknown = null
 let mockLeadCount = 0
 
 vi.mock('@/lib/billing/usage', () => ({
-  STARTER_PITCH_CAP_LIMIT: 3,
   getStarterLeadCountFromDb: vi.fn(async () => mockLeadCount),
 }))
 
@@ -65,7 +65,7 @@ describe('/api/usage/pitch-summary', () => {
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.data?.tier).toBe('starter')
-    expect(json.data?.pitchesLimit).toBe(3)
+    expect(json.data?.pitchesLimit).toBe(STARTER_PITCH_CAP_LIMIT)
     expect(json.data?.pitchesUsed).toBe(0)
   })
 
@@ -77,8 +77,8 @@ describe('/api/usage/pitch-summary', () => {
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.data?.tier).toBe('starter')
-    expect(json.data?.pitchesLimit).toBe(3)
-    expect(json.data?.pitchesUsed).toBe(3)
+    expect(json.data?.pitchesLimit).toBe(STARTER_PITCH_CAP_LIMIT)
+    expect(json.data?.pitchesUsed).toBe(STARTER_PITCH_CAP_LIMIT)
   })
 
   it('paid tier returns pitchesLimit null (no 3-pitch cap)', async () => {

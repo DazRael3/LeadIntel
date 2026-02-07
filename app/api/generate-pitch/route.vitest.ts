@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
 vi.mock('@/lib/billing/plan', () => ({
   isPro: vi.fn(async () => true),
@@ -101,7 +102,6 @@ vi.mock('@/lib/billing/usage', () => ({
   checkStarterPitchUsage: vi.fn(async () => ({ ok: true, remaining: 999, limit: 20 })),
   getStarterLeadCountFromDb: vi.fn(async () => 0),
   recordStarterPitchCapUsage: vi.fn(async () => ({ used: 1, limit: 3 })),
-  STARTER_PITCH_CAP_LIMIT: 3,
 }))
 
 describe('/api/generate-pitch', () => {
@@ -213,7 +213,7 @@ describe('/api/generate-pitch', () => {
 
     const res = await POST(req)
     expect(res.status).toBe(429)
-    expect(res.headers.get('x-free-plan-limit')).toBe('3')
+    expect(res.headers.get('x-free-plan-limit')).toBe(String(STARTER_PITCH_CAP_LIMIT))
     const json = await res.json()
     expect(json.ok).toBe(false)
     expect(json.error?.code).toBe('FREE_PLAN_LIMIT_REACHED')

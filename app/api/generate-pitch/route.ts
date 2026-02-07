@@ -17,7 +17,8 @@ import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
-import { checkStarterPitchUsage, getStarterLeadCountFromDb, recordStarterPitchCapUsage, STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/usage'
+import { checkStarterPitchUsage, getStarterLeadCountFromDb, recordStarterPitchCapUsage } from '@/lib/billing/usage'
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 import { makeNameCompanyKey } from '@/lib/company-key'
 
 export const dynamic = "force-dynamic";
@@ -215,6 +216,13 @@ export const POST = withApiGuard(
       // Starter hard cap: 3 total leads/pitches. DB-backed so it remains consistent across restarts.
       const leadCount = await getStarterLeadCountFromDb(userId)
       if (leadCount >= STARTER_PITCH_CAP_LIMIT) {
+        logInfo({
+          scope: 'starter_cap',
+          message: 'hard_cap_reached',
+          userId,
+          leadCount,
+          limit: STARTER_PITCH_CAP_LIMIT,
+        })
         return fail(
           'FREE_PLAN_LIMIT_REACHED',
           `You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches on the Starter plan. Upgrade to Closer to unlock unlimited pitches.`,

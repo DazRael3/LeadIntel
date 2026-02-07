@@ -2,6 +2,7 @@ import { Redis } from '@upstash/redis'
 import { serverEnv } from '@/lib/env'
 import { IS_DEV, logWarn, logInfo } from '@/lib/observability/logger'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
 export type PlanId = 'starter' | 'closer' | 'team' | string
 
@@ -13,8 +14,6 @@ let cachedRedis: Redis | null | undefined
 // In-memory fallback for local dev when Redis isn't configured.
 // NOTE: this is process-local and will reset on server restarts.
 const starterPitchCapMemory = new Map<string, number>()
-
-export const STARTER_PITCH_CAP_LIMIT = 3
 
 function getDailyLimit(): number {
   const raw = (process.env.STARTER_PITCH_DAILY_LIMIT ?? '').trim()
@@ -76,7 +75,7 @@ function ensureFallbackLog(reason: string): void {
     logWarn({
       scope: 'usage',
       message: 'starter.cap.disabled',
-      reason,
+      reason: reason === 'redis_not_configured' ? 'redis_not_configured_fallback_memory' : reason,
       fallback: 'memory',
     })
     hasLoggedDisabled = true
