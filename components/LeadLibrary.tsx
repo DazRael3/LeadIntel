@@ -129,7 +129,18 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
 
   // Filter and sort leads based on view mode
   const filteredLeads = useMemo(() => {
-    let filtered = leads
+    // Starter users: only the first 3 unlocked/saved leads are visible at all.
+    // This is a hard visibility cap (no blur), aligned with Starter pitch/lead limits.
+    let filtered = !isPro
+      ? [...leads]
+          .sort((a, b) => {
+            const aMs = Date.parse(a.created_at || '') || 0
+            const bMs = Date.parse(b.created_at || '') || 0
+            if (aMs !== bMs) return aMs - bMs // oldest first
+            return a.company_name.localeCompare(b.company_name)
+          })
+          .slice(0, STARTER_MAX_LEADS)
+      : leads
 
     // Search filter
     if (searchQuery) {
@@ -157,10 +168,8 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
       return a.company_name.localeCompare(b.company_name)
     })
 
-    // Note: We don't filter out leads for free users
-    // Instead, we blur them in the UI after their credit limit
     return filtered
-  }, [leads, searchQuery, selectedEventType])
+  }, [leads, searchQuery, selectedEventType, isPro])
 
   const handleCopyPitch = async (pitch: string, leadId: string) => {
     try {

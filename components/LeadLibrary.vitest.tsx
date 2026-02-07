@@ -76,6 +76,9 @@ describe('LeadLibrary usage header (Starter)', () => {
 
     render(<LeadLibrary isPro={false} creditsRemaining={123} />)
     expect(screen.getByText(/3 of 3 leads • 0 credits remaining/i)).toBeTruthy()
+    // Starter visibility cap: leads beyond the first 3 must not render at all.
+    expect(screen.queryByText(/Company 4/i)).toBeNull()
+    expect(screen.queryByText(/Company 5/i)).toBeNull()
   })
 })
 

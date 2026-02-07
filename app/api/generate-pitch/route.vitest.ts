@@ -99,6 +99,9 @@ vi.mock('@/lib/ai-logic', () => ({
 
 vi.mock('@/lib/billing/usage', () => ({
   checkStarterPitchUsage: vi.fn(async () => ({ ok: true, remaining: 999, limit: 20 })),
+  getStarterPitchCapSummary: vi.fn(async () => ({ used: 0, limit: 3 })),
+  recordStarterPitchCapUsage: vi.fn(async () => ({ used: 1, limit: 3 })),
+  STARTER_PITCH_CAP_LIMIT: 3,
 }))
 
 describe('/api/generate-pitch', () => {
@@ -193,6 +196,29 @@ describe('/api/generate-pitch', () => {
     expect(json.ok).toBe(false)
     expect(json.error?.code).toBe('FREE_PLAN_LIMIT_REACHED')
     expect(generatePitch).not.toHaveBeenCalled()
+  })
+
+  it('starter user over 3-pitch cap gets 429 before generating', async () => {
+    const { POST } = await import('./route')
+    const { getStarterPitchCapSummary, checkStarterPitchUsage } = await import('@/lib/billing/usage')
+    const { generatePitch } = await import('@/lib/ai-logic')
+
+    ;(getStarterPitchCapSummary as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ used: 3, limit: 3 })
+
+    const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
+      method: 'POST',
+      body: JSON.stringify({ companyUrl: 'crypto.com' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(429)
+    expect(res.headers.get('x-free-plan-limit')).toBe('3')
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('FREE_PLAN_LIMIT_REACHED')
+    expect(generatePitch).not.toHaveBeenCalled()
+    expect(checkStarterPitchUsage).not.toHaveBeenCalled()
   })
 
   it('closer user ignores starter cap and can generate pitch', async () => {

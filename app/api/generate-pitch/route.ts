@@ -17,7 +17,7 @@ import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
-import { checkStarterPitchUsage, recordStarterPitchCapUsage } from '@/lib/billing/usage'
+import { checkStarterPitchUsage, getStarterPitchCapSummary, recordStarterPitchCapUsage, STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/usage'
 import { makeNameCompanyKey } from '@/lib/company-key'
 
 export const dynamic = "force-dynamic";
@@ -212,6 +212,25 @@ export const POST = withApiGuard(
     // - closer/team: no usage cap in this patch
     const tier = await resolveTierForUser(supabase, userId)
     if (tier === 'starter') {
+      // Starter hard cap: 3 lifetime pitches (dev-safe; backed by Redis if configured, otherwise in-memory).
+      // This ensures Pitch #4+ is blocked even when the daily Redis cap is fail-open in local dev.
+      const cap = await getStarterPitchCapSummary({ userId })
+      if (cap.used >= STARTER_PITCH_CAP_LIMIT) {
+        return fail(
+          'FREE_PLAN_LIMIT_REACHED',
+          `You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches on the Starter plan. Upgrade to Closer to unlock unlimited pitches.`,
+          { limit: STARTER_PITCH_CAP_LIMIT, window: 'lifetime' },
+          {
+            status: 429,
+            headers: {
+              'x-upgrade-plan': 'closer',
+              'x-free-plan-limit': String(STARTER_PITCH_CAP_LIMIT),
+            },
+          },
+          bridge,
+          requestId
+        )
+      }
       const usage = await checkStarterPitchUsage({ userId, planId: 'starter', correlationId })
       if (!usage.ok) {
         const res = fail(
