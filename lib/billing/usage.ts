@@ -1,6 +1,7 @@
 import { Redis } from '@upstash/redis'
 import { serverEnv } from '@/lib/env'
 import { IS_DEV, logWarn, logInfo } from '@/lib/observability/logger'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 
 export type PlanId = 'starter' | 'closer' | 'team' | string
 
@@ -152,6 +153,70 @@ export async function recordStarterPitchCapUsage(args: {
     const next = (starterPitchCapMemory.get(args.userId) ?? 0) + 1
     starterPitchCapMemory.set(args.userId, next)
     return { used: next, limit }
+  }
+}
+
+function isPgrstSchemaError(error: unknown): boolean {
+  const e = error as { code?: unknown; message?: unknown }
+  return e?.code === 'PGRST106' || String(e?.message || '').toLowerCase().includes('invalid schema')
+}
+
+/**
+ * Canonical DB-backed count of a user's leads.
+ *
+ * This is used for Starter hard caps so counters don't reset in local dev
+ * and the database never grows beyond the Starter entitlement.
+ *
+ * NOTE: Uses service-role admin client for RLS safety.
+ */
+export async function getStarterLeadCountFromDb(userId: string): Promise<number> {
+  if (!userId) return 0
+
+  try {
+    const admin = createSupabaseAdminClient() as unknown as {
+      schema?: (s: string) => unknown
+      from: (t: string) => unknown
+    }
+    const client =
+      typeof admin.schema === 'function'
+        ? (admin.schema('api') as any)
+        : (admin as any)
+
+    const { count, error } = await client
+      .from('leads')
+      .select('id', { head: true, count: 'exact' })
+      .eq('user_id', userId)
+
+    if (error) {
+      // Fallback: if schema() isn't supported or api isn't exposed, attempt default schema.
+      if (isPgrstSchemaError(error) && typeof admin.from === 'function') {
+        const retry = await (admin as any)
+          .from('leads')
+          .select('id', { head: true, count: 'exact' })
+          .eq('user_id', userId)
+        const retryCount = typeof retry?.count === 'number' && Number.isFinite(retry.count) ? retry.count : 0
+        return Math.max(0, retryCount)
+      }
+
+      logWarn({
+        scope: 'usage',
+        message: 'starter.cap.db_count_failed',
+        userId,
+        error: typeof (error as any)?.message === 'string' ? (error as any).message : 'db_count_failed',
+      })
+      return 0
+    }
+
+    const safe = typeof count === 'number' && Number.isFinite(count) ? count : 0
+    return Math.max(0, safe)
+  } catch (error) {
+    logWarn({
+      scope: 'usage',
+      message: 'starter.cap.db_count_failed',
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return 0
   }
 }
 

@@ -6,7 +6,7 @@ import { ok, asHttpError, createCookieBridge, fail, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { serverEnv } from '@/lib/env'
 import { logger } from '@/lib/observability/logger'
-import { getStarterPitchCapSummary, STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/usage'
+import { getStarterLeadCountFromDb, STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/usage'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,8 +69,8 @@ export const GET = withApiGuard(
       let pitchesUsed = 0
       let pitchesLimit: number | null = null
       if (tier === 'starter') {
-        const cap = await getStarterPitchCapSummary({ userId: user.id })
-        pitchesUsed = cap.used
+        const leadCount = await getStarterLeadCountFromDb(user.id)
+        pitchesUsed = Math.min(Math.max(leadCount, 0), STARTER_PITCH_CAP_LIMIT)
         pitchesLimit = STARTER_PITCH_CAP_LIMIT
       } else {
         pitchesUsed = 0

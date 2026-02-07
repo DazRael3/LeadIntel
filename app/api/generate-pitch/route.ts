@@ -17,7 +17,7 @@ import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
-import { checkStarterPitchUsage, getStarterPitchCapSummary, recordStarterPitchCapUsage, STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/usage'
+import { checkStarterPitchUsage, getStarterLeadCountFromDb, recordStarterPitchCapUsage, STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/usage'
 import { makeNameCompanyKey } from '@/lib/company-key'
 
 export const dynamic = "force-dynamic";
@@ -212,10 +212,9 @@ export const POST = withApiGuard(
     // - closer/team: no usage cap in this patch
     const tier = await resolveTierForUser(supabase, userId)
     if (tier === 'starter') {
-      // Starter hard cap: 3 lifetime pitches (dev-safe; backed by Redis if configured, otherwise in-memory).
-      // This ensures Pitch #4+ is blocked even when the daily Redis cap is fail-open in local dev.
-      const cap = await getStarterPitchCapSummary({ userId })
-      if (cap.used >= STARTER_PITCH_CAP_LIMIT) {
+      // Starter hard cap: 3 total leads/pitches. DB-backed so it remains consistent across restarts.
+      const leadCount = await getStarterLeadCountFromDb(userId)
+      if (leadCount >= STARTER_PITCH_CAP_LIMIT) {
         return fail(
           'FREE_PLAN_LIMIT_REACHED',
           `You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches on the Starter plan. Upgrade to Closer to unlock unlimited pitches.`,
@@ -387,8 +386,8 @@ export const POST = withApiGuard(
     }
 
     // Record Starter usage for the 3‑pitch lock UX (best-effort; no DB schema required).
-    // This is independent from the Redis-backed daily cap (which is fail-open when Redis is missing).
-    if (tier === 'starter' && typeof pitch === 'string' && pitch.trim().length > 0) {
+    // We only increment after a lead was successfully created so the counter remains aligned with DB reality.
+    if (tier === 'starter' && savedLead.data && typeof pitch === 'string' && pitch.trim().length > 0) {
       try {
         await recordStarterPitchCapUsage({ userId, correlationId })
       } catch {

@@ -99,7 +99,7 @@ vi.mock('@/lib/ai-logic', () => ({
 
 vi.mock('@/lib/billing/usage', () => ({
   checkStarterPitchUsage: vi.fn(async () => ({ ok: true, remaining: 999, limit: 20 })),
-  getStarterPitchCapSummary: vi.fn(async () => ({ used: 0, limit: 3 })),
+  getStarterLeadCountFromDb: vi.fn(async () => 0),
   recordStarterPitchCapUsage: vi.fn(async () => ({ used: 1, limit: 3 })),
   STARTER_PITCH_CAP_LIMIT: 3,
 }))
@@ -200,10 +200,10 @@ describe('/api/generate-pitch', () => {
 
   it('starter user over 3-pitch cap gets 429 before generating', async () => {
     const { POST } = await import('./route')
-    const { getStarterPitchCapSummary, checkStarterPitchUsage } = await import('@/lib/billing/usage')
+    const { getStarterLeadCountFromDb, checkStarterPitchUsage } = await import('@/lib/billing/usage')
     const { generatePitch } = await import('@/lib/ai-logic')
 
-    ;(getStarterPitchCapSummary as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ used: 3, limit: 3 })
+    ;(getStarterLeadCountFromDb as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(3)
 
     const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
       method: 'POST',

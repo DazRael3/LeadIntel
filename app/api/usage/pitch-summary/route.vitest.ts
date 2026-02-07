@@ -3,6 +3,12 @@ import { NextRequest } from 'next/server'
 
 let mockSubRow: unknown = null
 let mockUserRow: unknown = null
+let mockLeadCount = 0
+
+vi.mock('@/lib/billing/usage', () => ({
+  STARTER_PITCH_CAP_LIMIT: 3,
+  getStarterLeadCountFromDb: vi.fn(async () => mockLeadCount),
+}))
 
 class FakeQuery {
   private table: string
@@ -46,6 +52,7 @@ describe('/api/usage/pitch-summary', () => {
     vi.resetModules()
     mockSubRow = null
     mockUserRow = null
+    mockLeadCount = 0
 
     process.env.STRIPE_PRICE_ID_PRO = 'price_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_pro_123'
@@ -62,23 +69,16 @@ describe('/api/usage/pitch-summary', () => {
     expect(json.data?.pitchesUsed).toBe(0)
   })
 
-  it('increments pitchesUsed via in-memory fallback when Redis is missing', async () => {
-    delete process.env.UPSTASH_REDIS_REST_URL
-    delete process.env.UPSTASH_REDIS_REST_TOKEN
-
-    const { recordStarterPitchCapUsage } = await import('@/lib/billing/usage')
+  it('uses DB lead count for pitchesUsed (clamped to 3)', async () => {
+    mockLeadCount = 10
     const { GET } = await import('./route')
-
-    await recordStarterPitchCapUsage({ userId: 'user_1' })
-    await recordStarterPitchCapUsage({ userId: 'user_1' })
-
     const res = await GET(new NextRequest('http://localhost:3000/api/usage/pitch-summary', { method: 'GET' }))
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.data?.tier).toBe('starter')
     expect(json.data?.pitchesLimit).toBe(3)
-    expect(json.data?.pitchesUsed).toBe(2)
+    expect(json.data?.pitchesUsed).toBe(3)
   })
 
   it('paid tier returns pitchesLimit null (no 3-pitch cap)', async () => {
