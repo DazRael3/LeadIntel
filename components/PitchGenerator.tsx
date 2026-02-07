@@ -15,6 +15,7 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { PITCH_TEMPLATES, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { ProGate } from '@/components/ProGate'
 import { usePlan } from '@/components/PlanProvider'
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -342,7 +343,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   })()
 
   const visibleSavedCompanies =
-    isPitchCapReached ? savedCompanies.slice(0, pitchUsage?.pitchesLimit ?? 3) : savedCompanies
+    isPitchCapReached ? savedCompanies.slice(0, pitchUsage?.pitchesLimit ?? STARTER_PITCH_CAP_LIMIT) : savedCompanies
 
   // Hydrate latest saved pitch content whenever company input changes (debounced).
   useEffect(() => {
@@ -598,7 +599,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-cyan-200">
-                    You’ve used your 3 free pitches on the Starter plan.
+                    You’ve used your {STARTER_PITCH_CAP_LIMIT} free pitches on the Starter plan.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Upgrade to Closer or Team to unlock unlimited pitches.
@@ -701,7 +702,9 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
             {isPitchCapReached ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="rounded-lg border border-cyan-500/20 bg-background/80 px-4 py-3 text-center backdrop-blur-sm">
-                  <p className="text-sm font-semibold text-cyan-200">You’ve used your 3 free pitches.</p>
+                  <p className="text-sm font-semibold text-cyan-200">
+                    You’ve used your {STARTER_PITCH_CAP_LIMIT} free pitches.
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">Upgrade to unlock unlimited pitches.</p>
                   <div className="mt-3 flex items-center justify-center gap-2">
                     <Button

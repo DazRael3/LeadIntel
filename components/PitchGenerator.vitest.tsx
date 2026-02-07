@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 
 import { PitchGenerator } from './PitchGenerator'
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -58,7 +59,10 @@ describe('PitchGenerator', () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
       if (u === '/api/usage/pitch-summary') {
-        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 0, pitchesLimit: 3 } }), { status: 200 })
+        return new Response(
+          JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 0, pitchesLimit: STARTER_PITCH_CAP_LIMIT } }),
+          { status: 200 }
+        )
       }
       if (u.startsWith('/api/pitch/latest')) {
         return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
@@ -145,7 +149,13 @@ describe('PitchGenerator', () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
       if (u === '/api/usage/pitch-summary') {
-        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 3, pitchesLimit: 3 } }), { status: 200 })
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: { tier: 'starter', pitchesUsed: STARTER_PITCH_CAP_LIMIT, pitchesLimit: STARTER_PITCH_CAP_LIMIT },
+          }),
+          { status: 200 }
+        )
       }
       if (u.startsWith('/api/pitch/latest')) {
         return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
@@ -158,16 +168,21 @@ describe('PitchGenerator', () => {
 
     render(<PitchGenerator />)
 
-    expect(await screen.findByText(/You’ve used your 3 free pitches/i)).toBeTruthy()
+    expect(
+      await screen.findByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))
+    ).toBeTruthy()
     expect(screen.getByTestId('pitch-input')).toBeDisabled()
-    expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(3)
+    expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(STARTER_PITCH_CAP_LIMIT)
   })
 
   it('Starter at 2/3 pitches keeps prompt enabled and does not hide extra saved chips', async () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
       if (u === '/api/usage/pitch-summary') {
-        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 2, pitchesLimit: 3 } }), { status: 200 })
+        return new Response(
+          JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 2, pitchesLimit: STARTER_PITCH_CAP_LIMIT } }),
+          { status: 200 }
+        )
       }
       if (u.startsWith('/api/pitch/latest')) {
         return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
@@ -183,7 +198,7 @@ describe('PitchGenerator', () => {
       await Promise.resolve()
     })
 
-    expect(screen.queryByText(/You’ve used your 3 free pitches/i)).toBeNull()
+    expect(screen.queryByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))).toBeNull()
     expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
     expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(4)
   })
@@ -193,7 +208,13 @@ describe('PitchGenerator', () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
       if (u === '/api/usage/pitch-summary') {
-        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 999, pitchesLimit: 3 } }), { status: 200 })
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: { tier: 'starter', pitchesUsed: 999, pitchesLimit: STARTER_PITCH_CAP_LIMIT },
+          }),
+          { status: 200 }
+        )
       }
       return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
     })
@@ -205,7 +226,7 @@ describe('PitchGenerator', () => {
       await Promise.resolve()
     })
 
-    expect(screen.queryByText(/You’ve used your 3 free pitches/i)).toBeNull()
+    expect(screen.queryByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))).toBeNull()
     expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
   })
 
@@ -213,7 +234,13 @@ describe('PitchGenerator', () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
       if (u === '/api/usage/pitch-summary') {
-        return new Response(JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 3, pitchesLimit: 3 } }), { status: 200 })
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: { tier: 'starter', pitchesUsed: STARTER_PITCH_CAP_LIMIT, pitchesLimit: STARTER_PITCH_CAP_LIMIT },
+          }),
+          { status: 200 }
+        )
       }
       return new Response('not found', { status: 404 })
     })
@@ -223,7 +250,9 @@ describe('PitchGenerator', () => {
 
     const { rerender } = render(<PitchGenerator />)
 
-    expect(await screen.findByText(/You’ve used your 3 free pitches/i)).toBeTruthy()
+    expect(
+      await screen.findByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))
+    ).toBeTruthy()
     expect(screen.getByTestId('pitch-input')).toBeDisabled()
 
     tierMock = 'team'
@@ -233,7 +262,7 @@ describe('PitchGenerator', () => {
       await Promise.resolve()
     })
 
-    expect(screen.queryByText(/You’ve used your 3 free pitches/i)).toBeNull()
+    expect(screen.queryByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))).toBeNull()
     expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
   })
 
