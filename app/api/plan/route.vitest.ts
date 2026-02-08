@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 
 let mockSubRow: unknown = null
 let mockUserRow: unknown = null
+let mockAuthedUser: { id: string } | null = { id: 'user_1' }
 
 class FakeQuery {
   private table: string
@@ -38,7 +39,7 @@ class FakeQuery {
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
     auth: {
-      getUser: vi.fn(async () => ({ data: { user: { id: 'user_1' } }, error: null })),
+      getUser: vi.fn(async () => ({ data: { user: mockAuthedUser }, error: null })),
     },
     schema: () => ({
       from: (table: string) => new FakeQuery(table),
@@ -52,10 +53,26 @@ describe('/api/plan', () => {
     vi.clearAllMocks()
     mockSubRow = null
     mockUserRow = null
+    mockAuthedUser = { id: 'user_1' }
     process.env.ENABLE_APP_TRIAL = '0'
     process.env.STRIPE_PRICE_ID_PRO = 'price_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_pro_123'
     process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
+  })
+
+  it('unauthenticated request -> returns starter/free plan (200)', async () => {
+    mockAuthedUser = null
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('starter')
+    expect(json.data?.planId).toBe(null)
+    expect(json.data?.plan).toBe('free')
+    expect(json.data?.trial?.active).toBe(false)
+    expect(json.data?.trial?.endsAt).toBe(null)
   })
 
   it('user with no subscription row -> starter, planId null, plan free', async () => {
