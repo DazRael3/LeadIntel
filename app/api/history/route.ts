@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 }
 
 const GET_GUARDED = withApiGuard(
-  async (request: NextRequest, { query, requestId }) => {
+  async (request: NextRequest, { query, requestId, userId }) => {
     const bridge = createCookieBridge()
 
     const q = (query as z.infer<typeof HistoryQueryWithLimitSchema>).q || ''
@@ -35,12 +35,13 @@ const GET_GUARDED = withApiGuard(
     const supabase = createRouteClient(request, bridge)
 
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError || !user) {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (GET:/api/history authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
-      const plan = await getPlanDetails(supabase, user.id)
+      const plan = await getPlanDetails(supabase, userId)
       if (plan.plan !== 'pro') {
         return fail(
           ErrorCode.FORBIDDEN,
@@ -68,7 +69,7 @@ const GET_GUARDED = withApiGuard(
         lead_id
       )
     `)
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit + 1)
 
@@ -87,7 +88,7 @@ const GET_GUARDED = withApiGuard(
     const { data: tagData } = await supabase
       .from('tags')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .or(`id.eq.${tag},name.ilike.${tag}`)
     
     if (!tagData || tagData.length === 0) {
@@ -104,7 +105,7 @@ const GET_GUARDED = withApiGuard(
         const { data: leadTagData } = await supabase
           .from('lead_tags')
           .select('lead_id')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .in('tag_id', tagIds)
         
         if (!leadTagData || leadTagData.length === 0) {

@@ -15,19 +15,20 @@ export async function GET(request: NextRequest) {
   return GET_GUARDED(request)
 }
 
-const GET_GUARDED = withApiGuard(async (request: NextRequest, { requestId }) => {
+const GET_GUARDED = withApiGuard(async (request: NextRequest, { requestId, userId }) => {
   const bridge = createCookieBridge()
   try {
     const supabase = createRouteClient(request, bridge)
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (GET:/api/tags authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
     const { data, error } = await supabase
       .from('tags')
       .select('id, name, created_at')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('name', { ascending: true })
 
     if (error) {
@@ -40,12 +41,13 @@ const GET_GUARDED = withApiGuard(async (request: NextRequest, { requestId }) => 
 })
 
 export const POST = withApiGuard(
-  async (request: NextRequest, { body, requestId }) => {
+  async (request: NextRequest, { body, requestId, userId }) => {
     const bridge = createCookieBridge()
     try {
     const supabase = createRouteClient(request, bridge)
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/tags authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
@@ -55,7 +57,7 @@ export const POST = withApiGuard(
     const { data, error } = await supabase
       .from('tags')
       .upsert({
-        user_id: user.id,
+        user_id: userId,
         name: nameRaw,
       }, {
         onConflict: 'user_id,name_ci',
@@ -76,12 +78,13 @@ export const POST = withApiGuard(
 )
 
 export const DELETE = withApiGuard(
-  async (request: NextRequest, { query, requestId }) => {
+  async (request: NextRequest, { query, requestId, userId }) => {
     const bridge = createCookieBridge()
     try {
       const supabase = createRouteClient(request, bridge)
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError || !user) {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (DELETE:/api/tags authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
@@ -90,7 +93,7 @@ export const DELETE = withApiGuard(
     const { error: delError } = await supabase
       .from('tags')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('id', id)
 
     if (delError) {
