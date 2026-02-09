@@ -8,6 +8,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { assertFeatureEnabled } from '@/lib/services/feature-flags'
 import { captureBreadcrumb } from '@/lib/observability/sentry'
 import { isPro as isProPlan } from '@/lib/billing/plan'
+import { logger } from '@/lib/observability/logger'
 
 /**
  * Ghost Reveal API
@@ -36,21 +37,22 @@ export const POST = withApiGuard(
       const { visitor_ip } = body as z.infer<typeof RevealPostSchema>
 
       const supabase = createRouteClient(request, bridge)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user || !userId) {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/reveal authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
       const featureGate = await assertFeatureEnabled('clearbit_enrichment', {
         route: '/api/reveal',
         requestId,
-        tenantId: user.id,
+        tenantId: userId,
         mode: 'user',
         supabase,
       })
       if (featureGate) return featureGate
 
-      if (!(await isProPlan(supabase, user.id))) {
+      if (!(await isProPlan(supabase, userId))) {
         return fail(
           ErrorCode.FORBIDDEN,
           'Pro subscription required for Ghost Reveal',
@@ -66,7 +68,7 @@ export const POST = withApiGuard(
       // RLS-safe insert: include tenant key
       try {
         await supabase.from('website_visitors').insert({
-          user_id: user.id,
+          user_id: userId,
           ip_address: visitor_ip,
           company_name: companyData.companyName,
           company_domain: companyData.companyDomain,
@@ -183,7 +185,12 @@ async function identifyCompany(ip: string): Promise<RevealResponse> {
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('Error identifying company with Clearbit:', { message })
+    logger.error({
+      level: 'error',
+      scope: 'clearbit',
+      message: 'identify_company_failed',
+      error: message,
+    })
     throw new Error(`Failed to identify company: ${message}`)
   }
 }
