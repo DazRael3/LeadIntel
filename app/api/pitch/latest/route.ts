@@ -12,13 +12,14 @@ const QuerySchema = z.object({
   companyName: z.string().trim().min(1).optional(),
 })
 
-export const GET = withApiGuard(async (request: NextRequest, { query, requestId }) => {
+export const GET = withApiGuard(async (request: NextRequest, { query, requestId, userId }) => {
   const bridge = createCookieBridge()
   const supabase = createRouteClient(request, bridge)
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (GET:/api/pitch/latest authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
@@ -28,7 +29,7 @@ export const GET = withApiGuard(async (request: NextRequest, { query, requestId 
     }
 
     const latest = await getLatestPitchForCompany(supabase, {
-      userId: user.id,
+      userId,
       companyDomain: parsed.data.companyDomain ?? null,
       companyName: parsed.data.companyName ?? null,
     })

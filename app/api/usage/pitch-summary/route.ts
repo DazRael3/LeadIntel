@@ -25,12 +25,13 @@ function configuredCloserPriceId(): string | null {
 }
 
 export const GET = withApiGuard(
-  async (request: NextRequest, { requestId }) => {
+  async (request: NextRequest, { requestId, userId }) => {
     const bridge = createCookieBridge()
     const supabase = createRouteClient(request, bridge)
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError || !user) {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (GET:/api/usage/pitch-summary authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
@@ -41,7 +42,7 @@ export const GET = withApiGuard(
         .schema('api')
         .from('subscriptions')
         .select('status, stripe_price_id, price_id, created_at')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -61,7 +62,7 @@ export const GET = withApiGuard(
           .schema('api')
           .from('users')
           .select('subscription_tier')
-          .eq('id', user.id)
+          .eq('id', userId)
           .maybeSingle()
         const subTier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? null
         if (subTier === 'pro') tier = 'closer'
@@ -70,7 +71,7 @@ export const GET = withApiGuard(
       let pitchesUsed = 0
       let pitchesLimit: number | null = null
       if (tier === 'starter') {
-        const leadCount = await getStarterLeadCountFromDb(user.id)
+        const leadCount = await getStarterLeadCountFromDb(userId)
         pitchesUsed = Math.min(Math.max(leadCount, 0), STARTER_PITCH_CAP_LIMIT)
         pitchesLimit = STARTER_PITCH_CAP_LIMIT
       } else {
@@ -82,7 +83,7 @@ export const GET = withApiGuard(
         level: 'info',
         scope: 'usage',
         message: 'pitch.summary',
-        userId: user.id,
+        userId,
         tier,
         pitchesUsed,
         pitchesLimit,
@@ -93,7 +94,7 @@ export const GET = withApiGuard(
         level: 'info',
         scope: 'usage',
         message: 'pitch_summary',
-        userId: user.id,
+        userId,
         tier,
         pitchesUsed,
         pitchesLimit,

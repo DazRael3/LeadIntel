@@ -33,7 +33,7 @@ function configuredProPriceId(): string | null {
 }
 
 export const GET = withApiGuard(
-  async (request: NextRequest, { query, requestId }) => {
+  async (request: NextRequest, { query, requestId, userId }) => {
     const bridge = createCookieBridge()
     const stripeMode = getStripeMode()
 
@@ -43,9 +43,9 @@ export const GET = withApiGuard(
       // (No effect in dev/staging; enforced only when NEXT_PUBLIC_APP_ENV === "production".)
       assertProdStripeConfig()
 
-      const supabase = createRouteClient(request, bridge)
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError || !user) {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (GET:/api/billing/verify-checkout-session authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
@@ -57,13 +57,13 @@ export const GET = withApiGuard(
       // Safety: ensure this session belongs to the currently authenticated user.
       const ref = typeof session.client_reference_id === 'string' ? session.client_reference_id : null
       const metaUserId = typeof session.metadata?.user_id === 'string' ? session.metadata.user_id : null
-      if (ref !== user.id && metaUserId !== user.id) {
+      if (ref !== userId && metaUserId !== userId) {
         logger.warn({
           level: 'warn',
           scope: 'checkout',
           message: 'session.verify_failed',
           reason: 'user_mismatch',
-          userId: user.id,
+          userId,
           sessionId: truncateSessionId(session_id),
           stripeMode,
         })
@@ -104,14 +104,14 @@ export const GET = withApiGuard(
         : (admin as any)
 
       // Keep app behavior consistent: users table stores free/pro, while tier (closer/team) is inferred from price id.
-      await adminApi.from('users').update({ subscription_tier: 'pro' }).eq('id', user.id)
+      await adminApi.from('users').update({ subscription_tier: 'pro' }).eq('id', userId)
 
       const customer = session.customer
       const customerId = typeof customer === 'string' ? customer : customer?.id ?? null
 
       // Write the subscription row (fields are best-effort; schema drift tolerated).
       const subPayload = {
-        user_id: user.id,
+        user_id: userId,
         stripe_subscription_id: subscriptionId,
         stripe_customer_id: customerId,
         status,
