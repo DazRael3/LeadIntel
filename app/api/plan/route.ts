@@ -17,30 +17,20 @@ function isActiveStatus(status: string | null | undefined): boolean {
   return status === 'active' || status === 'trialing'
 }
 
-export const GET = withApiGuard(
-  async (request: NextRequest, { requestId }) => {
+export const GET = withApiGuard(async (request: NextRequest, { requestId, userId }) => {
   const bridge = createCookieBridge()
   const supabase = createRouteClient(request, bridge)
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    // Relaxed auth: unauthenticated callers get a successful "free" plan response.
-    // Unexpected auth errors should be logged but must not break the endpoint.
-    const isAuthenticated = Boolean(user) && !authError
-    const userId = isAuthenticated ? user!.id : null
-    if (!isAuthenticated && authError) {
-      logger.warn({
-        level: 'warn',
-        scope: 'plan',
-        message: 'auth.error',
-        requestId,
-        error: authError,
-      })
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (GET:/api/plan authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
+      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
     // Optional app-level trial initialization (flagged; no Stripe changes).
     const enableAppTrial = serverEnv.ENABLE_APP_TRIAL === '1' || serverEnv.ENABLE_APP_TRIAL === 'true'
-    if (enableAppTrial && isAuthenticated && userId) {
+    if (enableAppTrial) {
       try {
         const { data: userRow } = await supabase
           .from('users')
@@ -101,7 +91,7 @@ export const GET = withApiGuard(
                 new Set(
                   typedFpRows
                     .map((r: { user_id: string | null }) => r.user_id)
-                    .filter((v: string | null): v is string => typeof v === 'string' && v.length > 0 && v !== user.id)
+                    .filter((v: string | null): v is string => typeof v === 'string' && v.length > 0 && v !== userId)
                 )
               )
 
@@ -146,7 +136,7 @@ export const GET = withApiGuard(
             // Safe under RLS: user can upsert their own row.
             await supabase.from('users').upsert({
               id: userId,
-              email: user?.email ?? undefined,
+              // Email is optional here; user identity is already established by withApiGuard.
               trial_starts_at: startsAt,
               trial_ends_at: endsAt,
             })
@@ -160,17 +150,14 @@ export const GET = withApiGuard(
     // Stripe subscription is the source of truth for Starter vs paid tiers:
     // - No active subscription => Starter
     // - Active/trialing subscription => paid (Closer or Team based on price id)
-    const { data: subRow } =
-      isAuthenticated && userId
-        ? await supabase
-            .schema('api')
-            .from('subscriptions')
-            .select('status, stripe_price_id, price_id, trial_end, created_at')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        : { data: null }
+    const { data: subRow } = await supabase
+      .schema('api')
+      .from('subscriptions')
+      .select('status, stripe_price_id, price_id, trial_end, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
     const status = (subRow as { status?: string | null } | null)?.status ?? null
     const hasActiveSubscription = isActiveStatus(status)
@@ -198,7 +185,7 @@ export const GET = withApiGuard(
     // Fallback: if the user row already indicates Pro (e.g., after verify route/webhook),
     // treat as Closer when no active subscription row is visible yet.
     // This keeps UI consistent immediately after checkout redirect.
-    if (!hasActiveSubscription && tier === 'starter' && isAuthenticated && userId) {
+    if (!hasActiveSubscription && tier === 'starter') {
       try {
         const { data: userRow } = await supabase
           .schema('api')
@@ -225,10 +212,6 @@ export const GET = withApiGuard(
 
     if (!trial.active && enableAppTrial) {
       try {
-        if (!isAuthenticated || !userId) {
-          // Anonymous callers never have an app-level trial.
-          throw new Error('skip_anonymous_trial_lookup')
-        }
         const { data: userRow } = await supabase
           .from('users')
           .select('trial_ends_at')
@@ -245,15 +228,13 @@ export const GET = withApiGuard(
 
     // Product analytics (best-effort; behind env flag).
     if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
-      if (isAuthenticated && userId) {
-        void logProductEvent({
-          userId,
-          eventName: 'plan_checked',
-          eventProps: {
-            tier,
-          },
-        })
-      }
+      void logProductEvent({
+        userId,
+        eventName: 'plan_checked',
+        eventProps: {
+          tier,
+        },
+      })
     }
 
     logger.info({
@@ -261,7 +242,7 @@ export const GET = withApiGuard(
       scope: 'plan',
       message: 'resolve.success',
       requestId,
-      userId: userId ?? 'anonymous',
+      userId,
       tier,
     })
 
@@ -280,10 +261,4 @@ export const GET = withApiGuard(
   } catch (error) {
     return asHttpError(error, '/api/plan', undefined, bridge, requestId)
   }
-  },
-  {
-    // Auth is intentionally optional for GET /api/plan (marketing/diagnostics).
-    // Use a policy shape that matches Tier D read/light routes, but with auth disabled.
-    policyName: '/api/tracker',
-  }
-)
+})

@@ -65,14 +65,11 @@ describe('/api/plan', () => {
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
     const res = await GET(req)
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(401)
     const json = await res.json()
-    expect(json.ok).toBe(true)
-    expect(json.data?.tier).toBe('starter')
-    expect(json.data?.planId).toBe(null)
-    expect(json.data?.plan).toBe('free')
-    expect(json.data?.trial?.active).toBe(false)
-    expect(json.data?.trial?.endsAt).toBe(null)
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('UNAUTHORIZED')
+    expect(json.error?.message).toBe('Authentication required')
   })
 
   it('user with no subscription row -> starter, planId null, plan free', async () => {
