@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 type Plan = 'free' | 'pro'
-type Tier = 'starter' | 'closer' | 'team'
+type Tier = 'starter' | 'closer'
 
 interface PlanContextValue {
   plan: Plan
@@ -61,8 +61,11 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
       if (payload?.plan === 'pro' || payload?.plan === 'free') {
         setPlan(payload.plan)
       }
-      if (payload?.tier === 'starter' || payload?.tier === 'closer' || payload?.tier === 'team') {
+      // Product tiers are starter/closer. Treat legacy "team" as "closer" for backward compatibility.
+      if (payload?.tier === 'starter' || payload?.tier === 'closer') {
         setTier(payload.tier)
+      } else if (payload?.tier === 'team') {
+        setTier('closer')
       } else {
         // Safe default: treat unknown/missing as Starter.
         setTier('starter')
@@ -87,7 +90,7 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
   }, [])
 
   useEffect(() => {
-    // Always refresh once on mount so tier (starter/closer/team) is accurate.
+    // Always refresh once on mount so tier (starter/closer) is accurate.
     // This prevents a "Starter" UI from sticking for upgraded accounts where `initialPlan` is 'pro'.
     // The API response is the source of truth for tier labels and upgrade CTAs.
     refresh()

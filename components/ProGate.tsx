@@ -1,13 +1,13 @@
 'use client'
 
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode } from 'react'
 import { usePlan } from '@/components/PlanProvider'
 import { Button } from '@/components/ui/button'
 import { Lock, DollarSign } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-type RequiredTier = 'closer' | 'team'
-type UpgradeTarget = 'closer' | 'team'
+type RequiredTier = 'closer'
+type UpgradeTarget = 'closer'
 
 export function ProGate(props: {
   children: ReactNode
@@ -19,15 +19,11 @@ export function ProGate(props: {
   const { tier } = usePlan()
   const router = useRouter()
   const upgradeTarget = props.upgradeTarget ?? props.requiredTier
-
-  const allowed = useMemo(() => {
-    if (props.requiredTier === 'team') return tier === 'team'
-    return tier === 'closer' || tier === 'team'
-  }, [props.requiredTier, tier])
+  const allowed = tier === 'closer'
 
   if (allowed) return <>{props.children}</>
 
-  const ctaLabel = upgradeTarget === 'team' ? 'Upgrade to Team' : 'Upgrade to Closer'
+  const ctaLabel = 'Upgrade to Closer'
   const ctaHref = `/pricing?target=${upgradeTarget}`
 
   return (

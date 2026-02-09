@@ -33,7 +33,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
-let tierMock: 'starter' | 'closer' | 'team' = 'starter'
+let tierMock: 'starter' | 'closer' = 'starter'
 vi.mock('@/components/PlanProvider', () => ({
   usePlan: () => ({
     tier: tierMock,
@@ -42,7 +42,7 @@ vi.mock('@/components/PlanProvider', () => ({
     trial: { active: false, endsAt: null },
     loading: false,
     refresh: vi.fn(),
-    planId: tierMock === 'team' ? 'team' : tierMock === 'closer' ? 'pro' : null,
+    planId: tierMock === 'closer' ? 'pro' : null,
   }),
 }))
 
@@ -230,41 +230,7 @@ describe('PitchGenerator', () => {
     expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
   })
 
-  it('Team never blurs/locks even if Starter cap was previously reached', async () => {
-    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
-      const u = String(url)
-      if (u === '/api/usage/pitch-summary') {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            data: { tier: 'starter', pitchesUsed: STARTER_PITCH_CAP_LIMIT, pitchesLimit: STARTER_PITCH_CAP_LIMIT },
-          }),
-          { status: 200 }
-        )
-      }
-      return new Response('not found', { status: 404 })
-    })
-    vi.stubGlobal('fetch', fetchMock as any)
-
-    localStorage.setItem('leadintel_saved_companies_user_1', JSON.stringify(['a.com', 'b.com', 'c.com', 'd.com']))
-
-    const { rerender } = render(<PitchGenerator />)
-
-    expect(
-      await screen.findByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))
-    ).toBeTruthy()
-    expect(screen.getByTestId('pitch-input')).toBeDisabled()
-
-    tierMock = 'team'
-    rerender(<PitchGenerator />)
-
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(screen.queryByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))).toBeNull()
-    expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
-  })
+  // Note: The product surface exposes only Starter + Closer tiers (no Team).
 
   it('anonymous (no user) does not call /api/usage/pitch-summary', async () => {
     const { getUserSafe } = await import('@/lib/supabase/safe-auth')

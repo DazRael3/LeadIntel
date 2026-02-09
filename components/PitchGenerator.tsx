@@ -65,7 +65,7 @@ type LatestPitchResponse = ApiEnvelope<{
 }>
 
 type PitchUsageSummary = ApiEnvelope<{
-  tier: 'starter' | 'closer' | 'team'
+  tier: 'starter' | 'closer'
   pitchesUsed: number
   pitchesLimit: number | null
 }>
@@ -586,7 +586,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
             </div>
             <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
               <Shield className="h-3 w-3 mr-1" />
-              Enterprise Intel
+              Pro Intel
             </Badge>
           </div>
           <CardDescription>
@@ -602,7 +602,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                     You’ve used your {STARTER_PITCH_CAP_LIMIT} free pitches on the Starter plan.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upgrade to Closer or Team to unlock unlimited pitches.
+                    Upgrade to Closer to unlock unlimited pitches.
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -613,7 +613,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                     className="neon-border hover:glow-effect whitespace-nowrap"
                   >
                     <DollarSign className="h-4 w-4 mr-2" />
-                    Upgrade
+                    Upgrade to Closer
                   </Button>
                 </div>
               </div>
@@ -716,9 +716,6 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                       <DollarSign className="h-4 w-4 mr-2" />
                       Upgrade to Closer
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => router.push('/pricing?target=team')}>
-                      View Team
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -751,7 +748,6 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                   variant="ghost"
                   className="h-7 px-2 text-xs"
                   onClick={() => selectCompany(u)}
-                  disabled={isPitchCapReached}
                   title={`Use ${u}`}
                   aria-label={`Load latest pitch for ${u}`}
                 >
@@ -762,7 +758,6 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                   className="h-7 w-7 grid place-items-center border-l text-muted-foreground hover:text-foreground hover:bg-muted/30"
                   aria-label={`Remove ${u}`}
                   onClick={() => void removeSaved(u)}
-                  disabled={isPitchCapReached}
                 >
                   <X className="h-3 w-3" />
                 </button>

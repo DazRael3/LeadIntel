@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -9,6 +10,8 @@ import { SignOutButton } from '@/components/SignOutButton'
 import { useStripePortal } from '../hooks/useStripePortal'
 import { usePlan } from '@/components/PlanProvider'
 import { getDisplayPlanMeta } from '@/lib/billing/plan'
+import { createClient } from '@/lib/supabase/client'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 interface DashboardHeaderSectionProps {
   isPro: boolean
@@ -22,7 +25,27 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
   const planMeta = getDisplayPlanMeta({ tier })
   const isStarter = planMeta.tier === 'starter'
   const isCloser = planMeta.tier === 'closer'
-  const isTeam = planMeta.tier === 'team'
+  const supabase = useMemo(() => createClient(), [])
+  const [username, setUsername] = useState<string>('Account')
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const user = await getUserSafe(supabase)
+      if (cancelled) return
+      const display =
+        (typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim()) ||
+        (typeof user?.user_metadata?.name === 'string' && user.user_metadata.name.trim()) ||
+        (typeof user?.email === 'string' && user.email.trim()) ||
+        (typeof user?.phone === 'string' && user.phone.trim()) ||
+        'Account'
+      setUsername(display)
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [supabase])
 
   return (
     <header className="border-b border-cyan-500/20 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
@@ -57,7 +80,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 }
               >
                 <Shield className="h-3 w-3 mr-1" />
-                {planMeta.planBubbleLabel}
+                {username} — {isStarter ? 'Starter' : 'Closer'}
               </Badge>
             </div>
 
@@ -72,28 +95,10 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                   <DollarSign className="h-4 w-4 mr-2" />
                   Upgrade to Closer
                 </Button>
-                <button
-                  type="button"
-                  className="text-xs text-cyan-300/90 hover:text-cyan-200 underline underline-offset-4"
-                  onClick={() => router.push('/pricing?target=team')}
-                >
-                  View Team plan
-                </button>
               </div>
             ) : (
               <>
-                {isCloser ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push('/pricing?target=team')}
-                    className="neon-border hover:glow-effect"
-                  >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Upgrade to Team
-                  </Button>
-                ) : null}
-                {/* Team users: no upgrade CTA */}
-                {(isCloser || isTeam || isPro) ? (
+                {(isCloser || isPro) ? (
                   <Button
                     variant="outline"
                     onClick={openPortal}

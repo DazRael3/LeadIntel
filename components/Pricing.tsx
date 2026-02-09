@@ -75,7 +75,7 @@ function isStripeConfigError(message: string): boolean {
 
 export function Pricing() {
   const router = useRouter()
-  const [target, setTarget] = useState<string | null>(null) // optional: closer | team
+  const [target, setTarget] = useState<string | null>(null) // optional: closer
   const supabase = createClient()
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
@@ -94,15 +94,14 @@ export function Pricing() {
 
   useEffect(() => {
     // Default behavior: paid users are sent to dashboard.
-    // Exception: allow /pricing?target=team so Closer users can view the Team tier.
-    if (isPro && target !== 'team') {
+    if (isPro) {
       router.replace('/dashboard')
     }
   }, [isPro, router, target])
 
   useEffect(() => {
     if (!target) return
-    const id = target === 'team' ? 'plan-team' : target === 'closer' ? 'plan-closer' : null
+    const id = target === 'closer' ? 'plan-closer' : null
     if (!id) return
     // Let layout settle before scrolling.
     const t = setTimeout(() => {
@@ -112,7 +111,7 @@ export function Pricing() {
     return () => clearTimeout(t)
   }, [target])
 
-  const handleCheckout = async (planId: 'pro' | 'team') => {
+  const handleCheckout = async (planId: 'pro') => {
     setIsCheckoutLoading(true)
     setCheckoutError(null)
     
@@ -192,7 +191,7 @@ export function Pricing() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl mx-auto">
           <div id="plan-starter">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
@@ -321,45 +320,6 @@ export function Pricing() {
           </Card>
           </div>
 
-          <div id="plan-team">
-          <Card className="border-cyan-500/10 bg-card/50">
-            <CardHeader>
-              <CardTitle className="text-2xl bloomberg-font">Team</CardTitle>
-              <div className="flex items-baseline gap-2 mt-4">
-                <span className="text-5xl font-bold neon-cyan">$249</span>
-                <span className="text-muted-foreground">/month</span>
-              </div>
-              <CardDescription>
-                For small outbound teams who want shared digests, watchlists, and consistent messaging.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ul className="space-y-3 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Multiple seats (shared watchlists and digests)
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Stronger rate limits and priority processing
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Best for founders, sales leaders, and small pods
-                </li>
-              </ul>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11"
-                onClick={() => void handleCheckout('team')}
-                disabled={isCheckoutLoading}
-              >
-                Start Team
-              </Button>
-            </CardContent>
-          </Card>
-          </div>
         </div>
 
         <div className="mt-12 max-w-4xl mx-auto">
@@ -369,7 +329,7 @@ export function Pricing() {
               <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                 <p>• Stop spraying sequences at cold lists — focus on accounts with real buying signals.</p>
                 <p>• Spend mornings in your inbox and on calls, not bouncing between tabs.</p>
-                <p>• Standardize winning messaging across your team with templates that convert.</p>
+                <p>• Standardize winning messaging across your org with templates that convert.</p>
               </div>
             </CardContent>
           </Card>
@@ -390,7 +350,7 @@ export function Pricing() {
               <TrendingUp className="h-8 w-8 mx-auto mb-3 text-green-400" />
               <h3 className="font-bold mb-2">Proven Results</h3>
               <p className="text-sm text-muted-foreground">
-                Join hundreds of sales teams closing more deals.
+                Join hundreds of sales orgs closing more deals.
               </p>
             </CardContent>
           </Card>
