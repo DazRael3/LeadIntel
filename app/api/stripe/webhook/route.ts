@@ -8,6 +8,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
 import { isFeatureEnabled } from '@/lib/services/feature-flags'
 import { recordCounter } from '@/lib/observability/metrics'
+import { logger } from '@/lib/observability/logger'
 
 /**
  * Stripe Webhook Handler
@@ -96,7 +97,13 @@ export const POST = withApiGuard(
             : await userUpdateQuery.eq('stripe_customer_id', customerId)
 
           if (updateError) {
-            console.error('Error updating user subscription:', updateError)
+            logger.error({
+              level: 'error',
+              scope: 'stripe_webhook',
+              message: 'update_user_failed',
+              requestId,
+              error: updateError,
+            })
             recordCounter('webhook.stripe.error', 1, { stage: 'update_user' })
             captureException(updateError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
             return fail(
@@ -127,7 +134,13 @@ export const POST = withApiGuard(
             })
 
           if (subError) {
-            console.error('Error upserting subscription:', subError)
+            logger.error({
+              level: 'error',
+              scope: 'stripe_webhook',
+              message: 'upsert_subscription_failed',
+              requestId,
+              error: subError,
+            })
             recordCounter('webhook.stripe.error', 1, { stage: 'upsert_subscription' })
             captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
@@ -170,7 +183,13 @@ export const POST = withApiGuard(
             })
 
           if (subError) {
-            console.error('Error updating subscription:', subError)
+            logger.error({
+              level: 'error',
+              scope: 'stripe_webhook',
+              message: 'update_subscription_failed',
+              requestId,
+              error: subError,
+            })
             recordCounter('webhook.stripe.error', 1, { stage: 'update_subscription' })
             captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
@@ -193,7 +212,13 @@ export const POST = withApiGuard(
 
       default:
         // Unhandled event type
-        console.log(`Unhandled event type: ${event.type}`)
+        logger.warn({
+          level: 'warn',
+          scope: 'stripe_webhook',
+          message: 'unhandled_event_type',
+          requestId,
+          eventType: event.type,
+        })
         captureMessage('stripe_webhook_unhandled_event', { route: '/api/stripe/webhook', requestId, eventType: event.type })
     }
 
