@@ -4,6 +4,7 @@ import { ok, fail, ErrorCode } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
 import { z } from 'zod'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { logger } from '@/lib/observability/logger'
 
 /**
  * Intent Tracker API
@@ -183,7 +184,12 @@ async function identifyCompany(ip: string): Promise<{
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('Error identifying company:', { message })
+    logger.warn({
+      level: 'warn',
+      scope: 'tracker',
+      message: 'identify_company_failed',
+      error: message,
+    })
     return {
       name: 'Unknown Company',
       domain: undefined,
