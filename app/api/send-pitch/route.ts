@@ -30,12 +30,13 @@ export const POST = withApiGuard(
       const { leadId, recipientEmail, recipientName, companyName } = body as z.infer<typeof SendPitchExtendedSchema>
 
       const supabase = createRouteClient(request, bridge)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user || !userId) {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/send-pitch authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
-      if (!(await isProPlan(supabase, user.id))) {
+      if (!(await isProPlan(supabase, userId))) {
         return fail(
           ErrorCode.FORBIDDEN,
           'Pro subscription required to send emails',
@@ -62,7 +63,7 @@ export const POST = withApiGuard(
       const { data: userSettings } = await supabase
         .from('user_settings')
         .select('sender_name, from_email')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .maybeSingle()
 
       const senderName = userSettings?.sender_name || 'LeadIntel Team'
@@ -99,7 +100,7 @@ export const POST = withApiGuard(
           provider: 'resend',
         })
         await insertEmailLog(supabase, {
-          userId: user.id,
+          userId,
           leadId,
           toEmail: recipientEmail,
           fromEmail: senderEmail,
@@ -123,7 +124,7 @@ export const POST = withApiGuard(
       })
 
       await insertEmailLog(supabase, {
-        userId: user.id,
+        userId,
         leadId,
         toEmail: recipientEmail,
         fromEmail: senderEmail,

@@ -15,8 +15,9 @@ export const POST = withApiGuard(
     const bridge = createCookieBridge()
     try {
       const supabase = createRouteClient(request, bridge)
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError || !user || !userId) {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/settings/autopilot authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
@@ -26,7 +27,7 @@ export const POST = withApiGuard(
         .from('user_settings')
         .upsert(
           {
-            user_id: user.id,
+            user_id: userId,
             autopilot_enabled: enabled,
             updated_at: new Date().toISOString(),
           },

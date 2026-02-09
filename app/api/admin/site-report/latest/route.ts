@@ -7,17 +7,18 @@ import { serverEnv } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
+export const GET = withApiGuard(async (request: NextRequest, { requestId, userId }) => {
   const bridge = createCookieBridge()
   try {
     const supabase = createRouteClient(request, bridge)
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (GET:/api/admin/site-report/latest authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
     const adminUserId = serverEnv.ADMIN_USER_ID
-    if (!adminUserId || user.id !== adminUserId) {
+    if (!adminUserId || userId !== adminUserId) {
       return fail(ErrorCode.FORBIDDEN, 'Forbidden', undefined, undefined, bridge, requestId)
     }
 
@@ -35,7 +36,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
 
     return ok({ report: data ?? null }, undefined, bridge, requestId)
   } catch (err) {
-    return asHttpError(err, '/api/admin/site-report/latest', undefined, bridge, requestId)
+    return asHttpError(err, '/api/admin/site-report/latest', userId, bridge, requestId)
   }
 })
 

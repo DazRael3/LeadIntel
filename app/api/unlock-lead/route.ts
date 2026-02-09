@@ -10,25 +10,26 @@ import { isPro as isProPlan } from '@/lib/billing/plan'
  * Implements the 'One-Free-Lead' rule: Non-pro users can unlock 1 lead per 24 hours
  */
 export const POST = withApiGuard(
-  async (request: NextRequest, { body, requestId }) => {
+  async (request: NextRequest, { body, requestId, userId }) => {
     const bridge = createCookieBridge()
     try {
 
     const { leadId } = body as { leadId: string }
 
-    // Get current user via route client with request/response cookie bridging
-    const supabase = createRouteClient(request, bridge)
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/unlock-lead authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
+
+    // Supabase client (RLS-safe)
+    const supabase = createRouteClient(request, bridge)
 
     // Get user data
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('subscription_tier, last_unlock_date')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (userError || !userData) {
@@ -36,7 +37,7 @@ export const POST = withApiGuard(
     }
 
     // Pro users (and app-trial users, if enabled) have unlimited access.
-    if (await isProPlan(supabase, user.id)) {
+    if (await isProPlan(supabase, userId)) {
       return ok({
         unlocked: true,
         message: 'Lead unlocked (Pro user)',
@@ -74,7 +75,7 @@ export const POST = withApiGuard(
       .update({
         last_unlock_date: now.toISOString(),
       })
-      .eq('id', user.id)
+      .eq('id', userId)
 
     if (updateError) {
       return fail(
@@ -93,7 +94,7 @@ export const POST = withApiGuard(
       nextUnlockAvailable: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
     }, undefined, bridge, requestId)
     } catch (error) {
-      return asHttpError(error, '/api/unlock-lead', undefined, bridge, requestId)
+      return asHttpError(error, '/api/unlock-lead', userId, bridge, requestId)
     }
   },
   { bodySchema: UnlockLeadSchema }
