@@ -16,7 +16,7 @@ import { getRoutePolicy } from './policy'
 import { validateOrigin } from './security'
 import { checkRateLimit, getRateLimitError } from './ratelimit'
 import { checkPolicyRateLimit, type PolicyRateLimitResult, RedisNotConfiguredError } from './ratelimit-policy'
-import { parseJson, PayloadTooLargeError, validationError } from './validate'
+import { parseJson, PayloadTooLargeError, readBodyWithLimit, validationError } from './validate'
 import { fail, ErrorCode, createCookieBridge } from './http'
 import { getRequestId } from './with-request-id'
 import { createRouteClient } from '@/lib/supabase/route'
@@ -296,14 +296,31 @@ export function withApiGuard(
         // For webhooks, use already-parsed body from signature verification
         body = webhookBody
       } else {
-        // For normal requests, parse from request
+        // Some endpoints (e.g. DELETE with query params) legitimately send no body.
+        // Treat empty body as "no body" unless a body schema is explicitly required.
         try {
-          body = await parseJson(request, { maxBytes: policy.maxBytes })
+          const text = await readBodyWithLimit(request, policy.maxBytes)
+          if (text.trim().length === 0) {
+            if (options.bodySchema) {
+              // Preserve legacy behavior: invalid/missing JSON should be a 400 validation error.
+              return validationError(new Error('Invalid JSON: Unexpected end of JSON input'), bridge, requestId)
+            }
+            body = undefined
+          } else {
+            try {
+              body = JSON.parse(text)
+            } catch (err) {
+              return validationError(
+                new Error(`Invalid JSON: ${err instanceof Error ? err.message : 'Unknown error'}`),
+                bridge,
+                requestId
+              )
+            }
+          }
         } catch (err) {
           if (err instanceof PayloadTooLargeError) {
             return validationError(err, bridge, requestId)
           }
-          // Re-throw other errors (invalid JSON, etc.)
           return validationError(err, bridge, requestId)
         }
       }
