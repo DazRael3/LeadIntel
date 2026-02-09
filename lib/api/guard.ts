@@ -195,24 +195,10 @@ export function withApiGuard(
               requestId
             )
           }
-          // Lazy access to serverEnv to avoid module load-time evaluation in tests
-          let webhookSecret: string
-          try {
-            if (typeof window !== 'undefined') {
-              throw new Error('serverEnv cannot be accessed in client code')
-            }
-            // Dynamic require for lazy evaluation (server-only)
-            // In test environments, vi.mock handles this
-            let envModule
-            try {
-              envModule = require('@/lib/env')
-            } catch {
-              // Fallback for test environments where path aliases may not resolve
-              envModule = require('../env')
-            }
-            webhookSecret = envModule.serverEnv.STRIPE_WEBHOOK_SECRET
-          } catch (requireErr) {
-            // In test environments, env might not be available
+          // Read directly from process.env so tests can stub without fighting module caching.
+          // (Runtime env values are static in production anyway.)
+          const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET ?? '').trim()
+          if (!webhookSecret) {
             throw new Error('Webhook secret not configured')
           }
           // Verify signature (this will throw if invalid)
