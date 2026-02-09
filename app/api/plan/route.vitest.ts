@@ -110,7 +110,7 @@ describe('/api/plan', () => {
     expect(json.data?.plan).toBe('pro')
   })
 
-  it('active subscription with team price -> team tier, planId team', async () => {
+  it('active subscription with non-closer price -> still treated as closer tier (legacy team -> closer)', async () => {
     mockSubRow = { status: 'active', stripe_price_id: 'price_team_123' }
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
@@ -118,8 +118,8 @@ describe('/api/plan', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.ok).toBe(true)
-    expect(json.data?.tier).toBe('team')
-    expect(json.data?.planId).toBe('team')
+    expect(json.data?.tier).toBe('closer')
+    expect(json.data?.planId).toBe('pro')
     expect(json.data?.plan).toBe('pro')
   })
 })

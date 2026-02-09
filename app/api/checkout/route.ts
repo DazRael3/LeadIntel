@@ -14,13 +14,12 @@ import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
  * Validates required Stripe environment variables
  * @throws Error with clear message if validation fails
  */
-function validateStripeEnv(): { proPriceId: string | null; teamPriceId: string | null; siteUrl: string } {
+function validateStripeEnv(): { proPriceId: string | null; siteUrl: string } {
   // STRIPE_SECRET_KEY is already validated in lib/stripe.ts via serverEnv
 
   /**
    * Price IDs are environment-provided and MUST be Stripe TEST (sandbox) prices in development:
    * - `STRIPE_PRICE_ID_PRO` (or legacy fallback `STRIPE_PRICE_ID`) for Closer/Pro
-   * - `STRIPE_PRICE_ID_TEAM` for Team
    *
    * These should look like `price_...` in both test and live mode. The *key* (sk_test_ vs sk_live_)
    * determines whether Stripe treats it as sandbox vs production. No code changes are required for go-live;
@@ -30,13 +29,10 @@ function validateStripeEnv(): { proPriceId: string | null; teamPriceId: string |
   // Pro/Closer price id (accept legacy STRIPE_PRICE_ID fallback).
   const proPriceId = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim() || null
 
-  // Team price id (optional overall, but required when planId === 'team').
-  const teamPriceId = (serverEnv.STRIPE_PRICE_ID_TEAM || '').trim() || null
-
   // Get site URL (optional, defaults to request origin)
   const siteUrl = clientEnv.NEXT_PUBLIC_SITE_URL || ''
 
-  return { proPriceId, teamPriceId, siteUrl }
+  return { proPriceId, siteUrl }
 }
 
 export async function POST(request: NextRequest) {
@@ -124,7 +120,8 @@ const POST_GUARDED = withApiGuard(
     }
 
     const planId = parsedBody.planId
-    if (planId !== 'pro' && planId !== 'team') {
+    // Product spec: only Starter and Closer are exposed. Checkout supports only the paid "pro" plan.
+    if (planId !== 'pro') {
       return fail(
         'INVALID_CHECKOUT_PLAN',
         'Invalid or unsupported planId',
@@ -145,33 +142,18 @@ const POST_GUARDED = withApiGuard(
     try {
       const env = validateStripeEnv()
       // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
-      if (planId === 'team') {
-        if (!env.teamPriceId) {
-          captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId })
-          return fail(
-            'CHECKOUT_NOT_CONFIGURED',
-            'Missing Stripe price ID for plan: team',
-            { error: 'Missing Stripe price ID for plan: team', required: ['STRIPE_PRICE_ID_TEAM'] },
-            { status: 500 },
-            bridge,
-            requestId
-          )
-        }
-        priceId = env.teamPriceId
-      } else {
-        if (!env.proPriceId) {
-          captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId })
-          return fail(
-            'CHECKOUT_NOT_CONFIGURED',
-            'Missing Stripe price ID for plan: pro',
-            { error: 'Missing Stripe price ID for plan: pro', required: ['STRIPE_PRICE_ID_PRO (recommended)', 'STRIPE_PRICE_ID (legacy)'] },
-            { status: 500 },
-            bridge,
-            requestId
-          )
-        }
-        priceId = env.proPriceId
+      if (!env.proPriceId) {
+        captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId })
+        return fail(
+          'CHECKOUT_NOT_CONFIGURED',
+          'Missing Stripe price ID for plan: pro',
+          { error: 'Missing Stripe price ID for plan: pro', required: ['STRIPE_PRICE_ID_PRO (recommended)', 'STRIPE_PRICE_ID (legacy)'] },
+          { status: 500 },
+          bridge,
+          requestId
+        )
       }
+      priceId = env.proPriceId
       siteUrl = env.siteUrl || request.nextUrl.origin
     } catch (error) {
       captureMessage('checkout_not_configured', {
@@ -184,7 +166,7 @@ const POST_GUARDED = withApiGuard(
         {
           // Do not leak env values; just explain what is missing.
           message: error instanceof Error ? error.message : 'Missing Stripe configuration',
-          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID_PRO (recommended)', 'STRIPE_PRICE_ID_TEAM (for team)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
+          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID_PRO (recommended)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
         },
         { status: 500 },
         bridge,
@@ -243,22 +225,6 @@ const POST_GUARDED = withApiGuard(
       .single()
 
     if (existingSubscription) {
-      // If the user is already subscribed and is attempting to move to Team,
-      // send them to the Stripe Billing Portal for a safe upgrade flow.
-      if (planId === 'team') {
-        try {
-          const portal = await stripe.billingPortal.sessions.create({
-            customer: customerId,
-            return_url: `${siteUrl}/pricing?target=team`,
-          })
-          const url = portal.url
-          if (typeof url === 'string' && url.length > 0) {
-            return ok({ url }, undefined, bridge, requestId)
-          }
-        } catch {
-          // Fall through to conflict (client can use Manage billing).
-        }
-      }
       return fail(
         ErrorCode.CONFLICT,
         'Already subscribed',

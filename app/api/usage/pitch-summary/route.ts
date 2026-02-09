@@ -4,24 +4,18 @@ import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, asHttpError, createCookieBridge, fail, ErrorCode } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
-import { serverEnv } from '@/lib/env'
 import { logger } from '@/lib/observability/logger'
-import { getStarterLeadCountFromDb } from '@/lib/billing/usage'
+import { getStarterLeadCountFromDb, getStarterPitchCapSummary } from '@/lib/billing/usage'
 import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
 export const dynamic = 'force-dynamic'
 
-type Tier = 'starter' | 'closer' | 'team'
+type Tier = 'starter' | 'closer'
 
 const QuerySchema = z.object({})
 
 function isActiveStatus(status: string | null | undefined): boolean {
   return status === 'active' || status === 'trialing'
-}
-
-function configuredCloserPriceId(): string | null {
-  const v = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim()
-  return v.length > 0 ? v : null
 }
 
 export const GET = withApiGuard(
@@ -36,6 +30,7 @@ export const GET = withApiGuard(
       }
 
       // Resolve tier using the same DB sources updated by Stripe webhook / verify route.
+      // Product spec: only Starter and Closer are exposed. Legacy "team" is treated as Closer.
       let tier: Tier = 'starter'
 
       const { data: subRow } = await supabase
@@ -49,13 +44,7 @@ export const GET = withApiGuard(
 
       const status = (subRow as { status?: string | null } | null)?.status ?? null
       if (isActiveStatus(status)) {
-        const closerPrice = configuredCloserPriceId()
-        const subPrice =
-          (subRow as { stripe_price_id?: string | null } | null)?.stripe_price_id ??
-          (subRow as { price_id?: string | null } | null)?.price_id ??
-          null
-        if (closerPrice && typeof subPrice === 'string' && subPrice.length > 0 && subPrice !== closerPrice) tier = 'team'
-        else tier = 'closer'
+        tier = 'closer'
       } else {
         // Fallback: use the user row marker (e.g., immediately after checkout verification).
         const { data: userRow } = await supabase
@@ -65,14 +54,17 @@ export const GET = withApiGuard(
           .eq('id', userId)
           .maybeSingle()
         const subTier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? null
-        if (subTier === 'pro') tier = 'closer'
+        if (subTier === 'pro' || subTier === 'team' || subTier === 'closer') tier = 'closer'
       }
 
       let pitchesUsed = 0
       let pitchesLimit: number | null = null
       if (tier === 'starter') {
         const leadCount = await getStarterLeadCountFromDb(userId)
-        pitchesUsed = Math.min(Math.max(leadCount, 0), STARTER_PITCH_CAP_LIMIT)
+        const cap = await getStarterPitchCapSummary({ userId })
+        const used = Math.max(Math.max(leadCount, 0), Math.max(cap.used, 0))
+        // Best-effort: clamp to the starter credit cap.
+        pitchesUsed = Math.min(used, STARTER_PITCH_CAP_LIMIT)
         pitchesLimit = STARTER_PITCH_CAP_LIMIT
       } else {
         pitchesUsed = 0

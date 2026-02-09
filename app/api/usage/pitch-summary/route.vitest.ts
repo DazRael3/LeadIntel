@@ -8,6 +8,7 @@ let mockLeadCount = 0
 
 vi.mock('@/lib/billing/usage', () => ({
   getStarterLeadCountFromDb: vi.fn(async () => mockLeadCount),
+  getStarterPitchCapSummary: vi.fn(async () => ({ used: 0, limit: STARTER_PITCH_CAP_LIMIT })),
 }))
 
 class FakeQuery {

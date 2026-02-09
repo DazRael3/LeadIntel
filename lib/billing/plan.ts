@@ -18,7 +18,16 @@ export interface PlanDetails {
   isAppTrial?: boolean
 }
 
-export type PlanTier = 'starter' | 'closer' | 'team'
+/**
+ * Product tiers.
+ *
+ * Product spec (2026-01): Only two tiers are exposed in the app surface:
+ * - starter (free)
+ * - closer (paid)
+ *
+ * Legacy note: historical data may still contain "team". We treat it as "closer".
+ */
+export type PlanTier = 'starter' | 'closer'
 
 function isAppTrialEnabled(): boolean {
   const raw = (process.env.ENABLE_APP_TRIAL || '').trim().toLowerCase()
@@ -124,18 +133,19 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
  * - free -> Starter (Free, limited)
  * - pro  -> Closer ($79 / month)
  *
- * Note: "Team" is marketing-only for now; billing/plan IDs are unchanged.
+ * Legacy note: "team" is deprecated and treated as "closer".
  */
 export type DisplayPlanMeta = {
   tier: PlanTier
   creditsLabel: string
   planBubbleLabel: string
   canUpgradeToCloser: boolean
-  canUpgradeToTeam: boolean
 }
 
 function normalizeTier(input: unknown): PlanTier {
-  if (input === 'starter' || input === 'closer' || input === 'team') return input
+  if (input === 'starter' || input === 'closer') return input
+  // Backward compatibility: treat legacy Team as Closer.
+  if (input === 'team') return 'closer'
   return 'starter'
 }
 
@@ -155,25 +165,13 @@ export function getDisplayPlanMeta(plan: { tier?: unknown; plan?: unknown } | Pl
       creditsLabel: 'Starter (limited)',
       planBubbleLabel: 'Starter (limited)',
       canUpgradeToCloser: true,
-      canUpgradeToTeam: true,
-    }
-  }
-
-  if (tier === 'closer') {
-    return {
-      tier,
-      creditsLabel: '∞ Unlimited',
-      planBubbleLabel: 'Closer · $79 / month',
-      canUpgradeToCloser: false,
-      canUpgradeToTeam: true,
     }
   }
 
   return {
-    tier: 'team',
+    tier: 'closer',
     creditsLabel: '∞ Unlimited',
-    planBubbleLabel: 'Team · $249 / month',
+    planBubbleLabel: 'Closer · $79 / month',
     canUpgradeToCloser: false,
-    canUpgradeToTeam: false,
   }
 }

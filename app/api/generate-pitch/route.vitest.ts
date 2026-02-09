@@ -101,6 +101,7 @@ vi.mock('@/lib/ai-logic', () => ({
 vi.mock('@/lib/billing/usage', () => ({
   checkStarterPitchUsage: vi.fn(async () => ({ ok: true, remaining: 999, limit: 20 })),
   getStarterLeadCountFromDb: vi.fn(async () => 0),
+  getStarterPitchCapSummary: vi.fn(async () => ({ used: 0, limit: STARTER_PITCH_CAP_LIMIT })),
   recordStarterPitchCapUsage: vi.fn(async () => ({ used: 1, limit: 3 })),
 }))
 
@@ -237,7 +238,7 @@ describe('/api/generate-pitch', () => {
     expect(checkStarterPitchUsage).not.toHaveBeenCalled()
   })
 
-  it('team user ignores starter cap and can generate pitch', async () => {
+  it('paid subscription with non-closer price is treated as closer and ignores starter cap', async () => {
     mockSubscriptionRow = { status: 'active', stripe_price_id: 'price_team_123' }
     process.env.STRIPE_PRICE_ID_PRO = 'price_test_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_test_pro_123'

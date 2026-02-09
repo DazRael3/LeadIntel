@@ -11,7 +11,7 @@ import { logger } from '@/lib/observability/logger'
 
 export const dynamic = 'force-dynamic'
 
-type PlanTier = 'starter' | 'closer' | 'team'
+type PlanTier = 'starter' | 'closer'
 
 function isActiveStatus(status: string | null | undefined): boolean {
   return status === 'active' || status === 'trialing'
@@ -33,6 +33,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     if (enableAppTrial) {
       try {
         const { data: userRow } = await supabase
+          .schema('api')
           .from('users')
           .select('id, subscription_tier, trial_starts_at, trial_ends_at')
           .eq('id', userId)
@@ -134,7 +135,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
             const startsAt = new Date().toISOString()
             const endsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
             // Safe under RLS: user can upsert their own row.
-            await supabase.from('users').upsert({
+            await supabase.schema('api').from('users').upsert({
               id: userId,
               // Email is optional here; user identity is already established by withApiGuard.
               trial_starts_at: startsAt,
@@ -147,9 +148,9 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       }
     }
 
-    // Stripe subscription is the source of truth for Starter vs paid tiers:
+    // Stripe subscription is the source of truth for Starter vs paid tier:
     // - No active subscription => Starter
-    // - Active/trialing subscription => paid (Closer or Team based on price id)
+    // - Active/trialing subscription => paid (Closer)
     const { data: subRow } = await supabase
       .schema('api')
       .from('subscriptions')
@@ -166,21 +167,10 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     let planId: string | null = null
 
     if (hasActiveSubscription) {
-      const configuredCloserPrice = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim()
-      const subPrice =
-        (subRow as { stripe_price_id?: string | null } | null)?.stripe_price_id ??
-        (subRow as { price_id?: string | null } | null)?.price_id ??
-        null
-
-      // If the subscription price differs from the configured "Closer" price, treat as Team.
-      // (No Stripe ID changes here; this is detection only.)
-      if (configuredCloserPrice && typeof subPrice === 'string' && subPrice.length > 0 && subPrice !== configuredCloserPrice) {
-        tier = 'team'
-        planId = 'team'
-      } else {
-        tier = 'closer'
-        planId = 'pro'
-      }
+      // Product spec: only Starter and Closer are exposed.
+      // Legacy note: historical "team" price IDs are treated as Closer.
+      tier = 'closer'
+      planId = 'pro'
     }
     // Fallback: if the user row already indicates Pro (e.g., after verify route/webhook),
     // treat as Closer when no active subscription row is visible yet.
@@ -194,7 +184,9 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
           .eq('id', userId)
           .maybeSingle()
         const subTier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? null
-        if (subTier === 'pro') {
+        // users.subscription_tier is an internal marker (e.g. "pro") used by verification/webhooks.
+        // Treat any paid marker as Closer.
+        if (subTier === 'pro' || subTier === 'team' || subTier === 'closer') {
           tier = 'closer'
           planId = 'pro'
         }
@@ -213,6 +205,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     if (!trial.active && enableAppTrial) {
       try {
         const { data: userRow } = await supabase
+          .schema('api')
           .from('users')
           .select('trial_ends_at')
           .eq('id', userId)

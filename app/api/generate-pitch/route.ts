@@ -17,13 +17,13 @@ import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
-import { checkStarterPitchUsage, getStarterLeadCountFromDb, recordStarterPitchCapUsage } from '@/lib/billing/usage'
+import { checkStarterPitchUsage, getStarterLeadCountFromDb, getStarterPitchCapSummary, recordStarterPitchCapUsage } from '@/lib/billing/usage'
 import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 import { makeNameCompanyKey } from '@/lib/company-key'
 
 export const dynamic = "force-dynamic";
 
-type Tier = 'starter' | 'closer' | 'team'
+type Tier = 'starter' | 'closer'
 
 function isActiveStatus(status: string | null | undefined): boolean {
   return status === 'active' || status === 'trialing'
@@ -43,16 +43,8 @@ async function resolveTierForUser(supabase: unknown, userId: string): Promise<Ti
 
     const status = (subRow as { status?: string | null } | null)?.status ?? null
     if (!isActiveStatus(status)) return 'starter'
-
-    const configuredCloserPrice = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim()
-    const teamPrice = (process.env.STRIPE_PRICE_ID_TEAM || '').trim()
-    const subPrice =
-      (subRow as { stripe_price_id?: string | null } | null)?.stripe_price_id ??
-      (subRow as { price_id?: string | null } | null)?.price_id ??
-      null
-
-    if (teamPrice && subPrice === teamPrice) return 'team'
-    if (configuredCloserPrice && subPrice && subPrice !== configuredCloserPrice) return 'team'
+    // Product spec: only Starter and Closer are exposed.
+    // Legacy note: any historical "team" price IDs are treated as Closer.
     return 'closer'
   } catch {
     // Safe default: treat as Starter for usage cap (cap check itself is fail-open if Redis missing).
@@ -215,12 +207,17 @@ export const POST = withApiGuard(
     if (tier === 'starter') {
       // Starter hard cap: 3 total leads/pitches. DB-backed so it remains consistent across restarts.
       const leadCount = await getStarterLeadCountFromDb(userId)
-      if (leadCount >= STARTER_PITCH_CAP_LIMIT) {
+      // Fallback: if DB counting is unavailable in local/dev (e.g. schema not exposed),
+      // use the in-memory/Redis cap counter so the Starter cap UX/enforcement still works.
+      const cap = await getStarterPitchCapSummary({ userId })
+      const used = Math.max(leadCount, cap.used)
+      if (used >= STARTER_PITCH_CAP_LIMIT) {
         logInfo({
           scope: 'starter_cap',
           message: 'hard_cap_reached',
           userId,
           leadCount,
+          capUsed: cap.used,
           limit: STARTER_PITCH_CAP_LIMIT,
         })
         return fail(

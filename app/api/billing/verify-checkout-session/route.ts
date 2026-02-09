@@ -27,11 +27,6 @@ function getStripeMode(): 'live' | 'test' {
   return serverEnv.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test'
 }
 
-function configuredProPriceId(): string | null {
-  const v = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim()
-  return v.length > 0 ? v : null
-}
-
 export const GET = withApiGuard(
   async (request: NextRequest, { query, requestId, userId }) => {
     const bridge = createCookieBridge()
@@ -103,7 +98,7 @@ export const GET = withApiGuard(
         ? (admin as unknown as { schema: (s: string) => any }).schema('api')
         : (admin as any)
 
-      // Keep app behavior consistent: users table stores free/pro, while tier (closer/team) is inferred from price id.
+      // Keep app behavior consistent: users table stores free/pro markers, while API tier is resolved as Starter/Closer.
       await adminApi.from('users').update({ subscription_tier: 'pro' }).eq('id', userId)
 
       const customer = session.customer
@@ -128,10 +123,10 @@ export const GET = withApiGuard(
         .from('subscriptions')
         .upsert(subPayload, { onConflict: subscriptionId ? 'stripe_subscription_id' : 'user_id' })
 
-      const proPrice = configuredProPriceId()
-      const isTeam = Boolean(priceId && proPrice && priceId !== proPrice)
-      const tier = isTeam ? ('team' as const) : ('closer' as const)
-      const planId = isTeam ? ('team' as const) : ('pro' as const)
+      // Product spec: only Starter and Closer are exposed.
+      // Legacy note: historical "team" price IDs are treated as Closer.
+      const tier = 'closer' as const
+      const planId = 'pro' as const
 
       logger.info({
         level: 'info',
