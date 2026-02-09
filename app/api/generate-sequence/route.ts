@@ -24,20 +24,20 @@ export async function POST(request: NextRequest) {
 }
 
 const POST_GUARDED = withApiGuard(
-  async (request: NextRequest, { body, requestId }) => {
+  async (request: NextRequest, { body, requestId, userId }) => {
     const bridge = createCookieBridge()
     try {
       const { companyName, triggerEvent, ceoName, companyInfo, userSettings } = body as z.infer<typeof GenerateSequenceSchema>
 
     // Server-side Pro gating: Check subscription tier before any AI generation
     const supabase = createRouteClient(request, bridge)
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/generate-sequence authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
-    if (!(await isProPlan(supabase, user.id))) {
+    if (!(await isProPlan(supabase, userId))) {
       return fail(
         ErrorCode.FORBIDDEN,
         'Pro subscription required for Email Sequence generation',
@@ -59,7 +59,7 @@ const POST_GUARDED = withApiGuard(
 
     return ok({ sequence }, undefined, bridge, requestId)
     } catch (error) {
-      return asHttpError(error, '/api/generate-sequence', undefined, bridge, requestId)
+      return asHttpError(error, '/api/generate-sequence', userId, bridge, requestId)
     }
   },
   { bodySchema: GenerateSequenceSchema }

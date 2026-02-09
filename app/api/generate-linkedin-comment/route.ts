@@ -32,12 +32,13 @@ export const POST = withApiGuard(
     try {
       // Pro gating (cost-heavy)
       const supabase = createRouteClient(request, bridge)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user || !userId) {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/generate-linkedin-comment authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
-      if (!(await isProPlan(supabase, user.id))) {
+      if (!(await isProPlan(supabase, userId))) {
         return fail(
           ErrorCode.FORBIDDEN,
           'Pro subscription required for LinkedIn comment generation',
