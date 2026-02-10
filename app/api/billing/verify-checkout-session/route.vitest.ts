@@ -3,35 +3,94 @@ import { NextRequest } from 'next/server'
 
 const mockGetUser = vi.fn()
 
+type DbState = {
+  api: {
+    users: Map<string, { subscription_tier?: string | null }>
+    subscriptions: Map<string, { user_id: string; status: string; stripe_price_id: string | null }>
+  }
+}
+
+let db: DbState = {
+  api: {
+    users: new Map(),
+    subscriptions: new Map(),
+  },
+}
+
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
     auth: { getUser: mockGetUser },
+    schema: () => ({
+      from: (table: string) => ({
+        select: () => ({
+          eq: () => ({
+            order: () => ({
+              limit: () => ({
+                maybeSingle: async () => {
+                  if (table === 'subscriptions') {
+                    const row = db.api.subscriptions.get('latest') ?? null
+                    return { data: row, error: null }
+                  }
+                  if (table === 'users') {
+                    const row = db.api.users.get('user_1') ?? null
+                    return { data: row, error: null }
+                  }
+                  return { data: null, error: null }
+                },
+              }),
+            }),
+            maybeSingle: async () => {
+              if (table === 'users') {
+                const row = db.api.users.get('user_1') ?? null
+                return { data: row, error: null }
+              }
+              return { data: null, error: null }
+            },
+          }),
+        }),
+      }),
+    }),
   })),
 }))
 
 const adminUpdateEq = vi.fn(async () => ({ error: null }))
 const adminUpsert = vi.fn(async () => ({ error: null }))
 vi.mock('@/lib/supabase/admin', () => ({
-  createSupabaseAdminClient: () => ({
-    schema: () => ({
-      from: (table: string) => {
-        if (table === 'users') {
-          return { update: () => ({ eq: adminUpdateEq }) }
-        }
-        if (table === 'subscriptions') {
-          return { upsert: adminUpsert }
-        }
-        return { update: () => ({ eq: adminUpdateEq }), upsert: adminUpsert }
-      },
-    }),
+  createSupabaseAdminClient: (_opts?: { schema?: string }) => ({
     from: (table: string) => {
       if (table === 'users') {
-        return { update: () => ({ eq: adminUpdateEq }) }
+        return {
+          select: () => ({
+            eq: async (_col: string, id: string) => ({ data: db.api.users.get(id) ?? null, error: null }),
+            maybeSingle: async () => ({ data: db.api.users.get('user_1') ?? null, error: null }),
+          }),
+          update: (payload: { subscription_tier?: string }) => ({
+            eq: async (_col: string, id: string) => {
+              db.api.users.set(id, { ...(db.api.users.get(id) ?? {}), ...payload })
+              return adminUpdateEq()
+            },
+          }),
+        }
       }
       if (table === 'subscriptions') {
-        return { upsert: adminUpsert }
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: async () => ({ data: db.api.subscriptions.get('latest') ?? null, error: null }),
+                }),
+              }),
+              maybeSingle: async () => ({ data: db.api.subscriptions.get('latest') ?? null, error: null }),
+            }),
+          }),
+          upsert: async (payload: { user_id: string; status: string; stripe_price_id: string | null }) => {
+            db.api.subscriptions.set('latest', payload)
+            return adminUpsert()
+          },
+        }
       }
-      return { update: () => ({ eq: adminUpdateEq }), upsert: adminUpsert }
+      return {}
     },
   }),
 }))
@@ -53,6 +112,7 @@ describe('/api/billing/verify-checkout-session', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.resetModules()
+    db = { api: { users: new Map(), subscriptions: new Map() } }
 
     // Minimal env to satisfy validation.
     process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -103,6 +163,49 @@ describe('/api/billing/verify-checkout-session', () => {
     expect(json.data?.plan).toBe('pro')
     expect(adminUpdateEq).toHaveBeenCalled()
     expect(adminUpsert).toHaveBeenCalled()
+  })
+
+  it('persists to api schema so /api/plan resolves closer immediately', async () => {
+    retrieve.mockResolvedValue({
+      id: 'cs_test_123',
+      client_reference_id: 'user_1',
+      metadata: { user_id: 'user_1' },
+      payment_status: 'paid',
+      status: 'complete',
+      customer: 'cus_123',
+      subscription: {
+        id: 'sub_123',
+        status: 'active',
+        current_period_start: 1700000000,
+        current_period_end: 1700003600,
+        cancel_at_period_end: false,
+        trial_end: null,
+        items: { data: [{ price: { id: 'price_test_pro_123' } }] },
+      },
+    })
+    listLineItems.mockResolvedValue({ data: [{ price: { id: 'price_test_pro_123' } }] })
+
+    const { GET: verify } = await import('./route')
+    const verifyReq = new NextRequest(
+      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_123',
+      { method: 'GET' }
+    )
+    const verifyRes = await verify(verifyReq)
+    expect(verifyRes.status).toBe(200)
+    const verifyJson = await verifyRes.json()
+    expect(verifyJson.ok).toBe(true)
+    expect(verifyJson.data?.tier).toBe('closer')
+    expect(db.api.users.get('user_1')?.subscription_tier).toBe('pro')
+    expect(db.api.subscriptions.get('latest')?.status).toBe('active')
+
+    const { GET: plan } = await import('@/app/api/plan/route')
+    const planReq = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const planRes = await plan(planReq)
+    expect(planRes.status).toBe(200)
+    const planJson = await planRes.json()
+    expect(planJson.ok).toBe(true)
+    expect(planJson.data?.tier).toBe('closer')
+    expect(planJson.data?.planId).toBe('pro')
   })
 
   it('returns 403 when the session belongs to a different user', async () => {

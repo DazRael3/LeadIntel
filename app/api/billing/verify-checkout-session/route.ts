@@ -93,13 +93,20 @@ export const GET = withApiGuard(
       }
 
       // Upsert subscription + mark user as paid (Pro) via service role (RLS-safe).
-      const admin = createSupabaseAdminClient()
-      const adminApi = (admin as unknown as { schema?: (s: string) => unknown }).schema
-        ? (admin as unknown as { schema: (s: string) => any }).schema('api')
-        : (admin as any)
+      // IMPORTANT: Persist billing state in the `api` schema.
+      // `/api/plan` resolves tier from `api.subscriptions` + `api.users.subscription_tier`.
+      const schema = 'api' as const
+      const admin = createSupabaseAdminClient({ schema })
 
       // Keep app behavior consistent: users table stores free/pro markers, while API tier is resolved as Starter/Closer.
-      await adminApi.from('users').update({ subscription_tier: 'pro' }).eq('id', userId)
+      const userUpdate = await admin.from('users').update({ subscription_tier: 'pro' }).eq('id', userId)
+      if (userUpdate?.error) {
+        throw new Error(
+          typeof userUpdate.error.message === 'string' && userUpdate.error.message.length > 0
+            ? userUpdate.error.message
+            : 'Failed to persist user subscription marker'
+        )
+      }
 
       const customer = session.customer
       const customerId = typeof customer === 'string' ? customer : customer?.id ?? null
@@ -119,14 +126,32 @@ export const GET = withApiGuard(
         stripe_price_id: priceId,
       }
 
-      await adminApi
+      const subUpsert = await admin
         .from('subscriptions')
         .upsert(subPayload, { onConflict: subscriptionId ? 'stripe_subscription_id' : 'user_id' })
+      if (subUpsert?.error) {
+        throw new Error(
+          typeof subUpsert.error.message === 'string' && subUpsert.error.message.length > 0
+            ? subUpsert.error.message
+            : 'Failed to persist subscription row'
+        )
+      }
 
       // Product spec: only Starter and Closer are exposed.
       // Legacy note: historical "team" price IDs are treated as Closer.
       const tier = 'closer' as const
       const planId = 'pro' as const
+
+      logger.info({
+        level: 'info',
+        scope: 'checkout',
+        message: 'session.persisted',
+        userId,
+        planId,
+        tier,
+        schema,
+        requestId,
+      })
 
       logger.info({
         level: 'info',

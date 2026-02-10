@@ -48,6 +48,12 @@ vi.mock('@/lib/supabase/route', () => ({
   })),
 }))
 
+vi.mock('@/lib/supabase/admin', () => ({
+  createSupabaseAdminClient: vi.fn(() => ({
+    from: (table: string) => new FakeQuery(table),
+  })),
+}))
+
 describe('/api/plan', () => {
   beforeEach(() => {
     vi.clearAllMocks()

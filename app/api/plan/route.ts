@@ -148,11 +148,14 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       }
     }
 
-    // Stripe subscription is the source of truth for Starter vs paid tier:
+    // Stripe subscription is the source of truth for Starter vs paid tier.
+    // IMPORTANT: Use service role reads here (scoped to the authenticated userId) so we are not dependent
+    // on RLS policy correctness for `api.subscriptions` / `api.users`. Verification writes via service role,
+    // so reads must see the same rows.
+    const admin = createSupabaseAdminClient({ schema: 'api' })
     // - No active subscription => Starter
     // - Active/trialing subscription => paid (Closer)
-    const { data: subRow } = await supabase
-      .schema('api')
+    const { data: subRow } = await admin
       .from('subscriptions')
       .select('status, stripe_price_id, price_id, trial_end, created_at')
       .eq('user_id', userId)
@@ -177,8 +180,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     // This keeps UI consistent immediately after checkout redirect.
     if (!hasActiveSubscription && tier === 'starter') {
       try {
-        const { data: userRow } = await supabase
-          .schema('api')
+        const { data: userRow } = await admin
           .from('users')
           .select('subscription_tier')
           .eq('id', userId)
