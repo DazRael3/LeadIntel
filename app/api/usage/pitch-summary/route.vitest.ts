@@ -28,6 +28,16 @@ class FakeQuery {
   limit() {
     return this
   }
+  then(onfulfilled: (v: any) => any, onrejected?: (e: unknown) => any) {
+    const exec = async () => {
+      if (this.table === 'subscriptions') {
+        const rows = mockSubRow ? [mockSubRow] : []
+        return { data: rows, error: null }
+      }
+      return { data: [], error: null }
+    }
+    return exec().then(onfulfilled, onrejected)
+  }
   maybeSingle() {
     if (this.table === 'subscriptions') return Promise.resolve({ data: mockSubRow, error: null })
     if (this.table === 'users') return Promise.resolve({ data: mockUserRow, error: null })
@@ -90,6 +100,7 @@ describe('/api/usage/pitch-summary', () => {
 
   it('paid tier returns pitchesLimit null (no 3-pitch cap)', async () => {
     mockSubRow = { status: 'active', stripe_price_id: 'price_pro_123' }
+    mockLeadCount = 999
     const { GET } = await import('./route')
     const res = await GET(new NextRequest('http://localhost:3000/api/usage/pitch-summary', { method: 'GET' }))
     expect(res.status).toBe(200)
@@ -97,6 +108,8 @@ describe('/api/usage/pitch-summary', () => {
     expect(json.ok).toBe(true)
     expect(json.data?.tier).toBe('closer')
     expect(json.data?.pitchesLimit).toBe(null)
+    // Ensure starter cap logic is not applied to closer tier even if DB lead count is high.
+    expect(json.data?.pitchesUsed).toBe(0)
   })
 })
 

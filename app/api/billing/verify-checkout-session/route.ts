@@ -117,6 +117,7 @@ export const GET = withApiGuard(
         stripe_subscription_id: subscriptionId,
         stripe_customer_id: customerId,
         status,
+        // Keep both `stripe_price_id` and `price_id` for compatibility across migrations.
         current_period_end: subscription?.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
         current_period_start: subscription?.current_period_start
           ? new Date(subscription.current_period_start * 1000).toISOString()
@@ -124,6 +125,7 @@ export const GET = withApiGuard(
         cancel_at_period_end: Boolean(subscription?.cancel_at_period_end),
         trial_end: subscription?.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
         stripe_price_id: priceId,
+        price_id: priceId,
       }
 
       const subUpsert = await admin

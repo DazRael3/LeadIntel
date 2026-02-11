@@ -1,96 +1,111 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
 
-export type ResolvedTier = 'starter' | 'closer'
+export type Tier = 'starter' | 'closer'
 
-export type TierResolution = {
-  tier: ResolvedTier
-  planId: 'pro' | null
+export type ResolvedTier = {
+  tier: Tier
   subscriptionStatus: string | null
   stripeTrialEnd: string | null
 }
 
-function isActiveStatus(status: string | null | undefined): boolean {
-  return status === 'active' || status === 'trialing'
+function is42703(error: PostgrestError | null): boolean {
+  return Boolean(error && error.code === '42703')
 }
 
-function isMissingColumnError(error: unknown): boolean {
-  // Postgres undefined_column is 42703; PostgREST wraps it as text in message/details.
-  const e = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown }
-  if (e?.code === '42703') return true
-  const msg = String(e?.message ?? '')
-  const details = String(e?.details ?? '')
-  return msg.includes('does not exist') || details.includes('does not exist')
+function warnNon42703(scope: string, error: PostgrestError | null): void {
+  if (!error) return
+  if (is42703(error)) return
+  // Per requirements: resolver must never throw; warn on unexpected errors.
+  // eslint-disable-next-line no-console
+  console.warn(`[resolveTierFromDb] ${scope} query failed`, { code: error.code, message: error.message })
 }
 
-/**
- * Resolve the effective product tier from canonical billing sources in the `api` schema.
- *
- * Source of truth:
- * - Active subscription row in `api.subscriptions` => closer
- * - Fallback marker `api.users.subscription_tier === 'pro'` => closer
- * - Else => starter
- *
- * Notes:
- * - Caller should provide a Supabase client already scoped to the `api` schema.
- * - This function is tolerant of older schemas (missing columns) by falling back to narrower selects.
- */
-export async function resolveTierFromDb(admin: SupabaseClient, userId: string): Promise<TierResolution> {
-  // 1) Subscription row (preferred)
-  let subscriptionStatus: string | null = null
-  let stripeTrialEnd: string | null = null
+export async function resolveTierFromDb(
+  admin: SupabaseClient<any, 'api', any>,
+  userId: string
+): Promise<ResolvedTier> {
+  const loadUser = async (): Promise<{ userRow: { subscription_tier?: string | null } | null; userError: PostgrestError | null }> => {
+    const { data: userRow, error: userError } = await admin
+      .from('users')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle()
 
-  try {
-    const sub = await admin
+    if (is42703(userError)) {
+      // Older schema fallback: column missing. Re-run a minimal select to confirm row existence.
+      await admin.from('users').select('id').eq('id', userId).maybeSingle()
+      return { userRow: null, userError }
+    }
+
+    warnNon42703('users', userError)
+    return { userRow: (userRow as { subscription_tier?: string | null } | null) ?? null, userError }
+  }
+
+  const loadSubs = async (): Promise<{
+    subsRows: Array<{ status?: string | null; trial_end?: string | null; created_at?: string | null }> | null
+    subsError: PostgrestError | null
+  }> => {
+    const { data: subsRows, error: subsError } = await admin
       .from('subscriptions')
       .select('status, trial_end, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle()
 
-    if (!sub.error) {
-      subscriptionStatus = (sub.data as { status?: string | null } | null)?.status ?? null
-      stripeTrialEnd = (sub.data as { trial_end?: string | null } | null)?.trial_end ?? null
-    } else if (isMissingColumnError(sub.error)) {
-      // Older schema fallback: trial_end may not exist yet.
-      const sub2 = await admin
+    if (is42703(subsError)) {
+      // Older schema fallback: trial_end missing.
+      const retry = await admin
         .from('subscriptions')
         .select('status, created_at')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle()
-      if (!sub2.error) {
-        subscriptionStatus = (sub2.data as { status?: string | null } | null)?.status ?? null
-        stripeTrialEnd = null
+      warnNon42703('subscriptions(retry)', retry.error)
+      return {
+        subsRows: Array.isArray(retry.data) ? (retry.data as Array<{ status?: string | null; created_at?: string | null }>) : [],
+        subsError: subsError,
       }
     }
-  } catch {
-    // fail-open: treat as no subscription
-    subscriptionStatus = null
-    stripeTrialEnd = null
-  }
 
-  if (isActiveStatus(subscriptionStatus)) {
-    return { tier: 'closer', planId: 'pro', subscriptionStatus, stripeTrialEnd }
-  }
-
-  // 2) User marker fallback
-  try {
-    const user = await admin.from('users').select('subscription_tier').eq('id', userId).maybeSingle()
-    if (!user.error) {
-      const marker = (user.data as { subscription_tier?: string | null } | null)?.subscription_tier ?? null
-      if (marker === 'pro') {
-        return { tier: 'closer', planId: 'pro', subscriptionStatus, stripeTrialEnd }
-      }
-    } else if (isMissingColumnError(user.error)) {
-      // If the marker column doesn't exist yet, there is no safe fallback.
-      return { tier: 'starter', planId: null, subscriptionStatus, stripeTrialEnd }
+    warnNon42703('subscriptions', subsError)
+    return {
+      subsRows: Array.isArray(subsRows)
+        ? (subsRows as Array<{ status?: string | null; trial_end?: string | null; created_at?: string | null }>)
+        : [],
+      subsError,
     }
-  } catch {
-    // ignore
   }
 
-  return { tier: 'starter', planId: null, subscriptionStatus, stripeTrialEnd }
+  // a) In parallel, load users + subscriptions
+  const [{ userRow, userError }, { subsRows, subsError }] = await Promise.all([loadUser(), loadSubs()])
+  // (Errors are already warned as required; never throw.)
+  void userError
+  void subsError
+
+  // c) Determine lastSub
+  const lastSub = (subsRows?.[0] ?? null) as { status?: string | null; trial_end?: string | null } | null
+
+  // d) Tier decision rules
+  if (lastSub && (lastSub.status === 'active' || lastSub.status === 'trialing')) {
+    return {
+      tier: 'closer',
+      subscriptionStatus: lastSub.status,
+      stripeTrialEnd: lastSub.trial_end ?? null,
+    }
+  }
+
+  if (userRow?.subscription_tier === 'pro') {
+    return {
+      tier: 'closer',
+      subscriptionStatus: lastSub?.status ?? null,
+      stripeTrialEnd: lastSub?.trial_end ?? null,
+    }
+  }
+
+  return {
+    tier: 'starter',
+    subscriptionStatus: lastSub?.status ?? null,
+    stripeTrialEnd: lastSub?.trial_end ?? null,
+  }
 }
 

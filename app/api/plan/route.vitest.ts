@@ -22,8 +22,20 @@ class FakeQuery {
   limit() {
     return this
   }
+  then(onfulfilled: (v: any) => any, onrejected?: (e: unknown) => any) {
+    // Promise-like support for awaiting `.limit(1)` without `.maybeSingle()`
+    const exec = async () => {
+      if (this.table === 'subscriptions') {
+        const rows = mockSubRow ? [mockSubRow] : []
+        return { data: rows, error: null }
+      }
+      return { data: [], error: null }
+    }
+    return exec().then(onfulfilled, onrejected)
+  }
   maybeSingle() {
     if (this.table === 'subscriptions') {
+      // Some callers still use maybeSingle in other paths.
       return Promise.resolve({ data: mockSubRow, error: null })
     }
     if (this.table === 'users') {
@@ -105,6 +117,7 @@ describe('/api/plan', () => {
 
   it('active subscription with closer price -> closer tier, planId pro', async () => {
     mockSubRow = { status: 'active', stripe_price_id: 'price_pro_123' }
+    mockUserRow = { subscription_tier: 'free' }
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
     const res = await GET(req)

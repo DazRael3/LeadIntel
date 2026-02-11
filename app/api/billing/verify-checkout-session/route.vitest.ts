@@ -61,8 +61,11 @@ vi.mock('@/lib/supabase/admin', () => ({
       if (table === 'users') {
         return {
           select: () => ({
-            eq: async (_col: string, id: string) => ({ data: db.api.users.get(id) ?? null, error: null }),
-            maybeSingle: async () => ({ data: db.api.users.get('user_1') ?? null, error: null }),
+            eq: (_col: string, id: string) => ({
+              maybeSingle: async () => ({ data: db.api.users.get(id) ?? null, error: null }),
+            }),
+            // If someone calls maybeSingle() without eq() (not expected), return null.
+            maybeSingle: async () => ({ data: null, error: null }),
           }),
           update: (payload: { subscription_tier?: string }) => ({
             eq: async (_col: string, id: string) => {
@@ -78,11 +81,16 @@ vi.mock('@/lib/supabase/admin', () => ({
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: async () => ({ data: db.api.subscriptions.get('latest') ?? null, error: null }),
+                  then: (onfulfilled: (v: any) => any, onrejected?: (e: unknown) => any) => {
+                    const rows = db.api.subscriptions.get('latest') ? [db.api.subscriptions.get('latest')] : []
+                    return Promise.resolve({ data: rows, error: null }).then(onfulfilled, onrejected)
+                  },
                 }),
               }),
-              maybeSingle: async () => ({ data: db.api.subscriptions.get('latest') ?? null, error: null }),
             }),
+            // If awaited directly without eq/order (not expected), return empty rows.
+            then: (onfulfilled: (v: any) => any, onrejected?: (e: unknown) => any) =>
+              Promise.resolve({ data: [], error: null }).then(onfulfilled, onrejected),
           }),
           upsert: async (payload: { user_id: string; status: string; stripe_price_id: string | null }) => {
             db.api.subscriptions.set('latest', payload)

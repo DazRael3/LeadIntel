@@ -146,13 +146,13 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     // Tier resolution reads canonical billing sources in `api` using the service role.
     // This avoids coupling plan resolution correctness to RLS policy correctness.
     const admin = createSupabaseAdminClient({ schema: 'api' })
-    const tierResolution = await resolveTierFromDb(admin, userId)
-    const tier = tierResolution.tier
-    const planId = tierResolution.planId
+    const resolved = await resolveTierFromDb(admin as any, userId)
+    const tier = resolved.tier
+    const planId = tier === 'closer' ? 'pro' : null
 
     // Trial display is best-effort and MUST NOT promote a user into paid tiers.
-    const stripeTrialEnd = tierResolution.stripeTrialEnd
-    const isStripeTrialing = tierResolution.subscriptionStatus === 'trialing' && Boolean(stripeTrialEnd)
+    const stripeTrialEnd = resolved.stripeTrialEnd
+    const isStripeTrialing = resolved.subscriptionStatus === 'trialing' && Boolean(stripeTrialEnd)
     let trial: { active: boolean; endsAt: string | null } = isStripeTrialing
       ? { active: true, endsAt: stripeTrialEnd }
       : { active: false, endsAt: null }
