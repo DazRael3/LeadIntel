@@ -1,14 +1,14 @@
 import { NextRequest } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
-import { createClient } from '@supabase/supabase-js'
-import { serverEnv, clientEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env'
 import { ok, fail, ErrorCode } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
 import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
 import { isFeatureEnabled } from '@/lib/services/feature-flags'
 import { recordCounter } from '@/lib/observability/metrics'
 import { logger } from '@/lib/observability/logger'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Stripe Webhook Handler
@@ -52,14 +52,7 @@ export const POST = withApiGuard(
 
     // Create Supabase admin client for subscription updates.
     // IMPORTANT: Always target the `api` schema (never `public`).
-    const schema = serverEnv.SUPABASE_DB_SCHEMA || serverEnv.SUPABASE_DB_SCHEMA_FALLBACK || 'api'
-    const supabaseAdmin = createClient(clientEnv.NEXT_PUBLIC_SUPABASE_URL, serverEnv.SUPABASE_SERVICE_ROLE_KEY, {
-      db: { schema },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
+    const supabaseAdmin = createSupabaseAdminClient({ schema: 'api' })
 
     // Handle different event types
     switch (event.type) {

@@ -8,14 +8,9 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createHash } from 'crypto'
 import { logProductEvent } from '@/lib/services/analytics'
 import { logger } from '@/lib/observability/logger'
+import { resolveTierFromDb } from '@/lib/billing/resolve-tier'
 
 export const dynamic = 'force-dynamic'
-
-type PlanTier = 'starter' | 'closer'
-
-function isActiveStatus(status: string | null | undefined): boolean {
-  return status === 'active' || status === 'trialing'
-}
 
 export const GET = withApiGuard(async (request: NextRequest, { requestId, userId }) => {
   const bridge = createCookieBridge()
@@ -148,58 +143,16 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       }
     }
 
-    // Stripe subscription is the source of truth for Starter vs paid tier.
-    // IMPORTANT: Use service role reads here (scoped to the authenticated userId) so we are not dependent
-    // on RLS policy correctness for `api.subscriptions` / `api.users`. Verification writes via service role,
-    // so reads must see the same rows.
+    // Tier resolution reads canonical billing sources in `api` using the service role.
+    // This avoids coupling plan resolution correctness to RLS policy correctness.
     const admin = createSupabaseAdminClient({ schema: 'api' })
-    // - No active subscription => Starter
-    // - Active/trialing subscription => paid (Closer)
-    const { data: subRow } = await admin
-      .from('subscriptions')
-      .select('status, stripe_price_id, price_id, trial_end, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const status = (subRow as { status?: string | null } | null)?.status ?? null
-    const hasActiveSubscription = isActiveStatus(status)
-
-    let tier: PlanTier = 'starter'
-    let planId: string | null = null
-
-    if (hasActiveSubscription) {
-      // Product spec: only Starter and Closer are exposed.
-      // Legacy note: historical "team" price IDs are treated as Closer.
-      tier = 'closer'
-      planId = 'pro'
-    }
-    // Fallback: if the user row already indicates Pro (e.g., after verify route/webhook),
-    // treat as Closer when no active subscription row is visible yet.
-    // This keeps UI consistent immediately after checkout redirect.
-    if (!hasActiveSubscription && tier === 'starter') {
-      try {
-        const { data: userRow } = await admin
-          .from('users')
-          .select('subscription_tier')
-          .eq('id', userId)
-          .maybeSingle()
-        const subTier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? null
-        // users.subscription_tier is an internal marker (e.g. "pro") used by verification/webhooks.
-        // Treat any paid marker as Closer.
-        if (subTier === 'pro' || subTier === 'team' || subTier === 'closer') {
-          tier = 'closer'
-          planId = 'pro'
-        }
-      } catch {
-        // fail-open: keep starter
-      }
-    }
+    const tierResolution = await resolveTierFromDb(admin, userId)
+    const tier = tierResolution.tier
+    const planId = tierResolution.planId
 
     // Trial display is best-effort and MUST NOT promote a user into paid tiers.
-    const stripeTrialEnd = (subRow as { trial_end?: string | null } | null)?.trial_end ?? null
-    const isStripeTrialing = status === 'trialing' && Boolean(stripeTrialEnd)
+    const stripeTrialEnd = tierResolution.stripeTrialEnd
+    const isStripeTrialing = tierResolution.subscriptionStatus === 'trialing' && Boolean(stripeTrialEnd)
     let trial: { active: boolean; endsAt: string | null } = isStripeTrialing
       ? { active: true, endsAt: stripeTrialEnd }
       : { active: false, endsAt: null }
