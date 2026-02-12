@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
-import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 import { formatDistanceToNow } from 'date-fns'
 import { InstrumentLogo } from '@/components/InstrumentLogo'
+import type { InstrumentDefinition } from '@/lib/market/instruments'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -17,19 +17,56 @@ function toQuoteMap(quotes: InstrumentQuote[]): QuoteMap {
   return map
 }
 
-export function MarketTickerBar() {
-  const { tickerInstruments: instruments, error: watchlistError } = useMarketWatchlist()
+export type MarketTickerInstrument = InstrumentDefinition
+
+export interface MarketTickerBarProps {
+  instruments: MarketTickerInstrument[]
+  starredInstruments?: MarketTickerInstrument[]
+}
+
+export function computeTickerDuration(symbolCount: number): number {
+  const count = Math.max(0, Math.floor(symbolCount))
+  const baseSeconds = 18
+  let durationSec = baseSeconds + (count - 6) * 1.5
+  durationSec = Math.max(12, Math.min(45, durationSec))
+  // keep stable + readable
+  return Math.round(durationSec)
+}
+
+export function mergeTickerInstruments(args: {
+  instruments: MarketTickerInstrument[]
+  starredInstruments?: MarketTickerInstrument[]
+}): MarketTickerInstrument[] {
+  const map = new Map<string, MarketTickerInstrument>()
+  for (const item of args.instruments ?? []) {
+    if (!item?.symbol) continue
+    map.set(item.symbol, item)
+  }
+  for (const item of args.starredInstruments ?? []) {
+    if (!item?.symbol) continue
+    // last one wins (starred overrides core)
+    map.set(item.symbol, item)
+  }
+  return Array.from(map.values())
+}
+
+export function MarketTickerBar({ instruments, starredInstruments }: MarketTickerBarProps) {
+  const mergedInstruments = useMemo(
+    () => mergeTickerInstruments({ instruments, starredInstruments }),
+    [instruments, starredInstruments]
+  )
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [error, setError] = useState<string | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
 
   useEffect(() => {
+    if (mergedInstruments.length === 0) return
     let cancelled = false
 
     const refresh = async () => {
       try {
-        const next = await fetchInstrumentQuotes(instruments)
+        const next = await fetchInstrumentQuotes(mergedInstruments)
         if (cancelled) return
         setQuotes(toQuoteMap(next))
         setLastUpdatedAt(next.map((q) => q.updatedAt).filter((v): v is string => Boolean(v)).sort().at(-1) ?? null)
@@ -46,71 +83,75 @@ export function MarketTickerBar() {
       cancelled = true
       clearInterval(interval)
     }
-  }, [instruments])
+  }, [mergedInstruments])
 
-  const doubled = useMemo(() => [...instruments, ...instruments], [instruments])
-  const durationSec = Math.max(30, Math.round((instruments.length || 1) * 3.25))
+  const doubled = useMemo(() => [...mergedInstruments, ...mergedInstruments], [mergedInstruments])
+  const durationSec = computeTickerDuration(mergedInstruments.length)
+
+  if (mergedInstruments.length === 0) return null
 
   return (
-    <div className="border-b border-cyan-500/20 bg-background/90 backdrop-blur-sm overflow-hidden" data-testid="market-ticker">
-      <div className="relative group">
-        {error || watchlistError ? (
-          <div className="px-6 py-2 text-xs text-muted-foreground">{error || watchlistError}</div>
-        ) : instruments.length === 0 ? (
-          <div className="px-6 py-2 text-xs text-muted-foreground">No instruments</div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <div
-              className="flex w-max animate-scroll group-hover:[animation-play-state:paused]"
-              style={{ animationDuration: `${durationSec}s` }}
-              aria-label="Market ticker"
-            >
-            {doubled.map((inst, idx) => {
-              const q = quotes[inst.symbol]
-              const changePct = q?.changePct ?? null
-              const price = q?.price ?? null
+    <div
+      className="group relative w-full overflow-hidden border-b border-cyan-500/20 bg-background/90 backdrop-blur-sm"
+      data-testid="market-ticker"
+    >
+      {error ? <div className="px-6 py-2 text-xs text-muted-foreground">{error}</div> : null}
+      <div className="flex items-center justify-between">
+        <div
+          className="flex w-max animate-scroll motion-reduce:animate-none group-hover:[animation-play-state:paused]"
+          style={{
+            animationDuration: `${durationSec}s`,
+            // Tailwind animation uses this CSS var.
+            ['--ticker-duration' as any]: `${durationSec}s`,
+          }}
+          aria-label="Market ticker"
+        >
+          {doubled.map((inst, idx) => {
+            const q = quotes[inst.symbol]
+            const changePct = q?.changePct ?? null
+            const price = q?.price ?? null
 
-              return (
-                <div
-                  key={idx < instruments.length ? inst.symbol : `${inst.symbol}:dup`}
-                  className="flex items-center gap-3 px-5 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap border-r border-cyan-500/10"
-                >
-                  <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
-                  <span className="font-bold bloomberg-font text-cyan-400 text-sm sm:text-base md:text-[15px]">
-                    {inst.symbol}
+            return (
+              <div
+                key={idx < mergedInstruments.length ? inst.symbol : `${inst.symbol}:dup`}
+                className="flex items-center gap-3 px-5 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap border-r border-cyan-500/10"
+              >
+                <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
+                <span className="font-bold bloomberg-font text-cyan-400 text-sm sm:text-base md:text-[15px]">
+                  {inst.symbol}
+                </span>
+                <span className="text-xs sm:text-sm text-muted-foreground tabular-nums">
+                  {price == null ? '—' : `$${price.toFixed(2)}`}
+                </span>
+                <div className="flex items-center gap-1">
+                  {changePct == null ? null : changePct >= 0 ? (
+                    <TrendingUp className="h-3 w-3 text-green-400" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-400" />
+                  )}
+                  <span
+                    className={`text-xs sm:text-sm font-medium tabular-nums ${
+                      changePct == null
+                        ? 'text-muted-foreground'
+                        : changePct > 0
+                          ? 'text-green-400'
+                          : changePct < 0
+                            ? 'text-red-400'
+                            : 'text-muted-foreground'
+                    }`}
+                  >
+                    {changePct == null ? '—' : `${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%`}
                   </span>
-                  <span className="text-xs sm:text-sm text-muted-foreground">{price == null ? '—' : `$${price.toFixed(2)}`}</span>
-                  <div className="flex items-center gap-1">
-                    {changePct == null ? null : changePct >= 0 ? (
-                      <TrendingUp className="h-3 w-3 text-green-400" />
-                    ) : (
-                      <TrendingDown className="h-3 w-3 text-red-400" />
-                    )}
-                    <span
-                      className={`text-xs sm:text-sm font-medium ${
-                        changePct == null
-                          ? 'text-muted-foreground'
-                          : changePct > 0
-                            ? 'text-green-400'
-                            : changePct < 0
-                              ? 'text-red-400'
-                              : 'text-muted-foreground'
-                      }`}
-                    >
-                      {changePct == null ? '—' : `${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%`}
-                    </span>
-                  </div>
                 </div>
-              )
-            })}
-            </div>
-            {lastUpdatedAt ? (
-              <div className="hidden sm:block px-4 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
-                Updated {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}
               </div>
-            ) : null}
+            )
+          })}
+        </div>
+        {lastUpdatedAt ? (
+          <div className="hidden sm:block px-4 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
+            Updated {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

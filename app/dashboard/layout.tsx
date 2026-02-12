@@ -4,6 +4,7 @@ import { Component, ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MarketTickerBar } from '@/components/MarketTickerBar'
+import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 
 interface ErrorBoundaryState {
   hasError: boolean
@@ -71,9 +72,11 @@ export default function DashboardLayout({
 }: {
   children: ReactNode
 }) {
+  const { defaultTicker, yourWatchlist } = useMarketWatchlist()
+
   return (
     <DashboardErrorBoundary>
-      <MarketTickerBar />
+      <MarketTickerBar instruments={defaultTicker} starredInstruments={yourWatchlist} />
       {children}
     </DashboardErrorBoundary>
   )
