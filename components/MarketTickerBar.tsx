@@ -96,56 +96,58 @@ export function MarketTickerBar({ instruments, starredInstruments }: MarketTicke
       data-testid="market-ticker"
     >
       {error ? <div className="px-6 py-2 text-xs text-muted-foreground">{error}</div> : null}
-      <div className="flex items-center justify-between">
-        <div
-          className="flex w-max animate-scroll motion-reduce:animate-none group-hover:[animation-play-state:paused]"
-          style={{
-            animationDuration: `${durationSec}s`,
-            // Tailwind animation uses this CSS var.
-            ['--ticker-duration' as any]: `${durationSec}s`,
-          }}
-          aria-label="Market ticker"
-        >
-          {doubled.map((inst, idx) => {
-            const q = quotes[inst.symbol]
-            const changePct = q?.changePct ?? null
-            const price = q?.price ?? null
+      <div className="flex items-center gap-3">
+        <div className="flex-1 overflow-hidden">
+          <div
+            className="flex w-max shrink-0 animate-scroll motion-reduce:animate-none group-hover:[animation-play-state:paused] will-change-transform"
+            style={{
+              animationDuration: `${durationSec}s`,
+              // Tailwind animation uses this CSS var.
+              ['--ticker-duration' as any]: `${durationSec}s`,
+            }}
+            aria-label="Market ticker"
+          >
+            {doubled.map((inst, idx) => {
+              const q = quotes[inst.symbol]
+              const changePct = q?.changePct ?? null
+              const price = q?.price ?? null
 
-            return (
-              <div
-                key={idx < mergedInstruments.length ? inst.symbol : `${inst.symbol}:dup`}
-                className="flex items-center gap-3 px-5 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap border-r border-cyan-500/10"
-              >
-                <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
-                <span className="font-bold bloomberg-font text-cyan-400 text-sm sm:text-base md:text-[15px]">
-                  {inst.symbol}
-                </span>
-                <span className="text-xs sm:text-sm text-muted-foreground tabular-nums">
-                  {price == null ? '—' : `$${price.toFixed(2)}`}
-                </span>
-                <div className="flex items-center gap-1">
-                  {changePct == null ? null : changePct >= 0 ? (
-                    <TrendingUp className="h-3 w-3 text-green-400" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 text-red-400" />
-                  )}
-                  <span
-                    className={`text-xs sm:text-sm font-medium tabular-nums ${
-                      changePct == null
-                        ? 'text-muted-foreground'
-                        : changePct > 0
-                          ? 'text-green-400'
-                          : changePct < 0
-                            ? 'text-red-400'
-                            : 'text-muted-foreground'
-                    }`}
-                  >
-                    {changePct == null ? '—' : `${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%`}
+              return (
+                <div
+                  key={idx < mergedInstruments.length ? inst.symbol : `${inst.symbol}:dup`}
+                  className="flex items-center gap-3 px-5 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap border-r border-cyan-500/10"
+                >
+                  <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
+                  <span className="font-bold bloomberg-font text-cyan-400 text-sm sm:text-base md:text-[15px]">
+                    {inst.symbol}
                   </span>
+                  <span className="text-xs sm:text-sm text-muted-foreground tabular-nums">
+                    {price == null ? '—' : `$${price.toFixed(2)}`}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {changePct == null ? null : changePct >= 0 ? (
+                      <TrendingUp className="h-3 w-3 text-green-400" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3 text-red-400" />
+                    )}
+                    <span
+                      className={`text-xs sm:text-sm font-medium tabular-nums ${
+                        changePct == null
+                          ? 'text-muted-foreground'
+                          : changePct > 0
+                            ? 'text-green-400'
+                            : changePct < 0
+                              ? 'text-red-400'
+                              : 'text-muted-foreground'
+                      }`}
+                    >
+                      {changePct == null ? '—' : `${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%`}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
         {lastUpdatedAt ? (
           <div className="hidden sm:block px-4 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
