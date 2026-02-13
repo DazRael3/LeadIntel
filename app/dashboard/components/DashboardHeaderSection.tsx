@@ -1,17 +1,17 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CreditCard, DollarSign, Shield } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { SignOutButton } from '@/components/SignOutButton'
-import { useStripePortal } from '../hooks/useStripePortal'
 import { usePlan } from '@/components/PlanProvider'
 import { getDisplayPlanMeta } from '@/lib/billing/plan'
 import { createClient } from '@/lib/supabase/client'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { useStripePortal } from '../hooks/useStripePortal'
 
 interface DashboardHeaderSectionProps {
   isPro: boolean
@@ -21,6 +21,7 @@ interface DashboardHeaderSectionProps {
 export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHeaderSectionProps) {
   const router = useRouter()
   const { openPortal } = useStripePortal()
+  const [isPending, startTransition] = useTransition()
   const { tier } = usePlan()
   const planMeta = getDisplayPlanMeta({ tier })
   const isStarter = planMeta.tier === 'starter'
@@ -46,6 +47,16 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
       cancelled = true
     }
   }, [supabase])
+
+  const handleManageBilling = () => {
+    startTransition(async () => {
+      try {
+        await openPortal()
+      } catch (err) {
+        console.error('Error creating billing portal session', err)
+      }
+    })
+  }
 
   return (
     <header className="border-b border-cyan-500/20 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
@@ -101,7 +112,8 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 {(isCloser || isPro) ? (
                   <Button
                     variant="outline"
-                    onClick={openPortal}
+                    onClick={handleManageBilling}
+                    disabled={isPending}
                     className="neon-border hover:glow-effect"
                   >
                     <Shield className="h-4 w-4 mr-2" />

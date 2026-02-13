@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('../hooks/useStripePortal', () => ({
-  useStripePortal: () => ({ openPortal: vi.fn() }),
+  useStripePortal: () => ({ openPortal: vi.fn(async () => {}) }),
 }))
 
 const planMock: { tier: 'starter' | 'closer' } = { tier: 'starter' }

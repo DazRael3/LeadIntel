@@ -193,6 +193,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/billing/portal': {
+    tier: 'B',
+    maxBytes: 32768, // 32KB
+    rateLimit: {
+      authPerMin: 10,
+      ipPerMin: 5,
+    },
+    originRequired: true,
+    authRequired: false, // route returns custom 401 shape; handler performs auth check
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/plan': {
     tier: 'B',
     maxBytes: 32768, // 32KB
