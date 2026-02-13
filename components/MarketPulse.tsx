@@ -9,6 +9,7 @@ import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
 import { formatDistanceToNow } from 'date-fns'
 import { InstrumentLogo } from '@/components/InstrumentLogo'
+import { getQuotePriceDecimals } from '@/lib/market/quotes'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -89,7 +90,8 @@ export function MarketPulse() {
               {yourWatchlist.map((inst) => {
                 const q = quotes[inst.symbol]
                 const change = q?.changePct ?? null
-                const price = q?.price ?? null
+                const price = q?.lastPrice ?? q?.price ?? null
+                const kind = q?.kind ?? inst.kind
                 return (
                   <div
                     key={`starred:${inst.kind}:${inst.symbol}`}
@@ -103,7 +105,7 @@ export function MarketPulse() {
                         <span className="truncate text-xs text-muted-foreground">{inst.name}</span>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {price == null ? '—' : `$${price.toFixed(2)}`} •{' '}
+                        {price == null ? '—' : `$${price.toFixed(getQuotePriceDecimals(kind, price))}`} •{' '}
                         <span
                           className={
                             change == null
@@ -142,7 +144,8 @@ export function MarketPulse() {
             {allInstruments.map((inst) => {
               const q = quotes[inst.symbol]
               const change = q?.changePct ?? null
-              const price = q?.price ?? null
+              const price = q?.lastPrice ?? q?.price ?? null
+              const kind = q?.kind ?? inst.kind
               const key = `${inst.kind}:${inst.symbol}`
               const starred = starredKeys.has(key)
               return (
@@ -163,7 +166,7 @@ export function MarketPulse() {
                       ) : null}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {price == null ? '—' : `$${price.toFixed(2)}`} •{' '}
+                      {price == null ? '—' : `$${price.toFixed(getQuotePriceDecimals(kind, price))}`} •{' '}
                       <span
                         className={
                           change == null

@@ -7,6 +7,7 @@ import type { InstrumentQuote } from '@/lib/market/prices'
 import { generateMockInstrumentQuotes } from '@/lib/market/prices'
 import { getServerEnv } from '@/lib/env'
 import { fetchQuotesForSymbols } from '@/lib/market/liveProvider'
+import { toMarketQuote } from '@/lib/market/quotes'
 import { logger } from '@/lib/observability/logger'
 
 const InstrumentKindSchema = z.enum(['stock', 'crypto'])
@@ -194,6 +195,9 @@ export const POST = withApiGuard(
       const env = getServerEnv()
       const provider = env.MARKET_DATA_PROVIDER
       const apiKey = env.MARKET_DATA_API_KEY
+      const debugRequested = request.nextUrl.searchParams.get('debug') === 'true'
+      const debugEnabled = debugRequested && env.NODE_ENV !== 'production'
+      const debugRawBySymbol: Record<string, unknown> = {}
       if (provider && provider !== 'none' && !apiKey) {
         if (shouldLogOnce(hasLoggedProviderUnconfigured)) {
           logger.warn({
@@ -212,8 +216,14 @@ export const POST = withApiGuard(
           provider,
           apiKey,
           symbols: instruments.map((i) => i.symbol),
+          debug: debugEnabled,
         })
         const map = new Map(live.map((q) => [q.symbol, q]))
+        if (debugEnabled) {
+          for (const l of live) {
+            if (l.raw !== undefined) debugRawBySymbol[l.symbol] = l.raw
+          }
+        }
         quotes = mockQuotes.map((q) => {
           const l = map.get(q.symbol)
           // Guard: never replace fallback/mock values with invalid 0/negative prices.
@@ -288,8 +298,47 @@ export const POST = withApiGuard(
         quotes = quotes.map((q, idx) => ({ ...q, logoUrl: logos[idx] }))
       }
 
-      cache.set(cacheKey, { at: now, quotes })
-      return ok({ quotes }, undefined, bridge, requestId)
+      // Normalize final quote model so UI gets both canonical fields and backwards-compatible aliases.
+      const normalized = quotes.map((q) =>
+        toMarketQuote({
+          symbol: q.symbol,
+          kind: q.kind,
+          price: q.price,
+          changePct: q.changePct,
+          updatedAt: q.updatedAt,
+          logoUrl: q.logoUrl ?? null,
+        })
+      )
+
+      cache.set(cacheKey, { at: now, quotes: normalized })
+      if (debugEnabled) {
+        const mappedBySymbol = Object.fromEntries(
+          normalized.map((q) => [
+            q.symbol,
+            {
+              symbol: q.symbol,
+              kind: q.kind,
+              lastPrice: q.lastPrice,
+              changePercent: q.changePercent,
+              updatedAt: q.updatedAt,
+            },
+          ])
+        )
+        return ok(
+          {
+            quotes: normalized,
+            debug: {
+              provider,
+              rawBySymbol: debugRawBySymbol,
+              mappedBySymbol,
+            },
+          },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
+      return ok({ quotes: normalized }, undefined, bridge, requestId)
     } catch (err) {
       return asHttpError(err, '/api/market/quotes', undefined, bridge, requestId)
     }

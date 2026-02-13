@@ -30,7 +30,17 @@ describe('MarketWatchlistTab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     fetchInstrumentQuotes.mockResolvedValue([
-      { symbol: 'AAPL', kind: 'stock', price: 123.45, changePct: -0.5, updatedAt: new Date().toISOString() },
+      {
+        symbol: 'AAPL',
+        kind: 'stock',
+        price: 123.45,
+        changePct: -0.5,
+        lastPrice: 123.45,
+        changePercent: -0.5,
+        change: -0.62,
+        currency: 'USD',
+        updatedAt: new Date().toISOString(),
+      },
     ])
   })
 

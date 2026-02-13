@@ -1,13 +1,14 @@
 import type { InstrumentDefinition, InstrumentKind } from './instruments'
+import type { MarketQuote } from '@/lib/market/quotes'
+import { toMarketQuote } from '@/lib/market/quotes'
 
-export interface InstrumentQuote {
-  symbol: string
-  price: number | null
-  changePct: number | null
-  kind: InstrumentKind
-  updatedAt: string | null
-  logoUrl?: string | null
-}
+/**
+ * Backwards-compatible alias for the canonical market quote model.
+ *
+ * Historical UI code expects `price` + `changePct`; newer code should prefer
+ * `lastPrice` + `changePercent`.
+ */
+export type InstrumentQuote = MarketQuote
 
 function stableHash(input: string): number {
   let h = 0
@@ -56,13 +57,15 @@ export function generateMockInstrumentQuotes(instruments: InstrumentDefinition[]
 
     const price = priceBase * (1 + pct / 100)
 
-    return {
+    const priceOut = Number.isFinite(price) ? Number(price.toFixed(2)) : null
+    const pctOut = Number.isFinite(pct) ? Number(pct.toFixed(2)) : null
+    return toMarketQuote({
       symbol: inst.symbol,
       kind: inst.kind,
-      price: Number.isFinite(price) ? Number(price.toFixed(2)) : null,
-      changePct: Number.isFinite(pct) ? Number(pct.toFixed(2)) : null,
+      price: priceOut,
+      changePct: pctOut,
       updatedAt: now.toISOString(),
-    } satisfies InstrumentQuote
+    })
   })
 
   return quotes

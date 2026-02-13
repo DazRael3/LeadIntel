@@ -14,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { track } from '@/lib/analytics'
 import { InstrumentLogo } from '@/components/InstrumentLogo'
 import { ProGate } from '@/components/ProGate'
+import { getQuotePriceDecimals } from '@/lib/market/quotes'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -197,7 +198,8 @@ export function MarketSidebar() {
               {yourWatchlist.map((inst) => {
                 const q = quotes[inst.symbol]
                 const change = q?.changePct ?? null
-                const price = q?.price ?? null
+                const price = q?.lastPrice ?? q?.price ?? null
+                const kind = q?.kind ?? inst.kind
                 const key = `${inst.kind}:${inst.symbol}`
                 const starred = starredKeys.has(key)
                 const name = inst.name
@@ -215,7 +217,9 @@ export function MarketSidebar() {
                         <span className="truncate text-xs text-muted-foreground">{name}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{price == null ? '—' : `$${price.toFixed(2)}`}</span>
+                        <span>
+                          {price == null ? '—' : `$${price.toFixed(getQuotePriceDecimals(kind, price))}`}
+                        </span>
                         <span className="opacity-60">•</span>
                         <span
                           className={
@@ -263,7 +267,8 @@ export function MarketSidebar() {
             {allInstruments.map((inst) => {
               const q = quotes[inst.symbol]
               const change = q?.changePct ?? null
-              const price = q?.price ?? null
+              const price = q?.lastPrice ?? q?.price ?? null
+              const kind = q?.kind ?? inst.kind
               const key = `${inst.kind}:${inst.symbol}`
               const starred = starredKeys.has(key)
               const def = findDefaultInstrument(inst.symbol, inst.kind)
@@ -282,7 +287,9 @@ export function MarketSidebar() {
                       <span className="truncate text-xs text-muted-foreground">{name}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{price == null ? '—' : `$${price.toFixed(2)}`}</span>
+                      <span>
+                        {price == null ? '—' : `$${price.toFixed(getQuotePriceDecimals(kind, price))}`}
+                      </span>
                       <span className="opacity-60">•</span>
                       <span
                         className={

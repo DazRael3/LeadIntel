@@ -29,7 +29,17 @@ describe('MarketPulse', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     fetchInstrumentQuotes.mockResolvedValue([
-      { symbol: 'AAPL', kind: 'stock', price: 123.45, changePct: 1.23, updatedAt: new Date().toISOString() },
+      {
+        symbol: 'AAPL',
+        kind: 'stock',
+        price: 123.45,
+        changePct: 1.23,
+        lastPrice: 123.45,
+        changePercent: 1.23,
+        change: 1.5,
+        currency: 'USD',
+        updatedAt: new Date().toISOString(),
+      },
     ])
   })
 

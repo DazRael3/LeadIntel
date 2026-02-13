@@ -6,6 +6,7 @@ import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices
 import { formatDistanceToNow } from 'date-fns'
 import { InstrumentLogo } from '@/components/InstrumentLogo'
 import type { InstrumentDefinition } from '@/lib/market/instruments'
+import { getQuotePriceDecimals } from '@/lib/market/quotes'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -110,7 +111,8 @@ export function MarketTickerBar({ instruments, starredInstruments }: MarketTicke
             {doubled.map((inst, idx) => {
               const q = quotes[inst.symbol]
               const changePct = q?.changePct ?? null
-              const price = q?.price ?? null
+              const price = q?.lastPrice ?? q?.price ?? null
+              const kind = q?.kind ?? inst.kind
 
               return (
                 <div
@@ -122,7 +124,7 @@ export function MarketTickerBar({ instruments, starredInstruments }: MarketTicke
                     {inst.symbol}
                   </span>
                   <span className="text-xs sm:text-sm text-muted-foreground tabular-nums">
-                    {price == null ? '—' : `$${price.toFixed(2)}`}
+                    {price == null ? '—' : `$${price.toFixed(getQuotePriceDecimals(kind, price))}`}
                   </span>
                   <div className="flex items-center gap-1">
                     {changePct == null ? null : changePct >= 0 ? (

@@ -64,20 +64,32 @@ describe('/api/market/quotes', () => {
       provider: 'finnhub',
       apiKey: 'md_test_key',
       symbols: ['AAPL', 'BTC-USD'],
+      debug: false,
     })
 
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(Array.isArray(json.data?.quotes)).toBe(true)
 
-    const quotes = json.data.quotes as Array<{ symbol: string; price: number | null; changePct: number | null; kind: string }>
+    const quotes = json.data.quotes as Array<{
+      symbol: string
+      kind: string
+      price: number | null
+      changePct: number | null
+      lastPrice?: number | null
+      changePercent?: number | null
+    }>
     const bySymbol = new Map(quotes.map((q) => [q.symbol, q]))
     expect(bySymbol.get('AAPL')?.kind).toBe('stock')
     expect(bySymbol.get('AAPL')?.price).toBe(189.12)
     expect(bySymbol.get('AAPL')?.changePct).toBe(1.23)
+    expect(bySymbol.get('AAPL')?.lastPrice).toBe(189.12)
+    expect(bySymbol.get('AAPL')?.changePercent).toBe(1.23)
     expect(bySymbol.get('BTC-USD')?.kind).toBe('crypto')
     expect(bySymbol.get('BTC-USD')?.price).toBe(50000)
     expect(bySymbol.get('BTC-USD')?.changePct).toBe(-0.5)
+    expect(bySymbol.get('BTC-USD')?.lastPrice).toBe(50000)
+    expect(bySymbol.get('BTC-USD')?.changePercent).toBe(-0.5)
   })
 })
 

@@ -5,6 +5,8 @@ export type LiveQuote = {
   price: number | null
   changePct: number | null
   updatedAt: string | null
+  /** Dev-only raw provider payload (when requested). */
+  raw?: unknown
 }
 
 function clamp(n: number, min: number, max: number): number {
@@ -24,7 +26,7 @@ async function pooledMap<T, R>(items: T[], limit: number, fn: (item: T) => Promi
   return results
 }
 
-async function fetchFinnhubQuote(symbol: string, apiKey: string): Promise<LiveQuote> {
+async function fetchFinnhubQuote(symbol: string, apiKey: string, debug: boolean): Promise<LiveQuote> {
   const url = new URL('https://finnhub.io/api/v1/quote')
   url.searchParams.set('symbol', symbol)
   url.searchParams.set('token', apiKey)
@@ -38,10 +40,10 @@ async function fetchFinnhubQuote(symbol: string, apiKey: string): Promise<LiveQu
   const price = typeof q.c === 'number' && Number.isFinite(q.c) ? q.c : null
   const changePct = typeof q.dp === 'number' && Number.isFinite(q.dp) ? clamp(q.dp, -99, 99) : null
   const updatedAt = typeof q.t === 'number' && Number.isFinite(q.t) ? new Date(q.t * 1000).toISOString() : null
-  return { symbol, price, changePct, updatedAt }
+  return { symbol, price, changePct, updatedAt, ...(debug ? { raw: json } : null) }
 }
 
-async function fetchPolygonPrevClose(symbol: string, apiKey: string): Promise<LiveQuote> {
+async function fetchPolygonPrevClose(symbol: string, apiKey: string, debug: boolean): Promise<LiveQuote> {
   const url = new URL(`https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(symbol)}/prev`)
   url.searchParams.set('adjusted', 'true')
   url.searchParams.set('apiKey', apiKey)
@@ -58,22 +60,25 @@ async function fetchPolygonPrevClose(symbol: string, apiKey: string): Promise<Li
   const open = typeof row?.o === 'number' && Number.isFinite(row.o) ? row.o : null
   const changePct = close != null && open != null && open !== 0 ? clamp(((close - open) / open) * 100, -99, 99) : null
   const updatedAt = typeof row?.t === 'number' && Number.isFinite(row.t) ? new Date(row.t).toISOString() : null
-  return { symbol, price: close, changePct, updatedAt }
+  return { symbol, price: close, changePct, updatedAt, ...(debug ? { raw: json } : null) }
 }
 
 export async function fetchQuotesForSymbols(input: {
   provider: Exclude<MarketDataProvider, 'none'>
   apiKey: string
   symbols: string[]
+  /** Dev-only: include raw provider payload per symbol. */
+  debug?: boolean
 }): Promise<LiveQuote[]> {
   const symbols = input.symbols.map((s) => s.trim().toUpperCase()).filter(Boolean)
   if (symbols.length === 0) return []
 
   const limit = input.provider === 'finnhub' ? 6 : 4
+  const debug = Boolean(input.debug)
   return await pooledMap(symbols, limit, async (symbol) => {
     try {
-      if (input.provider === 'finnhub') return await fetchFinnhubQuote(symbol, input.apiKey)
-      if (input.provider === 'polygon') return await fetchPolygonPrevClose(symbol, input.apiKey)
+      if (input.provider === 'finnhub') return await fetchFinnhubQuote(symbol, input.apiKey, debug)
+      if (input.provider === 'polygon') return await fetchPolygonPrevClose(symbol, input.apiKey, debug)
       return { symbol, price: null, changePct: null, updatedAt: null }
     } catch {
       return { symbol, price: null, changePct: null, updatedAt: null }
