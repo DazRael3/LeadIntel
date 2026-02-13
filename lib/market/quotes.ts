@@ -15,12 +15,16 @@ export type MarketQuote = {
   symbol: string // e.g. "AAPL" or "BTC-USD"
   kind: InstrumentKind // "stock" | "crypto"
   lastPrice: number | null // USD
+  /** Alias for clarity in downstream consumers. */
+  lastPriceUsd?: number | null
   changePercent: number | null // +/- percent, not fraction
   /** Best-effort absolute USD change for display; may be null. */
   change: number | null
   currency: 'USD'
   updatedAt: string | null
   logoUrl?: string | null
+  /** Optional provenance; never includes secrets. */
+  source?: 'provider' | 'coingecko' | 'mock'
 
   // Backwards compatible aliases:
   price: number | null
@@ -39,6 +43,7 @@ export function toMarketQuote(input: {
   changePct: number | null
   updatedAt: string | null
   logoUrl?: string | null
+  source?: MarketQuote['source']
 }): MarketQuote {
   const lastPrice = input.price
   const changePercent = input.changePct
@@ -59,11 +64,13 @@ export function toMarketQuote(input: {
     symbol: input.symbol,
     kind: input.kind,
     lastPrice,
+    lastPriceUsd: lastPrice,
     changePercent,
     change,
     currency: 'USD',
     updatedAt: input.updatedAt,
     logoUrl: input.logoUrl ?? null,
+    source: input.source,
     price: input.price,
     changePct: input.changePct,
   }

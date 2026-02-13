@@ -83,17 +83,18 @@ export async function fetchInstrumentQuotes(instruments: InstrumentDefinition[])
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instruments: instruments.map((i) => ({ symbol: i.symbol, kind: i.kind, name: i.name })) }),
     })
-    if (!res.ok) return generateMockInstrumentQuotes(instruments)
+    // Production safety: never fabricate prices in the client.
+    if (!res.ok) return process.env.NODE_ENV === 'production' ? [] : generateMockInstrumentQuotes(instruments)
     const json = (await res.json()) as unknown
-    if (typeof json !== 'object' || json === null) return generateMockInstrumentQuotes(instruments)
+    if (typeof json !== 'object' || json === null) return process.env.NODE_ENV === 'production' ? [] : generateMockInstrumentQuotes(instruments)
     const maybe = json as { ok?: unknown; data?: unknown }
-    if (maybe.ok !== true) return generateMockInstrumentQuotes(instruments)
+    if (maybe.ok !== true) return process.env.NODE_ENV === 'production' ? [] : generateMockInstrumentQuotes(instruments)
     const data = maybe.data as { quotes?: unknown }
-    if (!data || !Array.isArray(data.quotes)) return generateMockInstrumentQuotes(instruments)
+    if (!data || !Array.isArray(data.quotes)) return process.env.NODE_ENV === 'production' ? [] : generateMockInstrumentQuotes(instruments)
     // Best-effort return; the API already normalizes and falls back per-symbol.
     return data.quotes as InstrumentQuote[]
   } catch {
-    return generateMockInstrumentQuotes(instruments)
+    return process.env.NODE_ENV === 'production' ? [] : generateMockInstrumentQuotes(instruments)
   }
 }
 

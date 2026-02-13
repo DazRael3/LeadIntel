@@ -1,3 +1,10 @@
+/**
+ * Live stock pricing providers (USD):
+ * - `finnhub`: quote endpoint returns USD for US equities by default.
+ * - `polygon`: prev-close aggregates used to compute % change (USD for US equities).
+ *
+ * Crypto USD pricing is handled separately via CoinGecko inside `/api/market/quotes`.
+ */
 export type MarketDataProvider = 'none' | 'finnhub' | 'polygon'
 
 export type LiveQuote = {

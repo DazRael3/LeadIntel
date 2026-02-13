@@ -10,6 +10,12 @@ import { fetchQuotesForSymbols } from '@/lib/market/liveProvider'
 import { toMarketQuote } from '@/lib/market/quotes'
 import { logger } from '@/lib/observability/logger'
 
+/**
+ * Market quote pipeline (USD):
+ * - STOCKS: live via `MARKET_DATA_PROVIDER` (Finnhub or Polygon) using server-only API keys.
+ * - CRYPTO: live via CoinGecko (USD) as a reliable default for BTC/ETH/SOL/BNB/XRP pairs.
+ * - In production we NEVER fabricate prices; missing quotes are omitted from the response.
+ */
 const InstrumentKindSchema = z.enum(['stock', 'crypto'])
 
 const QuotesBodySchema = z.object({
@@ -189,15 +195,33 @@ export const POST = withApiGuard(
       }
 
       const defs = toInstrumentDefs(instruments)
-      const mockQuotes = generateMockInstrumentQuotes(defs, new Date(now))
-      let quotes = mockQuotes
-
       const env = getServerEnv()
       const provider = env.MARKET_DATA_PROVIDER
       const apiKey = env.MARKET_DATA_API_KEY
+
       const debugRequested = request.nextUrl.searchParams.get('debug') === 'true'
       const debugEnabled = debugRequested && env.NODE_ENV !== 'production'
       const debugRawBySymbol: Record<string, unknown> = {}
+
+      // Base quotes:
+      // - In dev/test, keep deterministic mocks so UI is usable without keys.
+      // - In production, start empty (no fabricated prices).
+      const baseQuotes =
+        env.NODE_ENV === 'production'
+          ? defs.map((d) =>
+              toMarketQuote({
+                symbol: d.symbol,
+                kind: d.kind,
+                price: null,
+                changePct: null,
+                updatedAt: new Date(now).toISOString(),
+                source: undefined,
+              })
+            )
+          : generateMockInstrumentQuotes(defs, new Date(now))
+
+      let quotes = baseQuotes
+
       if (provider && provider !== 'none' && !apiKey) {
         if (shouldLogOnce(hasLoggedProviderUnconfigured)) {
           logger.warn({
@@ -211,11 +235,13 @@ export const POST = withApiGuard(
         }
       }
 
-      if (provider && provider !== 'none' && apiKey) {
+      // STOCKS: live provider (Finnhub/Polygon) => USD by default for US equities.
+      const stockSymbols = instruments.filter((i) => i.kind === 'stock').map((i) => i.symbol)
+      if (provider && provider !== 'none' && apiKey && stockSymbols.length > 0) {
         const live = await fetchQuotesForSymbols({
           provider,
           apiKey,
-          symbols: instruments.map((i) => i.symbol),
+          symbols: stockSymbols,
           debug: debugEnabled,
         })
         const map = new Map(live.map((q) => [q.symbol, q]))
@@ -224,7 +250,7 @@ export const POST = withApiGuard(
             if (l.raw !== undefined) debugRawBySymbol[l.symbol] = l.raw
           }
         }
-        quotes = mockQuotes.map((q) => {
+        quotes = quotes.map((q) => {
           const l = map.get(q.symbol)
           // Guard: never replace fallback/mock values with invalid 0/negative prices.
           if (!l || !isValidPrice(l.price)) return q
@@ -233,15 +259,15 @@ export const POST = withApiGuard(
             price: l.price,
             changePct: l.changePct ?? q.changePct,
             updatedAt: l.updatedAt ?? q.updatedAt,
+            source: 'provider' as const,
           }
         })
       }
 
-      // Crypto fallback: if the primary provider isn't configured or doesn't support our crypto symbols,
-      // fill missing/invalid crypto prices using a free public endpoint (CoinGecko) with a static last resort.
+      // CRYPTO: always source USD pricing from CoinGecko for our curated symbols.
       const cryptoSymbols = instruments.filter((i) => i.kind === 'crypto').map((i) => i.symbol)
       if (cryptoSymbols.length > 0) {
-        const missingCrypto = quotes.filter((q) => q.kind === 'crypto' && !isValidPrice(q.price)).map((q) => q.symbol)
+        const missingCrypto = cryptoSymbols
         if (missingCrypto.length > 0) {
           let cg = new Map<string, LiveLikeQuote>()
           try {
@@ -252,8 +278,6 @@ export const POST = withApiGuard(
 
           quotes = quotes.map((q) => {
             if (q.kind !== 'crypto') return q
-            if (isValidPrice(q.price)) return q
-
             const fromCg = cg.get(q.symbol)
             if (fromCg && isValidPrice(fromCg.price)) {
               if (shouldLogOnce(hasLoggedFallback)) {
@@ -265,10 +289,12 @@ export const POST = withApiGuard(
                 price: fromCg.price,
                 changePct: typeof fromCg.changePct === 'number' ? fromCg.changePct : q.changePct,
                 updatedAt: fromCg.updatedAt ?? q.updatedAt,
+                source: 'coingecko' as const,
               }
             }
 
-            const sample = sampleCryptoQuote(q.symbol)
+            // Dev-only last resort sample values (never in production).
+            const sample = env.NODE_ENV !== 'production' ? sampleCryptoQuote(q.symbol) : null
             if (sample && isValidPrice(sample.price)) {
               if (shouldLogOnce(hasLoggedFallback)) {
                 logger.info({ level: 'info', scope: 'market', message: 'quotes.fallback', source: 'sample' })
@@ -279,6 +305,7 @@ export const POST = withApiGuard(
                 price: sample.price,
                 changePct: typeof sample.changePct === 'number' ? sample.changePct : q.changePct,
                 updatedAt: sample.updatedAt ?? q.updatedAt,
+                source: 'mock' as const,
               }
             }
             return q
@@ -298,17 +325,20 @@ export const POST = withApiGuard(
         quotes = quotes.map((q, idx) => ({ ...q, logoUrl: logos[idx] }))
       }
 
-      // Normalize final quote model so UI gets both canonical fields and backwards-compatible aliases.
-      const normalized = quotes.map((q) =>
-        toMarketQuote({
-          symbol: q.symbol,
-          kind: q.kind,
-          price: q.price,
-          changePct: q.changePct,
-          updatedAt: q.updatedAt,
-          logoUrl: q.logoUrl ?? null,
-        })
-      )
+      // Ensure canonical model fields exist and omit incomplete quotes in production.
+      const normalized = quotes
+        .map((q) =>
+          toMarketQuote({
+            symbol: q.symbol,
+            kind: q.kind,
+            price: q.price,
+            changePct: q.changePct,
+            updatedAt: q.updatedAt,
+            logoUrl: q.logoUrl ?? null,
+            source: (q as any).source,
+          })
+        )
+        .filter((q) => (env.NODE_ENV === 'production' ? isValidPrice(q.lastPrice) : true))
 
       cache.set(cacheKey, { at: now, quotes: normalized })
       if (debugEnabled) {

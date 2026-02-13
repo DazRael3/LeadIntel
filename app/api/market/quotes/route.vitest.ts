@@ -41,7 +41,6 @@ describe('/api/market/quotes', () => {
 
     fetchQuotesForSymbols.mockResolvedValue([
       { symbol: 'AAPL', price: 189.12, changePct: 1.23, updatedAt: '2026-01-01T00:00:00.000Z' },
-      { symbol: 'BTC-USD', price: 50000, changePct: -0.5, updatedAt: '2026-01-01T00:00:01.000Z' },
     ])
 
     const { POST } = await import('./route')
@@ -63,7 +62,7 @@ describe('/api/market/quotes', () => {
     expect(fetchQuotesForSymbols).toHaveBeenCalledWith({
       provider: 'finnhub',
       apiKey: 'md_test_key',
-      symbols: ['AAPL', 'BTC-USD'],
+      symbols: ['AAPL'],
       debug: false,
     })
 
@@ -85,9 +84,41 @@ describe('/api/market/quotes', () => {
     expect(bySymbol.get('AAPL')?.changePct).toBe(1.23)
     expect(bySymbol.get('AAPL')?.lastPrice).toBe(189.12)
     expect(bySymbol.get('AAPL')?.changePercent).toBe(1.23)
+  })
+
+  it('fills crypto via CoinGecko USD and keeps route 200 if provider lacks crypto coverage', async () => {
+    vi.resetModules()
+
+    // Provider returns only the stock.
+    fetchQuotesForSymbols.mockResolvedValue([
+      { symbol: 'AAPL', price: 100, changePct: 1, updatedAt: '2026-01-01T00:00:00.000Z' },
+    ])
+
+    // CoinGecko returns BTC USD price + 24h percent change.
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ bitcoin: { usd: 50000, usd_24h_change: -0.5 } }),
+    } as unknown as Response)
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/market/quotes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        instruments: [
+          { symbol: 'aapl', kind: 'stock' },
+          { symbol: 'btc-usd', kind: 'crypto' },
+        ],
+      }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    const quotes = json.data.quotes as Array<{ symbol: string; kind: string; lastPrice?: number | null; changePercent?: number | null }>
+    const bySymbol = new Map(quotes.map((q) => [q.symbol, q]))
     expect(bySymbol.get('BTC-USD')?.kind).toBe('crypto')
-    expect(bySymbol.get('BTC-USD')?.price).toBe(50000)
-    expect(bySymbol.get('BTC-USD')?.changePct).toBe(-0.5)
     expect(bySymbol.get('BTC-USD')?.lastPrice).toBe(50000)
     expect(bySymbol.get('BTC-USD')?.changePercent).toBe(-0.5)
   })
