@@ -113,7 +113,8 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
       <div className="flex items-center gap-3">
         <div className="flex-1 overflow-hidden">
           <div
-            className="flex w-max shrink-0 animate-scroll motion-reduce:animate-none group-hover:[animation-play-state:paused] will-change-transform"
+            className="flex w-max shrink-0 animate-scroll group-hover:[animation-play-state:paused] will-change-transform"
+
             style={{
               animationDuration: `${durationSec}s`,
               // Tailwind animation uses this CSS var.
