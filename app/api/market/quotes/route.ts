@@ -7,7 +7,7 @@ import type { InstrumentQuote } from '@/lib/market/prices'
 import { generateMockInstrumentQuotes } from '@/lib/market/prices'
 import { getServerEnv } from '@/lib/env'
 import { fetchQuotesForSymbols } from '@/lib/market/liveProvider'
-import { toMarketQuote } from '@/lib/market/quotes'
+import { allQuotesAreUsd, toMarketQuote } from '@/lib/market/quotes'
 import { logger } from '@/lib/observability/logger'
 
 /**
@@ -339,6 +339,11 @@ export const POST = withApiGuard(
           })
         )
         .filter((q) => (env.NODE_ENV === 'production' ? isValidPrice(q.lastPrice) : true))
+
+      // Production invariant: all quotes are USD.
+      if (env.NODE_ENV === 'production' && !allQuotesAreUsd(normalized)) {
+        logger.warn({ level: 'warn', scope: 'market', message: 'quotes.non_usd_filtered' })
+      }
 
       cache.set(cacheKey, { at: now, quotes: normalized })
       if (debugEnabled) {

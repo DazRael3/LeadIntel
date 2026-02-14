@@ -56,6 +56,7 @@ describe('MarketTickerBar', () => {
         changePercent: 1.23,
         change: 2.31,
         currency: 'USD',
+        source: 'provider',
         updatedAt: new Date().toISOString(),
       },
     ])
@@ -86,6 +87,7 @@ describe('MarketTickerBar', () => {
         changePercent: 1,
         change: 0.1,
         currency: 'USD',
+        source: 'provider',
         updatedAt: new Date().toISOString(),
       },
       {
@@ -97,6 +99,7 @@ describe('MarketTickerBar', () => {
         changePercent: -0.5,
         change: -0.003,
         currency: 'USD',
+        source: 'coingecko',
         updatedAt: new Date().toISOString(),
       },
     ])
@@ -120,6 +123,9 @@ describe('MarketTickerBar', () => {
     // Stock uses 2 decimals; crypto uses more precision.
     expect(screen.getAllByText('$10.00').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('$0.6000').length).toBeGreaterThanOrEqual(1)
+    // Source badges are rendered when provided.
+    expect(screen.getAllByTestId('quote-source-AAPL').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByTestId('quote-source-XRP-USD').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders nothing when no instruments', () => {

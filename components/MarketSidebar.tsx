@@ -197,8 +197,8 @@ export function MarketSidebar() {
               </div>
               {yourWatchlist.map((inst) => {
                 const q = quotes[inst.symbol]
-                const change = q?.changePct ?? null
-                const price = q?.lastPrice ?? q?.price ?? null
+                const change = q?.changePercent ?? null
+                const price = q?.lastPrice ?? null
                 const kind = q?.kind ?? inst.kind
                 const key = `${inst.kind}:${inst.symbol}`
                 const starred = starredKeys.has(key)
@@ -266,8 +266,8 @@ export function MarketSidebar() {
             </div>
             {allInstruments.map((inst) => {
               const q = quotes[inst.symbol]
-              const change = q?.changePct ?? null
-              const price = q?.lastPrice ?? q?.price ?? null
+              const change = q?.changePercent ?? null
+              const price = q?.lastPrice ?? null
               const kind = q?.kind ?? inst.kind
               const key = `${inst.kind}:${inst.symbol}`
               const starred = starredKeys.has(key)

@@ -89,8 +89,8 @@ export function MarketPulse() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {yourWatchlist.map((inst) => {
                 const q = quotes[inst.symbol]
-                const change = q?.changePct ?? null
-                const price = q?.lastPrice ?? q?.price ?? null
+                const change = q?.changePercent ?? null
+                const price = q?.lastPrice ?? null
                 const kind = q?.kind ?? inst.kind
                 return (
                   <div
@@ -143,8 +143,8 @@ export function MarketPulse() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {allInstruments.map((inst) => {
               const q = quotes[inst.symbol]
-              const change = q?.changePct ?? null
-              const price = q?.lastPrice ?? q?.price ?? null
+              const change = q?.changePercent ?? null
+              const price = q?.lastPrice ?? null
               const kind = q?.kind ?? inst.kind
               const key = `${inst.kind}:${inst.symbol}`
               const starred = starredKeys.has(key)

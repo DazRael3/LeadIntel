@@ -84,3 +84,11 @@ export function getQuotePriceDecimals(kind: InstrumentKind, lastPrice: number): 
   return 4
 }
 
+/**
+ * Defensive validator: ensure all quotes are USD-denominated.
+ * In production, this should always be true.
+ */
+export function allQuotesAreUsd(quotes: Array<Pick<MarketQuote, 'currency'>>): boolean {
+  return quotes.every((q) => q.currency === 'USD')
+}
+

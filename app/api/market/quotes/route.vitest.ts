@@ -10,6 +10,20 @@ vi.mock('@/lib/supabase/route', () => ({
   })),
 }))
 
+// Avoid Upstash rate limit dependency when NODE_ENV is forced to production in tests.
+vi.mock('@/lib/api/ratelimit-policy', async () => {
+  const actual = await vi.importActual<any>('@/lib/api/ratelimit-policy')
+  return {
+    ...actual,
+    checkPolicyRateLimit: vi.fn(async () => ({
+      success: true,
+      limit: 100,
+      remaining: 99,
+      reset: Math.floor(Date.now() / 1000) + 60,
+    })),
+  }
+})
+
 const fetchQuotesForSymbols = vi.fn()
 vi.mock('@/lib/market/liveProvider', () => ({
   fetchQuotesForSymbols: (input: unknown) => fetchQuotesForSymbols(input),
@@ -18,6 +32,7 @@ vi.mock('@/lib/market/liveProvider', () => ({
 describe('/api/market/quotes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
 
     // Required env for env.ts validation (keep consistent with other route tests).
     process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -121,6 +136,39 @@ describe('/api/market/quotes', () => {
     expect(bySymbol.get('BTC-USD')?.kind).toBe('crypto')
     expect(bySymbol.get('BTC-USD')?.lastPrice).toBe(50000)
     expect(bySymbol.get('BTC-USD')?.changePercent).toBe(-0.5)
+  })
+
+  it('production mode returns only USD quotes', async () => {
+    vi.resetModules()
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('MARKET_DATA_PROVIDER', 'finnhub')
+    vi.stubEnv('MARKET_DATA_API_KEY', 'md_test_key')
+
+    fetchQuotesForSymbols.mockResolvedValue([{ symbol: 'AAPL', price: 100, changePct: 1, updatedAt: '2026-01-01T00:00:00.000Z' }])
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ bitcoin: { usd: 50000, usd_24h_change: -0.5 } }),
+    } as unknown as Response)
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/market/quotes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        instruments: [
+          { symbol: 'aapl', kind: 'stock' },
+          { symbol: 'btc-usd', kind: 'crypto' },
+        ],
+      }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    const quotes = json.data.quotes as Array<{ currency?: string }>
+    expect(quotes.length).toBeGreaterThan(0)
+    expect(quotes.every((q) => q.currency === 'USD')).toBe(true)
   })
 })
 

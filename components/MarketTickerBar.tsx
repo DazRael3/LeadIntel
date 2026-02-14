@@ -110,9 +110,10 @@ export function MarketTickerBar({ instruments, starredInstruments }: MarketTicke
           >
             {doubled.map((inst, idx) => {
               const q = quotes[inst.symbol]
-              const changePct = q?.changePct ?? null
-              const price = q?.lastPrice ?? q?.price ?? null
+              const changePercent = q?.changePercent ?? null
+              const price = q?.lastPrice ?? null
               const kind = q?.kind ?? inst.kind
+              const source = q?.source ?? null
 
               return (
                 <div
@@ -123,27 +124,39 @@ export function MarketTickerBar({ instruments, starredInstruments }: MarketTicke
                   <span className="font-bold bloomberg-font text-cyan-400 text-sm sm:text-base md:text-[15px]">
                     {inst.symbol}
                   </span>
+                  {source === 'provider' || source === 'coingecko' ? (
+                    <span
+                      className="rounded border border-cyan-500/20 bg-cyan-500/5 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                      title={source === 'provider' ? 'Source: live market data provider' : 'Source: CoinGecko (USD)'}
+                      aria-label={source === 'provider' ? 'Source provider' : 'Source CoinGecko'}
+                      data-testid={`quote-source-${inst.symbol}`}
+                    >
+                      {source === 'provider' ? 'LIVE' : 'CG'}
+                    </span>
+                  ) : null}
                   <span className="text-xs sm:text-sm text-muted-foreground tabular-nums">
                     {price == null ? '—' : `$${price.toFixed(getQuotePriceDecimals(kind, price))}`}
                   </span>
                   <div className="flex items-center gap-1">
-                    {changePct == null ? null : changePct >= 0 ? (
+                    {changePercent == null ? null : changePercent >= 0 ? (
                       <TrendingUp className="h-3 w-3 text-green-400" />
                     ) : (
                       <TrendingDown className="h-3 w-3 text-red-400" />
                     )}
                     <span
                       className={`text-xs sm:text-sm font-medium tabular-nums ${
-                        changePct == null
+                        changePercent == null
                           ? 'text-muted-foreground'
-                          : changePct > 0
+                          : changePercent > 0
                             ? 'text-green-400'
-                            : changePct < 0
+                            : changePercent < 0
                               ? 'text-red-400'
                               : 'text-muted-foreground'
                       }`}
                     >
-                      {changePct == null ? '—' : `${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%`}
+                      {changePercent == null
+                        ? '—'
+                        : `${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%`}
                     </span>
                   </div>
                 </div>
