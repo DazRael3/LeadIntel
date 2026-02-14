@@ -23,6 +23,7 @@ export type MarketTickerInstrument = InstrumentDefinition
 export interface MarketTickerBarProps {
   instruments: MarketTickerInstrument[]
   starredInstruments?: MarketTickerInstrument[]
+  dataSourceLabel?: string | null
 }
 
 export function computeTickerDuration(symbolCount: number): number {
@@ -51,7 +52,7 @@ export function mergeTickerInstruments(args: {
   return Array.from(map.values())
 }
 
-export function MarketTickerBar({ instruments, starredInstruments }: MarketTickerBarProps) {
+export function MarketTickerBar({ instruments, starredInstruments, dataSourceLabel = null }: MarketTickerBarProps) {
   const mergedInstruments = useMemo(
     () => mergeTickerInstruments({ instruments, starredInstruments }),
     [instruments, starredInstruments]
@@ -97,6 +98,18 @@ export function MarketTickerBar({ instruments, starredInstruments }: MarketTicke
       data-testid="market-ticker"
     >
       {error ? <div className="px-6 py-2 text-xs text-muted-foreground">{error}</div> : null}
+      {dataSourceLabel ? (
+        <div
+          className="pointer-events-auto absolute inset-y-0 right-3 hidden items-center gap-1 text-[10px] text-slate-500 md:flex"
+          title={`Market data source: CoinGecko for crypto, ${dataSourceLabel} for stocks (USD).`}
+          aria-label={`Market data source: CoinGecko for crypto, ${dataSourceLabel} for stocks, all prices in USD.`}
+        >
+          <span className="uppercase tracking-wide text-slate-600">Data by</span>
+          <span className="font-medium text-slate-300">CoinGecko</span>
+          <span className="text-slate-600">/</span>
+          <span className="font-medium text-slate-300">{dataSourceLabel}</span>
+        </div>
+      ) : null}
       <div className="flex items-center gap-3">
         <div className="flex-1 overflow-hidden">
           <div

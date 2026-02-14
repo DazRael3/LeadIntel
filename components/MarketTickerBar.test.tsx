@@ -128,6 +128,42 @@ describe('MarketTickerBar', () => {
     expect(screen.getAllByTestId('quote-source-XRP-USD').length).toBeGreaterThanOrEqual(1)
   })
 
+  it('renders data source label when provided', async () => {
+    fetchInstrumentQuotes.mockResolvedValueOnce([
+      {
+        symbol: 'AAPL',
+        kind: 'stock',
+        price: 123.45,
+        changePct: 1.23,
+        lastPrice: 123.45,
+        changePercent: 1.23,
+        change: 1.5,
+        currency: 'USD',
+        source: 'provider',
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+
+    render(
+      <MarketTickerBar
+        instruments={[{ symbol: 'AAPL', kind: 'stock', name: 'Apple', order: 1, defaultVisible: true }] as any}
+        starredInstruments={[]}
+        dataSourceLabel="Finnhub"
+      />
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(
+      screen.getByLabelText(/market data source: coingecko for crypto, finnhub for stocks, all prices in usd/i)
+    ).toBeTruthy()
+    expect(screen.getByText(/data by/i)).toBeTruthy()
+    expect(screen.getByText(/CoinGecko/i)).toBeTruthy()
+    expect(screen.getByText(/Finnhub/i)).toBeTruthy()
+  })
+
   it('renders nothing when no instruments', () => {
     const { container } = render(<MarketTickerBar instruments={[]} starredInstruments={[]} />)
     expect(container.textContent || '').toBe('')
