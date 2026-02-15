@@ -100,26 +100,6 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
       data-testid="market-ticker"
     >
       {error ? <div className="px-6 py-2 text-xs text-muted-foreground">{error}</div> : null}
-      {/** Global data source label (md+). In production we hide provider branding. */}
-      {true ? (
-        <div
-          className="pointer-events-none absolute inset-y-0 right-3 hidden items-center md:flex"
-          title={
-            suffix
-              ? `Market data source: CoinGecko / ${suffix} (USD).`
-              : 'Market data source: CoinGecko (USD).'
-          }
-          aria-label={
-            suffix
-              ? `Market data source: Data by CoinGecko / ${suffix}, all prices in USD.`
-              : 'Market data source: Data by CoinGecko, all prices in USD.'
-          }
-        >
-          <span className="rounded-full bg-slate-900/60 px-2 py-0.5 text-[10px] font-medium text-slate-400">
-            Data by CoinGecko{suffix ? ` / ${suffix}` : ''}
-          </span>
-        </div>
-      ) : null}
       <div className="flex items-center gap-3">
         <div className="flex-1 overflow-hidden">
           <div
@@ -188,11 +168,23 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
             })}
           </div>
         </div>
-        {lastUpdatedAt ? (
-          <div className="hidden sm:block px-4 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
-            Updated {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}
-          </div>
-        ) : null}
+        <div className="hidden md:flex items-center gap-2 px-4 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
+          {lastUpdatedAt ? (
+            <span>Updated {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}</span>
+          ) : null}
+          {lastUpdatedAt ? <span className="text-slate-700">•</span> : null}
+          <span
+            className="rounded-full bg-slate-900/60 px-2 py-0.5 text-[10px] font-medium text-slate-400"
+            title={suffix ? `Market data source: CoinGecko / ${suffix} (USD).` : 'Market data source: CoinGecko (USD).'}
+            aria-label={
+              suffix
+                ? `Market data source: Data by CoinGecko / ${suffix}, all prices in USD.`
+                : 'Market data source: Data by CoinGecko, all prices in USD.'
+            }
+          >
+            Data by CoinGecko{suffix ? ` / ${suffix}` : ''}
+          </span>
+        </div>
       </div>
     </div>
   )
