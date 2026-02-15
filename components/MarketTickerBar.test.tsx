@@ -156,12 +156,72 @@ describe('MarketTickerBar', () => {
       await Promise.resolve()
     })
 
-    expect(
-      screen.getByLabelText(/market data source: coingecko for crypto, finnhub for stocks, all prices in usd/i)
-    ).toBeTruthy()
-    expect(screen.getByText(/data by/i)).toBeTruthy()
-    expect(screen.getByText(/CoinGecko/i)).toBeTruthy()
+    expect(screen.getByLabelText(/data by coingecko \/ finnhub/i)).toBeTruthy()
+    expect(screen.getByText(/Data by CoinGecko/i)).toBeTruthy()
     expect(screen.getByText(/Finnhub/i)).toBeTruthy()
+  })
+
+  it('renders base CoinGecko label even when dataSourceLabel is null', async () => {
+    fetchInstrumentQuotes.mockResolvedValueOnce([
+      {
+        symbol: 'AAPL',
+        kind: 'stock',
+        price: 123.45,
+        changePct: 1.23,
+        lastPrice: 123.45,
+        changePercent: 1.23,
+        change: 1.5,
+        currency: 'USD',
+        source: 'provider',
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+
+    render(
+      <MarketTickerBar
+        instruments={[{ symbol: 'AAPL', kind: 'stock', name: 'Apple', order: 1, defaultVisible: true }] as any}
+        starredInstruments={[]}
+        dataSourceLabel={null}
+      />
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText(/Data by CoinGecko/i)).toBeTruthy()
+    expect(screen.queryByText(/Dev\s*\/\s*Mock/i)).toBeNull()
+  })
+
+  it('renders CoinGecko label with dev suffix', async () => {
+    fetchInstrumentQuotes.mockResolvedValueOnce([
+      {
+        symbol: 'AAPL',
+        kind: 'stock',
+        price: 123.45,
+        changePct: 1.23,
+        lastPrice: 123.45,
+        changePercent: 1.23,
+        change: 1.5,
+        currency: 'USD',
+        source: 'provider',
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+
+    render(
+      <MarketTickerBar
+        instruments={[{ symbol: 'AAPL', kind: 'stock', name: 'Apple', order: 1, defaultVisible: true }] as any}
+        starredInstruments={[]}
+        dataSourceLabel="Dev / Mock"
+      />
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText(/Data by CoinGecko\s*\/\s*Dev\s*\/\s*Mock/i)).toBeTruthy()
   })
 
   it('renders nothing when no instruments', () => {

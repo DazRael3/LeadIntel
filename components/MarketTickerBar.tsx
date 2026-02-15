@@ -92,22 +92,32 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
 
   if (mergedInstruments.length === 0) return null
 
+  const suffix = typeof dataSourceLabel === 'string' && dataSourceLabel.trim().length > 0 ? dataSourceLabel.trim() : null
+
   return (
     <div
       className="group relative w-full overflow-hidden border-b border-cyan-500/20 bg-background/90 backdrop-blur-sm"
       data-testid="market-ticker"
     >
       {error ? <div className="px-6 py-2 text-xs text-muted-foreground">{error}</div> : null}
-      {dataSourceLabel ? (
+      {/** Global data source label (md+). In production we hide provider branding. */}
+      {true ? (
         <div
-          className="pointer-events-auto absolute inset-y-0 right-3 hidden items-center gap-1 text-[10px] text-slate-500 md:flex"
-          title={`Market data source: CoinGecko for crypto, ${dataSourceLabel} for stocks (USD).`}
-          aria-label={`Market data source: CoinGecko for crypto, ${dataSourceLabel} for stocks, all prices in USD.`}
+          className="pointer-events-none absolute inset-y-0 right-3 hidden items-center md:flex"
+          title={
+            suffix
+              ? `Market data source: CoinGecko / ${suffix} (USD).`
+              : 'Market data source: CoinGecko (USD).'
+          }
+          aria-label={
+            suffix
+              ? `Market data source: Data by CoinGecko / ${suffix}, all prices in USD.`
+              : 'Market data source: Data by CoinGecko, all prices in USD.'
+          }
         >
-          <span className="uppercase tracking-wide text-slate-600">Data by</span>
-          <span className="font-medium text-slate-300">CoinGecko</span>
-          <span className="text-slate-600">/</span>
-          <span className="font-medium text-slate-300">{dataSourceLabel}</span>
+          <span className="rounded-full bg-slate-900/60 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+            Data by CoinGecko{suffix ? ` / ${suffix}` : ''}
+          </span>
         </div>
       ) : null}
       <div className="flex items-center gap-3">
