@@ -3,64 +3,112 @@ import { stripe } from '@/lib/stripe'
 import { createRouteClient } from '@/lib/supabase/route'
 import { serverEnv, clientEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { checkRateLimit, shouldBypassRateLimit, getRateLimitError } from '@/lib/api/ratelimit'
-import { validateOrigin } from '@/lib/api/security'
+import { withApiGuard } from '@/lib/api/guard'
+import { z } from 'zod'
+import { readBodyWithLimit } from '@/lib/api/validate'
+import { captureMessage } from '@/lib/observability/sentry'
+import { logger } from '@/lib/observability/logger'
+import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
 
 /**
  * Validates required Stripe environment variables
  * @throws Error with clear message if validation fails
  */
-function validateStripeEnv(): { priceId: string; siteUrl: string } {
+function validateStripeEnv(): { proPriceId: string | null; siteUrl: string } {
   // STRIPE_SECRET_KEY is already validated in lib/stripe.ts via serverEnv
 
-  // Validate STRIPE_PRICE_ID (accept STRIPE_PRICE_ID_PRO as override)
-  const priceId = serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID
-  
-  if (!priceId) {
-    throw new Error('STRIPE_PRICE_ID or STRIPE_PRICE_ID_PRO must be set')
-  }
-  
-  if (!priceId.startsWith('price_')) {
-    const prefix = priceId.substring(0, Math.min(8, priceId.length))
-    throw new Error(`Invalid STRIPE_PRICE_ID. Expected price_... but got ${prefix}...`)
-  }
+  /**
+   * Price IDs are environment-provided and MUST be Stripe TEST (sandbox) prices in development:
+   * - `STRIPE_PRICE_ID_PRO` (or legacy fallback `STRIPE_PRICE_ID`) for Closer/Pro
+   *
+   * These should look like `price_...` in both test and live mode. The *key* (sk_test_ vs sk_live_)
+   * determines whether Stripe treats it as sandbox vs production. No code changes are required for go-live;
+   * just swap env vars to live keys + live price IDs.
+   */
+
+  // Pro/Closer price id (accept legacy STRIPE_PRICE_ID fallback).
+  const proPriceId = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim() || null
 
   // Get site URL (optional, defaults to request origin)
   const siteUrl = clientEnv.NEXT_PUBLIC_SITE_URL || ''
 
-  return { priceId, siteUrl }
+  return { proPriceId, siteUrl }
 }
 
 export async function POST(request: NextRequest) {
+  return POST_GUARDED(request)
+}
+
+export async function GET(_request: NextRequest) {
+  // Explicitly return JSON (not Next.js default 404) so callers get a clear signal.
+  return fail(
+    'METHOD_NOT_ALLOWED',
+    'Method not allowed. Use POST /api/checkout.',
+    undefined,
+    { status: 405 }
+  )
+}
+
+const CheckoutBodySchema = z.object({
+  // Validate supported values manually so we can return a stable 400 for unsupported plans.
+  planId: z.string().min(1),
+})
+
+const POST_GUARDED = withApiGuard(
+  async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
-  const route = '/api/checkout'
-  
   try {
-    // Validate origin for state-changing requests
-    const originError = validateOrigin(request, route)
-    if (originError) {
-      return originError
-    }
-    
-    // Check rate limit bypass
-    if (!shouldBypassRateLimit(request, route)) {
-      // Get user for rate limiting
-      const supabase = createRouteClient(request, bridge)
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      // Check rate limit
-      const rateLimitResult = await checkRateLimit(
-        request,
-        user?.id || null,
-        route,
-        'CHECKOUT'
-      )
-      
-      if (rateLimitResult && !rateLimitResult.success) {
-        return getRateLimitError(rateLimitResult, bridge)
+    // Parse + validate body here (not in guard) so we can return route-specific error codes.
+    // Also enforces an explicit 32KB limit.
+    let parsedBody: z.infer<typeof CheckoutBodySchema>
+    try {
+      const raw = await readBodyWithLimit(request, 32768)
+      if (!raw || raw.trim().length === 0) {
+        return fail(
+          'INVALID_CHECKOUT_PAYLOAD',
+          'Missing JSON body',
+          { hint: 'Send JSON like { "planId": "pro" }' },
+          { status: 400 },
+          bridge,
+          requestId
+        )
       }
+      const json = JSON.parse(raw)
+      const result = CheckoutBodySchema.safeParse(json)
+      if (!result.success) {
+        return fail(
+          'INVALID_CHECKOUT_PAYLOAD',
+          'Invalid checkout payload',
+          result.error.errors.map((e) => ({ path: e.path.join('.'), message: e.message, code: e.code })),
+          { status: 422 },
+          bridge,
+          requestId
+        )
+      }
+      parsedBody = result.data
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid JSON body'
+      return fail(
+        'INVALID_CHECKOUT_PAYLOAD',
+        message.startsWith('Invalid JSON') ? message : 'Invalid JSON body',
+        undefined,
+        { status: 400 },
+        bridge,
+        requestId
+      )
     }
-    
+
+    // Dev-only breadcrumb logging (no secrets).
+    if (serverEnv.NODE_ENV === 'development') {
+      console.log('[checkout] Request received', {
+        requestId,
+        planId: parsedBody.planId,
+        hasStripeSecretKey: Boolean(serverEnv.STRIPE_SECRET_KEY),
+        hasProPriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
+        hasTeamPriceId: Boolean(serverEnv.STRIPE_PRICE_ID_TEAM),
+      })
+    }
+
     // Create Supabase client using the bridge response (cookies will be set on bridge)
     const supabase = createRouteClient(request, bridge)
     
@@ -68,25 +116,76 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
+      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
+
+    const planId = parsedBody.planId
+    // Product spec: only Starter and Closer are exposed. Checkout supports only the paid "pro" plan.
+    if (planId !== 'pro') {
+      return fail(
+        'INVALID_CHECKOUT_PLAN',
+        'Invalid or unsupported planId',
+        { planId },
+        { status: 400 },
+        bridge,
+        requestId
+      )
+    }
+
+    // Production safety: block accidental Stripe test keys.
+    // (No effect in dev/staging; enforced only when NEXT_PUBLIC_APP_ENV === "production".)
+    assertProdStripeConfig()
 
     // Validate Stripe environment variables
     let priceId: string
     let siteUrl: string
     try {
       const env = validateStripeEnv()
-      priceId = env.priceId
+      // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
+      if (!env.proPriceId) {
+        captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId })
+        return fail(
+          'CHECKOUT_NOT_CONFIGURED',
+          'Missing Stripe price ID for plan: pro',
+          { error: 'Missing Stripe price ID for plan: pro', required: ['STRIPE_PRICE_ID_PRO (recommended)', 'STRIPE_PRICE_ID (legacy)'] },
+          { status: 500 },
+          bridge,
+          requestId
+        )
+      }
+      priceId = env.proPriceId
       siteUrl = env.siteUrl || request.nextUrl.origin
     } catch (error) {
+      captureMessage('checkout_not_configured', {
+        route: '/api/checkout',
+        requestId,
+      })
       return fail(
-        ErrorCode.INTERNAL_ERROR,
-        'Stripe configuration error',
-        undefined,
-        undefined,
-        bridge
+        'CHECKOUT_NOT_CONFIGURED',
+        `Checkout is not configured for plan: ${planId}`,
+        {
+          // Do not leak env values; just explain what is missing.
+          message: error instanceof Error ? error.message : 'Missing Stripe configuration',
+          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID_PRO (recommended)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
+        },
+        { status: 500 },
+        bridge,
+        requestId
       )
     }
+
+    const stripeMode = serverEnv.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test'
+
+    logger.info({
+      level: 'info',
+      scope: 'checkout',
+      message: 'config.summary',
+      planId,
+      stripeMode,
+      hasStripeSecretKey: !!serverEnv.STRIPE_SECRET_KEY,
+      proPriceId: serverEnv.STRIPE_PRICE_ID_PRO ?? serverEnv.STRIPE_PRICE_ID ?? null,
+      teamPriceId: serverEnv.STRIPE_PRICE_ID_TEAM ?? null,
+    })
 
     // Check if user already has a Stripe customer ID
     let { data: userData } = await supabase
@@ -117,12 +216,12 @@ export async function POST(request: NextRequest) {
         })
     }
 
-    // Check for existing active subscription
+    // Check for existing active/trialing subscription (avoid duplicate checkouts)
     const { data: existingSubscription } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', user.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'trialing'])
       .single()
 
     if (existingSubscription) {
@@ -131,39 +230,81 @@ export async function POST(request: NextRequest) {
         'Already subscribed',
         undefined,
         undefined,
-        bridge
+        bridge,
+        requestId
       )
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      success_url: `${siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/pricing`,
-      client_reference_id: user.id,
-      metadata: {
-        user_id: user.id,
-        email: user.email ?? '',
-      },
-      subscription_data: {
+    let sessionUrl: string | null = null
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        // Collect payment method up-front.
+        payment_method_collection: 'always',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        success_url: `${siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${siteUrl}/pricing`,
+        client_reference_id: user.id,
         metadata: {
           user_id: user.id,
+          email: user.email ?? '',
         },
-      },
-      allow_promotion_codes: true,
-    })
+        subscription_data: {
+          metadata: {
+            user_id: user.id,
+          },
+        },
+        allow_promotion_codes: true,
+      })
+      sessionUrl = session.url ?? null
+    } catch (error) {
+      logger.error({
+        level: 'error',
+        scope: 'checkout',
+        message: 'session.create_failed',
+        planId,
+        stripeMode,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      const details =
+        serverEnv.NODE_ENV === 'development'
+          ? { message: error instanceof Error ? error.message : String(error) }
+          : undefined
+      return fail(
+        ErrorCode.EXTERNAL_API_ERROR,
+        'Stripe checkout session creation failed',
+        details,
+        { status: 500 },
+        bridge,
+        requestId
+      )
+    }
 
     // Return standardized success response
-    return ok({ url: session.url }, undefined, bridge)
+    if (!sessionUrl) {
+      return fail(
+        ErrorCode.INTERNAL_ERROR,
+        'Stripe checkout session missing redirect URL',
+        undefined,
+        { status: 500 },
+        bridge,
+        requestId
+      )
+    }
+
+    return ok({ url: sessionUrl }, undefined, bridge, requestId)
   } catch (error) {
-    return asHttpError(error, '/api/checkout', undefined, bridge)
+    return asHttpError(error, '/api/checkout', undefined, bridge, requestId)
   }
-}
+},
+  // No bodySchema: we validate body inside handler for custom error codes.
+)

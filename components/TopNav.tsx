@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 export function TopNav() {
   const router = useRouter()
@@ -22,18 +24,18 @@ export function TopNav() {
         const supabase = createClient()
         
         // Check initial auth state
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         setIsLoggedIn(!!user)
         setLoading(false)
 
         // Subscribe to auth state changes
-        const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
           setIsLoggedIn(!!session?.user)
           setLoading(false)
         })
         subscription = data.subscription
       } catch (error) {
-        console.error('[TopNav] Failed to initialize auth:', error)
+        // Avoid noisy auth errors in dev; show logged-out CTAs instead.
         setSupabaseError(true)
         setLoading(false)
       }
@@ -110,7 +112,7 @@ export function TopNav() {
                   asChild
                   className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30"
                 >
-                  <Link href="/login?mode=signup&redirect=/">
+                  <Link href="/signup?redirect=/">
                     <UserPlus className="h-4 w-4 mr-2" />
                     Sign up
                   </Link>

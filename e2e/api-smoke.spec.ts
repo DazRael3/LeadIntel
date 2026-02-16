@@ -40,58 +40,29 @@ test.describe('API Smoke Tests', () => {
   })
 
   test('should enforce rate limiting and return 429', async ({ authenticatedPage }) => {
-    // Use an endpoint with lower rate limit (Tier A: 10/min per user)
-    // We'll call /api/whoami which has 120/min, but we can still hit it rapidly
-    
-    // Make rapid requests until we hit rate limit
-    const requests: Promise<import('@playwright/test').APIResponse>[] = []
-    let rateLimited = false
-    let requestCount = 0
-    const maxRequests = 150 // Exceed the 120/min limit
+    // Keep this test deterministic + dev-server-friendly:
+    // In E2E, `/api/whoami` is capped so we hit 429 within a small number of requests.
+    let rateLimitResponse: import('@playwright/test').APIResponse | null = null
 
-    // Send requests in batches to avoid overwhelming the server
-    for (let i = 0; i < maxRequests; i++) {
-      requests.push(
-        authenticatedPage.request.get('/api/whoami', {
-          headers: { 'Content-Type': 'application/json' },
-          failOnStatusCode: false,
-        })
-      )
-      requestCount++
-
-      // Check every 20 requests if we've hit rate limit
-      if (i % 20 === 0 && i > 0) {
-        const batchResults = await Promise.all(requests.slice(-20))
-        const has429 = batchResults.some(r => r.status() === 429)
-        
-        if (has429) {
-          rateLimited = true
-          break
-        }
+    for (let i = 0; i < 50; i++) {
+      const res = await authenticatedPage.request.get('/api/whoami', {
+        headers: { 'Content-Type': 'application/json' },
+        failOnStatusCode: false,
+      })
+      if (res.status() === 429) {
+        rateLimitResponse = res
+        break
       }
     }
 
-    // Wait for all remaining requests
-    if (!rateLimited) {
-      const allResults = await Promise.all(requests)
-      rateLimited = allResults.some(r => r.status() === 429)
-    }
-
-    // Verify we hit rate limit (429)
-    expect(rateLimited).toBe(true)
-
-    // Verify 429 response format
-    // Find the 429 response
-    const allResults = await Promise.all(requests)
-    const rateLimitResponse = allResults.find(r => r.status() === 429)
+    expect(rateLimitResponse).not.toBeNull()
 
     if (rateLimitResponse) {
       const responseBody = await rateLimitResponse.json()
       expect(responseBody).toHaveProperty('ok', false)
       expect(responseBody).toHaveProperty('error')
       expect(responseBody.error).toHaveProperty('code', 'RATE_LIMIT_EXCEEDED')
-      
-      // Verify rate limit headers
+
       const headers = rateLimitResponse.headers()
       expect(headers).toHaveProperty('x-ratelimit-limit')
       expect(headers).toHaveProperty('x-ratelimit-remaining')

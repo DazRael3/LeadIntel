@@ -3,7 +3,7 @@
 // No Radix/shadcn roving focus components are used here intentionally to avoid provider/context crashes.
 // The mode switch uses plain buttons with URL query updates instead of Radix Tabs.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
 import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
+import { BrandHero } from '@/components/BrandHero'
 
 interface LoginClientProps {
   initialMode: 'signin' | 'signup'
@@ -26,18 +27,17 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
   const [info, setInfo] = useState<string | null>(null)
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode)
   const [showDevTips, setShowDevTips] = useState(false)
-  const [initError, setInitError] = useState<string | null>(null)
 
-  let supabase: ReturnType<typeof createClient> | null = null
-  try {
-    supabase = createClient()
-  } catch (err: unknown) {
-    // If Supabase client creation fails, show error but still render UI
-    if (typeof window !== 'undefined') {
+  // IMPORTANT: never call setState during render.
+  // If Supabase env vars are missing/malformed, createClient() can throw; we capture that once.
+  const { supabase, initError } = useMemo(() => {
+    try {
+      return { supabase: createClient(), initError: null as string | null }
+    } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to initialize authentication'
-      setInitError(message)
+      return { supabase: null as ReturnType<typeof createClient> | null, initError: message }
     }
-  }
+  }, [])
 
   const isDev = process.env.NODE_ENV !== 'production'
 
@@ -170,9 +170,10 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border-cyan-500/20 bg-card/50">
+      <div className="w-full max-w-md space-y-8">
+        <Card className="border-cyan-500/20 bg-card/50">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">LEADINTEL</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">LeadIntel</CardTitle>
           <CardDescription className="text-center">
             {mode === 'signin' ? 'Sign in to your account' : 'Create a new account'}
           </CardDescription>
@@ -316,7 +317,24 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
             </div>
           </form>
         </CardContent>
-      </Card>
+        </Card>
+
+        {/* Trigger Events explainer (signup only) */}
+        {mode === 'signup' && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-cyan-500/10 bg-card/40 p-4">
+              <div className="text-sm font-semibold">Trigger Events</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Real-time B2B intelligence that surfaces buying signals—funding, hiring, partnerships, and expansion—so you can outreach at exactly the right moment.
+              </div>
+            </div>
+
+            <div className="max-w-4xl mx-auto mt-6">
+              <BrandHero />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

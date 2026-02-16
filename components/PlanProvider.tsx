@@ -3,15 +3,29 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 type Plan = 'free' | 'pro'
+type Tier = 'starter' | 'closer'
 
 interface PlanContextValue {
   plan: Plan
+  tier: Tier
+  planId: string | null
   isPro: boolean
+  trial: { active: boolean; endsAt: string | null }
   loading: boolean
   refresh: () => Promise<void>
 }
 
 const PlanContext = createContext<PlanContextValue | undefined>(undefined)
+
+const fallbackPlanValue: PlanContextValue = {
+  plan: 'free',
+  tier: 'starter',
+  planId: null,
+  isPro: false,
+  trial: { active: false, endsAt: null },
+  loading: false,
+  refresh: async () => {},
+}
 
 interface PlanProviderProps {
   initialPlan?: Plan
@@ -20,6 +34,9 @@ interface PlanProviderProps {
 
 export function PlanProvider({ initialPlan = 'free', children }: PlanProviderProps) {
   const [plan, setPlan] = useState<Plan>(initialPlan)
+  const [tier, setTier] = useState<Tier>('starter')
+  const [planId, setPlanId] = useState<string | null>(null)
+  const [trial, setTrial] = useState<{ active: boolean; endsAt: string | null }>({ active: false, endsAt: null })
   const [loading, setLoading] = useState(false)
 
   const refresh = useCallback(async () => {
@@ -39,8 +56,31 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
         console.error('PlanProvider: JSON parse error:', parseError, 'Response text:', text.substring(0, 200))
         return
       }
-      if (data?.plan === 'pro' || data?.plan === 'free') {
-        setPlan(data.plan)
+      // Standard envelope: { ok: true, data: { plan, trial } }
+      const payload = data?.data ?? data
+      if (payload?.plan === 'pro' || payload?.plan === 'free') {
+        setPlan(payload.plan)
+      }
+      // Product tiers are starter/closer. Treat legacy "team" as "closer" for backward compatibility.
+      if (payload?.tier === 'starter' || payload?.tier === 'closer') {
+        setTier(payload.tier)
+      } else if (payload?.tier === 'team') {
+        setTier('closer')
+      } else {
+        // Safe default: treat unknown/missing as Starter.
+        setTier('starter')
+      }
+      if (typeof payload?.planId === 'string') {
+        setPlanId(payload.planId)
+      } else {
+        setPlanId(null)
+      }
+      if (payload?.trial && typeof payload.trial === 'object') {
+        const nextTrial = payload.trial as { active?: unknown; endsAt?: unknown }
+        setTrial({
+          active: Boolean(nextTrial.active),
+          endsAt: typeof nextTrial.endsAt === 'string' ? nextTrial.endsAt : null,
+        })
       }
     } catch (error: unknown) {
       console.error('PlanProvider: Error refreshing plan:', error)
@@ -50,21 +90,24 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
   }, [])
 
   useEffect(() => {
-    // If initial plan is free, verify once to avoid flicker after checkout.
-    if (initialPlan === 'free') {
-      refresh()
-    }
+    // Always refresh once on mount so tier (starter/closer) is accurate.
+    // This prevents a "Starter" UI from sticking for upgraded accounts where `initialPlan` is 'pro'.
+    // The API response is the source of truth for tier labels and upgrade CTAs.
+    refresh()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const value = useMemo(
     () => ({
       plan,
+      tier,
+      planId,
       isPro: plan === 'pro',
+      trial,
       loading,
       refresh,
     }),
-    [plan, loading, refresh]
+    [plan, tier, planId, trial, loading, refresh]
   )
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>
@@ -73,7 +116,11 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
 export function usePlan() {
   const ctx = useContext(PlanContext)
   if (!ctx) {
-    throw new Error('usePlan must be used within a PlanProvider')
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+      // Soft warning in dev so we notice missing providers, but never crash the app.
+      console.warn('[PlanProvider] usePlan called outside of PlanProvider; using starter fallback context.')
+    }
+    return fallbackPlanValue
   }
   return ctx
 }

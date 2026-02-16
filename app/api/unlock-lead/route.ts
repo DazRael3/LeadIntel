@@ -1,80 +1,47 @@
 import { NextRequest } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { validateBody, validationError } from '@/lib/api/validate'
 import { UnlockLeadSchema } from '@/lib/api/schemas'
-import { checkRateLimit, shouldBypassRateLimit, getRateLimitError } from '@/lib/api/ratelimit'
-import { validateOrigin } from '@/lib/api/security'
+import { withApiGuard } from '@/lib/api/guard'
+import { isPro as isProPlan } from '@/lib/billing/plan'
 
 /**
  * Unlock Lead API
  * Implements the 'One-Free-Lead' rule: Non-pro users can unlock 1 lead per 24 hours
  */
-export async function POST(request: NextRequest) {
-  const bridge = createCookieBridge()
-  const route = '/api/unlock-lead'
-  
-  try {
-    // Validate origin for state-changing requests
-    const originError = validateOrigin(request, route)
-    if (originError) {
-      return originError
-    }
-    
-    // Check rate limit bypass
-    if (!shouldBypassRateLimit(request, route)) {
-      // Get user for rate limiting
-      const supabase = createRouteClient(request, bridge)
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      // Check rate limit
-      const rateLimitResult = await checkRateLimit(
-        request,
-        user?.id || null,
-        route,
-        'WRITE'
-      )
-      
-      if (rateLimitResult && !rateLimitResult.success) {
-        return getRateLimitError(rateLimitResult, bridge)
-      }
-    }
-    
-    // Validate request body
-    let body
+export const POST = withApiGuard(
+  async (request: NextRequest, { body, requestId, userId }) => {
+    const bridge = createCookieBridge()
     try {
-      body = await validateBody(request, UnlockLeadSchema)
-    } catch (error) {
-      return validationError(error, bridge)
+
+    const { leadId } = body as { leadId: string }
+
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/unlock-lead authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
+      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
-    const { leadId } = body
-
-    // Get current user via route client with request/response cookie bridging
+    // Supabase client (RLS-safe)
     const supabase = createRouteClient(request, bridge)
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
-    }
 
     // Get user data
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('subscription_tier, last_unlock_date')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (userError || !userData) {
-      return fail(ErrorCode.NOT_FOUND, 'User not found', undefined, undefined, bridge)
+      return fail(ErrorCode.NOT_FOUND, 'User not found', undefined, undefined, bridge, requestId)
     }
 
-    // Pro users have unlimited access
-    if (userData.subscription_tier === 'pro') {
+    // Pro users (and app-trial users, if enabled) have unlimited access.
+    if (await isProPlan(supabase, userId)) {
       return ok({
         unlocked: true,
         message: 'Lead unlocked (Pro user)',
-      }, undefined, bridge)
+      }, undefined, bridge, requestId)
     }
 
     // Free users: Check 24-hour rule
@@ -91,11 +58,13 @@ export async function POST(request: NextRequest) {
           ErrorCode.FORBIDDEN,
           `You've already unlocked a lead today. Next unlock available in ${hoursRemaining} hours.`,
           {
-            redirect: '/api/checkout',
+            // Centralize upgrade flow on /pricing (checkout is initiated via POST /api/checkout there).
+            redirect: '/pricing',
             hoursRemaining,
           },
           undefined,
-          bridge
+          bridge,
+          requestId
         )
       }
     }
@@ -106,7 +75,7 @@ export async function POST(request: NextRequest) {
       .update({
         last_unlock_date: now.toISOString(),
       })
-      .eq('id', user.id)
+      .eq('id', userId)
 
     if (updateError) {
       return fail(
@@ -114,7 +83,8 @@ export async function POST(request: NextRequest) {
         'Failed to update unlock status',
         undefined,
         undefined,
-        bridge
+        bridge,
+        requestId
       )
     }
 
@@ -122,8 +92,10 @@ export async function POST(request: NextRequest) {
       unlocked: true,
       message: 'Lead unlocked successfully',
       nextUnlockAvailable: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-    }, undefined, bridge)
-  } catch (error) {
-    return asHttpError(error, '/api/unlock-lead', undefined, bridge)
-  }
-}
+    }, undefined, bridge, requestId)
+    } catch (error) {
+      return asHttpError(error, '/api/unlock-lead', userId, bridge, requestId)
+    }
+  },
+  { bodySchema: UnlockLeadSchema }
+)

@@ -31,6 +31,10 @@ yarn-error.log*
 .env.*.local
 *.env
 
+# Allow committed, non-secret env templates
+!.env.example
+!.env.production.example
+
 # dependencies
 node_modules
 .next
@@ -51,6 +55,12 @@ node_modules
 /playwright-report/
 /test-results/
 /coverage/
+
+# Owner-only admin exports (keep private; do not commit to public repos)
+/admin-reports/
+
+# Supabase local artifacts
+supabase/.temp/
 
 # Windows
 desktop.ini

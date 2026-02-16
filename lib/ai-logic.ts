@@ -5,10 +5,23 @@
 
 import OpenAI from 'openai'
 
-const WEBSITE_URL = 'https://dazrael.com'
+const DEFAULT_WEBSITE_URL = 'https://leadintel.com'
+const WEBSITE_URL =
+  typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL && process.env.NEXT_PUBLIC_SITE_URL.trim()
+    ? process.env.NEXT_PUBLIC_SITE_URL.trim()
+    : DEFAULT_WEBSITE_URL
+const WEBSITE_HOST = (() => {
+  try {
+    return new URL(WEBSITE_URL).hostname
+  } catch {
+    return 'leadintel.com'
+  }
+})()
 
 import { serverEnv } from './env'
 import { isE2E, isTestEnv } from './runtimeFlags'
+import { captureException, captureMessage } from './observability/sentry'
+import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 
 // Lazy initialization of OpenAI client
 function getOpenAIClient(): OpenAI {
@@ -219,9 +232,6 @@ export async function calculateDealScore(input: DealScoringInput): Promise<{
   if (input.userSettings?.whatYouSell && input.userSettings?.idealCustomer) {
     // Use AI to determine fit if OpenAI is available
     try {
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error('Configuration Error: Missing API Key - OPENAI_API_KEY')
-      }
       const openai = getOpenAIClient()
       const response = await openai.chat.completions.create({
         model: 'gpt-4o',
@@ -305,32 +315,30 @@ export async function generatePitch(
   userSettings?: {
     whatYouSell?: string
     idealCustomer?: string
-  }
+  },
+  whyNow?: {
+    bullets: string[]
+  },
+  templateId?: PitchTemplateId
 ): Promise<string> {
   // In E2E/test mode, return deterministic mock response instantly
   if (isE2E() || isTestEnv()) {
     return `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent || 'activity'}. View it here: ${WEBSITE_URL}`
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('Configuration Error: Missing API Key - OPENAI_API_KEY')
-  }
-
   try {
     const openai = getOpenAIClient()
+    const template = getPitchTemplate(templateId ?? 'default')
+    const whyNowText =
+      whyNow?.bullets && whyNow.bullets.length > 0
+        ? `\n\nWhy now (use ONLY these points, do not add new claims):\n- ${whyNow.bullets.slice(0, 3).join('\n- ')}`
+        : ''
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: `You are a world-class sales strategist. Write concise, high-converting sales emails that:
-- Are exactly 3-4 sentences long
-- Have a helpful, not salesy tone
-- NEVER mention calls, meetings, or scheduling
-- Focus on driving the recipient to visit a website and sign up
-- The key message: "I've already generated a competitive intelligence report for you. View it here."
-- Always end with a clear call-to-action linking to ${WEBSITE_URL}
-- Make it feel like valuable intelligence is waiting for them, not a sales pitch`,
+          content: template.systemInstruction.replaceAll('the provided website URL', WEBSITE_URL),
         },
         {
           role: 'user',
@@ -338,11 +346,13 @@ export async function generatePitch(
 
 Reference their recent ${triggerEvent} specifically.
 
+If relevant, incorporate up to 1-2 of the "Why now" points below into the email (no bullet lists in the final email; weave them naturally). Never invent events.
+
 The tone should convey: "I've already generated a competitive intelligence report for you. View it here."
 
 ${companyInfo ? `Additional context: ${companyInfo}` : ''}
 ${userSettings?.whatYouSell ? `We sell: ${userSettings.whatYouSell}` : ''}
-${userSettings?.idealCustomer ? `Our ideal customer: ${userSettings.idealCustomer}` : ''}
+${userSettings?.idealCustomer ? `Our ideal customer: ${userSettings.idealCustomer}` : ''}${whyNowText}
 
 End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant Intelligence.`,
         },
@@ -350,20 +360,19 @@ End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant 
       temperature: 0.7,
       max_tokens: 250,
     })
-
-    console.log('--- AI RAW RESPONSE ---', JSON.stringify(response, null, 2))
+    // Never log raw provider payloads (may contain sensitive user input).
     
     // Check if response structure is correct
     const content = response.choices?.[0]?.message?.content
     let pitch = content?.trim() || ''
     
     if (!pitch) {
-      console.error('ERROR: AI response content is empty or undefined')
+      captureMessage('ai_empty_response', { route: 'lib/ai-logic.generatePitch' })
       return 'AI failed to generate pitch. Please check OpenAI credits.'
     }
 
-    // Ensure the website URL is included
-    if (!pitch.includes(WEBSITE_URL) && !pitch.includes('dazrael.com')) {
+    // Ensure the website URL is included (accept host-only matches too).
+    if (!pitch.includes(WEBSITE_URL) && !pitch.includes(WEBSITE_HOST)) {
       pitch += `\n\nView your competitive intelligence report: ${WEBSITE_URL}`
     }
 
@@ -383,7 +392,7 @@ End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant 
 
     return pitch.trim()
   } catch (error) {
-    console.error('Error generating pitch:', error)
+    captureException(error, { route: 'lib/ai-logic.generatePitch' })
     // Fallback pitch
     return `Hi ${ceoName || 'there'}, I've already generated a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${WEBSITE_URL}`
   }
@@ -409,10 +418,6 @@ export async function generateBattleCard(
       painPoint: 'Scaling sales operations while maintaining quality',
       killerFeature: 'Automated lead scoring and personalized outreach',
     }
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('Configuration Error: Missing API Key - OPENAI_API_KEY')
   }
 
   try {
@@ -471,7 +476,7 @@ Return as JSON:
       killerFeature: battleCard.killerFeature || 'AI-powered lead intelligence',
     }
   } catch (error) {
-    console.error('Error generating battle card:', error)
+    captureException(error, { route: 'lib/ai-logic.generateBattleCard' })
     // Fallback battle card
     return {
       currentTech: ['CRM Platform', 'Email Marketing', 'Analytics Tools'],
@@ -502,10 +507,6 @@ export async function generateEmailSequence(
       part2: `Based on your recent ${triggerEvent || 'activity'}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: ${WEBSITE_URL}`,
       part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${WEBSITE_URL}`,
     }
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('Configuration Error: Missing API Key - OPENAI_API_KEY')
   }
 
   try {
@@ -594,7 +595,7 @@ This is the final email in the sequence. Keep it brief and respectful.`,
             `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${WEBSITE_URL}`,
     }
   } catch (error) {
-    console.error('Error generating email sequence:', error)
+    captureException(error, { route: 'lib/ai-logic.generateEmailSequence' })
     // Fallback sequence
     return {
       part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${WEBSITE_URL}`,

@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { validateQuery, validationError } from '@/lib/api/validate'
 import { HistoryQuerySchema } from '@/lib/api/schemas'
 import { z } from 'zod'
+import { withApiGuard } from '@/lib/api/guard'
+import { getPlanDetails } from '@/lib/billing/plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,28 +20,38 @@ const HistoryQueryWithLimitSchema = HistoryQuerySchema.extend({
 })
 
 export async function GET(request: NextRequest) {
-  const bridge = createCookieBridge()
-  
-  // Validate query parameters
-  let query
-  try {
-    query = await validateQuery(request, HistoryQueryWithLimitSchema)
-  } catch (error) {
-    return validationError(error, bridge)
-  }
+  return GET_GUARDED(request)
+}
 
-  const q = query.q || ''
-  const tag = query.tag || ''
-  const limit = query.limit || PAGE_SIZE_DEFAULT
-  const cursor = query.cursor
+const GET_GUARDED = withApiGuard(
+  async (request: NextRequest, { query, requestId, userId }) => {
+    const bridge = createCookieBridge()
 
-  const supabase = createRouteClient(request, bridge)
+    const q = (query as z.infer<typeof HistoryQueryWithLimitSchema>).q || ''
+    const tag = (query as z.infer<typeof HistoryQueryWithLimitSchema>).tag || ''
+    const limit = (query as z.infer<typeof HistoryQueryWithLimitSchema>).limit || PAGE_SIZE_DEFAULT
+    const cursor = (query as z.infer<typeof HistoryQueryWithLimitSchema>).cursor
 
-  try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
-    }
+    const supabase = createRouteClient(request, bridge)
+
+    try {
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (GET:/api/history authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
+
+      const plan = await getPlanDetails(supabase, userId)
+      if (plan.plan !== 'pro') {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Pitch history is locked. Upgrade to Pro to unlock your saved work.',
+          undefined,
+          undefined,
+          bridge,
+          requestId
+        )
+      }
 
   let query = supabase
     .from('pitches')
@@ -58,7 +69,7 @@ export async function GET(request: NextRequest) {
         lead_id
       )
     `)
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit + 1)
 
@@ -77,7 +88,7 @@ export async function GET(request: NextRequest) {
     const { data: tagData } = await supabase
       .from('tags')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .or(`id.eq.${tag},name.ilike.${tag}`)
     
     if (!tagData || tagData.length === 0) {
@@ -94,7 +105,7 @@ export async function GET(request: NextRequest) {
         const { data: leadTagData } = await supabase
           .from('lead_tags')
           .select('lead_id')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .in('tag_id', tagIds)
         
         if (!leadTagData || leadTagData.length === 0) {
@@ -117,7 +128,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      return fail(ErrorCode.DATABASE_ERROR, 'Failed to fetch history', undefined, undefined, bridge)
+      return fail(ErrorCode.DATABASE_ERROR, 'Failed to fetch history', undefined, undefined, bridge, requestId)
     }
 
     const hasMore = data && data.length > limit
@@ -134,8 +145,10 @@ export async function GET(request: NextRequest) {
 
     const nextCursor = hasMore ? items[items.length - 1]?.created_at : null
 
-    return ok({ items, nextCursor }, undefined, bridge)
-  } catch (error) {
-    return asHttpError(error, '/api/history', undefined, bridge)
-  }
-}
+      return ok({ items, nextCursor }, undefined, bridge, requestId)
+    } catch (error) {
+      return asHttpError(error, '/api/history', undefined, bridge, requestId)
+    }
+  },
+  { querySchema: HistoryQueryWithLimitSchema }
+)

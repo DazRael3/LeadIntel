@@ -16,8 +16,8 @@ export interface SchemaConfig {
 
 /**
  * Get the database schema configuration from environment variables
- * Defaults to 'public' as primary (standard Supabase schema)
- * with 'api' as fallback for compatibility
+ * Defaults to 'api' as the canonical application schema.
+ * Fallback also defaults to 'api' for consistency.
  */
 export function getDbSchema(): SchemaConfig {
   const primary =

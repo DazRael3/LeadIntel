@@ -1,18 +1,30 @@
 'use client'
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Sparkles, Loader2, Copy, Check, Mail, Shield, Zap, TrendingDown, Lock, BarChart3, Clock, DollarSign } from "lucide-react"
+import { Sparkles, Loader2, Copy, Check, Mail, Shield, Zap, TrendingDown, Lock, BarChart3, Clock, DollarSign, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatErrorMessage } from "@/lib/utils/format-error"
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { isE2E } from '@/lib/runtimeFlags'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { PITCH_TEMPLATES, type PitchTemplateId } from '@/lib/ai/pitch-templates'
+import { ProGate } from '@/components/ProGate'
+import { usePlan } from '@/components/PlanProvider'
+import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
 interface PitchGeneratorProps {
   initialUrl?: string
+  onCompanyContextChange?: (args: { companyInput: string; companyDomain: string | null }) => void
 }
+
+type ApiSuccess<T> = { ok: true; data: T }
+type ApiError = { ok: false; error: { code?: string; message?: string } }
+type ApiEnvelope<T> = ApiSuccess<T> | ApiError
 
 interface BattleCard {
   currentTech: string[]
@@ -26,9 +38,72 @@ interface EmailSequence {
   part3: string
 }
 
-export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
+type GeneratePitchPayload = {
+  pitch?: unknown
+  warnings?: unknown
+  isPro?: unknown
+  emailSequence?: unknown
+  battleCard?: unknown
+  lead?: unknown
+  triggerEvent?: unknown
+}
+
+type LatestPitchResponse = ApiEnvelope<{
+  pitch: {
+    pitchId: string
+    createdAt: string
+    content: string
+    company: {
+      leadId: string
+      companyName: string | null
+      companyDomain: string | null
+      companyUrl: string | null
+      emailSequence: unknown | null
+      battleCard: unknown | null
+    }
+  } | null
+}>
+
+type PitchUsageSummary = ApiEnvelope<{
+  tier: 'starter' | 'closer'
+  pitchesUsed: number
+  pitchesLimit: number | null
+}>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function unwrapGeneratePitchPayload(raw: unknown): GeneratePitchPayload {
+  // Canonical API shape is the standardized envelope: { ok: true, data: {...} }
+  if (isRecord(raw) && raw.ok === true && 'data' in raw) {
+    const data = (raw as ApiSuccess<unknown>).data
+    return isRecord(data) ? (data as GeneratePitchPayload) : {}
+  }
+  // Backward/legacy: some callers may expect a flat object already containing fields.
+  return isRecord(raw) ? (raw as GeneratePitchPayload) : {}
+}
+
+function getSavedKey(userId: string | null): string {
+  return `leadintel_saved_companies_${userId || 'anon'}`
+}
+
+function normalizeSaved(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  for (const v of value) {
+    if (typeof v !== 'string') continue
+    const s = v.trim()
+    if (!s) continue
+    if (!out.includes(s)) out.push(s)
+    if (out.length >= 25) break
+  }
+  return out
+}
+
+export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: PitchGeneratorProps) {
   const [companyUrl, setCompanyUrl] = useState(initialUrl)
-  const [isPro, setIsPro] = useState(false)
+  const { tier } = usePlan()
   const [loading, setLoading] = useState(false)
   const [pitch, setPitch] = useState<string | null>(null)
   const [emailSequence, setEmailSequence] = useState<EmailSequence | null>(null)
@@ -37,59 +112,302 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
   const [authError, setAuthError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [savedCompanies, setSavedCompanies] = useState<string[]>([])
+  const [savedCompanyNotice, setSavedCompanyNotice] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [templateId, setTemplateId] = useState<PitchTemplateId>('default')
+  const [freeLimitError, setFreeLimitError] = useState<string | null>(null)
+  const [pitchUsage, setPitchUsage] = useState<{ pitchesUsed: number; pitchesLimit: number | null } | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
-  const checkSubscription = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase
-          .from('users')
-          .select('subscription_tier')
-          .eq('id', user.id)
-          .single()
-        
-        if (data) {
-          setIsPro(data.subscription_tier === 'pro')
-        }
-      }
-    } catch (error) {
-      console.error('Error checking subscription:', error)
+  const MISSING_LEAD_WARNING = 'Pitch history not saved (missing lead id).'
+  const loadingRef = useRef<boolean>(false)
+  const selectedSavedCompanyRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
+
+  // Initialize user id once so per-user keys work on first render.
+  useEffect(() => {
+    let cancelled = false
+    const init = async () => {
+      const user = await getUserSafe(supabase)
+      if (cancelled) return
+      setCurrentUserId(user?.id ?? null)
+    }
+    void init()
+    return () => {
+      cancelled = true
     }
   }, [supabase])
+
+  const isStarter = tier === 'starter'
+
+  const loadSaved = useCallback(
+    async (userIdOverride?: string | null) => {
+      const userId = userIdOverride ?? currentUserId
+      try {
+        // Always hydrate from the user-scoped localStorage key first (fast UI).
+        const stored = localStorage.getItem(getSavedKey(userId))
+        const localParsed = stored ? normalizeSaved(JSON.parse(stored)) : []
+        if (localParsed.length > 0) {
+          setSavedCompanies(localParsed)
+        } else if (!userId) {
+          setSavedCompanies([])
+        }
+      } catch {
+        if (!userId) setSavedCompanies([])
+      }
+
+      // If signed in, prefer Supabase (per-user persistence).
+      if (!userId) return
+
+      try {
+        const { data: settingsRow, error } = await supabase
+          .from('user_settings')
+          .select('saved_companies')
+          .eq('user_id', userId)
+          .maybeSingle()
+
+        if (error) {
+          return
+        }
+
+        const dbList = normalizeSaved((settingsRow as { saved_companies?: unknown } | null)?.saved_companies)
+
+        // Optional one-time merge: carry over anon list into the user list if present.
+        let anonList: string[] = []
+        try {
+          const anonStored = localStorage.getItem(getSavedKey(null))
+          anonList = anonStored ? normalizeSaved(JSON.parse(anonStored)) : []
+        } catch {
+          anonList = []
+        }
+
+        const merged = normalizeSaved([...dbList, ...anonList])
+        setSavedCompanies(merged)
+        localStorage.setItem(getSavedKey(userId), JSON.stringify(merged))
+
+        if (anonList.length > 0) {
+          // Persist merged list back to DB and clear anon key to avoid cross-account bleed.
+          await supabase.from('user_settings').upsert({ user_id: userId, saved_companies: merged })
+          localStorage.removeItem(getSavedKey(null))
+        }
+      } catch {
+        // Ignore; local fallback already applied.
+      }
+    },
+    [currentUserId, supabase]
+  )
+
+  const extractDomainFromInput = useCallback((value: string): string | null => {
+    const raw = value.trim()
+    if (!raw) return null
+    try {
+      const url = raw.startsWith('http') ? new URL(raw) : new URL('https://' + raw)
+      return url.hostname.replace(/^www\./, '')
+    } catch {
+      const cleaned = raw.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0]
+      return cleaned.includes('.') ? cleaned : null
+    }
+  }, [])
+
+  const hydrateFromLatestPitch = useCallback(
+    async (companyInput: string) => {
+      const trimmed = companyInput.trim()
+      if (!trimmed) return
+      // Avoid network churn while generating.
+      // IMPORTANT: use a ref so this callback stays stable across loading toggles
+      // (otherwise it retriggers the companyUrl hydration effect and can clear freshly-generated pitch output).
+      if (loadingRef.current) return
+
+      const domain = extractDomainFromInput(trimmed)
+      const qs = new URLSearchParams()
+      if (domain) qs.set('companyDomain', domain)
+      else qs.set('companyName', trimmed)
+
+      try {
+        const res = await fetch(`/api/pitch/latest?${qs.toString()}`, { method: 'GET' })
+        if (!res.ok) {
+          if (selectedSavedCompanyRef.current === trimmed) {
+            setSavedCompanyNotice(`Could not load the latest pitch for ${trimmed}.`)
+            selectedSavedCompanyRef.current = null
+          }
+          return
+        }
+        const json = (await res.json()) as LatestPitchResponse
+        if (!json || json.ok !== true) {
+          if (selectedSavedCompanyRef.current === trimmed) {
+            setSavedCompanyNotice(`Could not load the latest pitch for ${trimmed}.`)
+            selectedSavedCompanyRef.current = null
+          }
+          return
+        }
+        const latest = json.data.pitch
+        if (!latest) {
+          // If we switched companies and there is no saved work, clear the old outputs.
+          setPitch(null)
+          setEmailSequence(null)
+          setBattleCard(null)
+          if (selectedSavedCompanyRef.current === trimmed) {
+            setSavedCompanyNotice(`No previous pitch found for ${trimmed} — generate one to save it.`)
+            selectedSavedCompanyRef.current = null
+          }
+          return
+        }
+
+        if (selectedSavedCompanyRef.current === trimmed) {
+          setSavedCompanyNotice(null)
+          selectedSavedCompanyRef.current = null
+        }
+        setPitch(typeof latest.content === 'string' ? latest.content : null)
+
+        const seq = latest.company?.emailSequence
+        if (isRecord(seq) && typeof seq.part1 === 'string' && typeof seq.part2 === 'string' && typeof seq.part3 === 'string') {
+          setEmailSequence({ part1: seq.part1, part2: seq.part2, part3: seq.part3 })
+        } else {
+          setEmailSequence(null)
+        }
+
+        const bc = latest.company?.battleCard
+        if (isRecord(bc) && Array.isArray(bc.currentTech) && typeof bc.painPoint === 'string' && typeof bc.killerFeature === 'string') {
+          setBattleCard({
+            currentTech: bc.currentTech.filter((t) => typeof t === 'string') as string[],
+            painPoint: bc.painPoint,
+            killerFeature: bc.killerFeature,
+          })
+        } else {
+          setBattleCard(null)
+        }
+      } catch {
+        // best-effort
+      }
+    },
+    [extractDomainFromInput]
+  )
 
   useEffect(() => {
     if (initialUrl) {
       setCompanyUrl(initialUrl)
     }
-    checkSubscription()
-    loadSaved()
-  }, [initialUrl, checkSubscription])
+    void loadSaved()
+    // Keep saved companies scoped to the current authenticated user.
+    const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      const nextUserId = session?.user?.id ?? null
+      setCurrentUserId(nextUserId)
+      void loadSaved(nextUserId)
+    })
+    return () => {
+      data.subscription.unsubscribe()
+    }
+  }, [initialUrl, loadSaved, supabase.auth])
 
-  const loadSaved = () => {
-    try {
-      const stored = localStorage.getItem('leadintel_saved_companies')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed)) {
-          setSavedCompanies(parsed.slice(0, 10))
-        }
+  useEffect(() => {
+    let cancelled = false
+    // Skip usage fetch for anonymous marketing visitors.
+    if (!currentUserId) return
+
+    const loadUsage = async () => {
+      // If the user is paid, never apply Starter cap behavior; clear any stale usage state.
+      if (tier !== 'starter') {
+        setPitchUsage(null)
+        return
       }
+
+      try {
+        const res = await fetch('/api/usage/pitch-summary', { method: 'GET', cache: 'no-store', credentials: 'include' })
+        if (!res.ok) return
+        const json = (await res.json()) as PitchUsageSummary
+        if (!json || json.ok !== true) return
+        if (cancelled) return
+        setPitchUsage({
+          pitchesUsed: typeof json.data.pitchesUsed === 'number' ? json.data.pitchesUsed : Number(json.data.pitchesUsed) || 0,
+          pitchesLimit: typeof json.data.pitchesLimit === 'number' ? json.data.pitchesLimit : null,
+        })
+      } catch {
+        // ignore
+      }
+    }
+
+    void loadUsage()
+    return () => {
+      cancelled = true
+    }
+  }, [currentUserId, tier])
+
+  const isPitchCapReached = (() => {
+    const limit = pitchUsage?.pitchesLimit
+    const used = pitchUsage?.pitchesUsed ?? 0
+    return isStarter && typeof limit === 'number' && used >= limit
+  })()
+
+  const visibleSavedCompanies =
+    isPitchCapReached ? savedCompanies.slice(0, pitchUsage?.pitchesLimit ?? STARTER_PITCH_CAP_LIMIT) : savedCompanies
+
+  // Hydrate latest saved pitch content whenever company input changes (debounced).
+  useEffect(() => {
+    const trimmed = companyUrl.trim()
+    if (!trimmed) return
+    const t = window.setTimeout(() => {
+      void hydrateFromLatestPitch(trimmed)
+      onCompanyContextChange?.({ companyInput: trimmed, companyDomain: extractDomainFromInput(trimmed) })
+    }, 250)
+    return () => window.clearTimeout(t)
+  }, [companyUrl, hydrateFromLatestPitch, onCompanyContextChange, extractDomainFromInput])
+
+  const persistSaved = async (url: string) => {
+    const userId = currentUserId
+    const next = [url, ...savedCompanies.filter((u) => u !== url)].slice(0, 25)
+    setSavedCompanies(next)
+    try {
+      localStorage.setItem(getSavedKey(userId), JSON.stringify(next))
+    } catch {
+      // ignore
+    }
+
+    // Persist per-user when authenticated.
+    if (!userId) return
+    try {
+      await supabase.from('user_settings').upsert({ user_id: userId, saved_companies: next })
     } catch {
       // ignore
     }
   }
 
-  const persistSaved = (url: string) => {
-    try {
-      const next = [url, ...savedCompanies.filter(u => u !== url)].slice(0, 10)
+  const removeSaved = useCallback(
+    async (company: string) => {
+      const userId = currentUserId
+      const next = savedCompanies.filter((c) => c !== company)
       setSavedCompanies(next)
-      localStorage.setItem('leadintel_saved_companies', JSON.stringify(next))
-    } catch {
-      // ignore
-    }
-  }
+      try {
+        localStorage.setItem(getSavedKey(userId), JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+      if (!userId) return
+      try {
+        await supabase.from('user_settings').upsert({ user_id: userId, saved_companies: next })
+      } catch {
+        // ignore
+      }
+    },
+    [currentUserId, savedCompanies, supabase]
+  )
+
+  const selectCompany = useCallback(
+    (company: string) => {
+      const trimmed = company.trim()
+      if (!trimmed) return
+      setSavedCompanyNotice(null)
+      selectedSavedCompanyRef.current = trimmed
+      setCompanyUrl(trimmed)
+      onCompanyContextChange?.({ companyInput: trimmed, companyDomain: extractDomainFromInput(trimmed) })
+      // Fetch latest pitch immediately so the chip feels responsive; does NOT count toward generation caps.
+      void hydrateFromLatestPitch(trimmed)
+    },
+    [extractDomainFromInput, hydrateFromLatestPitch, onCompanyContextChange]
+  )
 
   const handleGenerate = async () => {
     const trimmedInput = companyUrl.trim()
@@ -105,14 +423,15 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
       return
     }
 
-    // Check authentication before calling API
+    // Check authentication before calling API (skip redirect in Playwright/E2E to keep tests deterministic).
     setAuthError(null)
-    const { data: { user }, error: authCheckError } = await supabase.auth.getUser()
-    
-    if (authCheckError || !user) {
-      setAuthError('Please sign in to generate intelligence.')
-      router.push('/login?redirect=/')
-      return
+    if (!isE2E()) {
+      const user = await getUserSafe(supabase)
+      if (!user) {
+        setAuthError('Please sign in to generate intelligence.')
+        router.push('/login?redirect=/')
+        return
+      }
     }
 
     setLoading(true)
@@ -120,12 +439,13 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
     setEmailSequence(null)
     setBattleCard(null)
     setWarnings([])
+    setFreeLimitError(null)
 
     try {
       const response = await fetch('/api/generate-pitch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyUrl }),
+        body: JSON.stringify({ companyUrl, templateId }),
       })
 
       if (!response.ok) {
@@ -134,59 +454,110 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
           router.push('/login?redirect=/')
           return
         }
-        const errorData = await response.json().catch(() => null)
-        // Extract error message from various response formats
+        // Prefer the standardized error envelope; fall back to response text if JSON parsing fails.
+        const rawText = await response.text().catch(() => '')
+        let errorData: unknown = null
+        try {
+          errorData = rawText ? (JSON.parse(rawText) as unknown) : null
+        } catch {
+          errorData = null
+        }
+        const code =
+          (errorData as any)?.code ??
+          (errorData as any)?.error?.code ??
+          null
+        if (response.status === 429 && code === 'FREE_PLAN_LIMIT_REACHED') {
+          const headerLimit = Number(response.headers.get('x-free-plan-limit') || '')
+          const limit =
+            (errorData as any)?.meta?.limit ??
+            (errorData as any)?.error?.details?.limit ??
+            (Number.isFinite(headerLimit) ? headerLimit : undefined)
+
+          const msg =
+            (errorData as any)?.message ??
+            (errorData as any)?.error?.message ??
+            (typeof limit === 'number'
+              ? `You’ve reached today’s free limit (${limit} pitches) on the Starter plan. Upgrade to Closer for higher limits.`
+              : `You’ve reached today’s free limit on the Starter plan. Upgrade to Closer for higher limits.`)
+
+          setFreeLimitError(msg)
+          setAuthError(msg)
+          return
+        }
+
         let errorMessage = 'Failed to generate pitch. Please try again.'
         if (errorData) {
-          // Handle { error: { message } } format
-          if (typeof errorData.error?.message === 'string') {
-            errorMessage = errorData.error.message
-          // Handle { error: string } format
-          } else if (typeof errorData.error === 'string') {
-            errorMessage = errorData.error
-          // Handle { message: string } format
-          } else if (typeof errorData.message === 'string') {
-            errorMessage = errorData.message
-          }
+          const obj = errorData as any
+          if (typeof obj.error?.message === 'string') errorMessage = obj.error.message
+          else if (typeof obj.error === 'string') errorMessage = obj.error
+          else if (typeof obj.message === 'string') errorMessage = obj.message
+        } else if (rawText.trim()) {
+          errorMessage = rawText.trim().slice(0, 200)
+        } else if (response.status === 424) {
+          errorMessage = 'Database migration required. Please apply latest Supabase migrations.'
         }
         throw new Error(errorMessage)
       }
 
-      const data = await response.json() as {
-        pitch?: string
-        warnings?: string[]
-        isPro?: boolean
-        emailSequence?: EmailSequence
-        battleCard?: BattleCard
-        lead?: unknown
-        triggerEvent?: unknown
-      }
+      const raw = (await response.json()) as unknown
+      const data = unwrapGeneratePitchPayload(raw)
       
       // ALWAYS set pitch - this is the primary output (does NOT depend on lead/triggerEvent)
-      if (data.pitch && typeof data.pitch === 'string') {
-        setPitch(data.pitch)
-        persistSaved(companyUrl)
+      const pitchText = typeof data.pitch === 'string' ? data.pitch.trim() : ''
+      if (pitchText) {
+        setPitch(pitchText)
+        await persistSaved(companyUrl)
+        onCompanyContextChange?.({
+          companyInput: companyUrl,
+          companyDomain: extractDomainFromInput(companyUrl),
+        })
       } else {
-        // Fallback if pitch is missing
+        // Only show this fallback when the request succeeded but the canonical pitch field is empty.
         setPitch('Pitch generation completed, but no pitch text was returned.')
       }
 
       // Parse warnings array defensively (non-blocking)
-      setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
+      const parsedWarnings = Array.isArray(data.warnings)
+        ? (data.warnings as unknown[]).filter((w): w is string => typeof w === 'string')
+        : []
 
-      // Update isPro from response (if present)
-      if (data.isPro !== undefined) {
-        setIsPro(data.isPro)
+      // Soft case: pitch generated but no lead_id to attach. Don't show UI banner.
+      const hasSoftMissingLead =
+        pitchText.length > 0 &&
+        parsedWarnings.length > 0 &&
+        parsedWarnings.every((w) => w === MISSING_LEAD_WARNING)
+
+      if (hasSoftMissingLead) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(
+            '[Pitch persistence] Pitch generated but lead_id is missing. ' +
+              'If you rely on pitch history, ensure Supabase migrations for leads/pitches are fully applied.'
+          )
+        }
+        setWarnings([])
+      } else {
+        // Only show "hard" persistence warnings (schema/RLS/insert failures).
+        setWarnings(parsedWarnings.filter((w) => w !== MISSING_LEAD_WARNING))
       }
 
       // Set email sequence (3-part) - Enterprise Intelligence feature
-      if (data.emailSequence) {
-        setEmailSequence(data.emailSequence)
+      if (isRecord(data.emailSequence)) {
+        const seq = data.emailSequence as Record<string, unknown>
+        if (typeof seq.part1 === 'string' && typeof seq.part2 === 'string' && typeof seq.part3 === 'string') {
+          setEmailSequence({ part1: seq.part1, part2: seq.part2, part3: seq.part3 })
+        }
       }
 
       // Set battle card - Enterprise Intelligence feature
-      if (data.battleCard) {
-        setBattleCard(data.battleCard)
+      if (isRecord(data.battleCard)) {
+        const bc = data.battleCard as Record<string, unknown>
+        if (Array.isArray(bc.currentTech) && typeof bc.painPoint === 'string' && typeof bc.killerFeature === 'string') {
+          setBattleCard({
+            currentTech: bc.currentTech.filter((t) => typeof t === 'string') as string[],
+            painPoint: bc.painPoint,
+            killerFeature: bc.killerFeature,
+          })
+        }
       }
     } catch (error: unknown) {
       const errorMessage = formatErrorMessage(error)
@@ -215,7 +586,7 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
             </div>
             <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
               <Shield className="h-3 w-3 mr-1" />
-              Enterprise Intel
+              Pro Intel
             </Badge>
           </div>
           <CardDescription>
@@ -223,6 +594,31 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isPitchCapReached ? (
+            <div className="rounded-lg border border-cyan-500/20 bg-background/40 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-cyan-200">
+                    You’ve used your {STARTER_PITCH_CAP_LIMIT} free pitches on the Starter plan.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upgrade to Closer to unlock unlimited pitches.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push('/pricing?target=closer')}
+                    className="neon-border hover:glow-effect whitespace-nowrap"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Upgrade to Closer
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {authError && (
             <div className="text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded p-2">
               {authError}
@@ -237,45 +633,135 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
                 ))}
               </ul>
               <p className="text-xs mt-2 text-muted-foreground">
-                Pitch generated successfully, but some data may not have been saved. Check Supabase schema configuration.
+                Pitch generated, but it could not be saved to history (Supabase schema or RLS issue). Your content is safe to copy.
               </p>
             </div>
           )}
-          <div className="flex gap-2">
-            <Input
-              placeholder="e.g., lego.com, SaaS analytics tool, webinar for HR leaders"
-              value={companyUrl}
-              onChange={(e) => setCompanyUrl(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-              className="flex-1"
-            />
-            <Button onClick={handleGenerate} disabled={loading || !companyUrl.trim()}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate
-                </>
-              )}
-            </Button>
+          <div className="relative">
+            <div className={isPitchCapReached ? 'pointer-events-none opacity-50' : ''}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <label className="text-sm font-semibold mb-2 block" htmlFor="pitch_template">
+                    Template
+                  </label>
+                  <select
+                    id="pitch_template"
+                    value={templateId}
+                    onChange={(e) => setTemplateId(e.target.value as PitchTemplateId)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                    disabled={isPitchCapReached}
+                  >
+                    {PITCH_TEMPLATES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {PITCH_TEMPLATES.find((t) => t.id === templateId)?.description ?? ''}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-3">
+                <Input
+                  placeholder="e.g., lego.com, SaaS analytics tool, webinar for HR leaders"
+                  value={companyUrl}
+                  onChange={(e) => setCompanyUrl(e.target.value)}
+                  onInput={(e) => {
+                    // E2E + some browser automation flows dispatch `input` events directly.
+                    // Keep state in sync so the Generate button enables deterministically.
+                    const next = (e.target as HTMLInputElement | null)?.value
+                    if (typeof next === 'string') setCompanyUrl(next)
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+                  className="flex-1"
+                  data-testid="pitch-input"
+                  disabled={isPitchCapReached}
+                />
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isPitchCapReached || loading || !companyUrl.trim()}
+                  data-testid="pitch-generate"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {isPitchCapReached ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="rounded-lg border border-cyan-500/20 bg-background/80 px-4 py-3 text-center backdrop-blur-sm">
+                  <p className="text-sm font-semibold text-cyan-200">
+                    You’ve used your {STARTER_PITCH_CAP_LIMIT} free pitches.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Upgrade to unlock unlimited pitches.</p>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push('/pricing?target=closer')}
+                      className="neon-border hover:glow-effect"
+                    >
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Upgrade to Closer
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
-        {savedCompanies.length > 0 && (
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Saved companies:</span>
-            {savedCompanies.map((u) => (
-              <Button
-                key={u}
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs"
-                onClick={() => setCompanyUrl(u)}
+          {freeLimitError ? (
+            <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-100 flex items-center justify-between gap-3">
+              <span>{freeLimitError}</span>
+              <button
+                type="button"
+                className="rounded-md bg-amber-400/90 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-amber-300"
+                onClick={() => router.push('/pricing')}
               >
-                {u}
-              </Button>
+                Upgrade to Closer
+              </button>
+            </div>
+          ) : null}
+          {savedCompanyNotice ? (
+            <div className="mt-2 text-xs text-muted-foreground" role="status">
+              {savedCompanyNotice}
+            </div>
+          ) : null}
+        {visibleSavedCompanies.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Saved companies:</span>
+            {visibleSavedCompanies.map((u) => (
+              <div key={u} className="inline-flex items-center rounded-md border bg-background">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => selectCompany(u)}
+                  title={`Use ${u}`}
+                  aria-label={`Load latest pitch for ${u}`}
+                >
+                  {u}
+                </Button>
+                <button
+                  type="button"
+                  className="h-7 w-7 grid place-items-center border-l text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  aria-label={`Remove ${u}`}
+                  onClick={() => void removeSaved(u)}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -321,24 +807,30 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
           </CardContent>
         </Card>
       ) : emailSequence ? (
-        <Card className="border-purple-500/20 bg-card/50">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-purple-400" />
-                <CardTitle className="text-lg bloomberg-font">EMAIL SEQUENCER</CardTitle>
+        <ProGate
+          requiredTier="closer"
+          upgradeTarget="closer"
+          label="Email Sequencer (Pro)"
+          description="Unlock full email sequencing and automation with the Closer plan."
+        >
+          <Card className="border-purple-500/20 bg-card/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-purple-400" />
+                  <CardTitle className="text-lg bloomberg-font">EMAIL SEQUENCER</CardTitle>
+                </div>
+                <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
+                  <Shield className="h-3 w-3 mr-1" />
+                  Pro
+                </Badge>
               </div>
-              <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
-                <Shield className="h-3 w-3 mr-1" />
-                Pro
-              </Badge>
-            </div>
-            <CardDescription className="text-xs uppercase tracking-wider">
-              Enterprise Intelligence • 3-Part Automated Sequence
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
+              <CardDescription className="text-xs uppercase tracking-wider">
+                Enterprise Intelligence • 3-Part Automated Sequence
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
               {/* Part 1: Helpful */}
               <div className="p-4 rounded-lg border border-green-500/10 bg-background/30">
                   <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -416,46 +908,7 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
             </div>
           </CardContent>
         </Card>
-      ) : !isPro ? (
-        <Card className="border-purple-500/20 bg-card/50 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-500/20 to-transparent w-32 h-32 blur-3xl" />
-          </div>
-          <CardHeader className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Lock className="h-5 w-5 text-purple-400" />
-                <CardTitle className="text-lg bloomberg-font neon-purple">EMAIL SEQUENCER</CardTitle>
-              </div>
-              <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
-                <Lock className="h-3 w-3 mr-1" />
-                Pro Only
-              </Badge>
-            </div>
-            <CardDescription className="text-xs uppercase tracking-wider">
-              Enterprise Intelligence • 3-Part Automated Sequence
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-center py-12">
-              <div className="mb-6">
-                <Mail className="h-16 w-16 mx-auto mb-4 text-purple-400/50" />
-                <h3 className="text-lg font-bold mb-2 text-purple-400">Enterprise Feature Locked</h3>
-                <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-                  Automate your outreach with a 3-part email sequence: Helpful opener, data-driven follow-up, and final reminder. 
-                  Each email is AI-optimized for maximum engagement.
-                </p>
-              </div>
-              <Button
-                onClick={() => router.push('/pricing')}
-                className="neon-border hover:glow-effect bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
-              >
-                <DollarSign className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="text-center">Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        </ProGate>
       ) : null}
 
       {/* Battle Card */}
@@ -467,24 +920,30 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
           </CardContent>
         </Card>
       ) : battleCard ? (
-        <Card className="border-purple-500/20 bg-card/50">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-purple-400" />
-                <CardTitle className="text-lg bloomberg-font">BATTLE CARD</CardTitle>
+        <ProGate
+          requiredTier="closer"
+          upgradeTarget="closer"
+          label="Battle Card (Pro)"
+          description="Unlock competitive intelligence and positioning with the Closer plan."
+        >
+          <Card className="border-purple-500/20 bg-card/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-purple-400" />
+                  <CardTitle className="text-lg bloomberg-font">BATTLE CARD</CardTitle>
+                </div>
+                <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
+                  <Shield className="h-3 w-3 mr-1" />
+                  Pro
+                </Badge>
               </div>
-              <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
-                <Shield className="h-3 w-3 mr-1" />
-                Pro
-              </Badge>
-            </div>
-            <CardDescription className="text-xs uppercase tracking-wider">
-              Enterprise Intelligence • 3-Point Competitive Intelligence
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+              <CardDescription className="text-xs uppercase tracking-wider">
+                Enterprise Intelligence • 3-Point Competitive Intelligence
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
               {/* Current Tech */}
               <div className="p-4 rounded-lg border border-cyan-500/10 bg-background/30">
                 <div className="flex items-center gap-2 mb-3">
@@ -534,45 +993,7 @@ export function PitchGenerator({ initialUrl = "" }: PitchGeneratorProps) {
             </div>
           </CardContent>
         </Card>
-      ) : !isPro ? (
-        <Card className="border-purple-500/20 bg-card/50 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-500/20 to-transparent w-32 h-32 blur-3xl" />
-          </div>
-          <CardHeader className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Lock className="h-5 w-5 text-purple-400" />
-                <CardTitle className="text-lg bloomberg-font neon-purple">BATTLE CARD</CardTitle>
-              </div>
-              <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
-                <Lock className="h-3 w-3 mr-1" />
-                Pro Only
-              </Badge>
-            </div>
-            <CardDescription className="text-xs uppercase tracking-wider">
-              Enterprise Intelligence • 3-Point Competitive Intelligence
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-center py-12">
-              <div className="mb-6">
-                <Shield className="h-16 w-16 mx-auto mb-4 text-purple-400/50" />
-                <h3 className="text-lg font-bold mb-2 text-purple-400">Enterprise Feature Locked</h3>
-                <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-                  Get instant competitive intelligence: Current tech stack, pain points, and your killer feature that solves their challenge.
-                </p>
-              </div>
-              <Button
-                onClick={() => router.push('/pricing')}
-                className="neon-border hover:glow-effect bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
-              >
-                <DollarSign className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="text-center">Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        </ProGate>
       ) : null}
     </div>
   )

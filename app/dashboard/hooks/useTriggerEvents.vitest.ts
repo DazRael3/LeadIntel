@@ -187,4 +187,20 @@ describe('useTriggerEvents', () => {
       expect(result.current.events).toEqual([])
     })
   })
+
+  it('should apply companyDomain filter when provided', async () => {
+    const eqSpy = vi.fn().mockReturnThis()
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: eqSpy,
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
+    })
+
+    const { result } = renderHook(() => useTriggerEvents())
+    await act(async () => {
+      await result.current.loadEvents({ companyDomain: 'acme.com' })
+    })
+    expect(eqSpy).toHaveBeenCalledWith('company_domain', 'acme.com')
+  })
 })

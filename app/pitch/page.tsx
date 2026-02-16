@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { PitchGenerator } from "@/components/PitchGenerator"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
+import { PlanProvider } from "@/components/PlanProvider"
 
 function PitchContent() {
   const searchParams = useSearchParams()
@@ -43,7 +44,9 @@ function PitchContent() {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <PitchGenerator initialUrl={companyUrl} />
+        <PlanProvider initialPlan="free">
+          <PitchGenerator initialUrl={companyUrl} />
+        </PlanProvider>
       </main>
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -8,12 +8,13 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import type { Lead } from "@/lib/supabaseClient"
 import { formatDate } from "@/lib/utils"
+import { useLeadLibrary } from "@/app/dashboard/hooks/useLeadLibrary"
+import { track } from '@/lib/analytics'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { 
   Search, 
   Filter, 
   Building2, 
-  Mail, 
-  Linkedin, 
   Copy, 
   Check,
   X,
@@ -21,10 +22,13 @@ import {
   Eye,
   Star
 } from "lucide-react"
-import { EmailShield } from "@/components/EmailShield"
-import { UpgradeOverlay } from "@/components/UpgradeOverlay"
 import { LeadDetailView } from "@/components/LeadDetailView"
 import { addLeadToWatchlist } from "@/components/Watchlist"
+import { computeStarterLeadUsage, STARTER_MAX_LEADS } from '@/lib/billing/leads-usage'
+
+type WatchlistRow = {
+  lead_id: string
+}
 
 interface LeadLibraryProps {
   isPro: boolean
@@ -32,10 +36,9 @@ interface LeadLibraryProps {
   viewMode?: 'startup' | 'enterprise'
 }
 
-export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: LeadLibraryProps) {
+export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMode = 'startup' }: LeadLibraryProps) {
   const supabase = createClient()
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
+  const { leads, isLoading: loading, error, refresh } = useLeadLibrary()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedEventType, setSelectedEventType] = useState<string | null>(null)
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null)
@@ -47,7 +50,7 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
     if (!isPro) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUserSafe(supabase)
       if (!user) return
 
       const { data } = await supabase
@@ -56,12 +59,27 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
         .eq('user_id', user.id)
 
       if (data) {
-        setStarredLeads(new Set(data.map(item => item.lead_id)))
+        const rows = data as WatchlistRow[]
+        setStarredLeads(new Set(rows.map((item) => item.lead_id)))
       }
     } catch (error) {
       console.error('Error loading starred leads:', error)
     }
   }, [isPro, supabase])
+
+  useEffect(() => {
+    void loadStarredLeads()
+  }, [loadStarredLeads])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  useEffect(() => {
+    track('lead_library_viewed')
+    // fire once per mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleToggleStar = async (lead: Lead) => {
     if (!isPro) return
@@ -71,7 +89,7 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
     if (isStarred) {
       // Remove from watchlist
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         if (!user) return
 
         await supabase
@@ -97,25 +115,9 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
     }
   }
 
-  const loadAllLeads = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setLeads(data || [])
-    } catch (error) {
-      console.error('Error loading leads:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [supabase])
-
   // Get unique event types and industries
   const eventTypes = useMemo(() => {
-    const types = new Set(leads.map(l => l.trigger_event))
+    const types = new Set(leads.map((l) => l.trigger_event).filter(Boolean))
     return Array.from(types).sort()
   }, [leads])
 
@@ -127,7 +129,18 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
 
   // Filter and sort leads based on view mode
   const filteredLeads = useMemo(() => {
-    let filtered = leads
+    // Starter users: only the first 3 unlocked/saved leads are visible at all.
+    // This is a hard visibility cap (no blur), aligned with Starter pitch/lead limits.
+    let filtered = !isPro
+      ? [...leads]
+          .sort((a, b) => {
+            const aMs = Date.parse(a.created_at || '') || 0
+            const bMs = Date.parse(b.created_at || '') || 0
+            if (aMs !== bMs) return aMs - bMs // oldest first
+            return a.company_name.localeCompare(b.company_name)
+          })
+          .slice(0, STARTER_MAX_LEADS)
+      : leads
 
     // Search filter
     if (searchQuery) {
@@ -147,29 +160,16 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
     // Industry filter (placeholder - would use actual industry field)
     // For now, skip industry filter
 
-    // Sort based on view mode
-    if (viewMode === 'startup') {
-      // Sort by Growth Potential (descending), then by fit_score
-      filtered = [...filtered].sort((a, b) => {
-        const aScore = a.growth_potential || 0
-        const bScore = b.growth_potential || 0
-        if (bScore !== aScore) return bScore - aScore
-        return (b.fit_score || 0) - (a.fit_score || 0)
-      })
-    } else {
-      // Sort by Enterprise Stability (descending), then by fit_score
-      filtered = [...filtered].sort((a, b) => {
-        const aScore = a.enterprise_stability || 0
-        const bScore = b.enterprise_stability || 0
-        if (bScore !== aScore) return bScore - aScore
-        return (b.fit_score || 0) - (a.fit_score || 0)
-      })
-    }
+    // Sort based on view mode (placeholder: both modes keep same dataset; just deterministic ordering).
+    filtered = [...filtered].sort((a, b) => {
+      const aMs = Date.parse(a.created_at || '') || 0
+      const bMs = Date.parse(b.created_at || '') || 0
+      if (bMs !== aMs) return bMs - aMs
+      return a.company_name.localeCompare(b.company_name)
+    })
 
-    // Note: We don't filter out leads for free users
-    // Instead, we blur them in the UI after their credit limit
     return filtered
-  }, [leads, searchQuery, selectedEventType, viewMode])
+  }, [leads, searchQuery, selectedEventType, isPro])
 
   const handleCopyPitch = async (pitch: string, leadId: string) => {
     try {
@@ -183,13 +183,13 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
 
   const exportLeads = () => {
     const csv = [
-      ['Company', 'Event Type', 'Email', 'LinkedIn', 'Created At'].join(','),
+      ['Company', 'Domain', 'URL', 'Latest Signal', 'Created At'].join(','),
       ...filteredLeads.map(lead =>
         [
           `"${lead.company_name}"`,
-          `"${lead.trigger_event}"`,
-          `"${lead.prospect_email || ''}"`,
-          `"${lead.prospect_linkedin || ''}"`,
+          `"${lead.company_domain || ''}"`,
+          `"${lead.company_url || ''}"`,
+          `"${lead.trigger_event || ''}"`,
           `"${lead.created_at}"`
         ].join(',')
       )
@@ -203,6 +203,12 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
     a.click()
   }
 
+  const starterUsage = useMemo(() => {
+    // Canonical Starter usage model is derived from the number of distinct leads unlocked/saved.
+    // We clamp to avoid negative credits or counts above the cap in the UI.
+    return computeStarterLeadUsage(leads.length, STARTER_MAX_LEADS)
+  }, [leads.length])
+
   return (
     <Card className="border-cyan-500/20 bg-card/50">
       <CardHeader>
@@ -210,8 +216,17 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
           <div>
             <CardTitle className="text-xl bloomberg-font neon-cyan">LEAD LIBRARY</CardTitle>
             <CardDescription className="text-xs uppercase tracking-wider mt-1">
-              {filteredLeads.length} of {leads.length} leads
-              {!isPro && ` • ${creditsRemaining} credits remaining`}
+              {isPro ? (
+                <>
+                  {filteredLeads.length} of {leads.length} leads
+                </>
+              ) : (
+                <>
+                  {starterUsage.leadsUsed} of {starterUsage.maxLeads} leads • {starterUsage.creditsRemaining} credits
+                  {' '}
+                  remaining
+                </>
+              )}
             </CardDescription>
           </div>
           <Button
@@ -290,10 +305,19 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
           <div className="text-center py-12">
             <div className="animate-pulse text-muted-foreground">Loading leads...</div>
           </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <Building2 className="h-12 w-12 mx-auto mb-4 text-red-400" />
+            <p className="text-muted-foreground mb-2">We couldn’t load your leads right now.</p>
+            <p className="text-xs text-muted-foreground">{error}</p>
+          </div>
         ) : filteredLeads.length === 0 ? (
           <div className="text-center py-12">
             <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">No leads found</p>
+            <p className="text-muted-foreground">No leads yet</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Generate your first pitch in the Command Center to see it here.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -301,34 +325,20 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
               <thead>
                 <tr className="border-b border-cyan-500/20">
                   <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Company</th>
-                  <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Event</th>
-                  <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">
-                    {viewMode === 'startup' ? 'Growth Potential' : 'Enterprise Stability'}
-                  </th>
-                  <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Fit Score</th>
-                  <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Contact</th>
+                  <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Latest Signal</th>
                   <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Date</th>
                   <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLeads.map((lead, index) => {
-                  // Free users: blur leads after their daily credit (1 lead)
-                  // Pro users: see everything
-                  const shouldBlur = !isPro && index >= creditsRemaining
-                  
-                  // Get the relevant score based on view mode
-                  const primaryScore = viewMode === 'startup' 
-                    ? (lead.growth_potential || 0)
-                    : (lead.enterprise_stability || 0)
-                  
-                  // Highlight high-scoring leads
-                  const isHighScore = primaryScore >= 70
-                  const highlightClass = isHighScore 
-                    ? viewMode === 'startup'
-                      ? 'bg-green-500/5 border-l-2 border-l-green-500/30'
-                      : 'bg-blue-500/5 border-l-2 border-l-blue-500/30'
-                    : ''
+                  // Starter: visually gate rows beyond the starter lead cap.
+                  // Pro: show everything.
+                  const shouldBlur = !isPro && index >= starterUsage.maxLeads
+                  const highlightClass =
+                    viewMode === 'startup'
+                      ? 'border-l-2 border-l-green-500/10'
+                      : 'border-l-2 border-l-blue-500/10'
                   
                   return (
                     <tr
@@ -340,85 +350,14 @@ export function LeadLibrary({ isPro, creditsRemaining, viewMode = 'startup' }: L
                       <td className="py-3 px-4">
                         <div className={shouldBlur ? 'blur-sm' : ''}>
                           <div className="font-bold text-cyan-400">{lead.company_name}</div>
+                          {lead.company_domain ? (
+                            <div className="text-xs text-muted-foreground">{lead.company_domain}</div>
+                          ) : null}
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <Badge
-                          variant="outline"
-                          className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10 text-xs"
-                        >
-                          {lead.trigger_event}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge
-                          variant="outline"
-                          className={`font-bold ${
-                            primaryScore >= 80
-                              ? viewMode === 'startup'
-                                ? 'border-green-500/30 text-green-400 bg-green-500/10'
-                                : 'border-blue-500/30 text-blue-400 bg-blue-500/10'
-                              : primaryScore >= 60
-                              ? 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10'
-                              : 'border-red-500/30 text-red-400 bg-red-500/10'
-                          }`}
-                        >
-                          {primaryScore}/100
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        {lead.fit_score !== undefined ? (
-                          <Badge
-                            variant="outline"
-                            className={`font-bold text-xs ${
-                              lead.fit_score >= 80
-                                ? 'border-green-500/30 text-green-400 bg-green-500/10'
-                                : lead.fit_score >= 60
-                                ? 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10'
-                                : 'border-red-500/30 text-red-400 bg-red-500/10'
-                            }`}
-                          >
-                            {lead.fit_score}/100
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          {lead.prospect_email && (
-                            <div className={`relative flex items-center gap-1 group ${shouldBlur || !isPro ? 'blur-sm' : ''}`}>
-                              <Mail className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs">
-                                {isPro ? lead.prospect_email : '***@***.com'}
-                              </span>
-                              {isPro && !shouldBlur && <EmailShield email={lead.prospect_email} className="ml-1" />}
-                              {(!isPro || shouldBlur) && (
-                                <div className="absolute -inset-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                                  <UpgradeOverlay />
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {lead.prospect_linkedin && (
-                            <div className="relative flex items-center gap-1 group">
-                              <Linkedin className="h-3 w-3 text-muted-foreground" />
-                              <a
-                                href={isPro && !shouldBlur ? lead.prospect_linkedin : '#'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`text-xs ${shouldBlur || !isPro ? 'blur-sm pointer-events-none' : 'hover:text-cyan-400'}`}
-                                onClick={(e) => (!isPro || shouldBlur) && e.preventDefault()}
-                              >
-                                LinkedIn
-                              </a>
-                              {(!isPro || shouldBlur) && (
-                                <div className="absolute -inset-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                                  <UpgradeOverlay />
-                                </div>
-                              )}
-                            </div>
-                          )}
+                        <div className={`text-xs ${shouldBlur ? 'blur-sm' : ''}`}>
+                          <span className="text-muted-foreground">{lead.trigger_event || '—'}</span>
                         </div>
                       </td>
                       <td className="py-3 px-4 text-xs text-muted-foreground">

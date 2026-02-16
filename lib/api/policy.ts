@@ -26,6 +26,8 @@ export interface RoutePolicy {
   originRequired: boolean
   /** Whether Supabase authentication is required */
   authRequired: boolean
+  /** Whether the route can be called by an authenticated cron/scheduler */
+  cronAllowed: boolean
   /** Whether route is dev-only (blocked in production) */
   devOnly: boolean
   /** Whether webhook signature verification is required */
@@ -44,6 +46,7 @@ const DEFAULT_POLICY: RoutePolicy = {
   },
   originRequired: true,
   authRequired: true, // All internal endpoints require auth by default
+  cronAllowed: false,
   devOnly: false,
   webhookSignatureRequired: false,
 }
@@ -64,6 +67,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -76,6 +80,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -88,6 +93,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -100,6 +106,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -112,6 +119,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -124,6 +132,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -136,6 +145,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -143,13 +153,17 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
   // Tier B: Payments
   'POST:/api/checkout': {
     tier: 'B',
-    maxBytes: 32768, // 32KB
+    // NOTE: Checkout parses/validates body inside the route handler so we can
+    // return a route-specific error code for invalid payloads.
+    // The handler still enforces an explicit 32KB limit.
+    maxBytes: 0,
     rateLimit: {
       authPerMin: 10,
       ipPerMin: 5,
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -162,6 +176,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -174,6 +189,20 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/billing/portal': {
+    tier: 'B',
+    maxBytes: 32768, // 32KB
+    rateLimit: {
+      authPerMin: 10,
+      ipPerMin: 5,
+    },
+    originRequired: true,
+    authRequired: false, // route returns custom 401 shape; handler performs auth check
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -186,6 +215,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -198,6 +228,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -210,6 +241,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -222,6 +254,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -236,6 +269,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -248,6 +282,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -260,6 +295,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -272,6 +308,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -284,18 +321,137 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
-  'POST:/api/push-to-crm': {
+  'POST:/api/watchlist': {
     tier: 'WRITE',
-    maxBytes: 32768, // 32KB
+    maxBytes: 16384, // 16KB
     rateLimit: {
       authPerMin: 60,
       ipPerMin: 30,
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/market/quotes': {
+    tier: 'D',
+    maxBytes: 16384, // up to 60 symbols/kinds
+    rateLimit: {
+      authPerMin: 120,
+      ipPerMin: 60,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'DELETE:/api/watchlist': {
+    tier: 'WRITE',
+    maxBytes: 16384, // 16KB
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/settings/autopilot': {
+    tier: 'WRITE',
+    maxBytes: 4096, // 4KB
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/settings/features': {
+    tier: 'WRITE',
+    maxBytes: 4096, // small settings payload
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/pitch/latest': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 0,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/analytics/track': {
+    tier: 'D',
+    maxBytes: 8192,
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 0,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/admin/site-report/run': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: true,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/admin/site-report/latest': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 0,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/push-to-crm': {
+    tier: 'WRITE',
+    maxBytes: 2 * 1024 * 1024, // 2MB (lead payload with pitch content)
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -307,7 +463,8 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
       ipPerMin: 30,
     },
     originRequired: false, // Tracker may be called from external sites
-    authRequired: true,
+    authRequired: false,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -320,6 +477,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: true,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -334,6 +492,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -346,6 +505,33 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/billing/verify-checkout-session': {
+    tier: 'D',
+    maxBytes: 8192, // 8KB
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 20,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/usage/pitch-summary': {
+    tier: 'D',
+    maxBytes: 8192, // 8KB
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -358,6 +544,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -370,6 +557,20 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/watchlist': {
+    tier: 'D',
+    maxBytes: 8192, // GET; body ignored
+    rateLimit: {
+      authPerMin: 120,
+      ipPerMin: 60,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -381,7 +582,21 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
       ipPerMin: 60,
     },
     originRequired: false,
-    authRequired: true,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/health': {
+    tier: 'HEALTH',
+    maxBytes: 1024, // GET; body ignored
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -396,6 +611,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: true,
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -410,6 +626,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false, // Webhooks don't have origin
     authRequired: false, // Webhooks don't use user auth
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: true,
   },
@@ -422,8 +639,50 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: false, // Webhooks don't use user auth
+    cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false, // Generic webhook may not have signature
+  },
+  'POST:/api/resend/webhook': {
+    tier: 'WEBHOOK',
+    maxBytes: 262144, // 256KB
+    rateLimit: {
+      authPerMin: 300,
+      ipPerMin: 300,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: true,
+  },
+
+  // Tier CRON: Scheduler routes (cron secret bypasses auth)
+  'POST:/api/autopilot/run': {
+    tier: 'CRON',
+    maxBytes: 32768, // 32KB
+    rateLimit: {
+      authPerMin: 5,
+      ipPerMin: 5,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: true,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/leads/discover': {
+    tier: 'CRON',
+    maxBytes: 32768, // 32KB
+    rateLimit: {
+      authPerMin: 5,
+      ipPerMin: 5,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: true,
+    devOnly: false,
+    webhookSignatureRequired: false,
   },
 
   // Tier DEV: Dev-only routes (blocked in production, require x-dev-key header)
@@ -436,6 +695,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: false, // Dev routes may not require auth (depends on implementation)
+    cronAllowed: false,
     devOnly: true,
     webhookSignatureRequired: false,
   },
@@ -448,6 +708,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: false, // Dev routes may not require auth
+    cronAllowed: false,
     devOnly: true,
     webhookSignatureRequired: false,
   },
@@ -460,19 +721,34 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     },
     originRequired: false,
     authRequired: false, // Dev routes may not require auth
+    cronAllowed: false,
     devOnly: true,
     webhookSignatureRequired: false,
   },
   'POST:/api/digest/run': {
-    tier: 'DEV',
+    tier: 'CRON',
     maxBytes: 32768, // 32KB
     rateLimit: {
       authPerMin: 10,
       ipPerMin: 5,
     },
     originRequired: false, // Cron jobs don't have origin
-    authRequired: false, // Dev routes may not require auth
-    devOnly: true, // Blocked in production unless cron-secret implemented
+    authRequired: true,
+    cronAllowed: true,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/trigger-events/ingest': {
+    tier: 'CRON',
+    maxBytes: 16384,
+    rateLimit: {
+      authPerMin: 10,
+      ipPerMin: 5,
+    },
+    originRequired: false,
+    authRequired: false, // Auth is via TRIGGER_EVENTS_CRON_SECRET header
+    cronAllowed: false,
+    devOnly: false,
     webhookSignatureRequired: false,
   },
 }

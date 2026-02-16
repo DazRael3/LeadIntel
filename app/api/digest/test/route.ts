@@ -3,6 +3,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { validateBody, validationError } from '@/lib/api/validate'
 import { DigestTestSchema } from '@/lib/api/schemas'
+import { isProduction } from '@/lib/runtimeFlags'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,11 @@ export async function POST(request: NextRequest) {
   const bridge = createCookieBridge()
   
   try {
+    // Dev/debug endpoint: hard-disabled in production.
+    if (isProduction()) {
+      return fail(ErrorCode.NOT_FOUND, 'Route not found', undefined, { status: 404 }, bridge)
+    }
+
     // Validate request body (optional userId for testing)
     let body
     try {

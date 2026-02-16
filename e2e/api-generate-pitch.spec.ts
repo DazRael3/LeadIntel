@@ -114,22 +114,27 @@ test.describe('Generate Pitch API', () => {
       })
     })
 
-    // Make multiple rapid requests
-    const requests = Array(25).fill(null).map(() =>
-      authenticatedPage.request.post('/api/generate-pitch', {
+    // Make multiple requests (sequential to avoid overwhelming dev server).
+    // In E2E we cap this route to ensure we see 429 quickly and deterministically.
+    const statuses: number[] = []
+    let saw429 = false
+
+    for (let i = 0; i < 20; i++) {
+      const res = await authenticatedPage.request.post('/api/generate-pitch', {
         data: { companyUrl: 'https://example.com' },
         headers: { 'Content-Type': 'application/json' },
         failOnStatusCode: false,
       })
-    )
+      const status = res.status()
+      statuses.push(status)
+      if (status === 429) {
+        saw429 = true
+        break
+      }
+    }
 
-    const responses = await Promise.all(requests)
-    
-    // At least one should be rate limited (429) if rate limiting is working
-    // Note: This test may be flaky if rate limits are high, so we just check
-    // that responses are valid (either 200 or 429)
-    const statusCodes = responses.map(r => r.status())
-    const allValid = statusCodes.every(code => [200, 429, 401, 403].includes(code))
-    expect(allValid).toBe(true)
+    // All statuses must be valid, and we should hit at least one 429.
+    expect(statuses.every((code) => [200, 429, 401, 403].includes(code))).toBe(true)
+    expect(saw429).toBe(true)
   })
 })

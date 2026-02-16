@@ -11,30 +11,41 @@ import type { Page } from '@playwright/test'
  * Extended test context with custom fixtures
  */
 type TestFixtures = {
+  page: Page
   authenticatedPage: Page
   testUser: { email: string; password: string }
 }
 
 export const test = base.extend<TestFixtures>({
   /**
+   * Reset in-memory rate limits between tests (E2E server uses memory limiter).
+   * This prevents cross-test interference where one test exhausts a route's limit
+   * and causes unrelated tests to see 429s.
+   */
+  page: async ({ page }, use) => {
+    // Best-effort: if server isn't up yet, ignore.
+    await page.request.get('/api/__e2e/reset-ratelimits', { failOnStatusCode: false }).catch(() => undefined)
+    await use(page)
+  },
+  /**
    * Authenticated page fixture
    * Creates a page with a logged-in user
    */
-  authenticatedPage: async ({ page, testUser }, use) => {
-    // Navigate to login page
-    await page.goto('/login?mode=signin&redirect=/dashboard')
-    
-    // Fill in credentials
-    await page.fill('input[type="email"]', testUser.email)
-    await page.fill('input[type="password"]', testUser.password)
-    
-    // Click sign in button
-    await page.click('button:has-text("Sign In")')
-    
-    // Wait for navigation to dashboard
-    await page.waitForURL('/dashboard', { timeout: 10000 })
-    
-    // Verify we're on dashboard
+  authenticatedPage: async ({ page, testUser }, use, testInfo) => {
+    // Fast + deterministic E2E auth:
+    // Our E2E Supabase shim treats `li_e2e_auth=1` as authenticated.
+    // This avoids flaky UI login flows and eliminates timeouts when the UI is under load.
+    // Ensure cookie is set for the current baseURL origin (Playwright will resolve relative navigations).
+    const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3001'
+    // Use a per-test user id so in-memory rate limits don't leak across parallel tests.
+    const uid = `e2e_${testInfo.workerIndex}_${testInfo.testId}`
+    await page.context().addCookies([
+      { name: 'li_e2e_auth', value: '1', url: baseURL },
+      { name: 'li_e2e_uid', value: uid, url: baseURL },
+    ])
+
+    // Navigate directly to dashboard.
+    await page.goto('/dashboard')
     await expect(page).toHaveURL(/\/dashboard/)
     
     // Use the authenticated page

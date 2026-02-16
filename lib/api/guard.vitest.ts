@@ -9,6 +9,8 @@ vi.mock('@/lib/env', () => ({
   serverEnv: {
     NODE_ENV: 'test',
     STRIPE_WEBHOOK_SECRET: 'whsec_test_secret',
+    CRON_SECRET: 'test-cron-secret-123456',
+    CRON_SIGNING_SECRET: 'test-cron-signing-secret-123456',
   },
 }))
 
@@ -223,6 +225,71 @@ describe('withApiGuard', () => {
 
     expect(response.headers.get('X-Request-ID')).toBe('test-request-id')
     expect(body.data.requestId).toBe('test-request-id')
+  })
+
+  it('should allow cron access when X-CRON-SECRET matches', async () => {
+    const handler = withApiGuard(async (_req, ctx) => {
+      return ok({ isCron: ctx.isCron, userId: ctx.userId ?? null })
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/autopilot/run', {
+      method: 'POST',
+      body: JSON.stringify({ dryRun: true }),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-secret': 'test-cron-secret-123456',
+      },
+    })
+
+    const response = await handler(request)
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.data.isCron).toBe(true)
+  })
+
+  it('should allow cron access when cron_token query param is valid', async () => {
+    const { computeCronToken } = await import('@/lib/api/cron-auth')
+    const token = computeCronToken({
+      signingSecret: 'test-cron-signing-secret-123456',
+      ctx: { method: 'POST', pathname: '/api/autopilot/run' },
+    })
+
+    const handler = withApiGuard(async (_req, ctx) => ok({ isCron: ctx.isCron }))
+
+    const request = new NextRequest(`http://localhost:3000/api/autopilot/run?cron_token=${encodeURIComponent(token)}`, {
+      method: 'POST',
+      body: JSON.stringify({ dryRun: true }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const response = await handler(request)
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.data.isCron).toBe(true)
+  })
+
+  it('should reject cron request with invalid cron_token (falls back to auth)', async () => {
+    const { createRouteClient } = await import('@/lib/supabase/route')
+    vi.mocked(createRouteClient).mockReturnValueOnce({
+      auth: {
+        getUser: vi.fn(() => Promise.resolve({ data: { user: null }, error: null })),
+      },
+    } as any)
+
+    const handler = withApiGuard(async (_req, ctx) => ok({ isCron: ctx.isCron }))
+
+    const request = new NextRequest('http://localhost:3000/api/autopilot/run?cron_token=invalid', {
+      method: 'POST',
+      body: JSON.stringify({ dryRun: true }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const response = await handler(request)
+    const body = await response.json()
+    expect(response.status).toBe(401)
+    expect(body.ok).toBe(false)
   })
 })
 

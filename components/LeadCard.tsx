@@ -52,8 +52,8 @@ export function LeadCard({ lead }: LeadCardProps) {
 
   const handleCopyPitch = async () => {
     if (!isPro) {
-      // Redirect to checkout if not pro
-      window.location.href = '/api/checkout'
+      // Centralize upgrade flow on /pricing (POST /api/checkout is handled there)
+      window.location.href = '/pricing'
       return
     }
     
@@ -126,10 +126,10 @@ export function LeadCard({ lead }: LeadCardProps) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => window.location.href = '/api/checkout'}
+                          onClick={() => (window.location.href = '/pricing')}
                           className="h-6 text-xs bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
                         >
-                          Join Dazrael Pro
+                          Join LeadIntel Pro
                         </Button>
                       </div>
                     </div>
@@ -248,11 +248,11 @@ export function LeadCard({ lead }: LeadCardProps) {
                 <Lock className="h-8 w-8 mx-auto mb-3 text-cyan-400" />
                 <p className="text-sm font-bold mb-2 text-cyan-400">Pro Feature</p>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.
+                  Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.
                 </p>
                 <Button
                   size="sm"
-                  onClick={() => window.location.href = '/api/checkout'}
+                  onClick={() => (window.location.href = '/pricing')}
                   className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
                 >
                   <DollarSign className="h-4 w-4 mr-2" />

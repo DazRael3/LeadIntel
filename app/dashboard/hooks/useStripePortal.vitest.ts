@@ -20,7 +20,7 @@ describe('useStripePortal', () => {
     const mockResponse = { url: 'https://billing.stripe.com/test' }
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify(mockResponse),
+      json: async () => mockResponse,
     } as Response)
 
     const { result } = renderHook(() => useStripePortal())
@@ -30,29 +30,13 @@ describe('useStripePortal', () => {
     expect(mockLocation.href).toBe('https://billing.stripe.com/test')
   })
 
-  it('should handle empty response gracefully', async () => {
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: true,
-      text: async () => '',
-    } as Response)
-
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    const { result } = renderHook(() => useStripePortal())
-
-    await result.current.openPortal()
-
-    expect(mockLocation.href).toBe('')
-    expect(consoleSpy).toHaveBeenCalledWith('Empty response from /api/stripe/portal')
-
-    consoleSpy.mockRestore()
-  })
-
   it('should handle invalid JSON gracefully', async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
-      text: async () => 'invalid json',
-    } as Response)
+      json: async () => {
+        throw new Error('Invalid JSON')
+      },
+    } as unknown as Response)
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 

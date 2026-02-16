@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { formatDate } from "@/lib/utils"
 import { Building2, Globe, Activity, Copy, Check } from "lucide-react"
+import { getAppBaseUrl } from "@/lib/app-url"
 
 interface WebsiteVisitor {
   id: string
@@ -60,7 +61,7 @@ export function WebsiteVisitors() {
   }, [loadVisitors, supabase])
 
   const getTrackingScript = () => {
-    const script = `<script src="${window.location.origin}/api/tracker"></script>`
+    const script = `<script src="${getAppBaseUrl()}/api/tracker"></script>`
     return script
   }
 
@@ -122,6 +123,23 @@ export function WebsiteVisitors() {
             <p className="text-xs text-muted-foreground">
               Embed the tracking script on your website to start identifying visitors
             </p>
+            <div className="mt-6 mx-auto max-w-xl text-left">
+              <div className="text-xs font-semibold tracking-wide text-muted-foreground mb-2">How to set this up</div>
+              <div className="rounded-lg border border-cyan-500/10 bg-background/30 p-4 space-y-2">
+                <div className="text-xs text-muted-foreground">
+                  1) Paste this script tag into your site (before <code>{'</body>'}</code>):
+                </div>
+                <pre className="text-[11px] overflow-auto rounded bg-background/60 border border-cyan-500/10 p-3">
+{getTrackingScript()}
+                </pre>
+                <div className="text-[11px] text-muted-foreground">
+                  In production this will use the live app URL, not localhost.
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  2) Load a page on your site, then come back here. (See `docs/LAUNCH_CHECKLIST.md` → Tracker script smoke test.)
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

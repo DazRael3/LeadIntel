@@ -1,10 +1,14 @@
 import { NextRequest } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
-import { createClient } from '@supabase/supabase-js'
-import { serverEnv, clientEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env'
 import { ok, fail, ErrorCode } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
+import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
+import { isFeatureEnabled } from '@/lib/services/feature-flags'
+import { recordCounter } from '@/lib/observability/metrics'
+import { logger } from '@/lib/observability/logger'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Stripe Webhook Handler
@@ -21,18 +25,34 @@ export const POST = withApiGuard(
     // Guard already verified signature and parsed body
     // Body is the parsed Stripe event object
     const event = body as Stripe.Event
+    recordCounter('webhook.stripe.total', 1)
 
-    // Create Supabase admin client for subscription updates
-    const supabaseAdmin = createClient(
-      clientEnv.NEXT_PUBLIC_SUPABASE_URL,
-      serverEnv.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    )
+    captureBreadcrumb({
+      category: 'webhook',
+      level: 'info',
+      message: 'stripe_webhook_received',
+      data: {
+        route: '/api/stripe/webhook',
+        requestId,
+        eventType: event.type,
+        livemode: (event as any).livemode ?? undefined,
+      },
+    })
+
+    if (!(await isFeatureEnabled('stripe_webhook'))) {
+      captureBreadcrumb({
+        category: 'feature_flag',
+        level: 'warning',
+        message: 'stripe_webhook_disabled',
+        data: { route: '/api/stripe/webhook', requestId, eventType: event.type },
+      })
+      // ACK to prevent retry storms; operators can re-enable to resume processing.
+      return ok({ received: true, disabled: true }, undefined, undefined, requestId)
+    }
+
+    // Create Supabase admin client for subscription updates.
+    // IMPORTANT: Always target the `api` schema (never `public`).
+    const supabaseAdmin = createSupabaseAdminClient({ schema: 'api' })
 
     // Handle different event types
     switch (event.type) {
@@ -47,17 +67,38 @@ export const POST = withApiGuard(
           // Get subscription details
           const subscription = await stripe.subscriptions.retrieve(session.subscription as string)
           
-          // Update user subscription
-          const { error: updateError } = await supabaseAdmin
-            .from('users')
-            .update({
-              subscription_tier: 'pro',
-              stripe_customer_id: customerId,
-            })
-            .eq('stripe_customer_id', customerId)
+          // Resolve user_id. Prefer client_reference_id (we set it in checkout as the Supabase user id).
+          let userId: string | null = typeof session.client_reference_id === 'string' ? session.client_reference_id : null
+          if (!userId) {
+            // Fallback: look up user by stripe_customer_id (if it was already stored).
+            const { data: userRow } = await supabaseAdmin
+              .from('users')
+              .select('id')
+              .eq('stripe_customer_id', customerId)
+              .maybeSingle()
+            userId = (userRow as { id?: string } | null)?.id ?? null
+          }
+
+          // Update user subscription tier and customer id.
+          const userUpdate = {
+            subscription_tier: 'pro',
+            stripe_customer_id: customerId,
+          }
+          const userUpdateQuery = supabaseAdmin.from('users').update(userUpdate)
+          const { error: updateError } = userId
+            ? await userUpdateQuery.eq('id', userId)
+            : await userUpdateQuery.eq('stripe_customer_id', customerId)
 
           if (updateError) {
-            console.error('Error updating user subscription:', updateError)
+            logger.error({
+              level: 'error',
+              scope: 'stripe_webhook',
+              message: 'update_user_failed',
+              requestId,
+              error: updateError,
+            })
+            recordCounter('webhook.stripe.error', 1, { stage: 'update_user' })
+            captureException(updateError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
             return fail(
               ErrorCode.DATABASE_ERROR,
               'Failed to update subscription',
@@ -72,18 +113,29 @@ export const POST = withApiGuard(
           const { error: subError } = await supabaseAdmin
             .from('subscriptions')
             .upsert({
-              user_id: session.client_reference_id || null,
+              user_id: userId,
               stripe_subscription_id: subscription.id,
+              stripe_customer_id: customerId,
               status: subscription.status,
-              current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
               current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+              current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
               cancel_at_period_end: subscription.cancel_at_period_end,
+              trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+              stripe_price_id: subscription.items.data[0]?.price?.id ?? null,
             }, {
               onConflict: 'stripe_subscription_id'
             })
 
           if (subError) {
-            console.error('Error upserting subscription:', subError)
+            logger.error({
+              level: 'error',
+              scope: 'stripe_webhook',
+              message: 'upsert_subscription_failed',
+              requestId,
+              error: subError,
+            })
+            recordCounter('webhook.stripe.error', 1, { stage: 'upsert_subscription' })
+            captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
         }
         break
@@ -98,21 +150,41 @@ export const POST = withApiGuard(
             ? subscription.customer 
             : subscription.customer.id
 
+          // Resolve user id via customer id (best-effort)
+          const { data: userRow } = await supabaseAdmin
+            .from('users')
+            .select('id')
+            .eq('stripe_customer_id', customerId)
+            .maybeSingle()
+          const userId = (userRow as { id?: string } | null)?.id ?? null
+
           // Update subscription record
           const { error: subError } = await supabaseAdmin
             .from('subscriptions')
             .upsert({
+              user_id: userId,
               stripe_subscription_id: subscription.id,
+              stripe_customer_id: customerId,
               status: subscription.status,
-              current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
               current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+              current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
               cancel_at_period_end: subscription.cancel_at_period_end,
+              trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+              stripe_price_id: subscription.items.data[0]?.price?.id ?? null,
             }, {
               onConflict: 'stripe_subscription_id'
             })
 
           if (subError) {
-            console.error('Error updating subscription:', subError)
+            logger.error({
+              level: 'error',
+              scope: 'stripe_webhook',
+              message: 'update_subscription_failed',
+              requestId,
+              error: subError,
+            })
+            recordCounter('webhook.stripe.error', 1, { stage: 'update_subscription' })
+            captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
 
           // Update user tier based on subscription status
@@ -133,7 +205,14 @@ export const POST = withApiGuard(
 
       default:
         // Unhandled event type
-        console.log(`Unhandled event type: ${event.type}`)
+        logger.warn({
+          level: 'warn',
+          scope: 'stripe_webhook',
+          message: 'unhandled_event_type',
+          requestId,
+          eventType: event.type,
+        })
+        captureMessage('stripe_webhook_unhandled_event', { route: '/api/stripe/webhook', requestId, eventType: event.type })
     }
 
     return ok({ received: true }, undefined, undefined, requestId)

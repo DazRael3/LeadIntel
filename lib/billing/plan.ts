@@ -4,6 +4,42 @@ const ACTIVE_STATUSES = ['active', 'trialing']
 
 export type Plan = 'free' | 'pro'
 
+export interface PlanDetails {
+  plan: Plan
+  /** Subscription status if known (from api.subscriptions). */
+  subscriptionStatus?: string | null
+  /** Trial end timestamp (ISO) if known and user is trialing. */
+  trialEndsAt?: string | null
+  /** Current period end timestamp (ISO) if known. */
+  currentPeriodEndsAt?: string | null
+  /** App-level trial end timestamp (ISO) if enabled and active. */
+  appTrialEndsAt?: string | null
+  /** True when effective Pro access is coming from app-level trial (not Stripe). */
+  isAppTrial?: boolean
+}
+
+/**
+ * Product tiers.
+ *
+ * Product spec (2026-01): Only two tiers are exposed in the app surface:
+ * - starter (free)
+ * - closer (paid)
+ *
+ * Legacy note: historical data may still contain "team". We treat it as "closer".
+ */
+export type PlanTier = 'starter' | 'closer'
+
+function isAppTrialEnabled(): boolean {
+  const raw = (process.env.ENABLE_APP_TRIAL || '').trim().toLowerCase()
+  return raw === '1' || raw === 'true'
+}
+
+function isFutureIso(ts: string | null | undefined, nowMs: number): boolean {
+  if (!ts) return false
+  const ms = Date.parse(ts)
+  return Number.isFinite(ms) && ms > nowMs
+}
+
 export async function getPlan(supabase: SupabaseClient, userId: string): Promise<Plan> {
   const { data: sub } = await supabase
     .from('subscriptions')
@@ -32,5 +68,110 @@ export async function getPlan(supabase: SupabaseClient, userId: string): Promise
 }
 
 export async function isPro(supabase: SupabaseClient, userId: string): Promise<boolean> {
-  return (await getPlan(supabase, userId)) === 'pro'
+  return (await getPlanDetails(supabase, userId)).plan === 'pro'
+}
+
+/**
+ * Fetch richer plan details for UI (plan + trial info).
+ *
+ * Important: This function is resilient to schema drift (missing columns) and will
+ * fall back to `getPlan()` if advanced fields are unavailable.
+ */
+export async function getPlanDetails(supabase: SupabaseClient, userId: string): Promise<PlanDetails> {
+  // Try to read richer subscription fields (these may be added by later migrations).
+  try {
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('status, trial_end, current_period_end')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const status = (sub as { status?: string | null } | null)?.status ?? null
+    let plan: Plan = status && ACTIVE_STATUSES.includes(status) ? 'pro' : await getPlan(supabase, userId)
+    let appTrialEndsAt: string | null = null
+    let isAppTrial = false
+
+    if (plan === 'free' && isAppTrialEnabled()) {
+      try {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('trial_ends_at')
+          .eq('id', userId)
+          .maybeSingle()
+
+        const trialEnds = (userRow as { trial_ends_at?: string | null } | null)?.trial_ends_at ?? null
+        if (isFutureIso(trialEnds, Date.now())) {
+          plan = 'pro'
+          appTrialEndsAt = trialEnds
+          isAppTrial = true
+        }
+      } catch {
+        // Schema drift tolerance: if trial columns don't exist, skip silently.
+      }
+    }
+
+    return {
+      plan,
+      subscriptionStatus: status,
+      trialEndsAt: (sub as { trial_end?: string | null } | null)?.trial_end ?? null,
+      currentPeriodEndsAt: (sub as { current_period_end?: string | null } | null)?.current_period_end ?? null,
+      appTrialEndsAt,
+      isAppTrial,
+    }
+  } catch {
+    const plan = await getPlan(supabase, userId)
+    return { plan }
+  }
+}
+
+/**
+ * Display-only plan metadata for UI (copy only; does not affect billing).
+ *
+ * Mapping:
+ * - free -> Starter (Free, limited)
+ * - pro  -> Closer ($79 / month)
+ *
+ * Legacy note: "team" is deprecated and treated as "closer".
+ */
+export type DisplayPlanMeta = {
+  tier: PlanTier
+  creditsLabel: string
+  planBubbleLabel: string
+  canUpgradeToCloser: boolean
+}
+
+function normalizeTier(input: unknown): PlanTier {
+  if (input === 'starter' || input === 'closer') return input
+  // Backward compatibility: treat legacy Team as Closer.
+  if (input === 'team') return 'closer'
+  return 'starter'
+}
+
+/**
+ * Pure display metadata for Starter / Closer / Team.
+ * Accepts either the /api/plan payload (preferred) or legacy plan strings.
+ */
+export function getDisplayPlanMeta(plan: { tier?: unknown; plan?: unknown } | Plan | null | undefined): DisplayPlanMeta {
+  const tier =
+    typeof plan === 'string'
+      ? normalizeTier(plan)
+      : normalizeTier((plan as { tier?: unknown } | null)?.tier)
+
+  if (tier === 'starter') {
+    return {
+      tier,
+      creditsLabel: 'Starter (limited)',
+      planBubbleLabel: 'Starter (limited)',
+      canUpgradeToCloser: true,
+    }
+  }
+
+  return {
+    tier: 'closer',
+    creditsLabel: '∞ Unlimited',
+    planBubbleLabel: 'Closer · $79 / month',
+    canUpgradeToCloser: false,
+  }
 }

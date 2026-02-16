@@ -2,10 +2,9 @@ import { NextRequest } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
 import { generateEmailSequence } from '@/lib/ai-logic'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { validateBody, validationError } from '@/lib/api/validate'
 import { z } from 'zod'
-import { checkRateLimit, shouldBypassRateLimit, getRateLimitError } from '@/lib/api/ratelimit'
-import { validateOrigin } from '@/lib/api/security'
+import { withApiGuard } from '@/lib/api/guard'
+import { isPro as isProPlan } from '@/lib/billing/plan'
 
 /**
  * Generate 3-Part Email Sequence API
@@ -21,66 +20,31 @@ const GenerateSequenceSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const bridge = createCookieBridge()
-  const route = '/api/generate-sequence'
-  
-  try {
-    // Validate origin for state-changing requests
-    const originError = validateOrigin(request, route)
-    if (originError) {
-      return originError
-    }
-    
-    // Check rate limit bypass
-    if (!shouldBypassRateLimit(request, route)) {
-      // Get user for rate limiting
-      const supabase = createRouteClient(request, bridge)
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      // Check rate limit
-      const rateLimitResult = await checkRateLimit(
-        request,
-        user?.id || null,
-        route,
-        'AI_GENERATION'
-      )
-      
-      if (rateLimitResult && !rateLimitResult.success) {
-        return getRateLimitError(rateLimitResult, bridge)
-      }
-    }
-    
-    // Validate request body (max 2MB for company info + settings)
-    let body
-    try {
-      body = await validateBody(request, GenerateSequenceSchema, { maxBytes: 2 * 1024 * 1024 })
-    } catch (error) {
-      return validationError(error, bridge)
-    }
+  return POST_GUARDED(request)
+}
 
-    const { companyName, triggerEvent, ceoName, companyInfo, userSettings } = body
+const POST_GUARDED = withApiGuard(
+  async (request: NextRequest, { body, requestId, userId }) => {
+    const bridge = createCookieBridge()
+    try {
+      const { companyName, triggerEvent, ceoName, companyInfo, userSettings } = body as z.infer<typeof GenerateSequenceSchema>
 
     // Server-side Pro gating: Check subscription tier before any AI generation
     const supabase = createRouteClient(request, bridge)
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge)
+    // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/generate-sequence authRequired: true).
+    // This guard is defensive for unexpected misconfiguration.
+    if (!userId) {
+      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('subscription_tier')
-      .eq('id', user.id)
-      .single()
-
-    if (userData?.subscription_tier !== 'pro') {
+    if (!(await isProPlan(supabase, userId))) {
       return fail(
         ErrorCode.FORBIDDEN,
         'Pro subscription required for Email Sequence generation',
         undefined,
         undefined,
-        bridge
+        bridge,
+        requestId
       )
     }
 
@@ -93,8 +57,10 @@ export async function POST(request: NextRequest) {
       userSettings
     )
 
-    return ok({ sequence }, undefined, bridge)
-  } catch (error) {
-    return asHttpError(error, '/api/generate-sequence', undefined, bridge)
-  }
-}
+    return ok({ sequence }, undefined, bridge, requestId)
+    } catch (error) {
+      return asHttpError(error, '/api/generate-sequence', userId, bridge, requestId)
+    }
+  },
+  { bodySchema: GenerateSequenceSchema }
+)

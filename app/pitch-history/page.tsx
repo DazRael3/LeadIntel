@@ -3,6 +3,13 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { formatDistanceToNow } from 'date-fns'
 
+type PitchHistoryLeadRow = {
+  id: string
+  company_name: string | null
+  ai_personalized_pitch: string | null
+  created_at: string | null
+}
+
 export default async function PitchHistoryPage() {
   const supabase = createClient()
 
@@ -22,6 +29,8 @@ export default async function PitchHistoryPage() {
     console.error('[pitch-history] failed to load leads', error)
   }
 
+  const rows = (leads ?? []) as PitchHistoryLeadRow[]
+
   return (
     <div className="min-h-screen bg-background terminal-grid py-12">
       <div className="container mx-auto px-6 space-y-6">
@@ -33,7 +42,7 @@ export default async function PitchHistoryPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          {(leads || []).map((lead) => (
+          {rows.map((lead) => (
             <Card key={lead.id} className="border-cyan-500/20 bg-card/60">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">

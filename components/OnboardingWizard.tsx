@@ -9,11 +9,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, ArrowRight, ArrowLeft, Check, Zap, AlertTriangle } from "lucide-react"
+import { Loader2, ArrowRight, ArrowLeft, Check, Zap, AlertTriangle, X } from "lucide-react"
 import { formatErrorMessage } from "@/lib/utils/format-error"
+import { getUserSafe } from "@/lib/supabase/safe-auth"
 
 interface OnboardingWizardProps {
   onComplete: () => void
+  onClose?: () => void
 }
 
 // LocalStorage key for onboarding completion fallback
@@ -41,6 +43,13 @@ function isLocalEnvironment(): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1'
 }
 
+function isValidEmail(email: string): boolean {
+  const s = email.trim()
+  if (!s) return false
+  // Simple, user-friendly validation (server does strict zod validation too).
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
+}
+
 const INDUSTRY_OPTIONS = [
   'Technology / SaaS',
   'Healthcare',
@@ -56,7 +65,12 @@ const INDUSTRY_OPTIONS = [
   'Other',
 ]
 
-export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
+const ROLE_OPTIONS = ['SDR', 'AE', 'Founder', 'Consultant', 'Investor', 'Marketing', 'RevOps', 'Other'] as const
+const TEAM_SIZE_OPTIONS = ['solo', '2-5', '6-20', '21+'] as const
+const PRIMARY_GOAL_OPTIONS = ['outbound', 'investing', 'competitive_intel', 'pipeline_building', 'market_research'] as const
+const CONTACT_CHANNEL_OPTIONS = ['email', 'phone', 'linkedin', 'slack', 'other'] as const
+
+export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps) {
   const supabase = createClient()
   const { toast } = useToast()
   const [step, setStep] = useState(1)
@@ -69,18 +83,34 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([])
   const [senderName, setSenderName] = useState('')
   const [senderEmail, setSenderEmail] = useState('')
+  const [role, setRole] = useState<string>('')
+  const [teamSize, setTeamSize] = useState<string>('')
+  const [primaryGoal, setPrimaryGoal] = useState<string>('')
+  const [heardAbout, setHeardAbout] = useState<string>('')
+  const [preferredContactChannel, setPreferredContactChannel] = useState<string>('')
+  const [preferredContactDetail, setPreferredContactDetail] = useState<string>('')
+  const [allowProductUpdates, setAllowProductUpdates] = useState<boolean>(true)
 
   useEffect(() => {
+    // Ensure the wizard is fully visible (no header overlap) and starts at top.
+    if (typeof window !== 'undefined') {
+      try {
+        window.scrollTo(0, 0)
+      } catch {
+        // ignore
+      }
+    }
     // Get current user
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    void (async () => {
+      const user = await getUserSafe(supabase)
       if (user) {
         setUserId(user.id)
         // Try to get email and name from user
         setSenderEmail(user.email || '')
         setSenderName(user.user_metadata?.full_name || user.email?.split('@')[0] || '')
       }
-    })
-  }, [supabase.auth])
+    })()
+  }, [supabase])
 
   const handleIndustryToggle = (industry: string) => {
     setSelectedIndustries(prev =>
@@ -91,7 +121,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   }
 
   const handleNext = () => {
-    if (step === 1 && whatYouSell && idealCustomer) {
+    if (step === 1 && whatYouSell && idealCustomer && role && teamSize && primaryGoal) {
       setStep(2)
     } else if (step === 2 && selectedIndustries.length > 0) {
       setStep(3)
@@ -114,15 +144,31 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     setError(null)
     
     try {
+      if (!senderName.trim()) {
+        setError('Please enter your name.')
+        return
+      }
+      if (!isValidEmail(senderEmail)) {
+        setError('Please enter a valid email address.')
+        return
+      }
+
       // Save user settings via API route (ensures correct schema/RLS)
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           display_name: senderName || whatYouSell,
-          from_email: senderEmail || '',
+          from_email: senderEmail.trim(),
           from_name: senderName || whatYouSell,
           onboarding_completed: true,
+          role: role || undefined,
+          team_size: teamSize || undefined,
+          primary_goal: primaryGoal || undefined,
+          heard_about_us_from: heardAbout.trim() || undefined,
+          preferred_contact_channel: preferredContactChannel || undefined,
+          preferred_contact_detail: preferredContactDetail.trim() || undefined,
+          allow_product_updates: allowProductUpdates,
         }),
       })
 
@@ -218,23 +264,35 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   }
 
   const canProceed = () => {
-    if (step === 1) return whatYouSell.trim() && idealCustomer.trim()
+    if (step === 1) return whatYouSell.trim() && idealCustomer.trim() && role.trim() && teamSize.trim() && primaryGoal.trim()
     if (step === 2) return selectedIndustries.length > 0
     if (step === 3) return senderName.trim() && senderEmail.trim()
     return false
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl border-cyan-500/30 bg-card/95">
+    <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <Card className="w-full max-w-2xl border-cyan-500/30 bg-card/95 flex flex-col max-h-[90vh] overflow-hidden">
         <CardHeader className="border-b border-cyan-500/20">
           <div className="flex items-center justify-between mb-4">
             <CardTitle className="text-2xl bloomberg-font neon-cyan">
               5-MINUTE SETUP
             </CardTitle>
-            <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10">
-              Step {step} of 3
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10">
+                Step {step} of 3
+              </Badge>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Close setup"
+                onClick={() => onClose?.()}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <CardDescription className="text-sm">
             Let&apos;s personalize LeadIntel for your business
@@ -249,7 +307,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           </div>
         </CardHeader>
 
-        <CardContent className="pt-6 space-y-6">
+        <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
+          <div className="flex-1 overflow-y-auto pr-2 px-6 pt-6 pb-4 space-y-6">
           {/* Error Display */}
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
@@ -298,6 +357,78 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 <p className="text-xs text-muted-foreground mt-2">
                   Describe the type of company that would benefit most from your solution
                 </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="role" className="text-base font-bold mb-2 block">
+                    Your role <span className="text-red-400">*</span>
+                  </Label>
+                  <select
+                    id="role"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                  >
+                    <option value="">Select…</option>
+                    {ROLE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="teamSize" className="text-base font-bold mb-2 block">
+                    Team size <span className="text-red-400">*</span>
+                  </Label>
+                  <select
+                    id="teamSize"
+                    value={teamSize}
+                    onChange={(e) => setTeamSize(e.target.value)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                  >
+                    <option value="">Select…</option>
+                    {TEAM_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="primaryGoal" className="text-base font-bold mb-2 block">
+                    Primary goal <span className="text-red-400">*</span>
+                  </Label>
+                  <select
+                    id="primaryGoal"
+                    value={primaryGoal}
+                    onChange={(e) => setPrimaryGoal(e.target.value)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                  >
+                    <option value="">Select…</option>
+                    {PRIMARY_GOAL_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="heardAbout" className="text-base font-bold mb-2 block">
+                  How did you hear about LeadIntel? <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="heardAbout"
+                  placeholder="e.g., Twitter, friend, newsletter, Google…"
+                  value={heardAbout}
+                  onChange={(e) => setHeardAbout(e.target.value)}
+                  className="bloomberg-font"
+                />
               </div>
             </div>
           )}
@@ -368,6 +499,63 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 </p>
               </div>
 
+              <div className="pt-2 border-t border-cyan-500/10">
+                <h3 className="text-base font-bold mb-3">How should we reach you?</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="preferredContactChannel" className="text-sm font-semibold mb-2 block">
+                      Preferred channel <span className="text-muted-foreground">(optional)</span>
+                    </Label>
+                    <select
+                      id="preferredContactChannel"
+                      value={preferredContactChannel}
+                      onChange={(e) => setPreferredContactChannel(e.target.value)}
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+                    >
+                      <option value="">No preference</option>
+                      {CONTACT_CHANNEL_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="preferredContactDetail" className="text-sm font-semibold mb-2 block">
+                      Contact detail <span className="text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Input
+                      id="preferredContactDetail"
+                      placeholder={
+                        preferredContactChannel === 'phone'
+                          ? '+1 (555) 123-4567'
+                          : preferredContactChannel === 'linkedin'
+                            ? 'linkedin.com/in/your-handle'
+                            : preferredContactChannel === 'slack'
+                              ? '@yourhandle or workspace'
+                              : preferredContactChannel === 'email'
+                                ? 'you@company.com'
+                                : 'Handle / link'
+                      }
+                      value={preferredContactDetail}
+                      onChange={(e) => setPreferredContactDetail(e.target.value)}
+                      className="bloomberg-font"
+                    />
+                  </div>
+                </div>
+
+                <label className="mt-4 flex items-start gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={allowProductUpdates}
+                    onChange={(e) => setAllowProductUpdates(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>Send me product updates and tips (you can change this later in Settings)</span>
+                </label>
+              </div>
+
               <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <Zap className="h-5 w-5 text-cyan-400 mt-0.5 flex-shrink-0" />
@@ -381,47 +569,50 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
               </div>
             </div>
           )}
+          </div>
 
-          {/* Navigation Buttons */}
-          <div className="flex items-center justify-between pt-4 border-t border-cyan-500/20">
-            <Button
-              variant="ghost"
-              onClick={() => setStep(Math.max(1, step - 1))}
-              disabled={step === 1 || loading}
-              className="hover:bg-background/50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
+          {/* Footer Navigation (always visible) */}
+          <div className="shrink-0 px-6 py-4 border-t border-slate-800/60 bg-slate-950/90 backdrop-blur">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                onClick={() => setStep(Math.max(1, step - 1))}
+                disabled={step === 1 || loading}
+                className="hover:bg-background/50"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
 
-            {step < 3 ? (
-              <Button
-                onClick={handleNext}
-                disabled={!canProceed()}
-                className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
-              >
-                Next
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            ) : (
-              <Button
-                onClick={handleComplete}
-                disabled={!canProceed() || loading}
-                className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Complete Setup
-                  </>
-                )}
-              </Button>
-            )}
+              {step < 3 ? (
+                <Button
+                  onClick={handleNext}
+                  disabled={!canProceed()}
+                  className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleComplete}
+                  disabled={!canProceed() || loading}
+                  className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Complete Setup
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

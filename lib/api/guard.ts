@@ -16,13 +16,16 @@ import { getRoutePolicy } from './policy'
 import { validateOrigin } from './security'
 import { checkRateLimit, getRateLimitError } from './ratelimit'
 import { checkPolicyRateLimit, type PolicyRateLimitResult, RedisNotConfiguredError } from './ratelimit-policy'
-import { parseJson, PayloadTooLargeError, validationError } from './validate'
+import { parseJson, PayloadTooLargeError, readBodyWithLimit, validationError } from './validate'
 import { fail, ErrorCode, createCookieBridge } from './http'
 import { getRequestId } from './with-request-id'
 import { createRouteClient } from '@/lib/supabase/route'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { serverEnv } from '@/lib/env'
+import { timingSafeEqualAscii, verifyCronToken } from '@/lib/api/cron-auth'
+import { recordCounter } from '@/lib/observability/metrics'
 
 /**
  * Options for withApiGuard
@@ -37,7 +40,7 @@ export interface GuardOptions {
   /** Whether to bypass rate limiting (for internal routes) */
   bypassRateLimit?: boolean
   /** Custom webhook signature verification function */
-  verifyWebhookSignature?: (request: NextRequest) => Promise<boolean>
+  verifyWebhookSignature?: (args: { request: NextRequest; rawBody: Buffer }) => Promise<boolean>
 }
 
 /**
@@ -49,6 +52,7 @@ type GuardedHandler = (
     body?: unknown
     query?: unknown
     userId?: string
+    isCron: boolean
     requestId: string
   }
 ) => Promise<NextResponse>
@@ -79,6 +83,7 @@ export function withApiGuard(
     // Get route policy
     const policyName = options.policyName || pathname
     const policy = getRoutePolicy(policyName, method)
+    const isCron = isCronRequest(request, policy)
 
     // 1. Dev-only check (block in production, require x-dev-key header in dev)
     if (policy.devOnly) {
@@ -123,11 +128,10 @@ export function withApiGuard(
 
     // 3. Authentication enforcement (if required)
     let userId: string | undefined = undefined
-    if (policy.authRequired) {
+    if (policy.authRequired && !isCron) {
       const supabase = createRouteClient(request, bridge)
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      
-      if (authError || !user) {
+      const user = await getUserSafe(supabase)
+      if (!user) {
         return fail(
           ErrorCode.UNAUTHORIZED,
           'Authentication required',
@@ -152,22 +156,8 @@ export function withApiGuard(
     if (policy.webhookSignatureRequired) {
       // Read raw body once for signature verification
       rawBodyForWebhook = Buffer.from(await request.arrayBuffer())
-      const signature = request.headers.get('stripe-signature')
-      
-      if (!signature) {
-        return fail(
-          ErrorCode.VALIDATION_ERROR,
-          'Missing webhook signature header',
-          undefined,
-          undefined,
-          bridge,
-          requestId
-        )
-      }
-
       if (options.verifyWebhookSignature) {
-        // Create a new request with raw body for custom verification
-        const isValid = await options.verifyWebhookSignature(request)
+        const isValid = await options.verifyWebhookSignature({ request, rawBody: rawBodyForWebhook })
         if (!isValid) {
           return fail(
             ErrorCode.VALIDATION_ERROR,
@@ -194,24 +184,21 @@ export function withApiGuard(
       } else {
         // Default Stripe webhook verification
         try {
-          // Lazy access to serverEnv to avoid module load-time evaluation in tests
-          let webhookSecret: string
-          try {
-            if (typeof window !== 'undefined') {
-              throw new Error('serverEnv cannot be accessed in client code')
-            }
-            // Dynamic require for lazy evaluation (server-only)
-            // In test environments, vi.mock handles this
-            let envModule
-            try {
-              envModule = require('@/lib/env')
-            } catch {
-              // Fallback for test environments where path aliases may not resolve
-              envModule = require('../env')
-            }
-            webhookSecret = envModule.serverEnv.STRIPE_WEBHOOK_SECRET
-          } catch (requireErr) {
-            // In test environments, env might not be available
+          const signature = request.headers.get('stripe-signature')
+          if (!signature) {
+            return fail(
+              ErrorCode.VALIDATION_ERROR,
+              'Missing webhook signature header',
+              undefined,
+              undefined,
+              bridge,
+              requestId
+            )
+          }
+          // Read directly from process.env so tests can stub without fighting module caching.
+          // (Runtime env values are static in production anyway.)
+          const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET ?? '').trim()
+          if (!webhookSecret) {
             throw new Error('Webhook secret not configured')
           }
           // Verify signature (this will throw if invalid)
@@ -235,9 +222,9 @@ export function withApiGuard(
     // 5. Rate limiting using policy-defined limits
     if (!options.bypassRateLimit) {
       // Get user for rate limiting (if not already fetched during auth check)
-      if (!policy.authRequired) {
+      if (!policy.authRequired && !isCron) {
         const supabase = createRouteClient(request, bridge)
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getUserSafe(supabase)
         userId = user?.id || undefined
       }
 
@@ -253,6 +240,10 @@ export function withApiGuard(
         // In development, rateLimitResult may be null if Redis is not configured (allowed)
         // In production, checkPolicyRateLimit throws RedisNotConfiguredError if Redis is missing
         if (rateLimitResult && !rateLimitResult.success) {
+          recordCounter('ratelimit.block', 1, {
+            route: pathname,
+            auth: userId ? '1' : '0',
+          })
           // Convert PolicyRateLimitResult to RateLimitResult for getRateLimitError
           const standardResult = {
             success: false,
@@ -291,14 +282,31 @@ export function withApiGuard(
         // For webhooks, use already-parsed body from signature verification
         body = webhookBody
       } else {
-        // For normal requests, parse from request
+        // Some endpoints (e.g. DELETE with query params) legitimately send no body.
+        // Treat empty body as "no body" unless a body schema is explicitly required.
         try {
-          body = await parseJson(request, { maxBytes: policy.maxBytes })
+          const text = await readBodyWithLimit(request, policy.maxBytes)
+          if (text.trim().length === 0) {
+            if (options.bodySchema) {
+              // Preserve legacy behavior: invalid/missing JSON should be a 400 validation error.
+              return validationError(new Error('Invalid JSON: Unexpected end of JSON input'), bridge, requestId)
+            }
+            body = undefined
+          } else {
+            try {
+              body = JSON.parse(text)
+            } catch (err) {
+              return validationError(
+                new Error(`Invalid JSON: ${err instanceof Error ? err.message : 'Unknown error'}`),
+                bridge,
+                requestId
+              )
+            }
+          }
         } catch (err) {
           if (err instanceof PayloadTooLargeError) {
             return validationError(err, bridge, requestId)
           }
-          // Re-throw other errors (invalid JSON, etc.)
           return validationError(err, bridge, requestId)
         }
       }
@@ -345,6 +353,7 @@ export function withApiGuard(
         body,
         query,
         userId,
+        isCron,
         requestId,
       })
       
@@ -390,4 +399,29 @@ export function withApiGuard(
       )
     }
   }
+}
+
+function isCronRequest(request: NextRequest, policy: { cronAllowed: boolean }): boolean {
+  if (!policy.cronAllowed) return false
+  const url = new URL(request.url)
+
+  // 1) Legacy: custom header (may be unavailable in some cron providers)
+  const providedHeader = request.headers.get('x-cron-secret')
+  const expectedHeader = serverEnv.CRON_SECRET
+  if (providedHeader && expectedHeader && timingSafeEqualAscii(providedHeader, expectedHeader)) {
+    return true
+  }
+
+  // 2) Preferred: signed query token (works even if custom headers are stripped)
+  const cronToken = url.searchParams.get('cron_token')
+  const signingSecret = serverEnv.CRON_SIGNING_SECRET
+  if (cronToken && signingSecret) {
+    return verifyCronToken({
+      signingSecret,
+      providedToken: cronToken,
+      ctx: { method: request.method, pathname: url.pathname },
+    })
+  }
+
+  return false
 }

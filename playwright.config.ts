@@ -26,7 +26,9 @@ export default defineConfig({
   // Shared settings for all projects
   use: {
     // Base URL for tests
-    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000',
+    // Default to a dedicated port so E2E does not reuse a dev server
+    // started without E2E env flags (which can cause request hangs/timeouts).
+    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3001',
     
     // Collect trace on failure
     trace: 'on-first-retry',
@@ -64,9 +66,11 @@ export default defineConfig({
 
   // Run local dev server before tests
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    // Run on a dedicated port to avoid collisions with a developer's local server.
+    command: 'npm run dev -- -p 3001',
+    url: 'http://localhost:3001',
+    // Always start a fresh server for determinism unless explicitly overridden.
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
     timeout: 120 * 1000,
     stdout: 'ignore',
     stderr: 'pipe',
@@ -74,8 +78,30 @@ export default defineConfig({
     env: {
       E2E: '1',
       PLAYWRIGHT: '1',
+      NEXT_PUBLIC_E2E: '1',
+      NEXT_PUBLIC_PLAYWRIGHT: '1',
       UPSTASH_REDIS_REST_URL: 'https://example.com',
       UPSTASH_REDIS_REST_TOKEN: 'test-token',
+      // Minimal env to satisfy env validation in middleware/server
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key',
+      NEXT_PUBLIC_SUPABASE_DB_SCHEMA: process.env.NEXT_PUBLIC_SUPABASE_DB_SCHEMA || 'api',
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_123',
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key',
+      SUPABASE_DB_SCHEMA: process.env.SUPABASE_DB_SCHEMA || 'api',
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || 'sk_test_123',
+      STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123',
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY || 'sk-test123',
+      RESEND_API_KEY: process.env.RESEND_API_KEY || 're_test123',
+      RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || 'test@example.com',
+      RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET || 'test-resend-webhook-secret',
+      CRON_SECRET: process.env.CRON_SECRET || 'test-cron-secret-123456',
+      CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET || 'test-cron-signing-secret-123456',
+      SENTRY_DSN: process.env.SENTRY_DSN || '',
+      SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT || 'test',
+      HEALTH_CHECK_EXTERNAL: process.env.HEALTH_CHECK_EXTERNAL || '0',
+      ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET || 'test-secret',
     },
   },
 })

@@ -107,7 +107,12 @@ export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPr
           Competitive Intelligence for {companyName}
         </CardDescription>
       </CardHeader>
-      <CardContent className={`relative ${!isPro ? 'blur-sm pointer-events-none select-none' : ''}`}>
+      <CardContent className={`relative overflow-hidden ${!isPro ? 'blur-sm pointer-events-none select-none' : ''}`}>
+        {/* blurred brand backdrop */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.10]">
+          <div className="absolute -inset-10 bg-[url('/branding/LeadIntel_DazRael.png')] bg-cover bg-center blur-2xl" />
+        </div>
+
         {!isPro && (
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center justify-center">
             <div className="bg-background/95 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
@@ -115,27 +120,29 @@ export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPr
             </div>
           </div>
         )}
-        {loading ? (
-          <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 mx-auto mb-3 text-purple-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Analyzing competitive landscape...</p>
-          </div>
-        ) : error ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-red-400 mb-3">
-              {typeof error === 'string' ? error : formatErrorMessage(error)}
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={generateBattleCard}
-              className="neon-border"
-            >
-              Retry
-            </Button>
-          </div>
-        ) : battleCard ? (
-          <div className="space-y-4">
+
+        <div className="relative">
+          {loading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-8 w-8 mx-auto mb-3 text-purple-400 animate-spin" />
+              <p className="text-sm text-muted-foreground">Analyzing competitive landscape...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-red-400 mb-3">
+                {typeof error === 'string' ? error : formatErrorMessage(error)}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={generateBattleCard}
+                className="neon-border"
+              >
+                Retry
+              </Button>
+            </div>
+          ) : battleCard ? (
+            <div className="space-y-4">
             {/* Tech Stack */}
             <div className="p-4 rounded-lg border border-cyan-500/10 bg-background/30">
               <div className="flex items-center gap-2 mb-3">
@@ -189,7 +196,8 @@ export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPr
               Click &quot;Generate&quot; to create a competitive battle card
             </p>
           </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   )

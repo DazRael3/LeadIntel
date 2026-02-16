@@ -1,146 +1,199 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, Activity, Sparkles } from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
+import { useEffect, useMemo, useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Star, TrendingDown, TrendingUp } from 'lucide-react'
+import { usePlan } from '@/components/PlanProvider'
+import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
+import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
+import { formatDistanceToNow } from 'date-fns'
+import { InstrumentLogo } from '@/components/InstrumentLogo'
+import { getQuotePriceDecimals } from '@/lib/market/quotes'
 
-interface StockData {
-  symbol: string
-  name: string
-  price: number
-  change: number
-  changePercent: number
-  insight?: string
+type QuoteMap = Record<string, InstrumentQuote>
+
+function toQuoteMap(quotes: InstrumentQuote[]): QuoteMap {
+  const map: QuoteMap = {}
+  for (const q of quotes) map[q.symbol] = q
+  return map
 }
 
-// Mock data - Replace with Alpha Vantage API in production
-const MOCK_STOCKS: StockData[] = [
-  { symbol: 'AAPL', name: 'Apple Inc.', price: 178.50, change: 2.30, changePercent: 1.31 },
-  { symbol: 'MSFT', name: 'Microsoft Corp.', price: 378.85, change: -1.20, changePercent: -0.32 },
-  { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 142.30, change: 3.45, changePercent: 2.48 },
-  { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 151.20, change: 1.80, changePercent: 1.20 },
-  { symbol: 'META', name: 'Meta Platforms', price: 485.60, change: -2.10, changePercent: -0.43 },
-]
-
 export function MarketPulse() {
-  const [stocks, setStocks] = useState<StockData[]>([])
-  const [loading, setLoading] = useState(true)
+  const { isPro } = usePlan()
+  const { allInstruments, yourWatchlist, starredKeys } = useMarketWatchlist()
 
-  const loadMarketData = useCallback(async () => {
-    try {
-      // In production, use Alpha Vantage API:
-      // const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey=${API_KEY}`)
-      
-      // For now, use mock data with AI insights
-      const stocksWithInsights = await Promise.all(
-        MOCK_STOCKS.map(async (stock) => {
-          const insight = await generateSalesInsight(stock)
-          return { ...stock, insight }
-        })
-      )
-      
-      setStocks(stocksWithInsights)
-    } catch (error) {
-      console.error('Error loading market data:', error)
-      // Fallback to mock data without insights
-      setStocks(MOCK_STOCKS)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const quoteUniverse = useMemo(() => {
+    // For Market Pulse, always show the full universe (defaults + your custom).
+    const map = new Map<string, typeof allInstruments[number]>()
+    for (const i of allInstruments) map.set(`${i.kind}:${i.symbol}`, i)
+    for (const i of yourWatchlist) map.set(`${i.kind}:${i.symbol}`, i)
+    return Array.from(map.values())
+  }, [allInstruments, yourWatchlist])
+
+  const [quotes, setQuotes] = useState<QuoteMap>({})
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadMarketData()
-    // Refresh every 30 seconds
-    const interval = setInterval(loadMarketData, 30000)
-    return () => clearInterval(interval)
-  }, [loadMarketData])
-
-  const generateSalesInsight = async (stock: StockData): Promise<string> => {
-    // In production, use OpenAI API for insights
-    // For now, return contextual insights based on market movement
-    if (stock.changePercent > 1.5) {
-      return 'Market surge: High-growth leads are actively seeking solutions'
-    } else if (stock.changePercent > 0.5) {
-      return 'Market is up: High-growth leads are active today'
-    } else if (stock.changePercent < -0.5) {
-      return 'Market correction: Focus on value-driven outreach'
-    } else {
-      return 'Market stable: Steady B2B opportunities available'
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const next = await fetchInstrumentQuotes(quoteUniverse)
+        if (cancelled) return
+        setQuotes(toQuoteMap(next))
+        setLastUpdatedAt(next.map((q) => q.updatedAt).filter((v): v is string => Boolean(v)).sort().at(-1) ?? null)
+        setError(null)
+      } catch {
+        if (cancelled) return
+        setError('Market data unavailable')
+      }
     }
-  }
+    void refresh()
+    const t = setInterval(refresh, 45000)
+    return () => {
+      cancelled = true
+      clearInterval(t)
+    }
+  }, [quoteUniverse])
 
   return (
-    <Card className="border-cyan-500/20 bg-card/50">
+    <Card className="border-cyan-500/20 bg-card/50" data-testid="market-pulse">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-cyan-400" />
-            <CardTitle className="text-lg bloomberg-font">MARKET PULSE</CardTitle>
+          <div>
+            <CardTitle className="text-xl bloomberg-font neon-cyan">MARKET PULSE</CardTitle>
+            <div className="text-xs text-muted-foreground mt-1">
+              {lastUpdatedAt ? (
+                <>Last price update {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}</>
+              ) : (
+                <>Live pricing refreshes every ~45s</>
+              )}
+            </div>
           </div>
           <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10">
-            LIVE
+            {yourWatchlist.length > 0 ? `${yourWatchlist.length} starred` : 'Defaults'}
           </Badge>
         </div>
-        <CardDescription className="text-xs uppercase tracking-wider">
-          Top 5 Tech Stocks • 24h Change
-        </CardDescription>
       </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-16 bg-muted/20 animate-pulse rounded" />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {stocks.map((stock) => (
-              <div
-                key={stock.symbol}
-                className="flex items-center justify-between p-3 rounded-lg border border-cyan-500/10 bg-background/30 hover:bg-background/50 transition-colors"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="font-bold bloomberg-font text-cyan-400">{stock.symbol}</span>
-                    <span className="text-sm text-muted-foreground">{stock.name}</span>
-                    {stock.changePercent > 0 ? (
+
+      <CardContent className="space-y-4">
+        {error ? <div className="text-xs text-muted-foreground">{error}</div> : null}
+
+        {yourWatchlist.length > 0 ? (
+          <div className="space-y-2">
+            <div className="text-xs font-semibold tracking-wide text-muted-foreground flex items-center gap-2">
+              <Star className="h-3 w-3 text-yellow-400" />
+              YOUR WATCHLIST (STARRED)
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {yourWatchlist.map((inst) => {
+                const q = quotes[inst.symbol]
+                const change = q?.changePercent ?? null
+                const price = q?.lastPrice ?? null
+                const kind = q?.kind ?? inst.kind
+                return (
+                  <div
+                    key={`starred:${inst.kind}:${inst.symbol}`}
+                    className="flex items-center justify-between rounded border border-cyan-500/10 bg-background/30 px-3 py-2"
+                    data-testid={`market-pulse-starred-${inst.symbol}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
+                        <span className="font-bold text-cyan-300">{inst.symbol}</span>
+                        <span className="truncate text-xs text-muted-foreground">{inst.name}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {price == null ? '—' : `$${price.toFixed(getQuotePriceDecimals(kind, price))}`} •{' '}
+                        <span
+                          className={
+                            change == null
+                              ? 'text-muted-foreground'
+                              : change > 0
+                                ? 'text-green-400'
+                                : change < 0
+                                  ? 'text-red-400'
+                                  : 'text-muted-foreground'
+                          }
+                        >
+                          {change == null ? '—' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`}
+                        </span>
+                      </div>
+                    </div>
+                    {change == null ? null : change >= 0 ? (
                       <TrendingUp className="h-4 w-4 text-green-400" />
                     ) : (
                       <TrendingDown className="h-4 w-4 text-red-400" />
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-xs">
-                    <span className="text-muted-foreground">
-                      ${stock.price.toFixed(2)}
-                    </span>
-                    <span
-                      className={
-                        stock.changePercent > 0
-                          ? 'text-green-400'
-                          : stock.changePercent < 0
-                          ? 'text-red-400'
-                          : 'text-muted-foreground'
-                      }
-                    >
-                      {stock.change > 0 ? '+' : ''}
-                      {stock.change.toFixed(2)} ({stock.changePercent > 0 ? '+' : ''}
-                      {stock.changePercent.toFixed(2)}%)
-                    </span>
-                  </div>
-                  {stock.insight && (
-                    <div className="flex items-start gap-2 mt-2 pt-2 border-t border-cyan-500/10">
-                      <Sparkles className="h-3 w-3 text-purple-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-xs text-muted-foreground italic">{stock.insight}</p>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="space-y-2">
+          <div className="text-xs font-semibold tracking-wide text-muted-foreground">ALL INSTRUMENTS</div>
+          {!isPro ? (
+            <div className="text-xs text-muted-foreground">
+              Star symbols in the Markets sidebar to pin them to your personal watchlist (Pro).
+            </div>
+          ) : null}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {allInstruments.map((inst) => {
+              const q = quotes[inst.symbol]
+              const change = q?.changePercent ?? null
+              const price = q?.lastPrice ?? null
+              const kind = q?.kind ?? inst.kind
+              const key = `${inst.kind}:${inst.symbol}`
+              const starred = starredKeys.has(key)
+              return (
+                <div
+                  key={`all:${key}`}
+                  className="flex items-center justify-between rounded border border-cyan-500/10 bg-background/30 px-3 py-2"
+                  data-testid={`market-pulse-all-${inst.symbol}`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <InstrumentLogo symbol={inst.symbol} logoUrl={q?.logoUrl} size={18} className="shrink-0" />
+                      <span className="font-bold text-cyan-300">{inst.symbol}</span>
+                      <span className="truncate text-xs text-muted-foreground">{inst.name}</span>
+                      {starred ? (
+                        <Badge variant="outline" className="border-yellow-500/30 text-yellow-300 bg-yellow-500/10 text-[10px]">
+                          Starred
+                        </Badge>
+                      ) : null}
                     </div>
+                    <div className="text-xs text-muted-foreground">
+                      {price == null ? '—' : `$${price.toFixed(getQuotePriceDecimals(kind, price))}`} •{' '}
+                      <span
+                        className={
+                          change == null
+                            ? 'text-muted-foreground'
+                            : change > 0
+                              ? 'text-green-400'
+                              : change < 0
+                                ? 'text-red-400'
+                                : 'text-muted-foreground'
+                        }
+                      >
+                        {change == null ? '—' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`}
+                      </span>
+                    </div>
+                  </div>
+                  {change == null ? null : change >= 0 ? (
+                    <TrendingUp className="h-4 w-4 text-green-400" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-400" />
                   )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   )
 }
+

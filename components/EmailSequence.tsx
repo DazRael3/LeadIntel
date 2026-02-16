@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from "react"
+import { useMemo, useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -37,6 +37,7 @@ export function EmailSequence({
   isPro,
   recipientEmail
 }: EmailSequenceProps) {
+  const siteUrl = useMemo(() => (process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com').trim(), [])
   const [sequence, setSequence] = useState<SequenceData | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
@@ -86,16 +87,16 @@ export function EmailSequence({
         // For Pro users with other errors, show fallback
         if (isPro) {
           setSequence({
-            part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: https://dazrael.com`,
-            part2: `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: https://dazrael.com`,
-            part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: https://dazrael.com`,
+            part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${siteUrl}`,
+            part2: `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: ${siteUrl}`,
+            part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${siteUrl}`,
           })
         }
       }
     } finally {
       setLoading(false)
     }
-  }, [isPro, companyName, triggerEvent, ceoName, companyInfo, userSettings])
+  }, [isPro, companyName, triggerEvent, ceoName, companyInfo, userSettings, siteUrl])
 
   // Only auto-generate if Pro user
   useEffect(() => {
@@ -174,7 +175,12 @@ export function EmailSequence({
           Enterprise Intelligence • Automated Multi-Touch Outreach
         </CardDescription>
       </CardHeader>
-      <CardContent className={`relative ${!isPro ? 'blur-sm pointer-events-none select-none' : ''}`}>
+      <CardContent className={`relative overflow-hidden ${!isPro ? 'blur-sm pointer-events-none select-none' : ''}`}>
+        {/* blurred brand backdrop */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.10]">
+          <div className="absolute -inset-10 bg-[url('/branding/LeadIntel_DazRael.png')] bg-cover bg-center blur-2xl" />
+        </div>
+
         {!isPro && (
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center justify-center">
             <div className="bg-background/95 backdrop-blur-sm rounded-lg border border-purple-500/30 p-4">
@@ -182,13 +188,15 @@ export function EmailSequence({
             </div>
           </div>
         )}
-        {loading ? (
-          <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 mx-auto mb-3 text-purple-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Generating 3-part sequence...</p>
-          </div>
-        ) : sequence ? (
-          <div className="space-y-6">
+
+        <div className="relative">
+          {loading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-8 w-8 mx-auto mb-3 text-purple-400 animate-spin" />
+              <p className="text-sm text-muted-foreground">Generating 3-part sequence...</p>
+            </div>
+          ) : sequence ? (
+            <div className="space-y-6">
             {/* Part 1: Helpful */}
             <div className="p-4 rounded-lg border border-green-500/10 bg-background/30 relative group">
               <div className="flex items-center justify-between mb-3">
@@ -320,14 +328,15 @@ export function EmailSequence({
                 {sequence.part3}
               </p>
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground mb-3">
-              Click &quot;Generate&quot; to create a 3-part email sequence
-            </p>
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground mb-3">
+                Click &quot;Generate&quot; to create a 3-part email sequence
+              </p>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

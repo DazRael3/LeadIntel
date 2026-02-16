@@ -4,6 +4,7 @@ import { fail, ErrorCode } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
 import { HistoryQuerySchema } from '@/lib/api/schemas'
 import { z } from 'zod'
+import { getPlanDetails } from '@/lib/billing/plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,18 @@ export const GET = withApiGuard(
     
     // Guard already verified authentication, userId is guaranteed
     const user = { id: userId! }
+
+    const plan = await getPlanDetails(supabase as any, user.id)
+    if (plan.plan !== 'pro') {
+      return fail(
+        ErrorCode.FORBIDDEN,
+        'Pitch history export is locked. Upgrade to Pro to export your saved work.',
+        undefined,
+        undefined,
+        undefined,
+        requestId
+      )
+    }
 
     let dbQuery = supabase
     .from('pitches')

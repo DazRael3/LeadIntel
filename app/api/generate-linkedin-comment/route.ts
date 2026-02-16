@@ -2,8 +2,10 @@ import { NextRequest } from 'next/server'
 import OpenAI from 'openai'
 import { getServerEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { validateBody, validationError } from '@/lib/api/validate'
 import { z } from 'zod'
+import { withApiGuard } from '@/lib/api/guard'
+import { createRouteClient } from '@/lib/supabase/route'
+import { isPro as isProPlan } from '@/lib/billing/plan'
 
 // Lazy initialization of OpenAI client (only created at runtime, not during build)
 let openaiInstance: OpenAI | null = null
@@ -24,28 +26,38 @@ const GenerateLinkedInCommentSchema = z.object({
   userSettings: z.record(z.unknown()).optional(),
 })
 
-export async function POST(request: NextRequest) {
-  const bridge = createCookieBridge()
-  
-  try {
-    // Validate request body
-    let body
+export const POST = withApiGuard(
+  async (request: NextRequest, { body, userId, requestId }) => {
+    const bridge = createCookieBridge()
     try {
-      body = await validateBody(request, GenerateLinkedInCommentSchema)
-    } catch (error) {
-      return validationError(error, bridge)
-    }
+      // Pro gating (cost-heavy)
+      const supabase = createRouteClient(request, bridge)
+      // Auth is enforced by withApiGuard via lib/api/policy.ts (POST:/api/generate-linkedin-comment authRequired: true).
+      // This guard is defensive for unexpected misconfiguration.
+      if (!userId) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
 
-    const { companyName, triggerEvent, userSettings } = body
+      if (!(await isProPlan(supabase, userId))) {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Pro subscription required for LinkedIn comment generation',
+          undefined,
+          undefined,
+          bridge,
+          requestId
+        )
+      }
 
-    // Generate LinkedIn comment
-    const openai = getOpenAIClient()
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a professional LinkedIn engagement expert. Write authentic, helpful LinkedIn comments that build rapport.
+      const { companyName, triggerEvent, userSettings } = body as z.infer<typeof GenerateLinkedInCommentSchema>
+
+      const openai = getOpenAIClient()
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a professional LinkedIn engagement expert. Write authentic, helpful LinkedIn comments that build rapport.
 Rules:
 - Keep it to 2-3 sentences
 - Be genuine and congratulatory
@@ -54,21 +66,25 @@ Rules:
 - Never mention sales or pitches
 - Match the tone of the trigger event (excited for funding, supportive for hiring, etc.)
 - If relevant, subtly connect to what the company does`,
-        },
-        {
-          role: 'user',
-          content: `Write a LinkedIn comment for ${companyName}'s recent activity: ${triggerEvent}
-${userSettings?.whatYouSell ? `Context: We sell ${userSettings.whatYouSell} but don't mention this directly.` : ''}`,
-        },
-      ],
-      temperature: 0.8,
-      max_tokens: 150,
-    })
+          },
+          {
+            role: 'user',
+            content: `Write a LinkedIn comment for ${companyName}'s recent activity: ${triggerEvent}
+${(userSettings as { whatYouSell?: string } | undefined)?.whatYouSell ? `Context: We sell ${(userSettings as { whatYouSell?: string }).whatYouSell} but don't mention this directly.` : ''}`,
+          },
+        ],
+        temperature: 0.8,
+        max_tokens: 150,
+      })
 
-    const comment = response.choices[0]?.message?.content || `Congratulations on ${triggerEvent}! Exciting times ahead for ${companyName}. 🚀`
+      const comment =
+        response.choices[0]?.message?.content ||
+        `Congratulations on ${triggerEvent}! Exciting times ahead for ${companyName}.`
 
-    return ok({ comment }, undefined, bridge)
-  } catch (error) {
-    return asHttpError(error, '/api/generate-linkedin-comment', undefined, bridge)
-  }
-}
+      return ok({ comment }, undefined, bridge, requestId)
+    } catch (error) {
+      return asHttpError(error, '/api/generate-linkedin-comment', userId, bridge, requestId)
+    }
+  },
+  { bodySchema: GenerateLinkedInCommentSchema }
+)

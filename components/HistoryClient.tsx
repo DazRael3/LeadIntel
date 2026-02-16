@@ -20,7 +20,8 @@ export interface HistoryLead {
 
 interface HistoryClientProps {
   initialLeads: HistoryLead[]
-  isPro: boolean
+  canAccessPitchHistory: boolean
+  canExportLeads: boolean
 }
 
 const PAGE_SIZE = 10
@@ -50,7 +51,7 @@ function extractSubject(pitch?: string | null): string {
   return firstLine.trim().slice(0, 80)
 }
 
-export function HistoryClient({ initialLeads, isPro }: HistoryClientProps) {
+export function HistoryClient({ initialLeads, canAccessPitchHistory, canExportLeads }: HistoryClientProps) {
   const [query, setQuery] = useState('')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [page, setPage] = useState(0)
@@ -125,21 +126,21 @@ export function HistoryClient({ initialLeads, isPro }: HistoryClientProps) {
               {sortDir === 'desc' ? 'Newest first' : 'Oldest first'}
             </Button>
             <Button
-              variant={isPro ? 'default' : 'outline'}
-              disabled={!isPro}
+              variant={canExportLeads ? 'default' : 'outline'}
+              disabled={!canExportLeads}
               onClick={handleExport}
               className="neon-border hover:glow-effect"
             >
               <Download className="h-4 w-4 mr-2" />
-              {isPro ? 'Export CSV' : 'Pro required'}
+              {canExportLeads ? 'Export CSV' : 'Locked'}
             </Button>
           </div>
         </div>
 
-        {!isPro && (
+        {!canExportLeads && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Lock className="h-4 w-4" />
-            CSV export is a Pro feature. <a href="/pricing" className="text-cyan-400 underline ml-1">Upgrade</a>
+            Exports are locked. <a href="/pricing" className="text-cyan-400 underline ml-1">Upgrade</a>
           </div>
         )}
 
@@ -159,7 +160,22 @@ export function HistoryClient({ initialLeads, isPro }: HistoryClientProps) {
           <div className="text-sm text-cyan-300">{toast}</div>
         )}
 
-        {filtered.length === 0 ? (
+        {!canAccessPitchHistory ? (
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardContent className="py-10 text-center space-y-3">
+              <div className="mx-auto inline-flex items-center justify-center h-12 w-12 rounded-full border border-cyan-500/20 bg-cyan-500/10">
+                <Lock className="h-5 w-5 text-cyan-300" />
+              </div>
+              <p className="text-lg font-semibold">Your trial work is safely stored</p>
+              <p className="text-muted-foreground">
+                Upgrade to Pro to unlock your pitch history and continue where you left off.
+              </p>
+              <Button asChild className="neon-border hover:glow-effect">
+                <a href="/pricing">Upgrade to Pro</a>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : filtered.length === 0 ? (
           <Card className="border-cyan-500/20 bg-card/60">
             <CardContent className="py-10 text-center space-y-3">
               <p className="text-lg font-semibold">No pitches yet</p>

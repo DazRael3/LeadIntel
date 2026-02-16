@@ -13,11 +13,11 @@ export function UpgradeOverlay() {
         <Lock className="h-8 w-8 mx-auto mb-3 text-cyan-400" />
         <p className="text-sm font-bold mb-2 text-cyan-400">Pro Feature</p>
         <p className="text-xs text-muted-foreground mb-3">
-          Join Dazrael Pro to access Enterprise Intelligence and Automated Sales Agent.
+          Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.
         </p>
         <Button
           size="sm"
-          onClick={() => router.push('/api/checkout')}
+          onClick={() => router.push('/pricing')}
           className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
         >
           <DollarSign className="h-4 w-4 mr-2" />

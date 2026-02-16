@@ -10,6 +10,12 @@
 
 import { z } from 'zod'
 
+const siteUrlSchema = z
+  .preprocess((v) => (typeof v === 'string' ? v.trim() : ''), z.string().url().or(z.literal('')))
+  .refine((val) => process.env.NODE_ENV !== 'production' || val.length > 0, {
+    message: 'NEXT_PUBLIC_SITE_URL is required in production',
+  })
+
 /**
  * Client-safe environment variables (NEXT_PUBLIC_* only)
  * These are exposed to the browser and must not contain secrets.
@@ -24,7 +30,22 @@ const clientEnvSchema = z.object({
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_', 'Invalid Stripe publishable key format'),
   
   // Application
-  NEXT_PUBLIC_SITE_URL: z.string().url().optional().or(z.literal('')),
+  NEXT_PUBLIC_SITE_URL: siteUrlSchema,
+  // Debug UI (optional): if "true", show /api/whoami debug panel in dashboard.
+  NEXT_PUBLIC_ENABLE_DEBUG_UI: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  // Autopilot UI (optional): if "true", show Autopilot section in Settings.
+  NEXT_PUBLIC_ENABLE_AUTOPILOT_UI: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  // Client analytics (optional): when enabled, client will POST a few high-signal events.
+  NEXT_PUBLIC_ANALYTICS_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
   // CORS/Origin validation (comma-separated list of allowed origins)
   // Example: "https://app.example.com,https://www.example.com"
   ALLOWED_ORIGINS: z.string().optional(),
@@ -35,6 +56,12 @@ const clientEnvSchema = z.object({
  * These are only available in server-side code (API routes, server components).
  */
 const serverEnvSchema = z.object({
+  // Public env (validated here too so serverEnv can be a single source for ops checks)
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url('Invalid Supabase URL'),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'Supabase anon key required'),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_', 'Invalid Stripe publishable key format'),
+  NEXT_PUBLIC_SITE_URL: siteUrlSchema,
+
   // Supabase (server-only secrets)
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'Supabase service role key required'),
   SUPABASE_DB_SCHEMA: z.string().optional(),
@@ -44,6 +71,7 @@ const serverEnvSchema = z.object({
   STRIPE_SECRET_KEY: z.string().startsWith('sk_', 'Invalid Stripe secret key format'),
   STRIPE_PRICE_ID: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_PRO: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  STRIPE_PRICE_ID_TEAM: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_', 'Invalid Stripe webhook secret format'),
   
   // OpenAI
@@ -52,7 +80,112 @@ const serverEnvSchema = z.object({
   // Resend
   RESEND_API_KEY: z.string().startsWith('re_', 'Invalid Resend API key format').optional(),
   RESEND_FROM_EMAIL: z.string().email('Invalid Resend from email').optional(),
+  RESEND_WEBHOOK_SECRET: z.string().min(1, 'Resend webhook secret required').optional(),
   
+  // Observability (Sentry)
+  // Allow empty string so test/dev can explicitly disable without failing validation.
+  SENTRY_DSN: z.string().url('Invalid SENTRY_DSN URL').optional().or(z.literal('')),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  HEALTH_CHECK_EXTERNAL: z.enum(['0', '1']).optional(),
+
+  // Feature flags / kill switches (global)
+  // Normalize to lowercase to avoid footguns like "TRUE"/"False" in production envs.
+  FEATURE_AUTOPILOT_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  FEATURE_RESEND_WEBHOOK_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  FEATURE_STRIPE_WEBHOOK_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  FEATURE_CLEARBIT_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  FEATURE_ZAPIER_PUSH_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+
+  // App-level trial flag (optional; does not change Stripe billing)
+  ENABLE_APP_TRIAL: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+
+  // Trial abuse hardening (optional): record soft fingerprints and use them to deny new trials.
+  ENABLE_TRIAL_FINGERPRINTING: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+
+  // Product analytics (optional): enable server-side logging into api.product_analytics.
+  ENABLE_PRODUCT_ANALYTICS: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+
+  // Site health reporting (optional)
+  ENABLE_SITE_REPORTS: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  SITE_REPORT_CRON_SECRET: z.string().optional(),
+  ADMIN_USER_ID: z.string().uuid().optional(),
+
+  // Demo behavior (optional): seed synthetic trigger events after pitch generation.
+  ENABLE_DEMO_TRIGGER_EVENTS: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+
+  // Trigger events ingestion provider (optional)
+  TRIGGER_EVENTS_PROVIDER: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['none', 'newsapi', 'custom']).optional()
+  ),
+  // Trigger events ingestion providers (preferred): comma-separated list
+  // Allowed: none, newsapi, finnhub, gdelt, crunchbase, rss
+  TRIGGER_EVENTS_PROVIDERS: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z
+      .string()
+      .optional()
+      .refine((val) => {
+        if (!val) return true
+        const allowed = new Set(['none', 'newsapi', 'finnhub', 'gdelt', 'crunchbase', 'rss'])
+        return val
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .every((name) => allowed.has(name))
+      }, 'Invalid TRIGGER_EVENTS_PROVIDERS (allowed: none, newsapi, finnhub, gdelt, crunchbase, rss)')
+  ),
+  TRIGGER_EVENTS_DEBUG_LOGGING: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  // Trigger events provider keys/config (all optional; providers noop when missing)
+  NEWSAPI_API_KEY: z.string().optional(),
+  FINNHUB_API_KEY: z.string().optional(),
+  GDELT_BASE_URL: z.string().url().optional(),
+  CRUNCHBASE_API_KEY: z.string().optional(),
+  TRIGGER_EVENTS_RSS_FEEDS: z.string().optional(),
+  TRIGGER_EVENTS_MAX_PER_PROVIDER: z.preprocess(
+    (v) => {
+      if (typeof v !== 'string') return v
+      const n = Number.parseInt(v, 10)
+      return Number.isFinite(n) ? n : undefined
+    },
+    z.number().int().min(1).max(25).optional()
+  ),
+  // Cron secret for /api/trigger-events/ingest (optional)
+  TRIGGER_EVENTS_CRON_SECRET: z.string().min(8).optional(),
+
   // Clearbit
   CLEARBIT_REVEAL_API_KEY: z.string().optional(),
   CLEARBIT_API_KEY: z.string().optional(),
@@ -62,6 +195,15 @@ const serverEnvSchema = z.object({
   NEWS_API_KEY: z.string().optional(),
   ZAPIER_WEBHOOK_URL: z.string().url().optional(),
   ADMIN_DIGEST_SECRET: z.string().optional(),
+  CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
+  CRON_SIGNING_SECRET: z.string().min(16, 'CRON_SIGNING_SECRET must be at least 16 characters').optional(),
+
+  // Optional market data provider (server-side; falls back to deterministic mock quotes)
+  MARKET_DATA_PROVIDER: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['none', 'finnhub', 'polygon']).optional()
+  ),
+  MARKET_DATA_API_KEY: z.string().optional(),
   
   // Development
   DEV_SEED_SECRET: z.string().optional(),
@@ -114,22 +256,57 @@ function buildServerEnv(): ServerEnv {
   }
 
   const parsed = serverEnvSchema.safeParse({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     SUPABASE_DB_SCHEMA: process.env.SUPABASE_DB_SCHEMA,
     SUPABASE_DB_SCHEMA_FALLBACK: process.env.SUPABASE_DB_SCHEMA_FALLBACK,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_PRICE_ID: process.env.STRIPE_PRICE_ID,
     STRIPE_PRICE_ID_PRO: process.env.STRIPE_PRICE_ID_PRO,
+    STRIPE_PRICE_ID_TEAM: process.env.STRIPE_PRICE_ID_TEAM,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
     CLEARBIT_REVEAL_API_KEY: process.env.CLEARBIT_REVEAL_API_KEY,
     CLEARBIT_API_KEY: process.env.CLEARBIT_API_KEY,
     HUNTER_API_KEY: process.env.HUNTER_API_KEY,
     NEWS_API_KEY: process.env.NEWS_API_KEY,
     ZAPIER_WEBHOOK_URL: process.env.ZAPIER_WEBHOOK_URL,
+    FEATURE_AUTOPILOT_ENABLED: process.env.FEATURE_AUTOPILOT_ENABLED,
+    FEATURE_RESEND_WEBHOOK_ENABLED: process.env.FEATURE_RESEND_WEBHOOK_ENABLED,
+    FEATURE_STRIPE_WEBHOOK_ENABLED: process.env.FEATURE_STRIPE_WEBHOOK_ENABLED,
+    FEATURE_CLEARBIT_ENABLED: process.env.FEATURE_CLEARBIT_ENABLED,
+    FEATURE_ZAPIER_PUSH_ENABLED: process.env.FEATURE_ZAPIER_PUSH_ENABLED,
+    ENABLE_APP_TRIAL: process.env.ENABLE_APP_TRIAL,
+    ENABLE_TRIAL_FINGERPRINTING: process.env.ENABLE_TRIAL_FINGERPRINTING,
+    ENABLE_PRODUCT_ANALYTICS: process.env.ENABLE_PRODUCT_ANALYTICS,
+    ENABLE_SITE_REPORTS: process.env.ENABLE_SITE_REPORTS,
+    SITE_REPORT_CRON_SECRET: process.env.SITE_REPORT_CRON_SECRET,
+    ADMIN_USER_ID: process.env.ADMIN_USER_ID,
+    ENABLE_DEMO_TRIGGER_EVENTS: process.env.ENABLE_DEMO_TRIGGER_EVENTS,
+    TRIGGER_EVENTS_PROVIDER: process.env.TRIGGER_EVENTS_PROVIDER,
+    TRIGGER_EVENTS_PROVIDERS: process.env.TRIGGER_EVENTS_PROVIDERS,
+    TRIGGER_EVENTS_DEBUG_LOGGING: process.env.TRIGGER_EVENTS_DEBUG_LOGGING,
+    NEWSAPI_API_KEY: process.env.NEWSAPI_API_KEY,
+    FINNHUB_API_KEY: process.env.FINNHUB_API_KEY,
+    GDELT_BASE_URL: process.env.GDELT_BASE_URL,
+    CRUNCHBASE_API_KEY: process.env.CRUNCHBASE_API_KEY,
+    TRIGGER_EVENTS_RSS_FEEDS: process.env.TRIGGER_EVENTS_RSS_FEEDS,
+    TRIGGER_EVENTS_MAX_PER_PROVIDER: process.env.TRIGGER_EVENTS_MAX_PER_PROVIDER,
+    TRIGGER_EVENTS_CRON_SECRET: process.env.TRIGGER_EVENTS_CRON_SECRET,
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
+    CRON_SECRET: process.env.CRON_SECRET,
+    CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET,
+    MARKET_DATA_PROVIDER: process.env.MARKET_DATA_PROVIDER,
+    MARKET_DATA_API_KEY: process.env.MARKET_DATA_API_KEY,
+    HEALTH_CHECK_EXTERNAL: process.env.HEALTH_CHECK_EXTERNAL,
     DEV_SEED_SECRET: process.env.DEV_SEED_SECRET,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
@@ -194,6 +371,9 @@ export const clientEnv = (() => {
     NEXT_PUBLIC_SUPABASE_DB_SCHEMA: process.env.NEXT_PUBLIC_SUPABASE_DB_SCHEMA,
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_ENABLE_DEBUG_UI: process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI,
+    NEXT_PUBLIC_ENABLE_AUTOPILOT_UI: process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI,
+    NEXT_PUBLIC_ANALYTICS_ENABLED: process.env.NEXT_PUBLIC_ANALYTICS_ENABLED,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
   })
 

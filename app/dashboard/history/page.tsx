@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { HistoryClient, HistoryLead } from '@/components/HistoryClient'
-import { getPlan } from '@/lib/billing/plan'
+import { getPlanDetails } from '@/lib/billing/plan'
+import { getEntitlements } from '@/lib/billing/entitlements'
 
 export default async function HistoryPage() {
   const supabase = createClient()
@@ -11,7 +12,14 @@ export default async function HistoryPage() {
     redirect('/login?mode=signin&redirect=/dashboard/history')
   }
 
-  const plan = await getPlan(supabase as any, user.id)
+  const details = await getPlanDetails(supabase as any, user.id)
+  const entitlements = getEntitlements({
+    plan: details.plan,
+    trial: {
+      active: Boolean(details.isAppTrial && details.appTrialEndsAt),
+      endsAt: details.appTrialEndsAt ?? null,
+    },
+  })
 
   const { data: leads } = await supabase
     .from('leads')
@@ -22,7 +30,8 @@ export default async function HistoryPage() {
   return (
     <HistoryClient
       initialLeads={(leads || []) as HistoryLead[]}
-      isPro={plan === 'pro'}
+      canAccessPitchHistory={entitlements.canAccessPitchHistory}
+      canExportLeads={entitlements.canExportLeads}
     />
   )
 }
