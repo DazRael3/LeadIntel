@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import React from 'react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
@@ -7,6 +8,7 @@ let resolvedThemeMock: string | undefined = 'dark'
 
 vi.mock('next-themes', () => ({
   useTheme: () => ({
+    theme: 'system',
     resolvedTheme: resolvedThemeMock,
     setTheme: setThemeMock,
   }),
