@@ -12,6 +12,7 @@ import { getDisplayPlanMeta } from '@/lib/billing/plan'
 import { createClient } from '@/lib/supabase/client'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { useStripePortal } from '../hooks/useStripePortal'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface DashboardHeaderSectionProps {
   isPro: boolean
@@ -122,6 +123,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 ) : null}
               </>
             )}
+            <ThemeToggle />
             <SignOutButton />
           </div>
         </div>

@@ -31,6 +31,7 @@ describe('DashboardHeaderSection', () => {
     render(<DashboardHeaderSection isPro={false} creditsRemaining={1} />)
     expect(screen.getByRole('button', { name: /upgrade to closer/i })).toBeTruthy()
     expect(screen.getByText(/starter/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /toggle color theme/i })).toBeTruthy()
   })
 
   it('closer hides Upgrade to Closer CTA', () => {
@@ -39,6 +40,7 @@ describe('DashboardHeaderSection', () => {
     expect(screen.queryByRole('button', { name: /upgrade to closer/i })).toBeNull()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
     expect(screen.getByText(/closer/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /toggle color theme/i })).toBeTruthy()
   })
 })
 
