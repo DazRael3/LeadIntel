@@ -32,6 +32,7 @@ export function CommunicationPreferencesCard() {
   const [preferredContactChannel, setPreferredContactChannel] = useState<Channel | ''>('')
   const [preferredContactDetail, setPreferredContactDetail] = useState<string>('')
   const [allowProductUpdates, setAllowProductUpdates] = useState<boolean>(true)
+  const [phoneNumber, setPhoneNumber] = useState<string>('')
 
   useEffect(() => {
     let cancelled = false
@@ -44,16 +45,18 @@ export function CommunicationPreferencesCard() {
         }
         const { data } = await supabase
           .from('user_settings')
-          .select('preferred_contact_channel, preferred_contact_detail, allow_product_updates')
+          .select('phone, preferred_contact_channel, preferred_contact_detail, allow_product_updates')
           .eq('user_id', user.id)
           .maybeSingle()
 
         if (!cancelled) {
           const row = (data ?? null) as {
+            phone?: string | null
             preferred_contact_channel?: Channel | null
             preferred_contact_detail?: string | null
             allow_product_updates?: boolean | null
           } | null
+          setPhoneNumber(row?.phone ?? '')
           setPreferredContactChannel(row?.preferred_contact_channel ?? '')
           setPreferredContactDetail(row?.preferred_contact_detail ?? '')
           setAllowProductUpdates(row?.allow_product_updates ?? true)
@@ -78,6 +81,7 @@ export function CommunicationPreferencesCard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           onboarding_completed: true,
+          phone: phoneNumber,
           preferred_contact_channel: preferredContactChannel || undefined,
           preferred_contact_detail: preferredContactDetail.trim() || undefined,
           allow_product_updates: allowProductUpdates,
@@ -141,6 +145,22 @@ export function CommunicationPreferencesCard() {
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : (
           <>
+            <div>
+              <label className="text-sm font-semibold mb-2 block" htmlFor="account_phone">
+                Phone number
+              </label>
+              <input
+                id="account_phone"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="+1 555 555 5555"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                We’ll only use this to contact you about your account or leads.
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-semibold mb-2 block" htmlFor="comm_channel">

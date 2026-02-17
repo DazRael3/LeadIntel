@@ -3,7 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 const getUserMock = vi.fn(async () => ({ data: { user: { id: 'user_1' } }, error: null }))
 const maybeSingleMock = vi.fn(async () => ({
-  data: { preferred_contact_channel: 'email', preferred_contact_detail: 'u@example.com', allow_product_updates: true },
+  data: {
+    phone: '+1 555 555 5555',
+    preferred_contact_channel: 'email',
+    preferred_contact_detail: 'u@example.com',
+    allow_product_updates: true,
+  },
   error: null,
 }))
 const selectMock = vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: maybeSingleMock })) }))
@@ -31,8 +36,10 @@ describe('CommunicationPreferencesCard', () => {
     render(<CommunicationPreferencesCard />)
 
     await waitFor(() => expect(screen.getByText('Communication preferences')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByDisplayValue('+1 555 555 5555')).toBeInTheDocument())
     await waitFor(() => expect(screen.getByDisplayValue('email')).toBeInTheDocument())
 
+    fireEvent.change(screen.getByLabelText('Phone number'), { target: { value: '+1 777 777 7777' } })
     fireEvent.change(screen.getByLabelText('Preferred channel'), { target: { value: 'slack' } })
     fireEvent.change(screen.getByLabelText('Contact detail'), { target: { value: '@me' } })
     fireEvent.click(screen.getByLabelText('Send me product updates and tips'))

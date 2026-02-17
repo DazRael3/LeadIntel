@@ -42,6 +42,7 @@ describe('/api/settings', () => {
         display_name: 'Jane',
         from_email: 'jane@example.com',
         from_name: 'Jane',
+        phone: '+1 555 555 5555',
         role: 'Founder',
         team_size: 'solo',
         primary_goal: 'outbound',
@@ -57,6 +58,7 @@ describe('/api/settings', () => {
     expect(upsertCalls.length).toBe(1)
     expect(upsertCalls[0]).toMatchObject({
       user_id: 'user_1',
+      phone: '+1 555 555 5555',
       role: 'Founder',
       team_size: 'solo',
       primary_goal: 'outbound',
@@ -76,6 +78,22 @@ describe('/api/settings', () => {
     })
     const res = await POST(req)
     expect(res.status).toBe(200)
+  })
+
+  it('normalizes empty phone string to null when provided', async () => {
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ onboarding_completed: true, phone: '   ' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(upsertCalls.length).toBe(1)
+    expect(upsertCalls[0]).toMatchObject({
+      user_id: 'user_1',
+      phone: null,
+    })
   })
 })
 

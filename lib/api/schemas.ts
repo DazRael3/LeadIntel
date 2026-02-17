@@ -59,6 +59,8 @@ export const UserSettingsSchema = z.object({
   display_name: z.string().min(1).max(200).optional(),
   from_email: z.string().email('Invalid email address').optional(),
   from_name: z.string().max(200).optional(),
+  // Optional phone number for account contact (stored as free-form text; normalized to null on save when empty).
+  phone: z.string().trim().max(64).optional(),
   role: z.string().max(64).optional(),
   team_size: z.string().max(32).optional(),
   primary_goal: z.string().max(64).optional(),

@@ -87,6 +87,10 @@ export const POST = withApiGuard(
       const preferred_contact_channel = typeof input.preferred_contact_channel === 'string' ? input.preferred_contact_channel : undefined
       const preferred_contact_detail = typeof input.preferred_contact_detail === 'string' ? input.preferred_contact_detail : undefined
       const allow_product_updates = typeof input.allow_product_updates === 'boolean' ? input.allow_product_updates : undefined
+      const phone =
+        input.phone === undefined
+          ? undefined
+          : (typeof input.phone === 'string' ? input.phone.trim() : '').trim() || null
       const onboarding_completed =
         typeof input.onboarding_completed === 'boolean' ? input.onboarding_completed : true
 
@@ -111,13 +115,16 @@ export const POST = withApiGuard(
             ...(preferred_contact_detail !== undefined ? { preferred_contact_detail } : {}),
             ...(allow_product_updates !== undefined ? { allow_product_updates } : {}),
             ...(autopilot_enabled !== undefined ? { autopilot_enabled } : {}),
+            ...(phone !== undefined ? { phone } : {}),
             updated_at: new Date().toISOString(),
           },
           {
             onConflict: 'user_id',
           }
         )
-        .select('user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, digest_enabled, digest_dow, digest_hour, digest_webhook_url, updated_at')
+        .select(
+          'user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, phone, digest_enabled, digest_dow, digest_hour, digest_webhook_url, updated_at'
+        )
         .single()
 
       if (error) {
