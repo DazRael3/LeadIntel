@@ -413,7 +413,7 @@ Open LeadIntel to take action.`}
                 <p className="text-muted-foreground mt-2 max-w-3xl">
                   Premium, ROI-focused outbound — built to save hours and create pipeline.
                 </p>
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card className="border-cyan-500/10 bg-card/50">
                     <CardHeader>
                       <CardTitle className="text-xl">Starter (Free)</CardTitle>
@@ -441,20 +441,6 @@ Open LeadIntel to take action.`}
                       <p>• Monitor more accounts and trigger events</p>
                     </CardContent>
                   </Card>
-                  <Card className="border-cyan-500/10 bg-card/50">
-                    <CardHeader>
-                      <CardTitle className="text-xl">Team</CardTitle>
-                      <p className="text-3xl font-bold">$249<span className="text-base text-muted-foreground"> / month</span></p>
-                      <p className="text-sm text-muted-foreground">
-                        For small teams who want shared digests, watchlists, and consistent messaging.
-                      </p>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-2">
-                      <p>• Multiple seats (shared watchlists and digests)</p>
-                      <p>• Stronger rate limits and priority processing</p>
-                      <p>• Standardize winning messaging with templates</p>
-                    </CardContent>
-                  </Card>
                 </div>
 
                 <div className="mt-10">
@@ -462,7 +448,7 @@ Open LeadIntel to take action.`}
                   <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                     <p>• Stop spraying sequences at cold lists — focus on accounts with real buying signals.</p>
                     <p>• Spend mornings in your inbox and on calls, not bouncing between tabs.</p>
-                    <p>• Standardize winning messaging across your team with templates that convert.</p>
+                    <p>• Standardize winning messaging across your org with templates that convert.</p>
                   </div>
                 </div>
 
