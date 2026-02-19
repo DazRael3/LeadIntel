@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/autopilot/run?cron_token=$CRON_TOKEN_AUTOPILOT",
-      "schedule": "0 9,15,21 * * *",
+      "schedule": "0 13 * * *",
       "headers": {
         "X-CRON-SECRET": "$CRON_SECRET"
       }
