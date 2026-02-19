@@ -1,26 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/autopilot/run?cron_token=$CRON_TOKEN_AUTOPILOT",
-      "schedule": "0 13 * * *",
-      "headers": {
-        "X-CRON-SECRET": "$CRON_SECRET"
-      }
-    },
-    {
-      "path": "/api/leads/discover?cron_token=$CRON_TOKEN_DISCOVER",
-      "schedule": "0 2 * * *",
-      "headers": {
-        "X-CRON-SECRET": "$CRON_SECRET"
-      }
-    },
-    {
-      "path": "/api/digest/run?cron_token=$CRON_TOKEN_DIGEST",
-      "schedule": "0 9 * * 1",
-      "headers": {
-        "X-CRON-SECRET": "$CRON_SECRET"
-      }
-    }
-  ]
+  "version": 3
 }
-
