@@ -18,6 +18,9 @@ const WEBSITE_HOST = (() => {
   }
 })()
 
+const COMPETITIVE_REPORT_URL = 'https://dazrael.com/competitive-report'
+const COMPETITIVE_REPORT_CTA = `View more about our intelligence platform here: ${COMPETITIVE_REPORT_URL}`
+
 import { serverEnv } from './env'
 import { isE2E, isTestEnv } from './runtimeFlags'
 import { captureException, captureMessage } from './observability/sentry'
@@ -323,7 +326,7 @@ export async function generatePitch(
 ): Promise<string> {
   // In E2E/test mode, return deterministic mock response instantly
   if (isE2E() || isTestEnv()) {
-    return `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent || 'activity'}. View it here: ${WEBSITE_URL}`
+    return `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent || 'activity'}.\n\n${COMPETITIVE_REPORT_CTA}`
   }
 
   try {
@@ -338,7 +341,7 @@ export async function generatePitch(
       messages: [
         {
           role: 'system',
-          content: template.systemInstruction.replaceAll('the provided website URL', WEBSITE_URL),
+          content: template.systemInstruction.replaceAll('the provided website URL', COMPETITIVE_REPORT_URL),
         },
         {
           role: 'user',
@@ -354,7 +357,7 @@ ${companyInfo ? `Additional context: ${companyInfo}` : ''}
 ${userSettings?.whatYouSell ? `We sell: ${userSettings.whatYouSell}` : ''}
 ${userSettings?.idealCustomer ? `Our ideal customer: ${userSettings.idealCustomer}` : ''}${whyNowText}
 
-End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant Intelligence.`,
+End with a clear link to ${COMPETITIVE_REPORT_URL} encouraging them to sign up for Instant Intelligence.`,
         },
       ],
       temperature: 0.7,
@@ -371,9 +374,19 @@ End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant 
       return 'AI failed to generate pitch. Please check OpenAI credits.'
     }
 
-    // Ensure the website URL is included (accept host-only matches too).
-    if (!pitch.includes(WEBSITE_URL) && !pitch.includes(WEBSITE_HOST)) {
-      pitch += `\n\nView your competitive intelligence report: ${WEBSITE_URL}`
+    // Make the "report link" copy honest + consistent (and prevent stale/typo'd legacy strings).
+    // Keep the rest of the pitch intact; only normalize the CTA sentence/line.
+    const ctaLine = COMPETITIVE_REPORT_CTA
+    pitch = pitch
+      .replace(/^View your competitive intelligence report:.*$/gim, ctaLine)
+      .replace(/^View your customized report:.*$/gim, ctaLine)
+      .replace(/^View your\s+.*report.*here.*$/gim, ctaLine)
+      .replace(/^View it here:\s*https?:\/\/\S+.*$/gim, ctaLine)
+      .replace(/specifi\w+/gi, 'specific')
+      .replace(/https?:\/\/dazrael\.com(?!\/competitive-report)\S*/gi, COMPETITIVE_REPORT_URL)
+
+    if (!pitch.includes(COMPETITIVE_REPORT_URL)) {
+      pitch = `${pitch.trim()}\n\n${ctaLine}`
     }
 
     // Remove any mentions of calls or meetings
@@ -394,7 +407,7 @@ End with a clear link to ${WEBSITE_URL} encouraging them to sign up for Instant 
   } catch (error) {
     captureException(error, { route: 'lib/ai-logic.generatePitch' })
     // Fallback pitch
-    return `Hi ${ceoName || 'there'}, I've already generated a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${WEBSITE_URL}`
+    return `Hi ${ceoName || 'there'}, I've already generated a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${COMPETITIVE_REPORT_CTA}`
   }
 }
 
@@ -504,8 +517,8 @@ export async function generateEmailSequence(
   if (isE2E() || isTestEnv()) {
     return {
       part1: `Hi ${ceoName || 'there'}, I noticed ${companyName} recently ${triggerEvent || 'had some activity'}. I've prepared a competitive intelligence report that might be valuable.`,
-      part2: `Based on your recent ${triggerEvent || 'activity'}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: ${WEBSITE_URL}`,
-      part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${WEBSITE_URL}`,
+      part2: `Based on your recent ${triggerEvent || 'activity'}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence.\n\n${COMPETITIVE_REPORT_CTA}`,
+      part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready.\n\n${COMPETITIVE_REPORT_CTA}`,
     }
   }
 
@@ -525,7 +538,7 @@ Tone: Helpful, warm, value-first
 Length: 2-3 sentences
 Goal: Provide genuine value and introduce yourself
 NEVER mention calls or meetings
-Always end with link to ${WEBSITE_URL}`,
+Always end with link to ${COMPETITIVE_REPORT_URL}`,
           },
           {
             role: 'user',
@@ -549,7 +562,7 @@ Length: 3-4 sentences
 Goal: Show concrete insights and metrics
 Include numbers, percentages, or specific data points
 NEVER mention calls or meetings
-Always end with link to ${WEBSITE_URL}`,
+Always end with link to ${COMPETITIVE_REPORT_URL}`,
           },
           {
             role: 'user',
@@ -573,7 +586,7 @@ Tone: Brief, respectful, final follow-up
 Length: 1-2 sentences MAX
 Goal: One final reminder without being pushy
 NEVER mention calls or meetings
-Always end with link to ${WEBSITE_URL}`,
+Always end with link to ${COMPETITIVE_REPORT_URL}`,
           },
           {
             role: 'user',
@@ -588,19 +601,19 @@ This is the final email in the sequence. Keep it brief and respectful.`,
 
     return {
       part1: part1.choices[0]?.message?.content?.trim() || 
-            `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${WEBSITE_URL}`,
+            `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${COMPETITIVE_REPORT_CTA}`,
       part2: part2.choices[0]?.message?.content?.trim() || 
-            `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: ${WEBSITE_URL}`,
+            `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence.\n\n${COMPETITIVE_REPORT_CTA}`,
       part3: part3.choices[0]?.message?.content?.trim() || 
-            `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${WEBSITE_URL}`,
+            `Final reminder: Your competitive intelligence report for ${companyName} is ready.\n\n${COMPETITIVE_REPORT_CTA}`,
     }
   } catch (error) {
     captureException(error, { route: 'lib/ai-logic.generateEmailSequence' })
     // Fallback sequence
     return {
-      part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${WEBSITE_URL}`,
-      part2: `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: ${WEBSITE_URL}`,
-      part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${WEBSITE_URL}`,
+      part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${COMPETITIVE_REPORT_CTA}`,
+      part2: `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence.\n\n${COMPETITIVE_REPORT_CTA}`,
+      part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready.\n\n${COMPETITIVE_REPORT_CTA}`,
     }
   }
 }

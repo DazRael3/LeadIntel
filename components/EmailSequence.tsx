@@ -37,7 +37,10 @@ export function EmailSequence({
   isPro,
   recipientEmail
 }: EmailSequenceProps) {
-  const siteUrl = useMemo(() => (process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com').trim(), [])
+  const reportCta = useMemo(
+    () => 'View more about our intelligence platform here: https://dazrael.com/competitive-report',
+    []
+  )
   const [sequence, setSequence] = useState<SequenceData | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
@@ -87,16 +90,16 @@ export function EmailSequence({
         // For Pro users with other errors, show fallback
         if (isPro) {
           setSequence({
-            part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}. View it here: ${siteUrl}`,
-            part2: `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence. View your customized report: ${siteUrl}`,
-            part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready. View it here: ${siteUrl}`,
+            part1: `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${reportCta}`,
+            part2: `Based on your recent ${triggerEvent}, companies in your position typically see 40% faster growth when leveraging AI-powered lead intelligence.\n\n${reportCta}`,
+            part3: `Final reminder: Your competitive intelligence report for ${companyName} is ready.\n\n${reportCta}`,
           })
         }
       }
     } finally {
       setLoading(false)
     }
-  }, [isPro, companyName, triggerEvent, ceoName, companyInfo, userSettings, siteUrl])
+  }, [isPro, companyName, triggerEvent, ceoName, companyInfo, userSettings, reportCta])
 
   // Only auto-generate if Pro user
   useEffect(() => {
