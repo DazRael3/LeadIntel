@@ -10,11 +10,11 @@ import { usePlan } from '@/components/PlanProvider'
 import { DEFAULT_INSTRUMENTS, findDefaultInstrument, type InstrumentDefinition } from '@/lib/market/instruments'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
 import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
-import { formatDistanceToNow } from 'date-fns'
 import { track } from '@/lib/analytics'
 import { InstrumentLogo } from '@/components/InstrumentLogo'
 import { ProGate } from '@/components/ProGate'
 import { getQuotePriceDecimals } from '@/lib/market/quotes'
+import { getUpdateText } from '@/lib/time/relativeUpdateText'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -30,7 +30,8 @@ export function MarketSidebar() {
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [quoteError, setQuoteError] = useState<string | null>(null)
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [, setClockTick] = useState(0)
 
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<'stock' | 'crypto'>('stock')
@@ -50,7 +51,7 @@ export function MarketSidebar() {
         const next = await fetchInstrumentQuotes(quoteUniverse)
         if (cancelled) return
         setQuotes(toQuoteMap(next))
-        setLastUpdatedAt(next.map((q) => q.updatedAt).filter((v): v is string => Boolean(v)).sort().at(-1) ?? null)
+        if (next.length > 0) setLastUpdated(new Date())
         setQuoteError(null)
       } catch {
         if (cancelled) return
@@ -64,6 +65,12 @@ export function MarketSidebar() {
       clearInterval(interval)
     }
   }, [quoteUniverse])
+
+  // Keep the "Updated X minutes ago" label fresh even between fetch intervals.
+  useEffect(() => {
+    const t = setInterval(() => setClockTick((x) => x + 1), 15_000)
+    return () => clearInterval(t)
+  }, [])
 
   const suggestions = useMemo(() => {
     const q = query.trim().toUpperCase()
@@ -113,11 +120,9 @@ export function MarketSidebar() {
             {yourWatchlist.length}
           </Badge>
         </div>
-        {lastUpdatedAt ? (
-          <div className="text-[11px] text-muted-foreground">
-            Last price update {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}
-          </div>
-        ) : null}
+        <div className="text-[11px] text-muted-foreground">
+          <span aria-label="Last market update">{getUpdateText(lastUpdated)}</span>
+        </div>
         <div className="text-[11px] text-muted-foreground">Equity prices may be delayed.</div>
         <div className="text-xs text-muted-foreground">Star symbols to pin them to your personal watchlist.</div>
       </CardHeader>

@@ -7,9 +7,9 @@ import { Star, TrendingDown, TrendingUp } from 'lucide-react'
 import { usePlan } from '@/components/PlanProvider'
 import { useMarketWatchlist } from '@/app/hooks/useMarketWatchlist'
 import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices'
-import { formatDistanceToNow } from 'date-fns'
 import { InstrumentLogo } from '@/components/InstrumentLogo'
 import { getQuotePriceDecimals } from '@/lib/market/quotes'
+import { getUpdateText } from '@/lib/time/relativeUpdateText'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -32,7 +32,8 @@ export function MarketPulse() {
   }, [allInstruments, yourWatchlist])
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [, setClockTick] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -42,7 +43,7 @@ export function MarketPulse() {
         const next = await fetchInstrumentQuotes(quoteUniverse)
         if (cancelled) return
         setQuotes(toQuoteMap(next))
-        setLastUpdatedAt(next.map((q) => q.updatedAt).filter((v): v is string => Boolean(v)).sort().at(-1) ?? null)
+        if (next.length > 0) setLastUpdated(new Date())
         setError(null)
       } catch {
         if (cancelled) return
@@ -57,6 +58,11 @@ export function MarketPulse() {
     }
   }, [quoteUniverse])
 
+  useEffect(() => {
+    const t = setInterval(() => setClockTick((x) => x + 1), 15_000)
+    return () => clearInterval(t)
+  }, [])
+
   return (
     <Card className="border-cyan-500/20 bg-card/50" data-testid="market-pulse">
       <CardHeader className="pb-3">
@@ -64,11 +70,7 @@ export function MarketPulse() {
           <div>
             <CardTitle className="text-xl bloomberg-font neon-cyan">MARKET PULSE</CardTitle>
             <div className="text-xs text-muted-foreground mt-1">
-              {lastUpdatedAt ? (
-                <>Last price update {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}</>
-              ) : (
-                <>Live pricing refreshes every ~45s</>
-              )}
+              <span aria-label="Last market update">{getUpdateText(lastUpdated)}</span>
             </div>
           </div>
           <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10">

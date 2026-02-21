@@ -127,7 +127,9 @@ export function DashboardClient({
       />
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-6">
+      <div className="w-full overflow-x-auto" data-testid="dashboard-overflow-x">
+        <div className="min-w-[1100px]">
+          <main className="container mx-auto px-6 py-6">
         <Tabs defaultValue="command" className="space-y-6">
           <TabsList className="bg-background/50 border border-cyan-500/20">
             <TabsTrigger value="command" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
@@ -391,7 +393,9 @@ export function DashboardClient({
             </CardContent>
           </Card>
         )}
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
   )
 }

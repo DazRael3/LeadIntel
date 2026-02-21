@@ -83,6 +83,19 @@ describe('DashboardClient tabs', () => {
     planMock = { plan: 'free', isPro: false, trial: { active: false, endsAt: null } }
   })
 
+  it('renders a horizontal overflow wrapper for half-screen layouts', () => {
+    render(
+      <DashboardClient
+        initialSubscriptionTier="free"
+        initialCreditsRemaining={1}
+        initialOnboardingCompleted={true}
+        initialAutopilotEnabled={false}
+      />
+    )
+
+    expect(screen.getByTestId('dashboard-overflow-x')).toBeTruthy()
+  })
+
   it('shows a Pro pill on the Market Pulse tab for Starter users', async () => {
     render(
       <DashboardClient

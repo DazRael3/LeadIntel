@@ -12,8 +12,10 @@ import { logger } from '@/lib/observability/logger'
 
 /**
  * Market quote pipeline (USD):
- * - STOCKS: live via `MARKET_DATA_PROVIDER` (Finnhub or Polygon) using server-only API keys.
- * - CRYPTO: live via CoinGecko (USD) as a reliable default for BTC/ETH/SOL/BNB/XRP pairs.
+ * - STOCKS: live via `MARKET_DATA_PROVIDER` (Finnhub or Polygon) using `MARKET_DATA_API_KEY`.
+ *   - Production note: if `MARKET_DATA_PROVIDER` / `MARKET_DATA_API_KEY` are missing or invalid in Vercel env,
+ *     stock quotes are omitted (no mocks/fabricated prices in prod).
+ * - CRYPTO: live via CoinGecko (USD) for curated BTC/ETH/SOL/BNB/XRP pairs; no API key required.
  * - In production we NEVER fabricate prices; missing quotes are omitted from the response.
  */
 const InstrumentKindSchema = z.enum(['stock', 'crypto'])
