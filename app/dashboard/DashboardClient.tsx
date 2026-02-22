@@ -37,13 +37,15 @@ interface DashboardClientProps {
   initialCreditsRemaining: number
   initialOnboardingCompleted: boolean
   initialAutopilotEnabled: boolean
+  initialCompanyInput?: string
 }
 
 export function DashboardClient({ 
   initialSubscriptionTier, 
   initialCreditsRemaining, 
   initialOnboardingCompleted,
-  initialAutopilotEnabled
+  initialAutopilotEnabled,
+  initialCompanyInput,
 }: DashboardClientProps) {
   const [isPro, setIsPro] = useState(initialSubscriptionTier === 'pro')
   const [viewMode, setViewMode] = useState<'startup' | 'enterprise'>('startup')
@@ -175,6 +177,7 @@ export function DashboardClient({
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
                 <PitchGenerator
+                  initialUrl={initialCompanyInput}
                   onCompanyContextChange={onCompanyContextChange}
                 />
               </div>

@@ -26,7 +26,11 @@ function maybeLogApiSchemaHint(error: unknown): void {
   }
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>
+}) {
   const supabase = createClient()
   
   // Check authentication
@@ -41,6 +45,8 @@ export default async function DashboardPage() {
   let creditsRemaining = 1
   let onboardingCompleted = false
   let autopilotEnabled = false
+  const initialCompany =
+    typeof searchParams?.company === 'string' ? searchParams.company.trim().slice(0, 1000) : undefined
 
   // Try to get subscription tier from billing module
   try {
@@ -141,6 +147,7 @@ export default async function DashboardPage() {
         initialCreditsRemaining={creditsRemaining}
         initialOnboardingCompleted={onboardingCompleted}
         initialAutopilotEnabled={autopilotEnabled}
+        initialCompanyInput={initialCompany}
       />
     </PlanProvider>
   )

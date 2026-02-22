@@ -23,6 +23,65 @@ export type LatestPitchQuery = {
   companyName?: string | null
 }
 
+export async function getLatestPitchForUser(supabase: SupabaseClient, userId: string): Promise<LatestPitch | null> {
+  const { data, error } = await supabase
+    .from('pitches')
+    .select(
+      `
+        id,
+        lead_id,
+        content,
+        created_at,
+        leads:lead_id (
+          id,
+          company_name,
+          company_domain,
+          company_url,
+          email_sequence,
+          battle_card
+        )
+      `
+    )
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (error) return null
+  const row = (Array.isArray(data) ? data[0] : null) as
+    | {
+        id: string
+        lead_id: string
+        content: string
+        created_at: string
+        leads?: {
+          id?: string | null
+          company_name?: string | null
+          company_domain?: string | null
+          company_url?: string | null
+          email_sequence?: unknown
+          battle_card?: unknown
+        } | null
+      }
+    | null
+
+  if (!row || !row.id || !row.lead_id || typeof row.content !== 'string' || !row.created_at) return null
+  const leads = row.leads ?? null
+
+  return {
+    pitchId: row.id,
+    createdAt: row.created_at,
+    content: row.content,
+    company: {
+      leadId: row.lead_id,
+      companyName: leads?.company_name ?? null,
+      companyDomain: leads?.company_domain ?? null,
+      companyUrl: leads?.company_url ?? null,
+      emailSequence: (leads as { email_sequence?: unknown } | null)?.email_sequence ?? null,
+      battleCard: (leads as { battle_card?: unknown } | null)?.battle_card ?? null,
+    },
+  }
+}
+
 function normalizeDomain(domain: string): string {
   return domain.trim().replace(/^www\./i, '').toLowerCase()
 }
