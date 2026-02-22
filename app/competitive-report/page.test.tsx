@@ -14,6 +14,31 @@ vi.mock('@/components/BrandHero', () => ({
 }))
 
 import { CompetitiveReportContent } from './CompetitiveReportContent'
+import { loadCompetitiveReportPageData } from './loadCompetitiveReportPageData'
+
+const createClientMock = vi.fn()
+const getPlanDetailsMock = vi.fn()
+const getLatestPitchSummaryForUserMock = vi.fn()
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: () => createClientMock(),
+}))
+
+vi.mock('@/lib/billing/plan', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/billing/plan')>('@/lib/billing/plan')
+  return {
+    ...actual,
+    getPlanDetails: (...args: unknown[]) => getPlanDetailsMock(...args),
+  }
+})
+
+vi.mock('@/lib/services/pitchesLatest', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/services/pitchesLatest')>('@/lib/services/pitchesLatest')
+  return {
+    ...actual,
+    getLatestPitchSummaryForUser: (...args: unknown[]) => getLatestPitchSummaryForUserMock(...args),
+  }
+})
 
 describe('/competitive-report page', () => {
   it('anonymous visitor renders marketing content only', () => {
@@ -40,17 +65,11 @@ describe('/competitive-report page', () => {
         viewer={{ id: 'u1' }}
         tier="closer"
         latestPitch={{
-          pitchId: 'p1',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          content: 'Subject: Intro\nLine two\nLine three',
-          company: {
-            leadId: 'l1',
-            companyName: 'Acme',
-            companyDomain: 'acme.com',
-            companyUrl: 'https://acme.com',
-            emailSequence: null,
-            battleCard: null,
-          },
+          id: 'p1',
+          companyName: 'Acme',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          previewBullets: ['Subject: Intro', 'Line two', 'Line three'],
+          deepLinkHref: '/dashboard?company=acme.com',
         }}
       />
     )
@@ -58,6 +77,37 @@ describe('/competitive-report page', () => {
     expect(screen.getByText(/your latest leadintel report/i)).toBeInTheDocument()
     const link = screen.getByRole('link', { name: /open this report in your dashboard/i })
     expect(link.getAttribute('href') || '').toContain('/dashboard?company=acme.com')
+  })
+
+  it('loader returns anonymous when no user', async () => {
+    createClientMock.mockReturnValueOnce({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+    })
+
+    const res = await loadCompetitiveReportPageData()
+    expect(res.user).toBeNull()
+    expect(res.tier).toBeNull()
+    expect(res.latestPitch).toBeNull()
+  })
+
+  it('loader returns tier + latest pitch for signed-in user', async () => {
+    createClientMock.mockReturnValueOnce({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } } }) },
+    })
+    getPlanDetailsMock.mockResolvedValueOnce({ plan: 'free' })
+    getLatestPitchSummaryForUserMock.mockResolvedValueOnce({
+      id: 'p1',
+      companyName: 'Google',
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+      previewBullets: [],
+      deepLinkHref: '/dashboard?company=google.com',
+    })
+
+    const res = await loadCompetitiveReportPageData()
+    expect(res.user?.id).toBe('u1')
+    expect(res.tier).toBe('starter')
+    expect(res.latestPitch?.companyName).toBe('Google')
+    expect(res.latestPitch?.deepLinkHref).toContain('/dashboard?company=')
   })
 })
 

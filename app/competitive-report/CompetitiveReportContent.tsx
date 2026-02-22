@@ -5,34 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { BrandHero } from '@/components/BrandHero'
 import { getDisplayPlanMeta, type PlanTier } from '@/lib/billing/plan'
-import type { LatestPitch } from '@/lib/services/pitches'
-
-function pickCompanyKey(latest: LatestPitch): string | null {
-  const domain = latest.company.companyDomain?.trim() || null
-  if (domain) return domain
-  const name = latest.company.companyName?.trim() || null
-  if (name) return name
-  const url = latest.company.companyUrl?.trim() || null
-  if (url) return url
-  return null
-}
-
-function extractPreviewBullets(content: string, max: number): string[] {
-  const lines = content
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-    .slice(0, 12)
-
-  const bullets: string[] = []
-  for (const line of lines) {
-    const cleaned = line.replace(/^[-*•]\s+/, '').trim()
-    if (!cleaned) continue
-    bullets.push(cleaned.length > 140 ? `${cleaned.slice(0, 140)}…` : cleaned)
-    if (bullets.length >= max) break
-  }
-  return bullets
-}
+import type { LatestPitchSummary } from '@/lib/services/pitchesLatest'
 
 export function CompetitiveReportContent({
   viewer,
@@ -41,7 +14,7 @@ export function CompetitiveReportContent({
 }: {
   viewer: { id: string } | null
   tier: PlanTier | null
-  latestPitch: LatestPitch | null
+  latestPitch: LatestPitchSummary | null
 }) {
   const isLoggedIn = Boolean(viewer)
   const planMeta = getDisplayPlanMeta(tier ? { tier } : null)
@@ -112,17 +85,16 @@ export function CompetitiveReportContent({
                 </div>
               ) : (
                 (() => {
-                  const companyKey = pickCompanyKey(latestPitch)
-                  const href = companyKey ? `/dashboard?company=${encodeURIComponent(companyKey)}` : '/dashboard'
-                  const bullets = extractPreviewBullets(latestPitch.content, 3)
+                  const href = latestPitch.deepLinkHref
+                  const bullets = latestPitch.previewBullets ?? []
                   return (
                     <div className="mt-4 space-y-4">
                       <div className="flex flex-col gap-1">
                         <div className="text-sm font-semibold text-foreground">
-                          {latestPitch.company.companyName || latestPitch.company.companyDomain || 'Latest report'}
+                          {latestPitch.companyName || 'Latest report'}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Generated: {new Date(latestPitch.createdAt).toLocaleString()}
+                          Generated: {latestPitch.createdAt.toLocaleString()}
                         </div>
                       </div>
 
