@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 import { vi } from 'vitest'
 
@@ -49,34 +49,81 @@ describe('/competitive-report page', () => {
     expect(screen.queryByText(/your latest leadintel report/i)).not.toBeInTheDocument()
   })
 
-  it('logged-in user with no latest pitch renders empty-state CTA', () => {
-    render(<CompetitiveReportContent viewer={{ id: 'u1' }} tier="starter" latestPitch={null} />)
-
-    expect(screen.getByText(/your latest leadintel report/i)).toBeInTheDocument()
-    expect(screen.getByText(/you haven’t generated a competitive report yet/i)).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: /go to dashboard to generate your first report/i })
-    ).toHaveAttribute('href', '/dashboard')
-  })
-
-  it('logged-in user with a latest pitch renders deep-link to dashboard company', () => {
+  it('logged-in starter with latest pitch shows teaser + upgrade CTA and deep-link', () => {
     render(
       <CompetitiveReportContent
         viewer={{ id: 'u1' }}
-        tier="closer"
+        tier="starter"
         latestPitch={{
           id: 'p1',
           companyName: 'Acme',
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
-          previewBullets: ['Subject: Intro', 'Line two', 'Line three'],
+          previewBullets: ['Acme is expanding aggressively in APAC.', 'Competitors are reacting with pricing pressure.'],
           deepLinkHref: '/dashboard?company=acme.com',
         }}
       />
     )
 
     expect(screen.getByText(/your latest leadintel report/i)).toBeInTheDocument()
-    const link = screen.getByRole('link', { name: /open this report in your dashboard/i })
-    expect(link.getAttribute('href') || '').toContain('/dashboard?company=acme.com')
+    expect(screen.getByText(/starter \(limited\)/i)).toBeInTheDocument()
+    const card = within(screen.getByTestId('latest-report-card'))
+    expect(card.getByTestId('report-teaser-masked')).toBeInTheDocument()
+    expect(card.getByText(/upgrade to unlock full competitive analysis, trigger events, and account-ready email copy/i)).toBeInTheDocument()
+
+    expect(card.getByRole('link', { name: /open limited report in dashboard/i })).toHaveAttribute(
+      'href',
+      '/dashboard?company=acme.com'
+    )
+    expect(card.getByRole('link', { name: /view pricing & plans/i })).toHaveAttribute('href', '/pricing')
+  })
+
+  it('logged-in starter with no latest pitch shows empty state + pricing CTA', () => {
+    render(<CompetitiveReportContent viewer={{ id: 'u1' }} tier="starter" latestPitch={null} />)
+
+    expect(screen.getByText(/your latest leadintel report/i)).toBeInTheDocument()
+    const card = within(screen.getByTestId('latest-report-card'))
+    expect(card.getByText(/no report generated yet/i)).toBeInTheDocument()
+    expect(card.getByRole('link', { name: /go to dashboard/i })).toHaveAttribute('href', '/dashboard')
+    expect(card.getByRole('link', { name: /view pricing & plans/i })).toHaveAttribute('href', '/pricing')
+  })
+
+  it('logged-in closer with latest pitch shows full preview and no upgrade messaging', () => {
+    render(
+      <CompetitiveReportContent
+        viewer={{ id: 'u1' }}
+        tier="closer"
+        latestPitch={{
+          id: 'p1',
+          companyName: 'Google',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          previewBullets: ['Google is accelerating AI feature delivery.', 'Key rivals are lagging in distribution.'],
+          deepLinkHref: '/dashboard?company=google.com',
+        }}
+      />
+    )
+
+    expect(screen.getByText(/closer \(full access\)/i)).toBeInTheDocument()
+    const card = within(screen.getByTestId('latest-report-card'))
+    expect(card.getByTestId('latest-report-executive-label')).toBeInTheDocument()
+    expect(card.getByTestId('latest-report-insights-label')).toBeInTheDocument()
+    expect(card.getByRole('link', { name: /open full report in dashboard/i })).toHaveAttribute(
+      'href',
+      '/dashboard?company=google.com'
+    )
+    expect(
+      card.queryByText(/upgrade to unlock full competitive analysis, trigger events, and account-ready email copy/i)
+    ).not.toBeInTheDocument()
+    expect(card.getByRole('link', { name: /view all pitches/i })).toHaveAttribute('href', '/dashboard/history')
+  })
+
+  it('logged-in closer with no latest pitch shows empty state without pricing CTA', () => {
+    render(<CompetitiveReportContent viewer={{ id: 'u1' }} tier="closer" latestPitch={null} />)
+
+    expect(screen.getByText(/your latest leadintel report/i)).toBeInTheDocument()
+    const card = within(screen.getByTestId('latest-report-card'))
+    expect(card.getByText(/no report yet/i)).toBeInTheDocument()
+    expect(card.getByRole('link', { name: /go to dashboard/i })).toHaveAttribute('href', '/dashboard')
+    expect(card.queryByRole('link', { name: /view pricing & plans/i })).not.toBeInTheDocument()
   })
 
   it('loader returns anonymous when no user', async () => {

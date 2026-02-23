@@ -7,6 +7,173 @@ import { BrandHero } from '@/components/BrandHero'
 import { getDisplayPlanMeta, type PlanTier } from '@/lib/billing/plan'
 import type { LatestPitchSummary } from '@/lib/services/pitchesLatest'
 
+function LatestReportCard({
+  tier,
+  latestPitch,
+}: {
+  tier: PlanTier | null
+  latestPitch: LatestPitchSummary | null
+}) {
+  const planMeta = getDisplayPlanMeta(tier ? { tier } : null)
+  const isStarter = planMeta.tier === 'starter'
+  const badgeText = isStarter ? 'Starter (Limited)' : 'Closer (Full access)'
+
+  if (!latestPitch) {
+    return (
+      <Card className="mt-6 border-cyan-500/20 bg-background/30" data-testid="latest-report-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Your latest LeadIntel report</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {isStarter
+              ? 'No report generated yet. Start in the LeadIntel dashboard.'
+              : 'No report yet. Generate your first competitive report in the LeadIntel dashboard.'}
+          </p>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
+              <Link href="/dashboard">Go to dashboard</Link>
+            </Button>
+            {isStarter && (
+              <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
+                <Link href="/pricing">View pricing &amp; plans</Link>
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const executiveSummary = latestPitch.previewBullets?.[0]?.trim() || 'A concise competitive brief, generated from live signals.'
+  const keyInsights = (latestPitch.previewBullets ?? []).slice(1).filter(Boolean)
+
+  return (
+    <Card className="mt-6 border-cyan-500/20 bg-background/30" data-testid="latest-report-card">
+      <CardHeader className="pb-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Your latest LeadIntel report
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-lg">{latestPitch.companyName}</CardTitle>
+            <div className="text-xs text-muted-foreground">Generated on {latestPitch.createdAt.toLocaleString()}</div>
+          </div>
+          <span className="inline-flex w-fit items-center rounded-full border border-cyan-500/20 bg-background/40 px-2.5 py-1 text-[11px] font-medium text-cyan-200">
+            {badgeText}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+          <div className="space-y-4 lg:col-span-2">
+            <div className="rounded-xl border border-cyan-500/10 bg-card/40 p-4">
+              <div
+                className="text-xs font-semibold uppercase tracking-wider text-cyan-200/90"
+                data-testid="latest-report-executive-label"
+              >
+                Executive summary
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">{executiveSummary}</p>
+            </div>
+
+            {isStarter ? (
+              <div
+                data-testid="report-teaser-masked"
+                className="relative overflow-hidden rounded-xl border border-cyan-500/10 bg-card/30"
+              >
+                <div className="space-y-4 p-4 blur-[2px] opacity-70">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-cyan-200/90">Full analysis</div>
+                    <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
+                      Competitive positioning, buying signals, and a tighter angle for outreach—generated from the full LeadIntel engine.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-cyan-500/10 bg-background/30 p-3">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-cyan-200/90">Trigger events</div>
+                      <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
+                        Funding, launches, hiring spikes, partnerships, press…
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-cyan-500/10 bg-background/30 p-3">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-cyan-200/90">Email copy</div>
+                      <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
+                        Account-ready sequences and talking points, ready to paste into outreach.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-background/20 to-background/70" />
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <div className="text-xs text-muted-foreground">
+                    Locked sections: Full analysis, trigger events, and account-ready email copy.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-cyan-500/10 bg-card/30 p-4">
+                <div
+                  className="text-xs font-semibold uppercase tracking-wider text-cyan-200/90"
+                  data-testid="latest-report-insights-label"
+                >
+                  Key insights
+                </div>
+                {keyInsights.length > 0 ? (
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                    {keyInsights.map((x, idx) => (
+                      <li key={idx}>{x}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Open the full report in the dashboard to view the complete competitive brief, trigger events, and email copy.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!isStarter && (
+              <div className="rounded-xl border border-cyan-500/10 bg-card/20 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wider text-cyan-200/90">Next steps</div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Use this report to tailor your next email, call, or sequence. Your full pitch and trigger events are available in
+                  the dashboard.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 lg:col-span-1">
+            <Button asChild size="sm" className="w-full neon-border hover:glow-effect">
+              <Link href={latestPitch.deepLinkHref}>
+                {isStarter ? 'Open limited report in dashboard' : 'Open full report in dashboard'}
+              </Link>
+            </Button>
+
+            {isStarter ? (
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link href="/pricing">View pricing &amp; plans</Link>
+              </Button>
+            ) : (
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link href="/dashboard/history">View all pitches</Link>
+              </Button>
+            )}
+
+            {isStarter && (
+              <div className="pt-2 text-xs text-muted-foreground">
+                You’re on the Starter plan. Upgrade to unlock full competitive analysis, trigger events, and account-ready email copy.
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function CompetitiveReportContent({
   viewer,
   tier,
@@ -17,8 +184,6 @@ export function CompetitiveReportContent({
   latestPitch: LatestPitchSummary | null
 }) {
   const isLoggedIn = Boolean(viewer)
-  const planMeta = getDisplayPlanMeta(tier ? { tier } : null)
-  const planLabel = planMeta.tier === 'starter' ? 'Starter (limited)' : 'Closer'
 
   return (
     <div className="min-h-screen bg-background terminal-grid">
@@ -60,81 +225,6 @@ export function CompetitiveReportContent({
             </Card>
           </div>
 
-          {isLoggedIn && (
-            <div className="mt-10 rounded-2xl border border-cyan-500/10 bg-card/50 p-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-xl font-bold">Your latest LeadIntel report</h2>
-                <span className="inline-flex items-center rounded-full border border-cyan-500/20 bg-background/30 px-2.5 py-1 text-[11px] font-medium text-cyan-200">
-                  {planLabel}
-                </span>
-              </div>
-
-              {!latestPitch ? (
-                <div className="mt-4">
-                  <p className="text-sm text-muted-foreground">You haven’t generated a competitive report yet.</p>
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
-                      <Link href="/dashboard">Go to dashboard to generate your first report</Link>
-                    </Button>
-                    {planMeta.tier === 'starter' && (
-                      <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                        <Link href="/pricing">View pricing &amp; plans</Link>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                (() => {
-                  const href = latestPitch.deepLinkHref
-                  const bullets = latestPitch.previewBullets ?? []
-                  return (
-                    <div className="mt-4 space-y-4">
-                      <div className="flex flex-col gap-1">
-                        <div className="text-sm font-semibold text-foreground">
-                          {latestPitch.companyName || 'Latest report'}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Generated: {latestPitch.createdAt.toLocaleString()}
-                        </div>
-                      </div>
-
-                      {bullets.length > 0 && (
-                        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                          {bullets.map((b, idx) => (
-                            <li key={idx}>{b}</li>
-                          ))}
-                        </ul>
-                      )}
-
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
-                          <Link href={href}>Open this report in your dashboard</Link>
-                        </Button>
-
-                        {planMeta.tier === 'starter' ? (
-                          <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                            <Link href="/pricing">View pricing &amp; plans</Link>
-                          </Button>
-                        ) : (
-                          <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                            <Link href="/dashboard/history">Go to full pitch history</Link>
-                          </Button>
-                        )}
-                      </div>
-
-                      {planMeta.tier === 'starter' && (
-                        <p className="text-xs text-muted-foreground">
-                          You’re on the Starter plan — this is a limited sample. Upgrade to Closer to unlock full history and more
-                          signals.
-                        </p>
-                      )}
-                    </div>
-                  )
-                })()
-              )}
-            </div>
-          )}
-
           <div className="mt-10 rounded-2xl border border-cyan-500/10 bg-card/50 p-6">
             <h2 className="text-xl font-bold">What’s inside each LeadIntel report</h2>
             <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
@@ -144,6 +234,8 @@ export function CompetitiveReportContent({
               <li>Battlecard talking points for discovery calls and stakeholder meetings.</li>
               <li>Links back into LeadIntel so you can drill into signals, watchlists, and live trigger events.</li>
             </ul>
+
+            {isLoggedIn && <LatestReportCard tier={tier} latestPitch={latestPitch} />}
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
               <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
