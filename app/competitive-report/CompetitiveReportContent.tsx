@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { BrandHero } from '@/components/BrandHero'
 import { getDisplayPlanMeta, type PlanTier } from '@/lib/billing/plan'
 import type { LatestPitchSummary } from '@/lib/services/pitchesLatest'
+import { CompetitiveReportViewTracker, TrackedButtonLink } from './CompetitiveReportTracking'
 
 function LatestReportCard({
   tier,
@@ -17,6 +18,7 @@ function LatestReportCard({
   const planMeta = getDisplayPlanMeta(tier ? { tier } : null)
   const isStarter = planMeta.tier === 'starter'
   const badgeText = isStarter ? 'Starter (Limited)' : 'Closer (Full access)'
+  const tierValue = isStarter ? 'starter' : 'closer'
 
   if (!latestPitch) {
     return (
@@ -35,10 +37,25 @@ function LatestReportCard({
             <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
               <Link href="/dashboard">Go to dashboard</Link>
             </Button>
+            <TrackedButtonLink
+              href="/reports"
+              label="View all reports"
+              eventName="competitive_report_view_all_reports"
+              eventProps={{ tier: tierValue }}
+              size="sm"
+              variant="outline"
+              className="w-full sm:w-auto"
+            />
             {isStarter && (
-              <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                <Link href="/pricing">View pricing &amp; plans</Link>
-              </Button>
+              <TrackedButtonLink
+                href="/pricing"
+                label="View pricing & plans"
+                eventName="competitive_report_click_pricing"
+                eventProps={{ tier: tierValue }}
+                size="sm"
+                variant="outline"
+                className="w-full sm:w-auto"
+              />
             )}
           </div>
         </CardContent>
@@ -146,16 +163,35 @@ function LatestReportCard({
           </div>
 
           <div className="space-y-3 lg:col-span-1">
-            <Button asChild size="sm" className="w-full neon-border hover:glow-effect">
-              <Link href={latestPitch.deepLinkHref}>
-                {isStarter ? 'Open limited report in dashboard' : 'Open full report in dashboard'}
-              </Link>
-            </Button>
+            <TrackedButtonLink
+              href={latestPitch.deepLinkHref}
+              label={isStarter ? 'Open limited report in dashboard' : 'Open full report in dashboard'}
+              eventName="competitive_report_open_dashboard"
+              eventProps={{ tier: tierValue, companyName: latestPitch.companyName, reportId: latestPitch.id }}
+              size="sm"
+              className="w-full neon-border hover:glow-effect"
+            />
+
+            <TrackedButtonLink
+              href="/reports"
+              label="View all reports"
+              eventName="competitive_report_view_all_reports"
+              eventProps={{ tier: tierValue }}
+              size="sm"
+              variant="outline"
+              className="w-full"
+            />
 
             {isStarter ? (
-              <Button asChild size="sm" variant="outline" className="w-full">
-                <Link href="/pricing">View pricing &amp; plans</Link>
-              </Button>
+              <TrackedButtonLink
+                href="/pricing"
+                label="View pricing & plans"
+                eventName="competitive_report_click_pricing"
+                eventProps={{ tier: tierValue }}
+                size="sm"
+                variant="outline"
+                className="w-full"
+              />
             ) : (
               <Button asChild size="sm" variant="outline" className="w-full">
                 <Link href="/dashboard/history">View all pitches</Link>
@@ -188,6 +224,7 @@ export function CompetitiveReportContent({
   return (
     <div className="min-h-screen bg-background terminal-grid">
       <TopNav />
+      <CompetitiveReportViewTracker isLoggedIn={isLoggedIn} tier={(tier as 'starter' | 'closer' | null) ?? null} />
       <main className="container mx-auto px-6 py-16">
         <section className="mx-auto max-w-4xl">
           <header className="text-center">

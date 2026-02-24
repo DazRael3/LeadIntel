@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 import { vi } from 'vitest'
 
@@ -11,6 +11,11 @@ vi.mock('@/components/TopNav', () => ({
 
 vi.mock('@/components/BrandHero', () => ({
   BrandHero: () => null,
+}))
+
+const trackMock = vi.fn()
+vi.mock('@/lib/analytics', () => ({
+  track: (...args: unknown[]) => trackMock(...args),
 }))
 
 import { CompetitiveReportContent } from './CompetitiveReportContent'
@@ -41,6 +46,10 @@ vi.mock('@/lib/services/pitchesLatest', async () => {
 })
 
 describe('/competitive-report page', () => {
+  beforeEach(() => {
+    trackMock.mockClear()
+  })
+
   it('anonymous visitor renders marketing content only', () => {
     render(<CompetitiveReportContent viewer={null} tier={null} latestPitch={null} />)
 
@@ -74,6 +83,7 @@ describe('/competitive-report page', () => {
       'href',
       '/dashboard?company=acme.com'
     )
+    expect(card.getByRole('link', { name: /view all reports/i })).toHaveAttribute('href', '/reports')
     expect(card.getByRole('link', { name: /view pricing & plans/i })).toHaveAttribute('href', '/pricing')
   })
 
@@ -110,6 +120,7 @@ describe('/competitive-report page', () => {
       'href',
       '/dashboard?company=google.com'
     )
+    expect(card.getByRole('link', { name: /view all reports/i })).toHaveAttribute('href', '/reports')
     expect(
       card.queryByText(/upgrade to unlock full competitive analysis, trigger events, and account-ready email copy/i)
     ).not.toBeInTheDocument()
@@ -155,6 +166,83 @@ describe('/competitive-report page', () => {
     expect(res.tier).toBe('starter')
     expect(res.latestPitch?.companyName).toBe('Google')
     expect(res.latestPitch?.deepLinkHref).toContain('/dashboard?company=')
+  })
+
+  it('tracks view + clicks from latest report card (starter)', async () => {
+    render(
+      <CompetitiveReportContent
+        viewer={{ id: 'u1' }}
+        tier="starter"
+        latestPitch={{
+          id: 'p1',
+          companyName: 'Acme',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          previewBullets: ['Acme is expanding aggressively in APAC.'],
+          deepLinkHref: '/dashboard?company=acme.com',
+        }}
+      />
+    )
+
+    await waitFor(() =>
+      expect(trackMock).toHaveBeenCalledWith('competitive_report_view', { isLoggedIn: true, tier: 'starter' })
+    )
+    trackMock.mockClear()
+
+    const card = within(screen.getByTestId('latest-report-card'))
+    fireEvent.click(card.getByRole('link', { name: /open limited report in dashboard/i }))
+    expect(trackMock).toHaveBeenCalledWith('competitive_report_open_dashboard', {
+      tier: 'starter',
+      companyName: 'Acme',
+      reportId: 'p1',
+    })
+
+    trackMock.mockClear()
+    fireEvent.click(card.getByRole('link', { name: /view pricing & plans/i }))
+    expect(trackMock).toHaveBeenCalledWith('competitive_report_click_pricing', { tier: 'starter' })
+
+    trackMock.mockClear()
+    fireEvent.click(card.getByRole('link', { name: /view all reports/i }))
+    expect(trackMock).toHaveBeenCalledWith('competitive_report_view_all_reports', { tier: 'starter' })
+  })
+
+  it('tracks view for anonymous visitors (best-effort)', async () => {
+    render(<CompetitiveReportContent viewer={null} tier={null} latestPitch={null} />)
+    await waitFor(() =>
+      expect(trackMock).toHaveBeenCalledWith('competitive_report_view', { isLoggedIn: false, tier: null })
+    )
+  })
+
+  it('tracks open dashboard + view-all for closer', async () => {
+    render(
+      <CompetitiveReportContent
+        viewer={{ id: 'u1' }}
+        tier="closer"
+        latestPitch={{
+          id: 'p9',
+          companyName: 'Google',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          previewBullets: ['Google is accelerating AI feature delivery.'],
+          deepLinkHref: '/dashboard?company=google.com',
+        }}
+      />
+    )
+
+    await waitFor(() =>
+      expect(trackMock).toHaveBeenCalledWith('competitive_report_view', { isLoggedIn: true, tier: 'closer' })
+    )
+    trackMock.mockClear()
+
+    const card = within(screen.getByTestId('latest-report-card'))
+    fireEvent.click(card.getByRole('link', { name: /open full report in dashboard/i }))
+    expect(trackMock).toHaveBeenCalledWith('competitive_report_open_dashboard', {
+      tier: 'closer',
+      companyName: 'Google',
+      reportId: 'p9',
+    })
+
+    trackMock.mockClear()
+    fireEvent.click(card.getByRole('link', { name: /view all reports/i }))
+    expect(trackMock).toHaveBeenCalledWith('competitive_report_view_all_reports', { tier: 'closer' })
   })
 })
 
