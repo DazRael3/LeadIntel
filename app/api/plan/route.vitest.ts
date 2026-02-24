@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 let mockSubRow: unknown = null
 let mockUserRow: unknown = null
 let mockAuthedUser: { id: string } | null = { id: 'user_1' }
+let mockAuthEmail: string | null = 'user@example.com'
 
 class FakeQuery {
   private table: string
@@ -62,6 +63,11 @@ vi.mock('@/lib/supabase/route', () => ({
 
 vi.mock('@/lib/supabase/admin', () => ({
   createSupabaseAdminClient: vi.fn(() => ({
+    auth: {
+      admin: {
+        getUserById: vi.fn(async () => ({ data: { user: { email: mockAuthEmail } }, error: null })),
+      },
+    },
     from: (table: string) => new FakeQuery(table),
   })),
 }))
@@ -72,10 +78,12 @@ describe('/api/plan', () => {
     mockSubRow = null
     mockUserRow = null
     mockAuthedUser = { id: 'user_1' }
+    mockAuthEmail = 'user@example.com'
     process.env.ENABLE_APP_TRIAL = '0'
     process.env.STRIPE_PRICE_ID_PRO = 'price_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_pro_123'
     process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
+    process.env.HOUSE_CLOSER_EMAILS = ''
   })
 
   it('unauthenticated request -> returns starter/free plan (200)', async () => {
@@ -131,6 +139,20 @@ describe('/api/plan', () => {
 
   it('active subscription with non-closer price -> still treated as closer tier (legacy team -> closer)', async () => {
     mockSubRow = { status: 'active', stripe_price_id: 'price_team_123' }
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('closer')
+    expect(json.data?.planId).toBe('pro')
+    expect(json.data?.plan).toBe('pro')
+  })
+
+  it('treats a house closer email as closer even without subscription', async () => {
+    process.env.HOUSE_CLOSER_EMAILS = 'owner@dazrael.com'
+    mockAuthEmail = 'owner@dazrael.com'
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
     const res = await GET(req)

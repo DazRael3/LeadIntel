@@ -129,6 +129,10 @@ const serverEnvSchema = z.object({
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
 
+  // House accounts (optional): comma-separated list of emails treated as Closer without Stripe subscription.
+  // Example: "owner@dazrael.com, ops@dazrael.com"
+  HOUSE_CLOSER_EMAILS: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().optional().default('')),
+
   // Site health reporting (optional)
   ENABLE_SITE_REPORTS: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
@@ -287,6 +291,7 @@ function buildServerEnv(): ServerEnv {
     ENABLE_APP_TRIAL: process.env.ENABLE_APP_TRIAL,
     ENABLE_TRIAL_FINGERPRINTING: process.env.ENABLE_TRIAL_FINGERPRINTING,
     ENABLE_PRODUCT_ANALYTICS: process.env.ENABLE_PRODUCT_ANALYTICS,
+    HOUSE_CLOSER_EMAILS: process.env.HOUSE_CLOSER_EMAILS,
     ENABLE_SITE_REPORTS: process.env.ENABLE_SITE_REPORTS,
     SITE_REPORT_CRON_SECRET: process.env.SITE_REPORT_CRON_SECRET,
     ADMIN_USER_ID: process.env.ADMIN_USER_ID,

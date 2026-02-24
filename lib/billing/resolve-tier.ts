@@ -1,4 +1,5 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
+import { isHouseCloserEmail } from '@/lib/billing/houseAccounts'
 
 export type Tier = 'starter' | 'closer'
 
@@ -99,6 +100,31 @@ export async function resolveTierFromDb(
       tier: 'closer',
       subscriptionStatus: lastSub?.status ?? null,
       stripeTrialEnd: lastSub?.trial_end ?? null,
+    }
+  }
+
+  // House Closer override: if email is in HOUSE_CLOSER_EMAILS, treat as Closer even without subscription.
+  const rawHouse = process.env.HOUSE_CLOSER_EMAILS
+  if (rawHouse && rawHouse.trim().length > 0) {
+    try {
+      const auth = admin.auth
+      const maybeAdmin = (auth as unknown as { admin?: { getUserById?: (id: string) => Promise<unknown> } }).admin
+      const getUserById = maybeAdmin?.getUserById
+      if (typeof getUserById === 'function') {
+        const res = (await getUserById(userId)) as
+          | { data?: { user?: { email?: string | null } | null } | null; error?: unknown }
+          | undefined
+        const email = res?.data?.user?.email ?? null
+        if (isHouseCloserEmail(email, rawHouse)) {
+          return {
+            tier: 'closer',
+            subscriptionStatus: lastSub?.status ?? null,
+            stripeTrialEnd: lastSub?.trial_end ?? null,
+          }
+        }
+      }
+    } catch {
+      // fail-open
     }
   }
 
