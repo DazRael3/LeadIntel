@@ -108,6 +108,7 @@ describe('/api/plan', () => {
     expect(json.data?.tier).toBe('starter')
     expect(json.data?.planId).toBe(null)
     expect(json.data?.plan).toBe('free')
+    expect(json.data?.isHouseCloserOverride).toBe(false)
   })
 
   it('user row marked pro but no subscription row -> closer tier, planId pro', async () => {
@@ -121,6 +122,7 @@ describe('/api/plan', () => {
     expect(json.data?.tier).toBe('closer')
     expect(json.data?.planId).toBe('pro')
     expect(json.data?.plan).toBe('pro')
+    expect(json.data?.isHouseCloserOverride).toBe(false)
   })
 
   it('active subscription with closer price -> closer tier, planId pro', async () => {
@@ -135,6 +137,7 @@ describe('/api/plan', () => {
     expect(json.data?.tier).toBe('closer')
     expect(json.data?.planId).toBe('pro')
     expect(json.data?.plan).toBe('pro')
+    expect(json.data?.isHouseCloserOverride).toBe(false)
   })
 
   it('active subscription with non-closer price -> still treated as closer tier (legacy team -> closer)', async () => {
@@ -148,6 +151,7 @@ describe('/api/plan', () => {
     expect(json.data?.tier).toBe('closer')
     expect(json.data?.planId).toBe('pro')
     expect(json.data?.plan).toBe('pro')
+    expect(json.data?.isHouseCloserOverride).toBe(false)
   })
 
   it('treats a house closer email as closer even without subscription', async () => {
@@ -162,6 +166,7 @@ describe('/api/plan', () => {
     expect(json.data?.tier).toBe('closer')
     expect(json.data?.planId).toBe('pro')
     expect(json.data?.plan).toBe('pro')
+    expect(json.data?.isHouseCloserOverride).toBe(true)
   })
 })
 

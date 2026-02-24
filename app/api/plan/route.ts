@@ -148,7 +148,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const resolved = await resolveTierFromDb(admin as any, userId)
     const tier = resolved.tier
-    const planId = tier === 'closer' ? 'pro' : null
+    const planId = resolved.planId
+    const isHouseCloserOverride = Boolean(resolved.isHouseCloserOverride)
 
     // Trial display is best-effort and MUST NOT promote a user into paid tiers.
     const stripeTrialEnd = resolved.stripeTrialEnd
@@ -192,6 +193,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       requestId,
       userId,
       tier,
+      isHouseCloserOverride,
     })
 
     return ok(
@@ -200,6 +202,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         plan: tier === 'starter' ? 'free' : 'pro',
         tier,
         planId,
+        isHouseCloserOverride,
         trial,
       },
       undefined,

@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { useStripePortal } from '../hooks/useStripePortal'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { HouseCloserBadge } from './HouseCloserBadge'
 
 interface DashboardHeaderSectionProps {
   isPro: boolean
@@ -23,10 +24,11 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
   const router = useRouter()
   const { openPortal } = useStripePortal()
   const [isPending, startTransition] = useTransition()
-  const { tier } = usePlan()
+  const { tier, isHouseCloserOverride } = usePlan()
   const planMeta = getDisplayPlanMeta({ tier })
   const isStarter = planMeta.tier === 'starter'
   const isCloser = planMeta.tier === 'closer'
+  const showHouseBadge = isCloser && Boolean(isHouseCloserOverride)
   const supabase = useMemo(() => createClient(), [])
   const [username, setUsername] = useState<string>('Account')
 
@@ -94,6 +96,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 <Shield className="h-3 w-3 mr-1" />
                 {username} — {isStarter ? 'Starter' : 'Closer'}
               </Badge>
+              {showHouseBadge ? <HouseCloserBadge /> : null}
             </div>
 
             {/* Upgrade / Billing CTAs */}

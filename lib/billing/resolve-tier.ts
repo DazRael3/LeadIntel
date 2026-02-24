@@ -5,6 +5,8 @@ export type Tier = 'starter' | 'closer'
 
 export type ResolvedTier = {
   tier: Tier
+  planId: 'pro' | null
+  isHouseCloserOverride: boolean
   subscriptionStatus: string | null
   stripeTrialEnd: string | null
 }
@@ -90,6 +92,8 @@ export async function resolveTierFromDb(
   if (lastSub && (lastSub.status === 'active' || lastSub.status === 'trialing')) {
     return {
       tier: 'closer',
+      planId: 'pro',
+      isHouseCloserOverride: false,
       subscriptionStatus: lastSub.status,
       stripeTrialEnd: lastSub.trial_end ?? null,
     }
@@ -98,6 +102,8 @@ export async function resolveTierFromDb(
   if (userRow?.subscription_tier === 'pro') {
     return {
       tier: 'closer',
+      planId: 'pro',
+      isHouseCloserOverride: false,
       subscriptionStatus: lastSub?.status ?? null,
       stripeTrialEnd: lastSub?.trial_end ?? null,
     }
@@ -118,6 +124,8 @@ export async function resolveTierFromDb(
         if (isHouseCloserEmail(email, rawHouse)) {
           return {
             tier: 'closer',
+            planId: 'pro',
+            isHouseCloserOverride: true,
             subscriptionStatus: lastSub?.status ?? null,
             stripeTrialEnd: lastSub?.trial_end ?? null,
           }
@@ -130,6 +138,8 @@ export async function resolveTierFromDb(
 
   return {
     tier: 'starter',
+    planId: null,
+    isHouseCloserOverride: false,
     subscriptionStatus: lastSub?.status ?? null,
     stripeTrialEnd: lastSub?.trial_end ?? null,
   }

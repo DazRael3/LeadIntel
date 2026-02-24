@@ -9,6 +9,7 @@ interface PlanContextValue {
   plan: Plan
   tier: Tier
   planId: string | null
+  isHouseCloserOverride: boolean
   isPro: boolean
   trial: { active: boolean; endsAt: string | null }
   loading: boolean
@@ -21,6 +22,7 @@ const fallbackPlanValue: PlanContextValue = {
   plan: 'free',
   tier: 'starter',
   planId: null,
+  isHouseCloserOverride: false,
   isPro: false,
   trial: { active: false, endsAt: null },
   loading: false,
@@ -36,6 +38,7 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
   const [plan, setPlan] = useState<Plan>(initialPlan)
   const [tier, setTier] = useState<Tier>('starter')
   const [planId, setPlanId] = useState<string | null>(null)
+  const [isHouseCloserOverride, setIsHouseCloserOverride] = useState<boolean>(false)
   const [trial, setTrial] = useState<{ active: boolean; endsAt: string | null }>({ active: false, endsAt: null })
   const [loading, setLoading] = useState(false)
 
@@ -75,6 +78,11 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
       } else {
         setPlanId(null)
       }
+      if (typeof payload?.isHouseCloserOverride === 'boolean') {
+        setIsHouseCloserOverride(payload.isHouseCloserOverride)
+      } else {
+        setIsHouseCloserOverride(false)
+      }
       if (payload?.trial && typeof payload.trial === 'object') {
         const nextTrial = payload.trial as { active?: unknown; endsAt?: unknown }
         setTrial({
@@ -102,12 +110,13 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
       plan,
       tier,
       planId,
+      isHouseCloserOverride,
       isPro: plan === 'pro',
       trial,
       loading,
       refresh,
     }),
-    [plan, tier, planId, trial, loading, refresh]
+    [plan, tier, planId, isHouseCloserOverride, trial, loading, refresh]
   )
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>
