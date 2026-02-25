@@ -101,7 +101,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
 
             {/* Upgrade / Billing CTAs */}
             {isStarter ? (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col items-end gap-2">
                 <Button
                   variant="outline"
                   onClick={() => router.push('/pricing?target=closer')}
@@ -110,6 +110,17 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                   <DollarSign className="h-4 w-4 mr-2" />
                   Upgrade to Closer
                 </Button>
+                <div className="max-w-[240px] text-right">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Upgrade unlocks
+                  </div>
+                  <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                    <li>Unlimited competitive reports</li>
+                    <li>Full report details (competitor moves, trigger sources)</li>
+                    <li>Saved report history in one place</li>
+                    <li>Pro market watchlists &amp; alerts</li>
+                  </ul>
+                </div>
               </div>
             ) : (
               <>

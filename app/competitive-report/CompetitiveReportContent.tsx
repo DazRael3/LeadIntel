@@ -124,8 +124,15 @@ function LatestReportCard({
                 </div>
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-background/20 to-background/70" />
                 <div className="absolute inset-x-0 bottom-0 p-4">
-                  <div className="text-xs text-muted-foreground">
-                    Locked sections: Full analysis, trigger events, and account-ready email copy.
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Locked sections in this report
+                    </div>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                      <li>Full competitive breakdown for this account</li>
+                      <li>Source-level trigger event details</li>
+                      <li>Extra outreach templates and channels</li>
+                    </ul>
                   </div>
                 </div>
               </div>

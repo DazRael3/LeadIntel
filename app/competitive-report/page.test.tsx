@@ -77,6 +77,8 @@ describe('/competitive-report page', () => {
     expect(screen.getByText(/starter \(limited\)/i)).toBeInTheDocument()
     const card = within(screen.getByTestId('latest-report-card'))
     expect(card.getByTestId('report-teaser-masked')).toBeInTheDocument()
+    expect(card.getByText(/locked sections in this report/i)).toBeInTheDocument()
+    expect(card.getByText(/full competitive breakdown for this account/i)).toBeInTheDocument()
     expect(card.getByText(/upgrade to unlock full competitive analysis, trigger events, and account-ready email copy/i)).toBeInTheDocument()
 
     expect(card.getByRole('link', { name: /open limited report in dashboard/i })).toHaveAttribute(

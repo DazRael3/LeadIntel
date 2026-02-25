@@ -30,6 +30,7 @@ import { DebugPanel } from './components/DebugPanel'
 import { ViewModeToggle } from './components/ViewModeToggle'
 import { ProOnlyCard } from './components/ProOnlyCard'
 import { CommunicationPreferencesCard } from './components/CommunicationPreferencesCard'
+import { PlanDebugPanel } from './components/PlanDebugPanel'
 import { ProGate } from '@/components/ProGate'
 
 interface DashboardClientProps {
@@ -396,6 +397,8 @@ export function DashboardClient({
             </CardContent>
           </Card>
         )}
+
+        <PlanDebugPanel />
           </main>
         </div>
       </div>
