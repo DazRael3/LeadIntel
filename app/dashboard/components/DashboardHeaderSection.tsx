@@ -14,6 +14,7 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { useStripePortal } from '../hooks/useStripePortal'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { HouseCloserBadge } from './HouseCloserBadge'
+import { BuildDebugPanel } from './BuildDebugPanel'
 
 interface DashboardHeaderSectionProps {
   isPro: boolean
@@ -24,7 +25,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
   const router = useRouter()
   const { openPortal } = useStripePortal()
   const [isPending, startTransition] = useTransition()
-  const { tier, isHouseCloserOverride } = usePlan()
+  const { tier, isHouseCloserOverride, buildInfo, plan, planId } = usePlan()
   const planMeta = getDisplayPlanMeta({ tier })
   const isStarter = planMeta.tier === 'starter'
   const isCloser = planMeta.tier === 'closer'
@@ -140,6 +141,15 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
             <ThemeToggle />
             <SignOutButton />
           </div>
+        </div>
+        <div className="mt-2 flex justify-end">
+          <BuildDebugPanel
+            tier={tier}
+            isHouseCloserOverride={Boolean(isHouseCloserOverride)}
+            buildInfo={buildInfo}
+            plan={plan}
+            planId={planId}
+          />
         </div>
       </div>
     </header>

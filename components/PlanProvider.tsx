@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import type { BuildInfo } from '@/lib/debug/buildInfo'
 
 type Plan = 'free' | 'pro'
 type Tier = 'starter' | 'closer'
@@ -10,6 +11,7 @@ interface PlanContextValue {
   tier: Tier
   planId: string | null
   isHouseCloserOverride: boolean
+  buildInfo: BuildInfo | null
   isPro: boolean
   trial: { active: boolean; endsAt: string | null }
   loading: boolean
@@ -23,6 +25,7 @@ const fallbackPlanValue: PlanContextValue = {
   tier: 'starter',
   planId: null,
   isHouseCloserOverride: false,
+  buildInfo: null,
   isPro: false,
   trial: { active: false, endsAt: null },
   loading: false,
@@ -31,14 +34,16 @@ const fallbackPlanValue: PlanContextValue = {
 
 interface PlanProviderProps {
   initialPlan?: Plan
+  initialBuildInfo?: BuildInfo | null
   children: React.ReactNode
 }
 
-export function PlanProvider({ initialPlan = 'free', children }: PlanProviderProps) {
+export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, children }: PlanProviderProps) {
   const [plan, setPlan] = useState<Plan>(initialPlan)
   const [tier, setTier] = useState<Tier>('starter')
   const [planId, setPlanId] = useState<string | null>(null)
   const [isHouseCloserOverride, setIsHouseCloserOverride] = useState<boolean>(false)
+  const [buildInfo] = useState<BuildInfo | null>(initialBuildInfo)
   const [trial, setTrial] = useState<{ active: boolean; endsAt: string | null }>({ active: false, endsAt: null })
   const [loading, setLoading] = useState(false)
 
@@ -111,12 +116,13 @@ export function PlanProvider({ initialPlan = 'free', children }: PlanProviderPro
       tier,
       planId,
       isHouseCloserOverride,
+      buildInfo,
       isPro: plan === 'pro',
       trial,
       loading,
       refresh,
     }),
-    [plan, tier, planId, isHouseCloserOverride, trial, loading, refresh]
+    [plan, tier, planId, isHouseCloserOverride, buildInfo, trial, loading, refresh]
   )
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>

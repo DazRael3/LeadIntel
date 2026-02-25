@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { DashboardClient } from './DashboardClient'
 import { getPlan } from '@/lib/billing/plan'
 import { PlanProvider } from '@/components/PlanProvider'
+import { getBuildInfo } from '@/lib/debug/buildInfo'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,8 +141,10 @@ export default async function DashboardPage({
     maybeLogApiSchemaHint(err)
   }
 
+  const buildInfo = getBuildInfo()
+
   return (
-    <PlanProvider initialPlan={subscriptionTier}>
+    <PlanProvider initialPlan={subscriptionTier} initialBuildInfo={buildInfo}>
       <DashboardClient 
         initialSubscriptionTier={subscriptionTier}
         initialCreditsRemaining={creditsRemaining}
