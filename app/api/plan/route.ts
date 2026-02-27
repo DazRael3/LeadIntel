@@ -9,6 +9,7 @@ import { createHash } from 'crypto'
 import { logProductEvent } from '@/lib/services/analytics'
 import { logger } from '@/lib/observability/logger'
 import { resolveTierFromDb } from '@/lib/billing/resolve-tier'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -145,8 +146,9 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
 
     // Tier resolution reads canonical billing sources in `api` using the service role.
     // This avoids coupling plan resolution correctness to RLS policy correctness.
+    const sessionUser = await getUserSafe(supabase)
     const admin = createSupabaseAdminClient({ schema: 'api' })
-    const resolved = await resolveTierFromDb(admin as any, userId)
+    const resolved = await resolveTierFromDb(admin as any, userId, sessionUser?.email ?? null)
     const tier = resolved.tier
     const planId = resolved.planId
     const isHouseCloserOverride = Boolean(resolved.isHouseCloserOverride)

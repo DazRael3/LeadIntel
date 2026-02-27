@@ -25,7 +25,7 @@ export const GET = withApiGuard(
 
       // Resolve tier from canonical billing sources (service role, api schema).
       const admin = createSupabaseAdminClient({ schema: 'api' })
-      const resolved = await resolveTierFromDb(admin as any, userId)
+      const resolved = await resolveTierFromDb(admin as any, userId, null)
       const tier = resolved.tier
 
       let pitchesUsed = 0

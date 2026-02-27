@@ -5,6 +5,7 @@ export type Tier = 'starter' | 'closer'
 
 export type ResolvedTier = {
   tier: Tier
+  plan: 'free' | 'pro'
   planId: 'pro' | null
   isHouseCloserOverride: boolean
   subscriptionStatus: string | null
@@ -25,7 +26,8 @@ function warnNon42703(scope: string, error: PostgrestError | null): void {
 
 export async function resolveTierFromDb(
   admin: SupabaseClient<any, 'api', any>,
-  userId: string
+  userId: string,
+  userEmailFromSession?: string | null
 ): Promise<ResolvedTier> {
   const loadUser = async (): Promise<{ userRow: { subscription_tier?: string | null } | null; userError: PostgrestError | null }> => {
     const { data: userRow, error: userError } = await admin
@@ -92,6 +94,7 @@ export async function resolveTierFromDb(
   if (lastSub && (lastSub.status === 'active' || lastSub.status === 'trialing')) {
     return {
       tier: 'closer',
+      plan: 'pro',
       planId: 'pro',
       isHouseCloserOverride: false,
       subscriptionStatus: lastSub.status,
@@ -102,6 +105,7 @@ export async function resolveTierFromDb(
   if (userRow?.subscription_tier === 'pro') {
     return {
       tier: 'closer',
+      plan: 'pro',
       planId: 'pro',
       isHouseCloserOverride: false,
       subscriptionStatus: lastSub?.status ?? null,
@@ -112,6 +116,18 @@ export async function resolveTierFromDb(
   // House Closer override: if email is in HOUSE_CLOSER_EMAILS, treat as Closer even without subscription.
   const rawHouse = process.env.HOUSE_CLOSER_EMAILS
   if (rawHouse && rawHouse.trim().length > 0) {
+    // Primary: use email from auth session when available (more robust than admin lookup).
+    if (isHouseCloserEmail(userEmailFromSession ?? null, rawHouse)) {
+      return {
+        tier: 'closer',
+        plan: 'pro',
+        planId: 'pro',
+        isHouseCloserOverride: true,
+        subscriptionStatus: lastSub?.status ?? null,
+        stripeTrialEnd: lastSub?.trial_end ?? null,
+      }
+    }
+
     try {
       const auth = admin.auth
       const maybeAdmin = (auth as unknown as { admin?: { getUserById?: (id: string) => Promise<unknown> } }).admin
@@ -124,6 +140,7 @@ export async function resolveTierFromDb(
         if (isHouseCloserEmail(email, rawHouse)) {
           return {
             tier: 'closer',
+            plan: 'pro',
             planId: 'pro',
             isHouseCloserOverride: true,
             subscriptionStatus: lastSub?.status ?? null,
@@ -138,6 +155,7 @@ export async function resolveTierFromDb(
 
   return {
     tier: 'starter',
+    plan: 'free',
     planId: null,
     isHouseCloserOverride: false,
     subscriptionStatus: lastSub?.status ?? null,

@@ -3,8 +3,9 @@ import { NextRequest } from 'next/server'
 
 let mockSubRow: unknown = null
 let mockUserRow: unknown = null
-let mockAuthedUser: { id: string } | null = { id: 'user_1' }
+let mockAuthedUser: { id: string; email?: string | null } | null = { id: 'user_1', email: 'user@example.com' }
 let mockAuthEmail: string | null = 'user@example.com'
+const mockAdminGetUserById = vi.fn(async (_id: string) => ({ data: { user: { email: mockAuthEmail } }, error: null }))
 
 class FakeQuery {
   private table: string
@@ -65,7 +66,7 @@ vi.mock('@/lib/supabase/admin', () => ({
   createSupabaseAdminClient: vi.fn(() => ({
     auth: {
       admin: {
-        getUserById: vi.fn(async () => ({ data: { user: { email: mockAuthEmail } }, error: null })),
+        getUserById: (id: string) => mockAdminGetUserById(id),
       },
     },
     from: (table: string) => new FakeQuery(table),
@@ -77,7 +78,7 @@ describe('/api/plan', () => {
     vi.clearAllMocks()
     mockSubRow = null
     mockUserRow = null
-    mockAuthedUser = { id: 'user_1' }
+    mockAuthedUser = { id: 'user_1', email: 'user@example.com' }
     mockAuthEmail = 'user@example.com'
     process.env.ENABLE_APP_TRIAL = '0'
     process.env.STRIPE_PRICE_ID_PRO = 'price_pro_123'
@@ -156,6 +157,24 @@ describe('/api/plan', () => {
 
   it('treats a house closer email as closer even without subscription', async () => {
     process.env.HOUSE_CLOSER_EMAILS = 'owner@dazrael.com'
+    mockAuthedUser = { id: 'user_1', email: 'owner@dazrael.com' }
+    mockAuthEmail = 'not-owner@example.com'
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('closer')
+    expect(json.data?.planId).toBe('pro')
+    expect(json.data?.plan).toBe('pro')
+    expect(json.data?.isHouseCloserOverride).toBe(true)
+    expect(mockAdminGetUserById).not.toHaveBeenCalled()
+  })
+
+  it('treats a house closer email as closer via admin fallback when session email is missing', async () => {
+    process.env.HOUSE_CLOSER_EMAILS = 'owner@dazrael.com'
+    mockAuthedUser = { id: 'user_1', email: null }
     mockAuthEmail = 'owner@dazrael.com'
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
@@ -167,6 +186,7 @@ describe('/api/plan', () => {
     expect(json.data?.planId).toBe('pro')
     expect(json.data?.plan).toBe('pro')
     expect(json.data?.isHouseCloserOverride).toBe(true)
+    expect(mockAdminGetUserById).toHaveBeenCalled()
   })
 })
 
