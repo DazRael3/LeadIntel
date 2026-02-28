@@ -5,11 +5,18 @@ import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { isPro as isProPlan } from '@/lib/billing/plan'
+import { logger } from '@/lib/observability/logger'
 
 const GenerateBattleCardSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
   companyUrl: z.string().url().optional(),
   triggerEvent: z.string().optional(),
+})
+
+const BattleCardResponseSchema = z.object({
+  techStack: z.array(z.string()).default([]),
+  weakness: z.string().default(''),
+  whyBetter: z.string().default(''),
 })
 
 export const POST = withApiGuard(
@@ -46,12 +53,31 @@ export const POST = withApiGuard(
         undefined
       )
 
+      const raw = {
+        techStack: (battleCard as { currentTech?: unknown } | null)?.currentTech,
+        weakness: (battleCard as { painPoint?: unknown } | null)?.painPoint,
+        whyBetter: (battleCard as { killerFeature?: unknown } | null)?.killerFeature,
+      }
+
+      const techStackDefaulted = !Array.isArray(raw.techStack)
+      const normalized = BattleCardResponseSchema.parse({
+        techStack: Array.isArray(raw.techStack) ? raw.techStack : [],
+        weakness: typeof raw.weakness === 'string' ? raw.weakness : '',
+        whyBetter: typeof raw.whyBetter === 'string' ? raw.whyBetter : '',
+      })
+
+      if (techStackDefaulted) {
+        logger.info({
+          level: 'info',
+          scope: 'battlecard',
+          message: 'normalize.techStack.defaulted',
+          userId,
+          requestId,
+        })
+      }
+
       return ok(
-        {
-          techStack: battleCard.currentTech,
-          weakness: battleCard.painPoint,
-          whyBetter: battleCard.killerFeature,
-        },
+        normalized,
         undefined,
         bridge,
         requestId

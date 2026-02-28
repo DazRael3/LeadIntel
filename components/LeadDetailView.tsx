@@ -282,7 +282,6 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             companyName={lead.company_name}
             companyUrl={lead.prospect_linkedin ? `https://${lead.company_name.toLowerCase().replace(/\s+/g, '')}.com` : undefined}
             triggerEvent={lead.trigger_event}
-            leadId={lead.id}
             isPro={isPro}
           />
 

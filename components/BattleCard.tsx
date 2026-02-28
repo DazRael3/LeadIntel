@@ -1,36 +1,32 @@
 'use client'
 
-import { useState, useEffect, useCallback } from "react"
+import * as React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Loader2, Shield, TrendingDown, Zap, Sparkles, Lock } from "lucide-react"
 import { UpgradeOverlay } from "@/components/UpgradeOverlay"
-import { useRouter } from "next/navigation"
-import OpenAI from 'openai'
 import { formatErrorMessage } from "@/lib/utils/format-error"
 
 interface BattleCardProps {
   companyName: string
   companyUrl?: string
   triggerEvent: string
-  leadId: string
   isPro?: boolean
 }
 
 interface BattleCardData {
-  techStack: string[]
-  weakness: string
-  whyBetter: string
+  techStack?: unknown
+  weakness?: unknown
+  whyBetter?: unknown
 }
 
-export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPro = false }: BattleCardProps) {
-  const [loading, setLoading] = useState(false)
-  const [battleCard, setBattleCard] = useState<BattleCardData | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
+export function BattleCard({ companyName, companyUrl, triggerEvent, isPro = false }: BattleCardProps) {
+  const [loading, setLoading] = React.useState(false)
+  const [battleCard, setBattleCard] = React.useState<BattleCardData | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
 
-  const generateBattleCard = useCallback(async () => {
+  const generateBattleCard = React.useCallback(async () => {
     // Prevent generation for free users
     if (!isPro) {
       setError('Pro subscription required for Battle Card generation')
@@ -59,8 +55,12 @@ export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPr
         throw new Error(errorData.error || 'Failed to generate battle card')
       }
 
-      const data = await response.json()
-      setBattleCard(data)
+      const json = await response.json()
+      // Normalize: API uses standard envelope { ok, data }. Older callers may return raw fields.
+      const payload = (json && typeof json === 'object' && 'data' in (json as Record<string, unknown>))
+        ? (json as { data?: unknown }).data
+        : json
+      setBattleCard((payload as BattleCardData) ?? null)
     } catch (error: unknown) {
       const errorMessage = formatErrorMessage(error)
       console.error('Error generating battle card:', errorMessage)
@@ -71,11 +71,15 @@ export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPr
   }, [isPro, companyName, companyUrl, triggerEvent])
 
   // Auto-generate on mount ONLY if Pro user and we have company URL
-  useEffect(() => {
+  React.useEffect(() => {
     if (isPro && companyUrl && !battleCard && !loading) {
       generateBattleCard()
     }
   }, [isPro, companyUrl, battleCard, loading, generateBattleCard])
+
+  const techStack = Array.isArray(battleCard?.techStack) ? (battleCard?.techStack as string[]) : []
+  const weakness = typeof battleCard?.weakness === "string" ? battleCard.weakness : ""
+  const whyBetter = typeof battleCard?.whyBetter === "string" ? battleCard.whyBetter : ""
 
   return (
     <Card className="border-purple-500/20 bg-card/50 relative group">
@@ -151,17 +155,21 @@ export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPr
                   Current Tech Stack
                 </h4>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {battleCard.techStack.map((tech, idx) => (
-                  <Badge
-                    key={idx}
-                    variant="outline"
-                    className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10 text-xs"
-                  >
-                    {tech}
-                  </Badge>
-                ))}
-              </div>
+              {techStack.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No tech stack detected yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {techStack.map((tech, idx) => (
+                    <Badge
+                      key={idx}
+                      variant="outline"
+                      className="border-cyan-500/30 text-cyan-400 bg-cyan-500/10 text-xs"
+                    >
+                      {tech}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Weakness */}
@@ -173,7 +181,7 @@ export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPr
                 </h4>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {battleCard.weakness}
+                {weakness || <span className="text-xs text-muted-foreground">Not available yet.</span>}
               </p>
             </div>
 
@@ -186,7 +194,7 @@ export function BattleCard({ companyName, companyUrl, triggerEvent, leadId, isPr
                 </h4>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {battleCard.whyBetter}
+                {whyBetter || <span className="text-xs text-muted-foreground">Not available yet.</span>}
               </p>
             </div>
           </div>

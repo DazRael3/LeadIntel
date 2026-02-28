@@ -3,17 +3,18 @@ import { NextRequest } from 'next/server'
 
 let mockAuthedUser: { id: string } | null = { id: 'user_1' }
 let mockIsPro = true
+let mockAiBattleCard: { currentTech?: unknown; painPoint?: unknown; killerFeature?: unknown } = {
+  currentTech: ['Stack'],
+  painPoint: 'Pain',
+  killerFeature: 'Feature',
+}
 
 vi.mock('@/lib/billing/plan', () => ({
   isPro: vi.fn(async () => mockIsPro),
 }))
 
 vi.mock('@/lib/ai-logic', () => ({
-  generateBattleCard: vi.fn(async () => ({
-    currentTech: 'Stack',
-    painPoint: 'Pain',
-    killerFeature: 'Feature',
-  })),
+  generateBattleCard: vi.fn(async () => mockAiBattleCard),
 }))
 
 vi.mock('@/lib/supabase/route', () => ({
@@ -30,6 +31,7 @@ describe('/api/generate-battle-card', () => {
     vi.clearAllMocks()
     mockAuthedUser = { id: 'user_1' }
     mockIsPro = true
+    mockAiBattleCard = { currentTech: ['Stack'], painPoint: 'Pain', killerFeature: 'Feature' }
     process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000'
     // Default fetch mock for company info fetch
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, text: async () => '' })) as unknown as typeof fetch)
@@ -70,9 +72,25 @@ describe('/api/generate-battle-card', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.ok).toBe(true)
-    expect(json.data?.techStack).toBeTruthy()
-    expect(json.data?.weakness).toBeTruthy()
-    expect(json.data?.whyBetter).toBeTruthy()
+    expect(Array.isArray(json.data?.techStack)).toBe(true)
+    expect(json.data?.techStack).toEqual(['Stack'])
+    expect(typeof json.data?.weakness).toBe('string')
+    expect(typeof json.data?.whyBetter).toBe('string')
+  })
+
+  it('normalizes missing techStack to []', async () => {
+    mockAiBattleCard = { painPoint: 'Pain', killerFeature: 'Feature' }
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/generate-battle-card', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ companyName: 'Acme' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.techStack).toEqual([])
   })
 })
 
