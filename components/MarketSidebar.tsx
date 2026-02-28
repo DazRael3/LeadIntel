@@ -90,8 +90,13 @@ export function MarketSidebar() {
         await add(inst.symbol, inst.kind)
         track('watchlist_symbol_starred', { symbol: inst.symbol, kind: inst.kind })
       }
-    } catch {
-      setActionError('Failed to update watchlist')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : ''
+      if (msg === 'upgrade_required') {
+        setActionError('Upgrade required to star symbols.')
+      } else {
+        setActionError('Failed to update watchlist')
+      }
     }
   }
 
@@ -104,8 +109,13 @@ export function MarketSidebar() {
       await add(symbol, (match?.kind ?? kind) as InstrumentDefinition['kind'], match?.name)
       track('watchlist_symbol_added', { symbol, kind: (match?.kind ?? kind) })
       setQuery('')
-    } catch {
-      setActionError('Failed to update watchlist')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : ''
+      if (msg === 'upgrade_required') {
+        setActionError('Upgrade required to star symbols.')
+      } else {
+        setActionError('Failed to update watchlist')
+      }
     }
   }
 

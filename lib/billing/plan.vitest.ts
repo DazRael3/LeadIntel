@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getPlanDetails } from './plan'
+import { getPlanDetails, isPro } from './plan'
 
 type SubRow = {
   status?: string | null
@@ -13,8 +13,8 @@ type UserRow = {
   trial_ends_at?: string | null
 }
 
-function makeSupabaseMock(opts: { sub: SubRow | null; user: UserRow | null }) {
-  const from = (table: string) => {
+function makeSupabaseMock(opts: { sub: SubRow | null; user: UserRow | null; sessionEmail?: string | null }) {
+  const from = vi.fn((table: string) => {
     if (table === 'subscriptions') {
       const chain = {
         eq: () => chain,
@@ -45,9 +45,13 @@ function makeSupabaseMock(opts: { sub: SubRow | null; user: UserRow | null }) {
         }),
       }),
     }
+  })
+
+  const auth = {
+    getUser: vi.fn(async () => ({ data: { user: { email: opts.sessionEmail ?? null } }, error: null })),
   }
 
-  return { from }
+  return { from, auth }
 }
 
 describe('getPlanDetails (app trial)', () => {
@@ -83,6 +87,30 @@ describe('getPlanDetails (app trial)', () => {
     const details = await getPlanDetails(supabase as unknown as SupabaseClient, 'user_1')
     expect(details.plan).toBe('free')
     expect(details.isAppTrial).toBe(false)
+  })
+})
+
+describe('getPlanDetails (house closer emails)', () => {
+  const prev = process.env.HOUSE_CLOSER_EMAILS
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.HOUSE_CLOSER_EMAILS
+    else process.env.HOUSE_CLOSER_EMAILS = prev
+  })
+
+  it('early-returns pro when session email is in HOUSE_CLOSER_EMAILS (no DB reads)', async () => {
+    process.env.HOUSE_CLOSER_EMAILS = 'house@example.com'
+    const supabase = makeSupabaseMock({ sub: null, user: null, sessionEmail: 'house@example.com' })
+
+    const details = await getPlanDetails(supabase as unknown as SupabaseClient, 'user_1')
+    expect(details.plan).toBe('pro')
+    expect(details.planId).toBe('pro')
+    expect(details.isAppTrial).toBe(false)
+    expect(details.appTrialEndsAt).toBe(null)
+    expect((supabase as unknown as { from: ReturnType<typeof vi.fn> }).from).not.toHaveBeenCalled()
+
+    const pro = await isPro(supabase as unknown as SupabaseClient, 'user_1')
+    expect(pro).toBe(true)
   })
 })
 

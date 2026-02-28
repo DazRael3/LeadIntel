@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isHouseCloserEmail } from '@/lib/billing/houseAccounts'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
 
@@ -6,6 +7,8 @@ export type Plan = 'free' | 'pro'
 
 export interface PlanDetails {
   plan: Plan
+  /** Stable internal plan identifier for gating. */
+  planId?: 'pro' | null
   /** Subscription status if known (from api.subscriptions). */
   subscriptionStatus?: string | null
   /** Trial end timestamp (ISO) if known and user is trialing. */
@@ -40,7 +43,29 @@ function isFutureIso(ts: string | null | undefined, nowMs: number): boolean {
   return Number.isFinite(ms) && ms > nowMs
 }
 
+async function getSessionEmailIfHouseOverrideEnabled(supabase: SupabaseClient): Promise<string | null> {
+  const rawHouse = (process.env.HOUSE_CLOSER_EMAILS ?? '').trim()
+  if (!rawHouse) return null
+  try {
+    const auth = (supabase as unknown as { auth?: { getUser?: () => Promise<unknown> } }).auth
+    const getUser = auth?.getUser
+    if (typeof getUser !== 'function') return null
+    const res = (await getUser()) as { data?: { user?: { email?: string | null } | null } | null } | undefined
+    const email = res?.data?.user?.email ?? null
+    return typeof email === 'string' && email.trim().length > 0 ? email : null
+  } catch {
+    return null
+  }
+}
+
 export async function getPlan(supabase: SupabaseClient, userId: string): Promise<Plan> {
+  // House Closer override: treat specific session emails as Pro even without Stripe rows.
+  const rawHouse = (process.env.HOUSE_CLOSER_EMAILS ?? '').trim()
+  if (rawHouse) {
+    const email = await getSessionEmailIfHouseOverrideEnabled(supabase)
+    if (isHouseCloserEmail(email, rawHouse)) return 'pro'
+  }
+
   const { data: sub } = await supabase
     .from('subscriptions')
     .select('status')
@@ -78,6 +103,16 @@ export async function isPro(supabase: SupabaseClient, userId: string): Promise<b
  * fall back to `getPlan()` if advanced fields are unavailable.
  */
 export async function getPlanDetails(supabase: SupabaseClient, userId: string): Promise<PlanDetails> {
+  // House Closer override: use the auth session email first, before any DB reads.
+  // This ensures Pro gating works even when there is no Stripe subscription row.
+  const rawHouse = (process.env.HOUSE_CLOSER_EMAILS ?? '').trim()
+  if (rawHouse) {
+    const email = await getSessionEmailIfHouseOverrideEnabled(supabase)
+    if (isHouseCloserEmail(email, rawHouse)) {
+      return { plan: 'pro', planId: 'pro', isAppTrial: false, appTrialEndsAt: null }
+    }
+  }
+
   // Try to read richer subscription fields (these may be added by later migrations).
   try {
     const { data: sub } = await supabase
@@ -114,6 +149,7 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
 
     return {
       plan,
+      planId: plan === 'pro' ? 'pro' : null,
       subscriptionStatus: status,
       trialEndsAt: (sub as { trial_end?: string | null } | null)?.trial_end ?? null,
       currentPeriodEndsAt: (sub as { current_period_end?: string | null } | null)?.current_period_end ?? null,
@@ -122,7 +158,7 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
     }
   } catch {
     const plan = await getPlan(supabase, userId)
-    return { plan }
+    return { plan, planId: plan === 'pro' ? 'pro' : null }
   }
 }
 

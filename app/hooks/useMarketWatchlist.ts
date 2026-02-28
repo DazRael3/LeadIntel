@@ -79,7 +79,12 @@ export function useMarketWatchlist() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, kind, displayName }),
     })
-    if (!res.ok) throw new Error(`Failed to add (${res.status})`)
+    if (!res.ok) {
+      if (res.status === 403) throw new Error('upgrade_required')
+      const errJson = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
+      const msg = errJson?.error?.message
+      throw new Error(msg ? msg : `Failed to add (${res.status})`)
+    }
     const json = (await res.json()) as WatchlistApiResponse
     if (isOk(json)) setUserItems(json.data.items ?? [])
   }, [])
@@ -90,7 +95,12 @@ export function useMarketWatchlist() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, kind }),
     })
-    if (!res.ok) throw new Error(`Failed to remove (${res.status})`)
+    if (!res.ok) {
+      if (res.status === 403) throw new Error('upgrade_required')
+      const errJson = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
+      const msg = errJson?.error?.message
+      throw new Error(msg ? msg : `Failed to remove (${res.status})`)
+    }
     const json = (await res.json()) as WatchlistApiResponse
     if (isOk(json)) setUserItems(json.data.items ?? [])
   }, [])
