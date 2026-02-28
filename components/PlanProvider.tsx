@@ -6,6 +6,10 @@ import type { BuildInfo } from '@/lib/debug/buildInfo'
 type Plan = 'free' | 'pro'
 type Tier = 'starter' | 'closer'
 
+export function computeIsPro(plan: Plan, tier: Tier): boolean {
+  return plan === 'pro' || tier === 'closer'
+}
+
 interface PlanContextValue {
   plan: Plan
   tier: Tier
@@ -117,7 +121,7 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
       planId,
       isHouseCloserOverride,
       buildInfo,
-      isPro: plan === 'pro',
+      isPro: computeIsPro(plan, tier),
       trial,
       loading,
       refresh,
