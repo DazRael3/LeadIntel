@@ -163,7 +163,7 @@ describe('/api/checkout', () => {
     const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/checkout', {
       method: 'POST',
-      body: JSON.stringify({ planId: 'team' }),
+      body: JSON.stringify({ planId: 'enterprise' }),
       headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
     })
     const res = await POST(req)
@@ -171,6 +171,41 @@ describe('/api/checkout', () => {
     const json = await res.json()
     expect(json.ok).toBe(false)
     expect(json.error?.code).toBe('INVALID_CHECKOUT_PLAN')
+  })
+
+  it('POST supports closer_plus when price is configured', async () => {
+    process.env.STRIPE_PRICE_ID_CLOSER_PLUS = 'price_test_plus_123'
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'closer_plus' }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(createSession).toHaveBeenCalledTimes(1)
+    const arg = createSession.mock.calls[0]?.[0] as any
+    expect(arg?.line_items?.[0]?.price).toBe('price_test_plus_123')
+  })
+
+  it('POST supports team seats via quantity when configured', async () => {
+    process.env.STRIPE_PRICE_ID_TEAM = 'price_test_team_seat_123'
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'team', seats: 7 }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(createSession).toHaveBeenCalledTimes(1)
+    const arg = createSession.mock.calls[0]?.[0] as any
+    expect(arg?.line_items?.[0]?.price).toBe('price_test_team_seat_123')
+    expect(arg?.line_items?.[0]?.quantity).toBe(7)
   })
 })
 

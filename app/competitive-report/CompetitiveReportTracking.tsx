@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { track } from '@/lib/analytics'
 
-export type CompetitiveReportTier = 'starter' | 'closer' | null
+export type CompetitiveReportTier = 'starter' | 'closer' | 'closer_plus' | 'team' | null
 
 export function CompetitiveReportViewTracker({
   isLoggedIn,

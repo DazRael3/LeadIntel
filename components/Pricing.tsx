@@ -12,6 +12,9 @@ import { formatErrorMessage } from "@/lib/utils/format-error"
 import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 
+type PaidPlanId = 'pro' | 'closer_plus' | 'team'
+type BillingCycle = 'monthly' | 'annual'
+
 /**
  * Safely parses JSON, returning null if parsing fails
  */
@@ -80,6 +83,8 @@ export function Pricing() {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const { isPro } = usePlan()
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
+  const [teamSeats, setTeamSeats] = useState<number>(5)
 
   useEffect(() => {
     // Client-only query parsing (avoid useSearchParams() suspense requirement during prerender).
@@ -101,7 +106,14 @@ export function Pricing() {
 
   useEffect(() => {
     if (!target) return
-    const id = target === 'closer' ? 'plan-closer' : null
+    const id =
+      target === 'closer'
+        ? 'plan-closer'
+        : target === 'closer_plus'
+          ? 'plan-closer-plus'
+          : target === 'team'
+            ? 'plan-team'
+            : null
     if (!id) return
     // Let layout settle before scrolling.
     const t = setTimeout(() => {
@@ -111,7 +123,7 @@ export function Pricing() {
     return () => clearTimeout(t)
   }, [target])
 
-  const handleCheckout = async (planId: 'pro') => {
+  const handleCheckout = async (planId: PaidPlanId) => {
     setIsCheckoutLoading(true)
     setCheckoutError(null)
     
@@ -129,7 +141,11 @@ export function Pricing() {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({
+          planId,
+          billingCycle,
+          seats: planId === 'team' ? teamSeats : undefined,
+        }),
       })
 
       // Parse response safely: read as text, then JSON.parse if present.
@@ -189,9 +205,40 @@ export function Pricing() {
           <p className="text-muted-foreground text-lg">
             Premium, ROI-focused outbound engine — built to create pipeline, not dashboards.
           </p>
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-card/40 p-1 text-xs">
+              <button
+                type="button"
+                className={
+                  billingCycle === 'monthly'
+                    ? 'rounded-full px-3 py-1 text-cyan-200 bg-cyan-500/10 border border-cyan-500/20'
+                    : 'rounded-full px-3 py-1 text-muted-foreground hover:text-cyan-200'
+                }
+                onClick={() => setBillingCycle('monthly')}
+                aria-label="Select monthly billing"
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                className={
+                  billingCycle === 'annual'
+                    ? 'rounded-full px-3 py-1 text-cyan-200 bg-cyan-500/10 border border-cyan-500/20'
+                    : 'rounded-full px-3 py-1 text-muted-foreground hover:text-cyan-200'
+                }
+                onClick={() => setBillingCycle('annual')}
+                aria-label="Select annual billing"
+              >
+                Annual
+              </button>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Annual billing requires Stripe annual price IDs to be configured.
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
           <div id="plan-starter">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
@@ -318,6 +365,164 @@ export function Pricing() {
               </p>
             </CardContent>
           </Card>
+          </div>
+
+          <div id="plan-closer-plus">
+            <Card className="border-purple-500/30 bg-card/70 glow-effect relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-500/20 to-transparent w-32 h-32 blur-3xl" />
+              <CardHeader className="relative z-10">
+                <div className="flex items-center justify-between mb-2">
+                  <CardTitle className="text-2xl bloomberg-font">Closer+</CardTitle>
+                  <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/25">Power user</Badge>
+                </div>
+                <div className="flex items-baseline gap-2 mt-4">
+                  <span className="text-5xl font-bold text-purple-200">$149</span>
+                  <span className="text-muted-foreground">/{billingCycle === 'annual' ? 'year' : 'month'}</span>
+                </div>
+                <CardDescription>
+                  For operators who want deeper competitive coverage, automation, and higher throughput.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="relative z-10 space-y-6">
+                <ul className="space-y-4">
+                  <li className="flex items-start gap-3">
+                    <div className="p-1 rounded-full bg-green-500/20 border border-green-500/30 mt-0.5">
+                      <Check className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Everything in Closer</p>
+                      <p className="text-sm text-muted-foreground">Plus expanded competitive analysis</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="p-1 rounded-full bg-green-500/20 border border-green-500/30 mt-0.5">
+                      <Check className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">More signals + deeper sources</p>
+                      <p className="text-sm text-muted-foreground">Better trigger coverage and history</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="p-1 rounded-full bg-green-500/20 border border-green-500/30 mt-0.5">
+                      <Check className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Priority processing</p>
+                      <p className="text-sm text-muted-foreground">Faster report generation</p>
+                    </div>
+                  </li>
+                </ul>
+                <Button
+                  onClick={() => void handleCheckout('closer_plus')}
+                  disabled={isCheckoutLoading}
+                  className="w-full h-12 text-lg font-bold neon-border hover:glow-effect bg-purple-500/10 hover:bg-purple-500/20 text-purple-200"
+                  size="lg"
+                >
+                  {isCheckoutLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp className="h-5 w-5 mr-2" />
+                      Upgrade to Closer+
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">Cancel anytime. No hidden fees.</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div id="plan-team">
+            <Card className="border-slate-500/20 bg-card/50 relative overflow-hidden">
+              <div className="absolute top-0 left-0 bg-gradient-to-r from-slate-500/10 to-transparent w-32 h-32 blur-3xl" />
+              <CardHeader className="relative z-10">
+                <div className="flex items-center justify-between mb-2">
+                  <CardTitle className="text-2xl bloomberg-font">Team</CardTitle>
+                  <Badge className="bg-slate-500/10 text-slate-200 border-slate-500/20">Seats</Badge>
+                </div>
+                <div className="flex items-baseline gap-2 mt-4">
+                  <span className="text-5xl font-bold text-slate-100">$249</span>
+                  <span className="text-muted-foreground">+ /seat</span>
+                </div>
+                <CardDescription>
+                  For teams that need shared reporting, consistent messaging, and rollout across reps.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="relative z-10 space-y-6">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Seats</div>
+                    <div className="text-xs text-muted-foreground">{teamSeats}</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={1}
+                    max={50}
+                    value={teamSeats}
+                    onChange={(e) => setTeamSeats(Number(e.target.value))}
+                    className="w-full"
+                    aria-label="Team seat count"
+                  />
+                  <div className="text-[11px] text-muted-foreground">
+                    Checkout uses seat quantity. If you configure base + seat prices, we’ll include both line items.
+                  </div>
+                </div>
+
+                <ul className="space-y-4">
+                  <li className="flex items-start gap-3">
+                    <div className="p-1 rounded-full bg-green-500/20 border border-green-500/30 mt-0.5">
+                      <Check className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Everything in Closer+</p>
+                      <p className="text-sm text-muted-foreground">Plus shared workflows</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="p-1 rounded-full bg-green-500/20 border border-green-500/30 mt-0.5">
+                      <Check className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Team-wide standards</p>
+                      <p className="text-sm text-muted-foreground">Templates and reports are consistent</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="p-1 rounded-full bg-green-500/20 border border-green-500/30 mt-0.5">
+                      <Check className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Admin visibility</p>
+                      <p className="text-sm text-muted-foreground">Better oversight across reps</p>
+                    </div>
+                  </li>
+                </ul>
+
+                <Button
+                  onClick={() => void handleCheckout('team')}
+                  disabled={isCheckoutLoading}
+                  className="w-full h-12 text-lg font-bold neon-border hover:glow-effect bg-slate-500/10 hover:bg-slate-500/20 text-slate-100"
+                  size="lg"
+                >
+                  {isCheckoutLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="h-5 w-5 mr-2" />
+                      Start Team
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">Cancel anytime. Seat changes happen in Stripe.</p>
+              </CardContent>
+            </Card>
           </div>
 
         </div>

@@ -24,13 +24,13 @@ export interface PlanDetails {
 /**
  * Product tiers.
  *
- * Product spec (2026-01): Only two tiers are exposed in the app surface:
+ * Current product model supports:
  * - starter (free)
  * - closer (paid)
- *
- * Legacy note: historical data may still contain "team". We treat it as "closer".
+ * - closer_plus (paid)
+ * - team (paid, seat-based)
  */
-export type PlanTier = 'starter' | 'closer'
+export type PlanTier = 'starter' | 'closer' | 'closer_plus' | 'team'
 
 function isAppTrialEnabled(): boolean {
   const raw = (process.env.ENABLE_APP_TRIAL || '').trim().toLowerCase()
@@ -175,13 +175,12 @@ export type DisplayPlanMeta = {
   tier: PlanTier
   creditsLabel: string
   planBubbleLabel: string
-  canUpgradeToCloser: boolean
 }
 
 function normalizeTier(input: unknown): PlanTier {
-  if (input === 'starter' || input === 'closer') return input
-  // Backward compatibility: treat legacy Team as Closer.
-  if (input === 'team') return 'closer'
+  if (input === 'starter' || input === 'closer' || input === 'closer_plus' || input === 'team') return input
+  // Backward compatibility: older code may pass the plan string.
+  if (input === 'pro') return 'closer'
   return 'starter'
 }
 
@@ -200,14 +199,28 @@ export function getDisplayPlanMeta(plan: { tier?: unknown; plan?: unknown } | Pl
       tier,
       creditsLabel: 'Starter (limited)',
       planBubbleLabel: 'Starter (limited)',
-      canUpgradeToCloser: true,
+    }
+  }
+
+  if (tier === 'closer') {
+    return {
+      tier,
+      creditsLabel: '∞ Unlimited',
+      planBubbleLabel: 'Closer · $79 / month',
+    }
+  }
+
+  if (tier === 'closer_plus') {
+    return {
+      tier,
+      creditsLabel: '∞ Unlimited',
+      planBubbleLabel: 'Closer+ · $149 / month',
     }
   }
 
   return {
-    tier: 'closer',
+    tier: 'team',
     creditsLabel: '∞ Unlimited',
-    planBubbleLabel: 'Closer · $79 / month',
-    canUpgradeToCloser: false,
+    planBubbleLabel: 'Team · seat-based',
   }
 }

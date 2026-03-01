@@ -1,12 +1,13 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
 import { isHouseCloserEmail } from '@/lib/billing/houseAccounts'
+import { planIdForTier, resolveTierFromStripePriceId } from '@/lib/billing/stripePriceMap'
 
-export type Tier = 'starter' | 'closer'
+export type Tier = 'starter' | 'closer' | 'closer_plus' | 'team'
 
 export type ResolvedTier = {
   tier: Tier
   plan: 'free' | 'pro'
-  planId: 'pro' | null
+  planId: 'pro' | 'closer_plus' | 'team' | null
   isHouseCloserOverride: boolean
   subscriptionStatus: string | null
   stripeTrialEnd: string | null
@@ -47,12 +48,18 @@ export async function resolveTierFromDb(
   }
 
   const loadSubs = async (): Promise<{
-    subsRows: Array<{ status?: string | null; trial_end?: string | null; created_at?: string | null }> | null
+    subsRows: Array<{
+      status?: string | null
+      trial_end?: string | null
+      created_at?: string | null
+      stripe_price_id?: string | null
+      price_id?: string | null
+    }> | null
     subsError: PostgrestError | null
   }> => {
     const { data: subsRows, error: subsError } = await admin
       .from('subscriptions')
-      .select('status, trial_end, created_at')
+      .select('status, trial_end, created_at, stripe_price_id, price_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -67,7 +74,9 @@ export async function resolveTierFromDb(
         .limit(1)
       warnNon42703('subscriptions(retry)', retry.error)
       return {
-        subsRows: Array.isArray(retry.data) ? (retry.data as Array<{ status?: string | null; created_at?: string | null }>) : [],
+        subsRows: Array.isArray(retry.data)
+          ? (retry.data as Array<{ status?: string | null; created_at?: string | null }>)
+          : [],
         subsError: subsError,
       }
     }
@@ -75,7 +84,13 @@ export async function resolveTierFromDb(
     warnNon42703('subscriptions', subsError)
     return {
       subsRows: Array.isArray(subsRows)
-        ? (subsRows as Array<{ status?: string | null; trial_end?: string | null; created_at?: string | null }>)
+        ? (subsRows as Array<{
+            status?: string | null
+            trial_end?: string | null
+            created_at?: string | null
+            stripe_price_id?: string | null
+            price_id?: string | null
+          }>)
         : [],
       subsError,
     }
@@ -88,14 +103,22 @@ export async function resolveTierFromDb(
   void subsError
 
   // c) Determine lastSub
-  const lastSub = (subsRows?.[0] ?? null) as { status?: string | null; trial_end?: string | null } | null
+  const lastSub = (subsRows?.[0] ?? null) as
+    | { status?: string | null; trial_end?: string | null; stripe_price_id?: string | null; price_id?: string | null }
+    | null
 
   // d) Tier decision rules
   if (lastSub && (lastSub.status === 'active' || lastSub.status === 'trialing')) {
+    const price = (lastSub as { stripe_price_id?: string | null; price_id?: string | null } | null)?.stripe_price_id
+      ?? (lastSub as { price_id?: string | null } | null)?.price_id
+      ?? null
+    const mappedTier = resolveTierFromStripePriceId(price)
+    const tier: Tier = mappedTier ?? 'closer'
+    const planId = planIdForTier(tier) ?? 'pro'
     return {
-      tier: 'closer',
+      tier,
       plan: 'pro',
-      planId: 'pro',
+      planId,
       isHouseCloserOverride: false,
       subscriptionStatus: lastSub.status,
       stripeTrialEnd: lastSub.trial_end ?? null,

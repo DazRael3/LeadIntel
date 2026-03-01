@@ -6,8 +6,36 @@ import { Button } from '@/components/ui/button'
 import { Lock, DollarSign } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-type RequiredTier = 'closer'
-type UpgradeTarget = 'closer'
+type Tier = 'starter' | 'closer' | 'closer_plus' | 'team'
+type RequiredTier = Exclude<Tier, 'starter'>
+type UpgradeTarget = RequiredTier
+
+function tierAtLeast(tier: Tier, required: RequiredTier): boolean {
+  const rank = (t: Tier): number => {
+    switch (t) {
+      case 'starter':
+        return 0
+      case 'closer':
+        return 1
+      case 'closer_plus':
+        return 2
+      case 'team':
+        return 3
+    }
+  }
+  return rank(tier) >= rank(required)
+}
+
+function tierLabel(tier: RequiredTier): string {
+  switch (tier) {
+    case 'closer':
+      return 'Closer'
+    case 'closer_plus':
+      return 'Closer+'
+    case 'team':
+      return 'Team'
+  }
+}
 
 export function ProGate(props: {
   children: ReactNode
@@ -19,11 +47,11 @@ export function ProGate(props: {
   const { tier } = usePlan()
   const router = useRouter()
   const upgradeTarget = props.upgradeTarget ?? props.requiredTier
-  const allowed = tier === 'closer'
+  const allowed = tierAtLeast(tier, props.requiredTier)
 
   if (allowed) return <>{props.children}</>
 
-  const ctaLabel = 'Upgrade to Closer'
+  const ctaLabel = `Upgrade to ${tierLabel(upgradeTarget)}`
   const ctaHref = `/pricing?target=${upgradeTarget}`
 
   return (

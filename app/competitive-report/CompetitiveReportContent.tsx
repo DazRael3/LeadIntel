@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { BrandHero } from '@/components/BrandHero'
 import { getDisplayPlanMeta, type PlanTier } from '@/lib/billing/plan'
+import { tierLabel } from '@/lib/billing/tier'
 import type { LatestPitchSummary } from '@/lib/services/pitchesLatest'
 import { CompetitiveReportViewTracker, TrackedButtonLink } from './CompetitiveReportTracking'
 
@@ -17,8 +18,8 @@ function LatestReportCard({
 }) {
   const planMeta = getDisplayPlanMeta(tier ? { tier } : null)
   const isStarter = planMeta.tier === 'starter'
-  const badgeText = isStarter ? 'Starter (Limited)' : 'Closer (Full access)'
-  const tierValue = isStarter ? 'starter' : 'closer'
+  const badgeText = isStarter ? 'Starter (Limited)' : `${tierLabel(planMeta.tier)} (Full access)`
+  const tierValue = planMeta.tier
 
   if (!latestPitch) {
     return (

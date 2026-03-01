@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { createRouteClient } from '@/lib/supabase/route'
-import { serverEnv, clientEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
 import { z } from 'zod'
@@ -9,30 +9,19 @@ import { readBodyWithLimit } from '@/lib/api/validate'
 import { captureMessage } from '@/lib/observability/sentry'
 import { logger } from '@/lib/observability/logger'
 import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
+import { resolveCheckoutLineItems, type BillingCycle, type CheckoutLineItem, type PaidPlanId } from '@/lib/billing/stripePriceMap'
 
 /**
  * Validates required Stripe environment variables
  * @throws Error with clear message if validation fails
  */
-function validateStripeEnv(): { proPriceId: string | null; siteUrl: string } {
+function validateStripeEnv(): { siteUrl: string } {
   // STRIPE_SECRET_KEY is already validated in lib/stripe.ts via serverEnv
 
-  /**
-   * Price IDs are environment-provided and MUST be Stripe TEST (sandbox) prices in development:
-   * - `STRIPE_PRICE_ID_PRO` (or legacy fallback `STRIPE_PRICE_ID`) for Closer/Pro
-   *
-   * These should look like `price_...` in both test and live mode. The *key* (sk_test_ vs sk_live_)
-   * determines whether Stripe treats it as sandbox vs production. No code changes are required for go-live;
-   * just swap env vars to live keys + live price IDs.
-   */
-
-  // Pro/Closer price id (accept legacy STRIPE_PRICE_ID fallback).
-  const proPriceId = (serverEnv.STRIPE_PRICE_ID_PRO || serverEnv.STRIPE_PRICE_ID || '').trim() || null
-
   // Get site URL (optional, defaults to request origin)
-  const siteUrl = clientEnv.NEXT_PUBLIC_SITE_URL || ''
+  const siteUrl = serverEnv.NEXT_PUBLIC_SITE_URL || ''
 
-  return { proPriceId, siteUrl }
+  return { siteUrl }
 }
 
 export async function POST(request: NextRequest) {
@@ -52,6 +41,13 @@ export async function GET(_request: NextRequest) {
 const CheckoutBodySchema = z.object({
   // Validate supported values manually so we can return a stable 400 for unsupported plans.
   planId: z.string().min(1),
+  billingCycle: z.enum(['monthly', 'annual']).optional(),
+  seats: z
+    .number()
+    .int()
+    .min(1)
+    .max(250)
+    .optional(),
 })
 
 const POST_GUARDED = withApiGuard(
@@ -119,18 +115,29 @@ const POST_GUARDED = withApiGuard(
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
-    const planId = parsedBody.planId
-    // Product spec: only Starter and Closer are exposed. Checkout supports only the paid "pro" plan.
-    if (planId !== 'pro') {
+    const rawPlanId = parsedBody.planId
+    const planId: PaidPlanId | null =
+      rawPlanId === 'pro' || rawPlanId === 'closer'
+        ? 'pro'
+        : rawPlanId === 'closer_plus'
+          ? 'closer_plus'
+          : rawPlanId === 'team'
+            ? 'team'
+            : null
+
+    if (!planId) {
       return fail(
         'INVALID_CHECKOUT_PLAN',
         'Invalid or unsupported planId',
-        { planId },
+        { planId: rawPlanId },
         { status: 400 },
         bridge,
         requestId
       )
     }
+
+    const billingCycle: BillingCycle = parsedBody.billingCycle ?? 'monthly'
+    const seats = parsedBody.seats
 
     // Production safety: block accidental Stripe test keys.
     // (No effect in dev/staging; enforced only when NEXT_PUBLIC_APP_ENV === "production".)
@@ -139,21 +146,29 @@ const POST_GUARDED = withApiGuard(
     // Validate Stripe environment variables
     let priceId: string
     let siteUrl: string
+    let lineItems: CheckoutLineItem[] = []
     try {
       const env = validateStripeEnv()
       // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
-      if (!env.proPriceId) {
-        captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId })
+      const resolved = resolveCheckoutLineItems(planId, billingCycle, seats)
+      if (!resolved.ok) {
+        captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId, billingCycle })
         return fail(
           'CHECKOUT_NOT_CONFIGURED',
-          'Missing Stripe price ID for plan: pro',
-          { error: 'Missing Stripe price ID for plan: pro', required: ['STRIPE_PRICE_ID_PRO (recommended)', 'STRIPE_PRICE_ID (legacy)'] },
+          `Missing Stripe price ID for plan: ${planId}`,
+          {
+            planId,
+            billingCycle,
+            missing: resolved.missing,
+          },
           { status: 500 },
           bridge,
           requestId
         )
       }
-      priceId = env.proPriceId
+      lineItems = resolved.lineItems
+      // Backward compatibility: this variable is only used for log summary below.
+      priceId = lineItems[0]?.price ?? ''
       siteUrl = env.siteUrl || request.nextUrl.origin
     } catch (error) {
       captureMessage('checkout_not_configured', {
@@ -244,18 +259,16 @@ const POST_GUARDED = withApiGuard(
         // Collect payment method up-front.
         payment_method_collection: 'always',
         payment_method_types: ['card'],
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
-          },
-        ],
+        line_items: lineItems,
         success_url: `${siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${siteUrl}/pricing`,
         client_reference_id: user.id,
         metadata: {
           user_id: user.id,
           email: user.email ?? '',
+          plan_id: planId,
+          billing_cycle: billingCycle,
+          seats: typeof seats === 'number' ? String(seats) : '',
         },
         subscription_data: {
           metadata: {

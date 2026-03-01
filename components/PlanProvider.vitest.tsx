@@ -28,7 +28,7 @@ describe('PlanProvider / usePlan', () => {
     )
   })
 
-  it('PlanProvider refresh hydrates tier from /api/plan (legacy team -> closer)', async () => {
+  it('PlanProvider refresh hydrates tier from /api/plan', async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
         JSON.stringify({
@@ -51,7 +51,7 @@ describe('PlanProvider / usePlan', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledWith('/api/plan', expect.any(Object))
-    expect(screen.getByTestId('tier').textContent).toBe('closer')
+    expect(screen.getByTestId('tier').textContent).toBe('team')
   })
 })
 

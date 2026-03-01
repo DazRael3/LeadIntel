@@ -10,6 +10,7 @@ import { serverEnv } from '@/lib/env'
 import { stripe } from '@/lib/stripe'
 import { logger } from '@/lib/observability/logger'
 import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
+import { planIdForTier, resolveTierFromStripePriceId, type Tier } from '@/lib/billing/stripePriceMap'
 
 export const dynamic = 'force-dynamic'
 
@@ -139,10 +140,10 @@ export const GET = withApiGuard(
         )
       }
 
-      // Product spec: only Starter and Closer are exposed.
-      // Legacy note: historical "team" price IDs are treated as Closer.
-      const tier = 'closer' as const
-      const planId = 'pro' as const
+      // Determine tier/planId based on Stripe price ID (best-effort).
+      const mapped = resolveTierFromStripePriceId(priceId)
+      const tier: Tier = mapped ?? 'closer'
+      const planId = planIdForTier(tier) ?? 'pro'
 
       logger.info({
         level: 'info',

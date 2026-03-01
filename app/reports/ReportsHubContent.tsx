@@ -13,7 +13,7 @@ export function ReportsHubContent({
   reports: SavedReportSummary[]
 }) {
   const isStarter = tier === 'starter'
-  const isCloser = tier === 'closer'
+  const isPaid = tier !== 'starter'
   const visible = isStarter ? reports.slice(0, 3) : reports
 
   return (
@@ -64,7 +64,7 @@ export function ReportsHubContent({
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <CardTitle className="text-lg">{r.companyName}</CardTitle>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {isCloser && <span className="text-[11px] text-cyan-200/90">⭐ Closer perk</span>}
+                      {isPaid && <span className="text-[11px] text-cyan-200/90">⭐ Closer perk</span>}
                       <span>{r.createdAt.toLocaleString()}</span>
                     </div>
                   </div>
@@ -78,7 +78,7 @@ export function ReportsHubContent({
                     </ul>
                   )}
 
-                  {isCloser && (
+                  {isPaid && (
                     <div className="text-xs text-muted-foreground">
                       Use this brief in your next outreach sequence.
                     </div>

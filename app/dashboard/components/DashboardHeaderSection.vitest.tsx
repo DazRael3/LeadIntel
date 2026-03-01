@@ -14,7 +14,7 @@ vi.mock('../hooks/useStripePortal', () => ({
 
 const planMock: {
   plan: 'free' | 'pro'
-  tier: 'starter' | 'closer'
+  tier: 'starter' | 'closer' | 'closer_plus' | 'team'
   planId: string | null
   isHouseCloserOverride?: boolean
   buildInfo?: {
@@ -67,12 +67,39 @@ describe('DashboardHeaderSection', () => {
     planMock.buildInfo = { repoOwner: 'DazRael3', repoSlug: 'LeadIntel', branch: 'main', commitSha: 'abcdef123456' }
     render(<DashboardHeaderSection isPro={true} creditsRemaining={9999} />)
     expect(screen.queryByRole('button', { name: /upgrade to closer/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /upgrade to closer\\+/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
     expect(screen.getByText(/closer/i)).toBeTruthy()
     expect(screen.queryByText(/upgrade unlocks/i)).toBeNull()
     expect(screen.queryByText(/house closer/i)).toBeNull()
     expect(screen.queryByTestId('build-debug-panel')).toBeNull()
     expect(screen.getByRole('button', { name: /toggle color theme/i })).toBeTruthy()
+  })
+
+  it('closer_plus shows Upgrade to Team CTA', () => {
+    planMock.tier = 'closer_plus'
+    planMock.plan = 'pro'
+    planMock.planId = 'closer_plus'
+    planMock.isHouseCloserOverride = false
+    planMock.buildInfo = null
+    render(<DashboardHeaderSection isPro={true} creditsRemaining={9999} />)
+    expect(screen.getByRole('button', { name: /upgrade to team/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
+    expect(screen.getByText(/closer\\+/i)).toBeTruthy()
+    expect(screen.queryByText(/upgrade unlocks/i)).toBeNull()
+  })
+
+  it('team shows Manage billing and no upgrade CTAs', () => {
+    planMock.tier = 'team'
+    planMock.plan = 'pro'
+    planMock.planId = 'team'
+    planMock.isHouseCloserOverride = false
+    planMock.buildInfo = null
+    render(<DashboardHeaderSection isPro={true} creditsRemaining={9999} />)
+    expect(screen.queryByRole('button', { name: /upgrade to closer\\+/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /upgrade to team/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
+    expect(screen.getByText(/team/i)).toBeTruthy()
   })
 
   it('house closer shows House Closer badge', () => {

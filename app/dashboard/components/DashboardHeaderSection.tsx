@@ -15,6 +15,7 @@ import { useStripePortal } from '../hooks/useStripePortal'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { HouseCloserBadge } from './HouseCloserBadge'
 import { BuildDebugPanel } from './BuildDebugPanel'
+import { tierLabel as formatTierLabel, type Tier } from '@/lib/billing/tier'
 
 interface DashboardHeaderSectionProps {
   isPro: boolean
@@ -29,6 +30,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
   const planMeta = getDisplayPlanMeta({ tier })
   const isStarter = planMeta.tier === 'starter'
   const isCloser = planMeta.tier === 'closer'
+  const isPaid = !isStarter
   const showHouseBadge = isCloser && Boolean(isHouseCloserOverride)
   const supabase = useMemo(() => createClient(), [])
   const [username, setUsername] = useState<string>('Account')
@@ -95,7 +97,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 }
               >
                 <Shield className="h-3 w-3 mr-1" />
-                {username} — {isStarter ? 'Starter' : 'Closer'}
+                {username} — {formatTierLabel(planMeta.tier as Tier)}
               </Badge>
               {showHouseBadge ? <HouseCloserBadge /> : null}
             </div>
@@ -125,7 +127,27 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
               </div>
             ) : (
               <>
-                {(isCloser || isPro) ? (
+                {planMeta.tier === 'closer' ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push('/pricing?target=closer_plus')}
+                    className="neon-border hover:glow-effect"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Upgrade to Closer+
+                  </Button>
+                ) : planMeta.tier === 'closer_plus' ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push('/pricing?target=team')}
+                    className="neon-border hover:glow-effect"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Upgrade to Team
+                  </Button>
+                ) : null}
+
+                {isPaid ? (
                   <Button
                     variant="outline"
                     onClick={handleManageBilling}

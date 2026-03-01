@@ -4,10 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { BuildInfo } from '@/lib/debug/buildInfo'
 
 type Plan = 'free' | 'pro'
-type Tier = 'starter' | 'closer'
+type Tier = 'starter' | 'closer' | 'closer_plus' | 'team'
 
 export function computeIsPro(plan: Plan, tier: Tier): boolean {
-  return plan === 'pro' || tier === 'closer'
+  return plan === 'pro' || tier !== 'starter'
 }
 
 interface PlanContextValue {
@@ -74,10 +74,8 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
         setPlan(payload.plan)
       }
       // Product tiers are starter/closer. Treat legacy "team" as "closer" for backward compatibility.
-      if (payload?.tier === 'starter' || payload?.tier === 'closer') {
+      if (payload?.tier === 'starter' || payload?.tier === 'closer' || payload?.tier === 'closer_plus' || payload?.tier === 'team') {
         setTier(payload.tier)
-      } else if (payload?.tier === 'team') {
-        setTier('closer')
       } else {
         // Safe default: treat unknown/missing as Starter.
         setTier('starter')

@@ -4,6 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import type { BuildInfo } from '@/lib/debug/buildInfo'
+import type { Tier } from '@/lib/billing/tier'
 
 export function BuildDebugPanel({
   tier,
@@ -12,7 +13,7 @@ export function BuildDebugPanel({
   plan,
   planId,
 }: {
-  tier: 'starter' | 'closer'
+  tier: Tier
   isHouseCloserOverride: boolean
   buildInfo: BuildInfo | null
   plan: 'free' | 'pro'

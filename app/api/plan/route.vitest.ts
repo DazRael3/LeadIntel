@@ -76,13 +76,26 @@ vi.mock('@/lib/supabase/admin', () => ({
 describe('/api/plan', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.resetModules()
     mockSubRow = null
     mockUserRow = null
     mockAuthedUser = { id: 'user_1', email: 'user@example.com' }
     mockAuthEmail = 'user@example.com'
+
+    // Minimal env to satisfy validation.
+    process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key'
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_123'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
+    process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
+    process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
+    process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test-openai'
+
     process.env.ENABLE_APP_TRIAL = '0'
     process.env.STRIPE_PRICE_ID_PRO = 'price_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_pro_123'
+    process.env.STRIPE_PRICE_ID_CLOSER_PLUS = 'price_plus_123'
     process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
     process.env.HOUSE_CLOSER_EMAILS = ''
   })
@@ -141,7 +154,7 @@ describe('/api/plan', () => {
     expect(json.data?.isHouseCloserOverride).toBe(false)
   })
 
-  it('active subscription with non-closer price -> still treated as closer tier (legacy team -> closer)', async () => {
+  it('active subscription with team price -> team tier, planId team', async () => {
     mockSubRow = { status: 'active', stripe_price_id: 'price_team_123' }
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
@@ -149,8 +162,22 @@ describe('/api/plan', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.ok).toBe(true)
-    expect(json.data?.tier).toBe('closer')
-    expect(json.data?.planId).toBe('pro')
+    expect(json.data?.tier).toBe('team')
+    expect(json.data?.planId).toBe('team')
+    expect(json.data?.plan).toBe('pro')
+    expect(json.data?.isHouseCloserOverride).toBe(false)
+  })
+
+  it('active subscription with closer_plus price -> closer_plus tier, planId closer_plus', async () => {
+    mockSubRow = { status: 'active', stripe_price_id: 'price_plus_123' }
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('closer_plus')
+    expect(json.data?.planId).toBe('closer_plus')
     expect(json.data?.plan).toBe('pro')
     expect(json.data?.isHouseCloserOverride).toBe(false)
   })

@@ -17,5 +17,13 @@ describe('computeIsPro', () => {
   it('(pro, closer) -> true', () => {
     expect(computeIsPro('pro', 'closer')).toBe(true)
   })
+
+  it('(free, closer_plus) -> true', () => {
+    expect(computeIsPro('free', 'closer_plus')).toBe(true)
+  })
+
+  it('(free, team) -> true', () => {
+    expect(computeIsPro('free', 'team')).toBe(true)
+  })
 })
 
