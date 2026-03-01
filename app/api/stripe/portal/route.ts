@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
 import { stripe } from '@/lib/stripe'
-import { clientEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
 
@@ -29,7 +29,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
       return fail(ErrorCode.NOT_FOUND, 'No Stripe customer found', undefined, undefined, bridge, requestId)
     }
 
-    const siteUrl = clientEnv.NEXT_PUBLIC_SITE_URL || ''
+    const siteUrl = serverEnv.NEXT_PUBLIC_SITE_URL || ''
     const returnUrl = siteUrl ? `${siteUrl}/dashboard` : undefined
 
     const session = await stripe.billingPortal.sessions.create({

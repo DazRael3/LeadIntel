@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { serverEnv, clientEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env'
 import { ok, fail, asHttpError, ErrorCode } from '@/lib/api/http'
 import { CreateUserSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
@@ -32,7 +32,7 @@ export const POST = withApiGuard(
 
     // Create Supabase admin client
     const supabaseAdmin = createClient(
-      clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+      serverEnv.NEXT_PUBLIC_SUPABASE_URL,
       serverEnv.SUPABASE_SERVICE_ROLE_KEY,
       {
         auth: {

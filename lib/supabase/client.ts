@@ -25,6 +25,19 @@ export function createClient() {
   if (isE2E()) {
     return createE2EBrowserSupabaseClient()
   }
+  // Next.js can execute Client Components during server prerender/build.
+  // The browser Supabase client must never be instantiated on the server, and build
+  // environments may not have NEXT_PUBLIC_SUPABASE_* configured.
+  if (typeof window === 'undefined') {
+    return new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('Supabase browser client was accessed on the server')
+        },
+      }
+    ) as unknown as ReturnType<typeof createBrowserClient>
+  }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = getSupabaseKey()
   const { primary } = getDbSchema()

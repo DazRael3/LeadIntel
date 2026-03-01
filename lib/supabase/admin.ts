@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { clientEnv, serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env'
 import { isE2E } from '@/lib/runtimeFlags'
 import { createE2EServerSupabaseClient } from '@/lib/supabase/e2e'
 import { assertSupabaseServiceRoleConfigured } from '@/lib/config/runtimeEnv'
@@ -23,8 +23,8 @@ export function createSupabaseAdminClient(options?: { schema?: string }) {
   // Some environments may set `NEXT_PUBLIC_SUPABASE_DB_SCHEMA` to "public" for other surfaces,
   // so callers that participate in plan resolution should pass `{ schema: 'api' }`.
   const schema =
-    (options?.schema ?? clientEnv.NEXT_PUBLIC_SUPABASE_DB_SCHEMA ?? 'api').trim() || 'api'
-  return createClient(clientEnv.NEXT_PUBLIC_SUPABASE_URL, serverEnv.SUPABASE_SERVICE_ROLE_KEY, {
+    (options?.schema ?? serverEnv.SUPABASE_DB_SCHEMA ?? serverEnv.SUPABASE_DB_SCHEMA_FALLBACK ?? 'api').trim() || 'api'
+  return createClient(serverEnv.NEXT_PUBLIC_SUPABASE_URL, serverEnv.SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

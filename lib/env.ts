@@ -72,6 +72,15 @@ const serverEnvSchema = z.object({
   STRIPE_PRICE_ID: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_PRO: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_TEAM: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  // Optional additional price IDs (multi-tier / annual / seats). All optional for backward compatibility.
+  STRIPE_PRICE_ID_CLOSER_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  STRIPE_PRICE_ID_CLOSER_PLUS: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  STRIPE_PRICE_ID_CLOSER_PLUS_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  STRIPE_PRICE_ID_TEAM_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  STRIPE_PRICE_ID_TEAM_BASE: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  STRIPE_PRICE_ID_TEAM_BASE_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  STRIPE_PRICE_ID_TEAM_SEAT: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
+  STRIPE_PRICE_ID_TEAM_SEAT_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_', 'Invalid Stripe webhook secret format'),
   
   // OpenAI
@@ -369,7 +378,9 @@ export const serverEnv = new Proxy({} as ServerEnv, {
  * Validated client environment variables
  * Safe to use in client-side code (browser)
  */
-export const clientEnv = (() => {
+let cachedClientEnv: ClientEnv | null = null
+
+function buildClientEnv(): ClientEnv {
   const parsed = clientEnvSchema.safeParse({
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -391,7 +402,27 @@ export const clientEnv = (() => {
   }
 
   return parsed.data
-})()
+}
+
+function resolveClientEnv(): ClientEnv {
+  if (!cachedClientEnv) {
+    cachedClientEnv = buildClientEnv()
+  }
+  return cachedClientEnv
+}
+
+export function getClientEnv(): ClientEnv {
+  return resolveClientEnv()
+}
+
+export const clientEnv = new Proxy({} as ClientEnv, {
+  get(_, prop) {
+    if (typeof prop === 'symbol') {
+      return Reflect.get(resolveClientEnv(), prop)
+    }
+    return resolveClientEnv()[prop as keyof ClientEnv]
+  },
+})
 
 /**
  * Type exports for use in other files

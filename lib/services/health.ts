@@ -1,4 +1,4 @@
-import { clientEnv, serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env'
 import { isTestLikeEnv } from '@/lib/runtimeFlags'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { Redis } from '@upstash/redis'
@@ -61,7 +61,7 @@ export async function checkDb(): Promise<HealthComponent> {
 export async function checkSupabaseApi(): Promise<HealthComponent> {
   if (isTestLikeEnv()) return componentOk('skipped in test-like env')
   try {
-    const url = `${clientEnv.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health`
+    const url = `${serverEnv.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health`
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 1500)
     const res = await fetch(url, { method: 'GET', signal: controller.signal })

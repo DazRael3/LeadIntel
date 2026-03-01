@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { serverEnv, clientEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env'
 import { fail, ErrorCode } from './http'
 
 /**
@@ -40,7 +40,7 @@ function isLocalhostOrigin(origin: string): boolean {
 function getAllowedOrigins(): string[] {
   // Get from env or use site URL as default
   const allowedOriginsEnv = process.env.ALLOWED_ORIGINS
-  const siteUrl = clientEnv.NEXT_PUBLIC_SITE_URL
+  const siteUrl = serverEnv.NEXT_PUBLIC_SITE_URL
   
   const origins: string[] = []
   
