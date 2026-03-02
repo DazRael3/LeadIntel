@@ -779,6 +779,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/sample-digest': {
+    tier: 'B',
+    maxBytes: 32768, // 32KB
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 0, // rate limiting handled inside the route (Upstash-first + in-memory fallback)
+    },
+    originRequired: true,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
 }
 
 /**

@@ -125,6 +125,52 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NODE_ENV=development
 ```
 
+---
+
+## Optional: Analytics (PostHog)
+
+Analytics are **fully optional**. If you do not set these env vars, tracking is a no-op and the app will not error.
+
+```env
+# Enable analytics capture (0/1)
+NEXT_PUBLIC_ANALYTICS_ENABLED=1
+
+# PostHog project API key (client-side)
+NEXT_PUBLIC_POSTHOG_KEY=phc_...
+
+# Optional PostHog host (defaults to https://app.posthog.com)
+NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
+
+# Optional server key (if omitted, the server will fall back to NEXT_PUBLIC_POSTHOG_KEY)
+POSTHOG_API_KEY=phc_...
+```
+
+### Tracked events (key ones)
+
+- `landing_try_sample_submitted`
+- `landing_sample_generated` (includes `score`)
+- `landing_sample_email_requested`
+- `landing_sample_email_sent`
+- `cta_signup_clicked`
+- `pricing_cta_clicked`
+
+### Verify locally
+
+- Set the env vars above in `.env.local`
+- Start the app and trigger actions (homepage CTAs, sample generator, pricing CTA)
+- Confirm events in PostHog “Live events”
+
+---
+
+## Optional: 1-minute demo asset
+
+To use a real demo media asset on the homepage, add one of:
+
+- `public/demo.mp4` (preferred)
+- `public/demo.gif`
+
+If no asset exists, the homepage shows a terminal-style placeholder simulation.
+
 #### Optional: Third-Party Integrations
 
 ```env

@@ -15,8 +15,8 @@ import { formatErrorMessage } from "@/lib/utils/format-error"
 import Link from "next/link"
 import { BrandHero } from "@/components/BrandHero"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
-import { DemoLoop } from "@/components/landing/DemoLoop"
-import { TryLeadIntel } from "@/components/landing/TryLeadIntel"
+import { OneMinuteDemo } from "@/components/landing/OneMinuteDemo"
+import { TrySampleDigest } from "@/components/landing/TrySampleDigest"
 import { track } from "@/lib/analytics"
 
 type TriggerEventRow = {
@@ -287,13 +287,13 @@ export default function LandingClient() {
           <div className="space-y-16">
             {/* Hero */}
             <section className="pt-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+              <div className="grid grid-cols-1 gap-8 items-start">
                 <div className="max-w-4xl">
                   <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
                     Wake up to a daily shortlist of accounts ready to talk.
                   </h2>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    For solo SDRs/AEs selling B2B SaaS to mid‑market/enterprise.
+                    For B2B SDRs/AEs who need daily “why now” signals and ready-to-send outreach.
                   </p>
                   <p className="text-lg text-muted-foreground mt-4 max-w-3xl">
                     LeadIntel turns noisy markets into a <span className="font-semibold text-foreground">Daily Deal Digest</span>, scores your accounts
@@ -301,31 +301,38 @@ export default function LandingClient() {
                     spend mornings booking meetings — not researching.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                    <Button asChild size="lg">
-                      <Link
-                        href="/signup?redirect=/dashboard"
-                        onClick={() => track('landing_click_signup', { placement: 'hero' })}
-                      >
-                        Start free
-                      </Link>
+                    <Button asChild size="lg" className="neon-border hover:glow-effect">
+                      <Link href="#try-sample">Try a sample digest</Link>
                     </Button>
                     <Button asChild variant="outline" size="lg">
-                      <Link href="#try-it">Try it</Link>
+                      <Link
+                        href="/signup?redirect=/dashboard"
+                        onClick={() => track('cta_signup_clicked', { source: 'landing_hero' })}
+                      >
+                        Sign up
+                      </Link>
                     </Button>
                   </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    Prefer to compare plans first?{' '}
+                    <Link
+                      href="/pricing"
+                      className="text-cyan-400 hover:underline"
+                      onClick={() => track('pricing_cta_clicked', { source: 'landing_hero_text' })}
+                    >
+                      See pricing
+                    </Link>
+                    .
+                  </div>
 
-                  <div className="mt-6 text-sm text-muted-foreground">
-                    <div className="font-medium text-foreground">Trigger types</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <Badge variant="outline">Funding</Badge>
-                      <Badge variant="outline">Hiring spikes</Badge>
-                      <Badge variant="outline">Partnerships</Badge>
-                      <Badge variant="outline">Product launches</Badge>
-                    </div>
-                    <div className="mt-4 font-medium text-foreground">Regions</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      North America, UK/EU, and ANZ (best-effort via English-language sources).
-                    </div>
+                  <div className="mt-6">
+                    <div className="text-sm font-medium text-foreground">What you get</div>
+                    <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                      <li>Daily Deal Digest</li>
+                      <li>Lead score 0–100</li>
+                      <li>Pitch/outreach templates</li>
+                      <li>Trigger/event signals (funding, launches, hiring spikes, press/partnerships)</li>
+                    </ul>
                   </div>
 
                   <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -364,13 +371,32 @@ export default function LandingClient() {
                   </Card>
                 </div>
                 </div>
+              </div>
+            </section>
 
-                <div className="space-y-4">
-                  <DemoLoop />
-                  <div id="try-it" className="scroll-mt-24">
-                    <TryLeadIntel />
-                  </div>
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              <OneMinuteDemo />
+              <div className="space-y-4">
+                <div id="try-sample" className="scroll-mt-24">
+                  <TrySampleDigest />
                 </div>
+                <Card className="border-cyan-500/10 bg-card/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Signals included</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">Funding</Badge>
+                      <Badge variant="outline">Product launches</Badge>
+                      <Badge variant="outline">Hiring spikes</Badge>
+                      <Badge variant="outline">Press / partnerships</Badge>
+                      <Badge variant="outline">Other trigger events</Badge>
+                    </div>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Signals are provider-backed and configurable. This list is illustrative, not exhaustive.
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </section>
 
