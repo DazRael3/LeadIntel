@@ -10,6 +10,7 @@ import { buildUserDigest } from '@/lib/services/digest'
 import { renderDailyDigestEmailHtml, renderDailyDigestEmailText } from '@/lib/email/templates'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { insertEmailLog } from '@/lib/email/email-logs'
+import { captureServerEvent } from '@/lib/analytics/posthog-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -151,6 +152,15 @@ export const POST = withApiGuard(
               status: 'sent',
               resendMessageId: sendRes.messageId,
               kind: 'digest',
+            })
+            // Funnel tracking: accounts -> first digest sent.
+            await captureServerEvent({
+              distinctId: u.user_id,
+              event: 'digest_sent',
+              properties: {
+                kind: 'daily',
+                hasWebhook: Boolean(u.digest_webhook_url),
+              },
             })
           } else {
             logWarn({

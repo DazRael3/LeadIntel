@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { createClient } from '@/lib/supabase/client'
 import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { BrandHero } from '@/components/BrandHero'
+import { track } from '@/lib/analytics'
 
 interface LoginClientProps {
   initialMode: 'signin' | 'signup'
@@ -80,6 +81,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
 
     try {
       if (mode === 'signup') {
+        track('signup_submitted')
         // Sign up with email confirmation redirect
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
@@ -95,6 +97,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
 
         // If session exists, user is automatically signed in - redirect immediately
         if (data.session) {
+          track('signup_success', { method: 'password' })
           router.push(redirectTo)
           return
         }
@@ -102,12 +105,14 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         // No session returned - handle based on environment
         if (data.user && !data.session) {
           if (isDev) {
+            track('signup_needs_email_confirm')
             // Dev mode: Show warning about Confirm email being ON
             setInfo('No session returned. For local dev, disable Supabase "Confirm email" and delete the unconfirmed user, then sign up again.')
             setShowDevTips(true)
             setLoading(false)
             return
           } else {
+            track('signup_needs_email_confirm')
             // Production: Show email confirmation message
             setInfo('Check your email to confirm your account')
             setLoading(false)
@@ -130,6 +135,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         }
 
         // Redirect to the target page
+        track('signin_success', { method: 'password' })
         router.push(redirectTo)
         // Note: loading state will be reset by component unmount, but set it here too for safety
         setLoading(false)
@@ -137,6 +143,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
     } catch (err: unknown) {
       // Show precise error messages
       const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
+      track('auth_error', { mode, message: errorMessage.slice(0, 120) })
       setError(errorMessage)
       setLoading(false)
     } finally {

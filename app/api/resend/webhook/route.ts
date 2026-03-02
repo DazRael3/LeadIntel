@@ -7,6 +7,7 @@ import { verifyResendWebhookSignature } from '@/lib/email/resend-webhook'
 import { captureBreadcrumb, captureException, captureMessage } from '@/lib/observability/sentry'
 import { isFeatureEnabled } from '@/lib/services/feature-flags'
 import { recordCounter } from '@/lib/observability/metrics'
+import { captureServerEvent } from '@/lib/analytics/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -115,6 +116,14 @@ export const POST = withApiGuard(
           })
         } catch {
           // Ignore: engagement table may not exist yet
+        }
+
+        // Funnel tracking: first digest opened/clicked (best-effort).
+        if ((event.type || '').includes('opened')) {
+          await captureServerEvent({ distinctId: correlated.user_id, event: 'digest_opened' })
+        }
+        if ((event.type || '').includes('clicked')) {
+          await captureServerEvent({ distinctId: correlated.user_id, event: 'digest_clicked' })
         }
       }
 

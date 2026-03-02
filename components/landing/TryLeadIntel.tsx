@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { AlertCircle, Loader2, Mail } from 'lucide-react'
+import { track } from '@/lib/analytics'
 
 type DemoTryResponse = {
   company: string
@@ -58,6 +59,7 @@ export function TryLeadIntel() {
         return
       }
       setResult(data as DemoTryResponse)
+      track('landing_try_generated', { company: (data as DemoTryResponse)?.company ?? company.trim() })
     } catch {
       setError('Failed to generate demo. Please try again.')
       setResult(null)
@@ -85,10 +87,12 @@ export function TryLeadIntel() {
       const data = (payload as any)?.data ?? payload
       if (!res.ok || !data?.sent) {
         setError('Email delivery is temporarily unavailable. Please sign up to receive digests in-app.')
+        track('landing_demo_email_failed', { company: result.company })
         setEmailStatus('idle')
         return
       }
       setEmailStatus('sent')
+      track('landing_demo_email_sent', { company: result.company })
     } catch {
       setError('Email delivery is temporarily unavailable. Please sign up to receive digests in-app.')
       setEmailStatus('idle')

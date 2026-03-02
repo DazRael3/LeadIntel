@@ -16,6 +16,7 @@ import { PITCH_TEMPLATES, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { ProGate } from '@/components/ProGate'
 import { usePlan } from '@/components/PlanProvider'
 import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
+import { track } from '@/lib/analytics'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -506,6 +507,10 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
       const pitchText = typeof data.pitch === 'string' ? data.pitch.trim() : ''
       if (pitchText) {
         setPitch(pitchText)
+        track('pitch_generated', {
+          templateId,
+          hasDomain: Boolean(extractDomainFromInput(companyUrl)),
+        })
         await persistSaved(companyUrl)
         onCompanyContextChange?.({
           companyInput: companyUrl,

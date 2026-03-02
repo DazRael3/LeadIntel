@@ -17,6 +17,7 @@ import { BrandHero } from "@/components/BrandHero"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
 import { DemoLoop } from "@/components/landing/DemoLoop"
 import { TryLeadIntel } from "@/components/landing/TryLeadIntel"
+import { track } from "@/lib/analytics"
 
 type TriggerEventRow = {
   id: string
@@ -223,6 +224,12 @@ export default function LandingClient() {
     }
   }, [supabase, loadEvents, checkSubscription, loadQuickStats])
 
+  useEffect(() => {
+    if (!isLoggedIn) {
+      track('landing_view', { path: '/' })
+    }
+  }, [isLoggedIn])
+
   const handleGeneratePitch = (companyUrl: string, companyName: string) => {
     router.push(`/pitch?url=${encodeURIComponent(companyUrl)}&name=${encodeURIComponent(companyName)}`)
   }
@@ -295,7 +302,12 @@ export default function LandingClient() {
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     <Button asChild size="lg">
-                      <Link href="/signup?redirect=/dashboard">Start free</Link>
+                      <Link
+                        href="/signup?redirect=/dashboard"
+                        onClick={() => track('landing_click_signup', { placement: 'hero' })}
+                      >
+                        Start free
+                      </Link>
                     </Button>
                     <Button asChild variant="outline" size="lg">
                       <Link href="#try-it">Try it</Link>

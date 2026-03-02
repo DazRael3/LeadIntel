@@ -8,7 +8,7 @@ export const metadata = {
 }
 
 export default function SupportPage() {
-  const supportEmail = 'support@dazrael.com'
+  const supportEmail = 'leadintel@dazrael.com'
   const mailto = `mailto:${supportEmail}?subject=${encodeURIComponent('LeadIntel Support')}`
 
   return (

@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Loader2, ArrowRight, ArrowLeft, Check, Zap, AlertTriangle, X } from "lucide-react"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
+import { track } from "@/lib/analytics"
 
 interface OnboardingWizardProps {
   onComplete: () => void
@@ -122,6 +123,13 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
 
   const handleNext = () => {
     if (step === 1 && whatYouSell && idealCustomer && role && teamSize && primaryGoal) {
+      track('created_icp', {
+        role,
+        teamSize,
+        primaryGoal,
+        hasWhatYouSell: Boolean(whatYouSell.trim()),
+        hasIdealCustomer: Boolean(idealCustomer.trim()),
+      })
       setStep(2)
     } else if (step === 2 && selectedIndustries.length > 0) {
       setStep(3)
@@ -247,6 +255,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
         title: "Setup Complete!",
         description: "Your settings have been saved successfully.",
       })
+      track('onboarding_completed', { allowProductUpdates })
       
       onComplete()
     } catch (error: unknown) {
