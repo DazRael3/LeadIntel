@@ -751,6 +751,34 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+
+  // Tier C: Public demo (no auth; strict IP rate limits)
+  'POST:/api/demo/try': {
+    tier: 'B',
+    maxBytes: 16384, // 16KB
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 8,
+    },
+    originRequired: true,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/demo/email': {
+    tier: 'B',
+    maxBytes: 32768, // 32KB
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 5,
+    },
+    originRequired: true,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
 }
 
 /**

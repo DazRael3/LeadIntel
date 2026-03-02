@@ -31,6 +31,7 @@ import { ViewModeToggle } from './components/ViewModeToggle'
 import { ProOnlyCard } from './components/ProOnlyCard'
 import { CommunicationPreferencesCard } from './components/CommunicationPreferencesCard'
 import { ProGate } from '@/components/ProGate'
+import { ActivationGoalCard } from './components/ActivationGoalCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -176,6 +177,7 @@ export function DashboardClient({
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
+                <ActivationGoalCard totalLeads={totalLeads} />
                 <PitchGenerator
                   initialUrl={initialCompanyInput}
                   onCompanyContextChange={onCompanyContextChange}

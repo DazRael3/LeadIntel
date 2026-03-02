@@ -15,6 +15,8 @@ import { formatErrorMessage } from "@/lib/utils/format-error"
 import Link from "next/link"
 import { BrandHero } from "@/components/BrandHero"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
+import { DemoLoop } from "@/components/landing/DemoLoop"
+import { TryLeadIntel } from "@/components/landing/TryLeadIntel"
 
 type TriggerEventRow = {
   id: string
@@ -278,25 +280,43 @@ export default function LandingClient() {
           <div className="space-y-16">
             {/* Hero */}
             <section className="pt-6">
-              <div className="max-w-4xl">
-                <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-                  Wake up to a daily shortlist of accounts ready to talk.
-                </h2>
-                <p className="text-lg text-muted-foreground mt-4 max-w-3xl">
-                  LeadIntel turns noisy markets into a <span className="font-semibold text-foreground">Daily Deal Digest</span>, scores your accounts
-                  <span className="font-semibold text-foreground"> 0–100</span>, and generates <span className="font-semibold text-foreground">conversion-ready pitch templates</span> so you can
-                  spend mornings booking meetings — not researching.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                  <Button asChild size="lg">
-                    <Link href="/signup?redirect=/dashboard">Start free</Link>
-                  </Button>
-                  <Button asChild variant="outline" size="lg">
-                    <Link href="#sample-digest">See a sample digest</Link>
-                  </Button>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                <div className="max-w-4xl">
+                  <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
+                    Wake up to a daily shortlist of accounts ready to talk.
+                  </h2>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    For solo SDRs/AEs selling B2B SaaS to mid‑market/enterprise.
+                  </p>
+                  <p className="text-lg text-muted-foreground mt-4 max-w-3xl">
+                    LeadIntel turns noisy markets into a <span className="font-semibold text-foreground">Daily Deal Digest</span>, scores your accounts
+                    <span className="font-semibold text-foreground"> 0–100</span>, and generates <span className="font-semibold text-foreground">conversion-ready pitch templates</span> so you can
+                    spend mornings booking meetings — not researching.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                    <Button asChild size="lg">
+                      <Link href="/signup?redirect=/dashboard">Start free</Link>
+                    </Button>
+                    <Button asChild variant="outline" size="lg">
+                      <Link href="#try-it">Try it</Link>
+                    </Button>
+                  </div>
 
-                <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="mt-6 text-sm text-muted-foreground">
+                    <div className="font-medium text-foreground">Trigger types</div>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      <Badge variant="outline">Funding</Badge>
+                      <Badge variant="outline">Hiring spikes</Badge>
+                      <Badge variant="outline">Partnerships</Badge>
+                      <Badge variant="outline">Product launches</Badge>
+                    </div>
+                    <div className="mt-4 font-medium text-foreground">Regions</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      North America, UK/EU, and ANZ (best-effort via English-language sources).
+                    </div>
+                  </div>
+
+                  <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Card className="border-cyan-500/10 bg-card/50">
                     <CardContent className="pt-6">
                       <div className="flex items-center gap-2 font-semibold">
@@ -330,6 +350,14 @@ export default function LandingClient() {
                       </p>
                     </CardContent>
                   </Card>
+                </div>
+                </div>
+
+                <div className="space-y-4">
+                  <DemoLoop />
+                  <div id="try-it" className="scroll-mt-24">
+                    <TryLeadIntel />
+                  </div>
                 </div>
               </div>
             </section>
