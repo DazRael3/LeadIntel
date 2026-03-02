@@ -581,6 +581,45 @@ export function Pricing() {
           </Card>
         </div>
 
+        <div className="mt-12 max-w-6xl mx-auto">
+          <Card className="border-cyan-500/10 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">FAQ</CardTitle>
+              <CardDescription>Clear answers to the questions buyers ask before approving spend.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-muted-foreground">
+              <div>
+                <div className="font-medium text-foreground">What does “Annual (save 2 months)” mean?</div>
+                <div className="mt-1">
+                  Annual billing is priced at <span className="font-medium text-foreground">10× the monthly rate</span>. You
+                  get the same plan, paid once per year.
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-foreground">Can I cancel anytime?</div>
+                <div className="mt-1">
+                  Yes. Use <span className="font-medium text-foreground">Manage billing</span> in the dashboard to open Stripe
+                  and cancel or adjust your subscription.
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-foreground">How do Team seats work?</div>
+                <div className="mt-1">
+                  Team includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later
+                  in Stripe.
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-foreground">Is my data safe?</div>
+                <div className="mt-1">
+                  Billing runs on Stripe. Authentication runs on Supabase. We avoid exposing secrets to the client and enforce
+                  structured API responses across the app.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">

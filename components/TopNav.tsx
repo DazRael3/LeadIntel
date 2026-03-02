@@ -73,6 +73,13 @@ export function TopNav() {
 
           {/* Right: Auth buttons */}
           <div className="flex items-center space-x-3">
+            <Button
+              asChild
+              variant="ghost"
+              className="hidden sm:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            >
+              <Link href="/support">Support</Link>
+            </Button>
             {loading && !supabaseError ? (
               <div className="h-9 w-20 bg-muted animate-pulse rounded" />
             ) : isLoggedIn && !supabaseError ? (
