@@ -475,11 +475,14 @@ export function Pricing() {
                   <CardTitle className="text-2xl bloomberg-font">Team</CardTitle>
                   <Badge className="bg-slate-500/10 text-slate-200 border-slate-500/20">Seats</Badge>
                 </div>
-                <div className="flex items-baseline gap-2 mt-4">
-                  <span className="text-5xl font-bold text-slate-100">{formatCurrency(teamBasePrice)}</span>
-                  <span className="text-muted-foreground">
-                    {cadenceLabel} + {formatCurrency(teamSeatPrice)}/seat{billingCycle === 'annual' ? '/year' : '/month'}
-                  </span>
+                <div className="mt-4 flex flex-col gap-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-5xl font-bold text-slate-100">{formatCurrency(teamBasePrice)}</span>
+                    <span className="text-muted-foreground">{cadenceLabel}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground leading-tight">
+                    + {formatCurrency(teamSeatPrice)}/seat{billingCycle === 'annual' ? '/year' : '/month'}
+                  </div>
                 </div>
                 {billingCycle === 'annual' && (
                   <div className="mt-2 text-xs text-muted-foreground">
