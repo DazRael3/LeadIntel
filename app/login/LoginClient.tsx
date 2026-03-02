@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { BrandHero } from '@/components/BrandHero'
 import { track } from '@/lib/analytics'
+import { identifyClientUser } from '@/lib/analytics/posthog-client'
 
 interface LoginClientProps {
   initialMode: 'signin' | 'signup'
@@ -98,6 +99,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         // If session exists, user is automatically signed in - redirect immediately
         if (data.session) {
           track('signup_success', { method: 'password' })
+          identifyClientUser(data.session.user.id, { email: data.session.user.email ?? null })
           router.push(redirectTo)
           return
         }
@@ -136,6 +138,12 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
 
         // Redirect to the target page
         track('signin_success', { method: 'password' })
+        try {
+          const { data } = await supabase.auth.getUser()
+          if (data.user) identifyClientUser(data.user.id, { email: data.user.email ?? null })
+        } catch {
+          // best-effort
+        }
         router.push(redirectTo)
         // Note: loading state will be reset by component unmount, but set it here too for safety
         setLoading(false)
