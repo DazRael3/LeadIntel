@@ -15,6 +15,22 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
 
+const PRICING = {
+  closerMonthly: 79,
+  closerPlusMonthly: 149,
+  teamBaseMonthly: 249,
+  teamSeatMonthly: 49,
+} as const
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount)
+}
+
+function annualFromMonthly(monthly: number): number {
+  // Professional default: “save 2 months” = pay for 10 months.
+  return monthly * 10
+}
+
 /**
  * Safely parses JSON, returning null if parsing fails
  */
@@ -85,6 +101,13 @@ export function Pricing() {
   const { isPro } = usePlan()
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [teamSeats, setTeamSeats] = useState<number>(5)
+
+  const closerPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.closerMonthly) : PRICING.closerMonthly
+  const closerPlusPrice =
+    billingCycle === 'annual' ? annualFromMonthly(PRICING.closerPlusMonthly) : PRICING.closerPlusMonthly
+  const teamBasePrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.teamBaseMonthly) : PRICING.teamBaseMonthly
+  const teamSeatPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.teamSeatMonthly) : PRICING.teamSeatMonthly
+  const cadenceLabel = billingCycle === 'annual' ? '/year' : '/month'
 
   useEffect(() => {
     // Client-only query parsing (avoid useSearchParams() suspense requirement during prerender).
@@ -229,11 +252,11 @@ export function Pricing() {
                 onClick={() => setBillingCycle('annual')}
                 aria-label="Select annual billing"
               >
-                Annual
+                Annual (save 2 months)
               </button>
             </div>
             <div className="text-[11px] text-muted-foreground">
-              Annual billing requires Stripe annual price IDs to be configured.
+              {billingCycle === 'annual' ? 'Billed annually.' : 'Switch to annual to save 2 months.'}
             </div>
           </div>
         </div>
@@ -282,9 +305,12 @@ export function Pricing() {
                 <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Most Popular</Badge>
               </div>
               <div className="flex items-baseline gap-2 mt-4">
-                <span className="text-5xl font-bold neon-cyan">$79</span>
-                <span className="text-muted-foreground">/month</span>
+                <span className="text-5xl font-bold neon-cyan">{formatCurrency(closerPrice)}</span>
+                <span className="text-muted-foreground">{cadenceLabel}</span>
               </div>
+              {billingCycle === 'annual' && (
+                <div className="mt-2 text-xs text-muted-foreground">Equivalent to {formatCurrency(PRICING.closerMonthly)}/mo.</div>
+              )}
               <CardDescription>
                 For solo reps who want a daily deal shortlist and conversion-ready templates.
               </CardDescription>
@@ -376,9 +402,14 @@ export function Pricing() {
                   <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/25">Power user</Badge>
                 </div>
                 <div className="flex items-baseline gap-2 mt-4">
-                  <span className="text-5xl font-bold text-purple-200">$149</span>
-                  <span className="text-muted-foreground">/{billingCycle === 'annual' ? 'year' : 'month'}</span>
+                  <span className="text-5xl font-bold text-purple-200">{formatCurrency(closerPlusPrice)}</span>
+                  <span className="text-muted-foreground">{cadenceLabel}</span>
                 </div>
+                {billingCycle === 'annual' && (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Equivalent to {formatCurrency(PRICING.closerPlusMonthly)}/mo.
+                  </div>
+                )}
                 <CardDescription>
                   For operators who want deeper competitive coverage, automation, and higher throughput.
                 </CardDescription>
@@ -445,9 +476,16 @@ export function Pricing() {
                   <Badge className="bg-slate-500/10 text-slate-200 border-slate-500/20">Seats</Badge>
                 </div>
                 <div className="flex items-baseline gap-2 mt-4">
-                  <span className="text-5xl font-bold text-slate-100">$249</span>
-                  <span className="text-muted-foreground">+ /seat</span>
+                  <span className="text-5xl font-bold text-slate-100">{formatCurrency(teamBasePrice)}</span>
+                  <span className="text-muted-foreground">
+                    {cadenceLabel} + {formatCurrency(teamSeatPrice)}/seat{billingCycle === 'annual' ? '/year' : '/month'}
+                  </span>
                 </div>
+                {billingCycle === 'annual' && (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Equivalent to {formatCurrency(PRICING.teamBaseMonthly)} base + {formatCurrency(PRICING.teamSeatMonthly)}/seat per month.
+                  </div>
+                )}
                 <CardDescription>
                   For teams that need shared reporting, consistent messaging, and rollout across reps.
                 </CardDescription>
