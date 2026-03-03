@@ -32,6 +32,9 @@ import { ProOnlyCard } from './components/ProOnlyCard'
 import { CommunicationPreferencesCard } from './components/CommunicationPreferencesCard'
 import { ProGate } from '@/components/ProGate'
 import { ActivationGoalCard } from './components/ActivationGoalCard'
+import { InAppTourProvider } from '@/components/tour/InAppTourProvider'
+import { QuickTourActionsCard } from './components/QuickTourActionsCard'
+import { ScoreExplainerCard } from './components/ScoreExplainerCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -39,6 +42,8 @@ interface DashboardClientProps {
   initialOnboardingCompleted: boolean
   initialAutopilotEnabled: boolean
   initialCompanyInput?: string
+  initialHasIcp: boolean
+  initialTourCompletedAt: string | null
 }
 
 export function DashboardClient({ 
@@ -47,6 +52,8 @@ export function DashboardClient({
   initialOnboardingCompleted,
   initialAutopilotEnabled,
   initialCompanyInput,
+  initialHasIcp,
+  initialTourCompletedAt,
 }: DashboardClientProps) {
   const [isPro, setIsPro] = useState(initialSubscriptionTier === 'pro')
   const [viewMode, setViewMode] = useState<'startup' | 'enterprise'>('startup')
@@ -68,6 +75,8 @@ export function DashboardClient({
   const { showOnboarding, onboardingComplete, onboardingChecked, handleOnboardingComplete, dismissOnboarding } =
     useOnboarding(initialOnboardingCompleted)
   const { debugInfo, showDebug, checkWhoami, hideDebug } = useDebugInfo()
+  const [manualOnboardingStep, setManualOnboardingStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
+  const [manualOnboardingOpen, setManualOnboardingOpen] = useState(false)
 
   // Sync isPro state with plan hook
   useEffect(() => {
@@ -104,12 +113,25 @@ export function DashboardClient({
 
   const loading = creditsLoading
 
+  const autoStartEligible = (!initialHasIcp || totalLeads === 0) && !onboardingComplete
+
   return (
     <div className="min-h-screen bg-background terminal-grid">
-      <DashboardHeader />
+      <InAppTourProvider autoStartEligible={autoStartEligible} serverTourCompletedAt={initialTourCompletedAt}>
+        <DashboardHeader />
       {/* Onboarding Wizard - Only show if server says not completed */}
-      {onboardingChecked && showOnboarding && !onboardingComplete && (
-        <OnboardingWizard onComplete={handleOnboardingComplete} onClose={dismissOnboarding} />
+      {((onboardingChecked && showOnboarding && !onboardingComplete) || manualOnboardingOpen) && (
+        <OnboardingWizard
+          initialStep={manualOnboardingOpen ? manualOnboardingStep : undefined}
+          onComplete={() => {
+            handleOnboardingComplete()
+            setManualOnboardingOpen(false)
+          }}
+          onClose={() => {
+            if (manualOnboardingOpen) setManualOnboardingOpen(false)
+            else dismissOnboarding()
+          }}
+        />
       )}
 
       {/* Header */}
@@ -177,11 +199,18 @@ export function DashboardClient({
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
+                <QuickTourActionsCard
+                  onOpenOnboarding={(step) => {
+                    setManualOnboardingStep(step)
+                    setManualOnboardingOpen(true)
+                  }}
+                />
                 <ActivationGoalCard totalLeads={totalLeads} />
                 <PitchGenerator
                   initialUrl={initialCompanyInput}
                   onCompanyContextChange={onCompanyContextChange}
                 />
+                <ScoreExplainerCard />
               </div>
 
               {/* Secondary column */}
@@ -402,6 +431,7 @@ export function DashboardClient({
           </main>
         </div>
       </div>
+      </InAppTourProvider>
     </div>
   )
 }

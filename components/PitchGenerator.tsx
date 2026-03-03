@@ -688,6 +688,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                   onClick={handleGenerate}
                   disabled={isPitchCapReached || loading || !companyUrl.trim()}
                   data-testid="pitch-generate"
+                  data-tour="tour-generate-pitch"
                 >
                   {loading ? (
                     <>

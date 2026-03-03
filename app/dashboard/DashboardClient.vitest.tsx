@@ -90,6 +90,8 @@ describe('DashboardClient tabs', () => {
         initialCreditsRemaining={1}
         initialOnboardingCompleted={true}
         initialAutopilotEnabled={false}
+        initialHasIcp={false}
+        initialTourCompletedAt={null}
       />
     )
 
@@ -103,6 +105,8 @@ describe('DashboardClient tabs', () => {
         initialCreditsRemaining={1}
         initialOnboardingCompleted={true}
         initialAutopilotEnabled={false}
+        initialHasIcp={false}
+        initialTourCompletedAt={null}
       />
     )
 
@@ -122,6 +126,8 @@ describe('DashboardClient tabs', () => {
         initialCreditsRemaining={9999}
         initialOnboardingCompleted={true}
         initialAutopilotEnabled={false}
+        initialHasIcp={true}
+        initialTourCompletedAt={null}
       />
     )
 

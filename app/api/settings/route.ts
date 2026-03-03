@@ -95,6 +95,7 @@ export const POST = withApiGuard(
           : (typeof input.phone === 'string' ? input.phone.trim() : '').trim() || null
       const onboarding_completed =
         typeof input.onboarding_completed === 'boolean' ? input.onboarding_completed : true
+      const tour_completed_at = typeof input.tour_completed_at === 'string' ? input.tour_completed_at : undefined
 
       const { error, data: updated } = await supabase
         .from('user_settings')
@@ -120,6 +121,7 @@ export const POST = withApiGuard(
             ...(allow_product_updates !== undefined ? { allow_product_updates } : {}),
             ...(autopilot_enabled !== undefined ? { autopilot_enabled } : {}),
             ...(phone !== undefined ? { phone } : {}),
+            ...(tour_completed_at !== undefined ? { tour_completed_at } : {}),
             updated_at: new Date().toISOString(),
           },
           {
@@ -127,7 +129,7 @@ export const POST = withApiGuard(
           }
         )
         .select(
-          'user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, phone, what_you_sell, ideal_customer, digest_enabled, digest_dow, digest_hour, digest_webhook_url, updated_at'
+          'user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, phone, what_you_sell, ideal_customer, digest_enabled, digest_dow, digest_hour, digest_webhook_url, tour_completed_at, updated_at'
         )
         .single()
 
@@ -139,6 +141,7 @@ export const POST = withApiGuard(
           error.message?.includes('digest_dow') ||
           error.message?.includes('digest_enabled') ||
           error.message?.includes('digest_hour') ||
+          error.message?.includes('tour_completed_at') ||
           error.code === 'PGRST204' ||
           error.code === '42P01' || // PostgreSQL: undefined_table
           error.hint?.includes('schema cache')

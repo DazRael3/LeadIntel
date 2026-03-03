@@ -369,6 +369,22 @@ export default function LandingClient() {
                   <TrySampleDigest />
                 </div>
                 <Card className="border-cyan-500/10 bg-card/50">
+                  <CardContent className="pt-6 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">New here?</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Take a 2-minute tour of the workflow.</div>
+                    </div>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="neon-border hover:glow-effect"
+                      onClick={() => track('tour_cta_clicked', { source: 'home', location: 'try_sample' })}
+                    >
+                      <Link href="/tour">Take a tour</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+                <Card className="border-cyan-500/10 bg-card/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">Signals included</CardTitle>
                   </CardHeader>

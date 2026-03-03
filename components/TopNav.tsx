@@ -92,6 +92,20 @@ export function TopNav() {
               variant="ghost"
               className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
             >
+              <Link href="/compare">Compare</Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            >
+              <Link href="/tour">Tour</Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            >
               <Link href="/security">Security</Link>
             </Button>
             <Button

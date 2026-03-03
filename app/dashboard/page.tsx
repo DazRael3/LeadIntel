@@ -46,6 +46,8 @@ export default async function DashboardPage({
   let creditsRemaining = 1
   let onboardingCompleted = false
   let autopilotEnabled = false
+  let hasIcp = false
+  let tourCompletedAt: string | null = null
   const initialCompany =
     typeof searchParams?.company === 'string' ? searchParams.company.trim().slice(0, 1000) : undefined
 
@@ -120,7 +122,7 @@ export default async function DashboardPage({
   try {
     const { data: settingsRow, error: settingsError } = await supabase
       .from('user_settings')
-      .select('onboarding_completed, autopilot_enabled')
+      .select('onboarding_completed, autopilot_enabled, ideal_customer, tour_completed_at')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -135,6 +137,8 @@ export default async function DashboardPage({
     } else {
       onboardingCompleted = Boolean(settingsRow?.onboarding_completed)
       autopilotEnabled = Boolean((settingsRow as { autopilot_enabled?: boolean } | null)?.autopilot_enabled)
+      hasIcp = Boolean((settingsRow as { ideal_customer?: string | null } | null)?.ideal_customer?.trim())
+      tourCompletedAt = ((settingsRow as { tour_completed_at?: string | null } | null)?.tour_completed_at ?? null) || null
     }
   } catch (err) {
     console.warn('[Dashboard] Error loading settings, using defaults:', err)
@@ -151,6 +155,8 @@ export default async function DashboardPage({
         initialOnboardingCompleted={onboardingCompleted}
         initialAutopilotEnabled={autopilotEnabled}
         initialCompanyInput={initialCompany}
+        initialHasIcp={hasIcp}
+        initialTourCompletedAt={tourCompletedAt}
       />
     </PlanProvider>
   )

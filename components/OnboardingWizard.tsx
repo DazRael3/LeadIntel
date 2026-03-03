@@ -17,6 +17,7 @@ import { track } from '@/lib/analytics'
 interface OnboardingWizardProps {
   onComplete: () => void
   onClose?: () => void
+  initialStep?: Step
 }
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6
@@ -53,12 +54,12 @@ function buildIdealCustomerSummary(args: {
   return lines.join('\n')
 }
 
-export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps) {
+export function OnboardingWizard({ onComplete, onClose, initialStep }: OnboardingWizardProps) {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const { toast } = useToast()
 
-  const [step, setStep] = useState<Step>(1)
+  const [step, setStep] = useState<Step>(initialStep ?? 1)
   const [loading, setLoading] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
 

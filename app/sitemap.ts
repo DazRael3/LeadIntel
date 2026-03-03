@@ -1,10 +1,14 @@
 import type { MetadataRoute } from 'next'
+import { COMPARE_PAGES } from '@/lib/compare/registry'
 
 const BASE_URL = 'https://dazrael.com'
 
 const ROUTES: string[] = [
   '/',
+  '/tour',
+  '/compare',
   '/pricing',
+  '/templates',
   '/support',
   '/use-cases',
   '/use-cases/funding-outreach',
@@ -32,7 +36,9 @@ const ROUTES: string[] = [
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date()
-  return ROUTES.map((path) => ({
+  const compareRoutes = COMPARE_PAGES.map((p) => `/compare/${p.slug}`)
+  const all = [...ROUTES, ...compareRoutes]
+  return all.map((path) => ({
     url: `${BASE_URL}${path}`,
     lastModified: now,
     changeFrequency: path === '/' ? 'daily' : 'weekly',

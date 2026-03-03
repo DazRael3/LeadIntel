@@ -77,6 +77,7 @@ export const UserSettingsSchema = z.object({
   digest_hour: z.number().int().min(0).max(23).optional().default(9),
   digest_webhook_url: z.string().url('Invalid webhook URL').optional().or(z.literal('')),
   autopilot_enabled: z.boolean().optional(),
+  tour_completed_at: z.string().datetime().optional(),
 })
 
 /**
