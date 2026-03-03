@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { track } from '@/lib/analytics'
+import { COPY } from '@/lib/copy/leadintel'
 
 type ApiOk = {
   ok: true
@@ -31,16 +32,24 @@ export function TrySampleDigest() {
   const [workEmail, setWorkEmail] = useState('')
   const [emailMe, setEmailMe] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{ title: string; body: string } | null>(null)
   const [result, setResult] = useState<ApiOk['data'] | null>(null)
 
   const canSubmit = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
-  const emailVisible = emailMe
-
   async function onGenerate() {
     if (!canSubmit) return
     const trimmed = companyOrUrl.trim()
-    const wantsEmail = emailMe && workEmail.trim().length > 0
+    const email = workEmail.trim()
+    const wantsEmail = emailMe
+
+    if (wantsEmail && !email) {
+      setError({ title: COPY.validation.required, body: COPY.validation.required })
+      return
+    }
+    if (wantsEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError({ title: COPY.validation.invalidEmail, body: COPY.validation.invalidEmail })
+      return
+    }
 
     setLoading(true)
     setError(null)
@@ -59,7 +68,7 @@ export function TrySampleDigest() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyOrUrl: trimmed,
-          email: wantsEmail ? workEmail.trim() : undefined,
+          email: wantsEmail ? email : undefined,
           emailMe: wantsEmail,
         }),
       })
@@ -68,10 +77,11 @@ export function TrySampleDigest() {
       const payload: ApiEnvelope | null = rawText ? (JSON.parse(rawText) as ApiEnvelope) : null
 
       if (!res.ok || !payload || payload.ok !== true) {
-        const message =
-          (payload as ApiErr | null)?.error?.message ||
-          'Could not generate a sample. Please double-check the company or URL and try again.'
-        setError(message)
+        if (res.status === 429) {
+          setError({ title: COPY.rateLimit.title, body: COPY.rateLimit.body })
+          return
+        }
+        setError({ title: COPY.validation.invalidCompanyOrUrl, body: COPY.validation.invalidCompanyOrUrl })
         return
       }
 
@@ -81,7 +91,7 @@ export function TrySampleDigest() {
         track('landing_sample_email_sent')
       }
     } catch {
-      setError('Network error. Please try again (or refresh) and re-submit.')
+      setError({ title: COPY.errors.requestFailed.title, body: COPY.errors.requestFailed.body })
     } finally {
       setLoading(false)
     }
@@ -90,20 +100,30 @@ export function TrySampleDigest() {
   return (
     <Card className="border-cyan-500/20 bg-card/60">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Generate a sample Daily Deal Digest</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Sample output is deterministic demo data (not live signals). Use it to see the format and value.
-        </p>
+        <CardTitle className="text-lg">{COPY.home.trySample.sectionTitle}</CardTitle>
+        <p className="text-xs text-muted-foreground">{COPY.home.trySample.helper}</p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="sample_company">Company name or website URL</Label>
+          <Label htmlFor="sample_company">{COPY.home.trySample.companyLabel}</Label>
           <Input
             id="sample_company"
             value={companyOrUrl}
             onChange={(e) => setCompanyOrUrl(e.target.value)}
             placeholder="e.g., acme.com or Acme"
             disabled={loading}
+            className="bg-background"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="sample_email">{COPY.home.trySample.emailLabel}</Label>
+          <Input
+            id="sample_email"
+            value={workEmail}
+            onChange={(e) => setWorkEmail(e.target.value)}
+            placeholder="you@company.com"
+            disabled={loading || !emailMe}
             className="bg-background"
           />
         </div>
@@ -118,41 +138,32 @@ export function TrySampleDigest() {
             className="mt-1 h-4 w-4 accent-cyan-400"
           />
           <div className="flex-1">
-            <Label htmlFor="email_me">Email me this sample</Label>
-            <div className="text-xs text-muted-foreground">Optional. If email isn’t enabled yet, you’ll still see the sample on screen.</div>
+            <Label htmlFor="email_me">{COPY.home.trySample.checkboxLabel}</Label>
           </div>
         </div>
 
-        {emailVisible && (
-          <div className="space-y-2">
-            <Label htmlFor="sample_email">Work email (optional)</Label>
-            <Input
-              id="sample_email"
-              value={workEmail}
-              onChange={(e) => setWorkEmail(e.target.value)}
-              placeholder="you@company.com"
-              disabled={loading}
-              className="bg-background"
-            />
-          </div>
-        )}
-
         <div className="flex flex-col sm:flex-row gap-3">
           <Button onClick={onGenerate} disabled={!canSubmit} className="neon-border hover:glow-effect">
-            {loading ? 'Generating…' : 'Generate sample'}
+            {loading ? 'Generating…' : COPY.home.trySample.button}
           </Button>
           <Button asChild variant="outline" disabled={loading}>
             <Link href="/pricing" onClick={() => track('pricing_cta_clicked', { source: 'sample_widget' })}>
-              See pricing
+              {COPY.home.hero.secondaryCta}
             </Link>
           </Button>
         </div>
 
         {error && (
           <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded p-3">
-            <p className="font-medium">Couldn’t generate sample</p>
-            <p className="mt-1">{error}</p>
-            <p className="mt-2 text-xs text-muted-foreground">Tip: try a plain company name (e.g., “Acme”) if a URL fails.</p>
+            <p className="font-medium">{error.title}</p>
+            <p className="mt-1">{error.body}</p>
+            {error.title === COPY.rateLimit.title ? (
+              <div className="mt-3">
+                <Button size="sm" variant="outline" onClick={onGenerate}>
+                  {COPY.rateLimit.cta}
+                </Button>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -161,7 +172,7 @@ export function TrySampleDigest() {
             <div className="rounded border border-cyan-500/20 bg-background/50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="font-semibold text-foreground">
-                  Sample digest — {result.sample.company}
+                  {COPY.home.trySample.resultsTitle(result.sample.company)}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Lead score: <span className="font-semibold text-foreground">{result.sample.score}/100</span>
@@ -209,11 +220,11 @@ export function TrySampleDigest() {
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="text-sm text-muted-foreground">
-                Unlock daily digests + saved reports.
+                {COPY.home.trySample.upsellLine}
               </div>
               <Button asChild size="sm" className="neon-border hover:glow-effect">
                 <Link href="/signup?redirect=/dashboard" onClick={() => track('cta_signup_clicked', { source: 'sample_upsell' })}>
-                  Sign up
+                  {COPY.home.trySample.upsellCta}
                 </Link>
               </Button>
             </div>

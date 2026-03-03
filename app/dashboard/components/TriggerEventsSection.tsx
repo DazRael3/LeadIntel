@@ -10,6 +10,7 @@ import { track } from '@/lib/analytics'
 import { usePlan } from '@/components/PlanProvider'
 import { ProGate } from '@/components/ProGate'
 import { useRouter } from 'next/navigation'
+import { COPY } from '@/lib/copy/leadintel'
 
 interface TriggerEventsSectionProps {
   events: TriggerEvent[]
@@ -93,51 +94,36 @@ export function TriggerEventsSection({
         ) : error ? (
           <div className="text-center py-12">
             <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-400" />
-            <h3 className="text-lg font-semibold mb-2">Error Loading Events</h3>
-            <p className="text-muted-foreground mb-4">
-              {typeof error === 'string' ? error : formatErrorMessage(error)}
-            </p>
+            <h3 className="text-lg font-semibold mb-2">{COPY.errors.requestFailed.title}</h3>
+            <p className="text-muted-foreground mb-4">{COPY.errors.requestFailed.body}</p>
             <Button onClick={onRefresh} variant="outline">
               <RefreshCw className="h-4 w-4 mr-2" />
-              Retry
+              {COPY.errors.requestFailed.primary}
             </Button>
           </div>
         ) : events.length === 0 ? (
           <div className="text-center py-12">
             <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No trigger events yet</h3>
-            {isStarter ? (
-              <>
-                <p className="text-muted-foreground mb-4">
-                  No matched trigger events yet. We’ll keep watching the feeds — upgrade to Closer to unlock full signal
-                  history and more event sources.
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/pricing?target=closer')}
-                  className="neon-border hover:glow-effect"
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Upgrade to Closer
-                </Button>
-              </>
-            ) : (
-              <>
-                <p className="text-muted-foreground mb-4">
-                  We’re watching the feeds — check back soon, or generate a pitch to start tracking a company.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Events are near real-time and may take a moment to populate.
-                </p>
-              </>
-            )}
+            <h3 className="text-lg font-semibold mb-2">{COPY.states.empty.noSignals.title}</h3>
+            <p className="text-muted-foreground mb-4">{COPY.states.empty.noSignals.body}</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button
+                variant="outline"
+                onClick={() => router.push('/dashboard')}
+                className="neon-border hover:glow-effect"
+              >
+                {COPY.states.empty.noSignals.primary}
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/dashboard')} className="neon-border hover:glow-effect">
+                {COPY.states.empty.noSignals.secondary}
+              </Button>
+            </div>
           </div>
         ) : (
           <ProGate
             requiredTier="closer"
             upgradeTarget="closer"
-            label="Trigger Events (Pro)"
-            description="Unlock full signal history and more event sources with the Closer plan."
+            variant="advancedSignals"
           >
             <div className="space-y-3">
               {events.map((event) => (

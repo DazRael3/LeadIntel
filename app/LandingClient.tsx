@@ -17,6 +17,7 @@ import { getUserSafe } from "@/lib/supabase/safe-auth"
 import { OneMinuteDemo } from "@/components/landing/OneMinuteDemo"
 import { TrySampleDigest } from "@/components/landing/TrySampleDigest"
 import { track } from "@/lib/analytics"
+import { COPY } from "@/lib/copy/leadintel"
 
 type TriggerEventRow = {
   id: string
@@ -288,48 +289,37 @@ export default function LandingClient() {
               <div className="grid grid-cols-1 gap-8 items-start">
                 <div className="max-w-4xl">
                   <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-                    Wake up to a daily shortlist of accounts ready to talk.
+                    {COPY.home.hero.headline}
                   </h2>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    For B2B SDRs/AEs who need daily “why now” signals and ready-to-send outreach.
+                    {COPY.positioning.icpLine}
                   </p>
                   <p className="text-lg text-muted-foreground mt-4 max-w-3xl">
-                    LeadIntel turns noisy markets into a <span className="font-semibold text-foreground">Daily Deal Digest</span>, scores your accounts
-                    <span className="font-semibold text-foreground"> 0–100</span>, and generates <span className="font-semibold text-foreground">conversion-ready pitch templates</span> so you can
-                    spend mornings booking meetings — not researching.
+                    {COPY.home.hero.support}
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     <Button asChild size="lg" className="neon-border hover:glow-effect">
-                      <Link href="#try-sample">Try a sample digest</Link>
+                      <Link href="#try-sample">{COPY.home.hero.primaryCta}</Link>
                     </Button>
                     <Button asChild variant="outline" size="lg">
                       <Link
-                        href="/signup?redirect=/dashboard"
-                        onClick={() => track('cta_signup_clicked', { source: 'landing_hero' })}
+                        href="/pricing"
+                        onClick={() => track('pricing_cta_clicked', { source: 'landing_hero' })}
                       >
-                        Sign up
+                        {COPY.home.hero.secondaryCta}
                       </Link>
                     </Button>
                   </div>
                   <div className="mt-3 text-xs text-muted-foreground">
-                    Prefer to compare plans first?{' '}
-                    <Link
-                      href="/pricing"
-                      className="text-cyan-400 hover:underline"
-                      onClick={() => track('pricing_cta_clicked', { source: 'landing_hero_text' })}
-                    >
-                      See pricing
-                    </Link>
-                    .
+                    {COPY.home.hero.microTrust}
                   </div>
 
                   <div className="mt-6">
-                    <div className="text-sm font-medium text-foreground">What you get</div>
+                    <div className="text-sm font-medium text-foreground">{COPY.home.whatYouGet.title}</div>
                     <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                      <li>Daily Deal Digest</li>
-                      <li>Lead score 0–100</li>
-                      <li>Pitch/outreach templates</li>
-                      <li>Trigger/event signals (funding, launches, hiring spikes, press/partnerships)</li>
+                      {COPY.home.whatYouGet.bullets.map((b) => (
+                        <li key={b}>{b}</li>
+                      ))}
                     </ul>
                   </div>
 

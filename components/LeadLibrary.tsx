@@ -25,6 +25,7 @@ import {
 import { LeadDetailView } from "@/components/LeadDetailView"
 import { addLeadToWatchlist } from "@/components/Watchlist"
 import { computeStarterLeadUsage, STARTER_MAX_LEADS } from '@/lib/billing/leads-usage'
+import { COPY } from "@/lib/copy/leadintel"
 
 type WatchlistRow = {
   lead_id: string
@@ -308,16 +309,56 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
         ) : error ? (
           <div className="text-center py-12">
             <Building2 className="h-12 w-12 mx-auto mb-4 text-red-400" />
-            <p className="text-muted-foreground mb-2">We couldn’t load your leads right now.</p>
-            <p className="text-xs text-muted-foreground">{error}</p>
+            <p className="text-muted-foreground mb-2">{COPY.errors.requestFailed.title}</p>
+            <p className="text-xs text-muted-foreground">{COPY.errors.requestFailed.body}</p>
+            <div className="mt-4">
+              <Button size="sm" variant="outline" className="neon-border hover:glow-effect" onClick={() => void refresh()}>
+                {COPY.errors.requestFailed.primary}
+              </Button>
+            </div>
           </div>
         ) : filteredLeads.length === 0 ? (
           <div className="text-center py-12">
             <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">No leads yet</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Generate your first pitch in the Command Center to see it here.
-            </p>
+            {leads.length === 0 ? (
+              <>
+                <p className="text-muted-foreground">{COPY.states.empty.noSavedOutputs.title}</p>
+                <p className="text-xs text-muted-foreground mt-2">{COPY.states.empty.noSavedOutputs.body}</p>
+                <div className="mt-4 flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    size="sm"
+                    className="neon-border hover:glow-effect"
+                    onClick={() => (window.location.href = '/dashboard')}
+                  >
+                    {COPY.states.empty.noSavedOutputs.primary}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => (window.location.href = '/dashboard')}>
+                    {COPY.states.empty.noSavedOutputs.secondary}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-muted-foreground">{COPY.states.empty.noResults.title}</p>
+                <p className="text-xs text-muted-foreground mt-2">{COPY.states.empty.noResults.body}</p>
+                <div className="mt-4 flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    size="sm"
+                    className="neon-border hover:glow-effect"
+                    onClick={() => {
+                      setSearchQuery('')
+                      setSelectedEventType(null)
+                      setSelectedIndustry(null)
+                    }}
+                  >
+                    {COPY.states.empty.noResults.primary}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => (window.location.href = '/dashboard')}>
+                    {COPY.states.empty.noResults.secondary}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -75,6 +75,8 @@ export const POST = withApiGuard(
       const display_name = typeof input.display_name === 'string' ? input.display_name : undefined
       const from_email = typeof input.from_email === 'string' ? input.from_email : undefined
       const from_name = typeof input.from_name === 'string' ? input.from_name : display_name || null
+      const what_you_sell = typeof input.what_you_sell === 'string' ? input.what_you_sell : undefined
+      const ideal_customer = typeof input.ideal_customer === 'string' ? input.ideal_customer : undefined
       const digest_enabled = input.digest_enabled ?? false
       const digest_dow = input.digest_dow ?? 1
       const digest_hour = input.digest_hour ?? 9
@@ -102,6 +104,8 @@ export const POST = withApiGuard(
             ...(display_name !== undefined ? { display_name } : {}),
             ...(from_email !== undefined ? { from_email } : {}),
             from_name: from_name || null,
+            ...(what_you_sell !== undefined ? { what_you_sell } : {}),
+            ...(ideal_customer !== undefined ? { ideal_customer } : {}),
             onboarding_completed,
             digest_enabled,
             digest_dow,
@@ -123,7 +127,7 @@ export const POST = withApiGuard(
           }
         )
         .select(
-          'user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, phone, digest_enabled, digest_dow, digest_hour, digest_webhook_url, updated_at'
+          'user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, phone, what_you_sell, ideal_customer, digest_enabled, digest_dow, digest_hour, digest_webhook_url, updated_at'
         )
         .single()
 

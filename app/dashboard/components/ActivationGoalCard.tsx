@@ -3,10 +3,32 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { COPY } from '@/lib/copy/leadintel'
 
 export function ActivationGoalCard(props: { totalLeads: number }) {
   const remaining = Math.max(0, 10 - props.totalLeads)
   if (props.totalLeads >= 10) return null
+
+  if (props.totalLeads === 0) {
+    return (
+      <Card className="border-cyan-500/20 bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">{COPY.states.empty.noAccounts.title}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <div>{COPY.states.empty.noAccounts.body}</div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
+              <Link href="/dashboard">{COPY.states.empty.noAccounts.primary}</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
+              <Link href="/#try-sample">{COPY.states.empty.noAccounts.secondary}</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className="border-cyan-500/20 bg-card/50">
