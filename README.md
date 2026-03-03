@@ -505,6 +505,50 @@ npm run lifecycle:run
 
 ---
 
+## Growth Automation
+
+LeadIntel includes a small jobs framework used by cron and the admin Growth Ops dashboard.
+
+### Required env vars (by feature)
+
+- **Cron protection**
+  - `CRON_SECRET` (required for `POST /api/cron/run`)
+  - `CRON_SIGNING_SECRET` (optional; used by other cron routes via `cron_token`)
+
+- **Admin Growth Ops**
+  - `ADMIN_TOKEN` (required to access `/admin/growth`; invalid/missing token returns 404)
+
+- **Resend (email sending)**
+  - `RESEND_API_KEY` (optional; if missing, email jobs skip safely)
+  - `RESEND_FROM_EMAIL` (required to actually send)
+
+- **KPI monitor (PostHog API reads)**
+  - `POSTHOG_PROJECT_ID` (required to enable KPI reads)
+  - `POSTHOG_PERSONAL_API_KEY` (required to enable KPI reads)
+  - `POSTHOG_HOST` (optional; default `https://app.posthog.com`)
+  - `ALERT_EMAIL_TO` (required to send alerts)
+
+### Run locally
+
+```bash
+npm run content:audit
+npm run lifecycle:run
+```
+
+### Trigger jobs (cron)
+
+`POST /api/cron/run` with:
+- header: `x-cron-secret: $CRON_SECRET`
+- body: `{ "job": "kpi_monitor" | "content_audit" | "lifecycle" | "digest_lite", "dryRun": false }`
+
+### Recommended schedules
+
+- lifecycle: hourly
+- digest_lite: weekly
+- kpi_monitor: daily
+- content_audit: daily
+
+
 ## Support
 
 For issues and questions:

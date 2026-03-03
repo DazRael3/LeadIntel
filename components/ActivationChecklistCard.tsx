@@ -84,6 +84,7 @@ export function ActivationChecklistCard(props: {
           description: 'Your digest will prioritize accounts with trigger signals and draft outreach you can send fast.',
         })
         track('checklist_completed', { location: 'dashboard' })
+        track('activation_completed', { location: 'dashboard' })
       }
     } catch {
       // ignore
@@ -290,6 +291,7 @@ function UpgradeInlineNudge(props: { show: boolean }) {
           className="neon-border hover:glow-effect"
           onClick={() => {
             track('upgrade_nudge_clicked', { location: 'dashboard', reason: 'checklist_completed' })
+            track('upgrade_clicked', { source: 'nudge', location: 'dashboard', reason: 'checklist_completed', target: 'closer' })
             window.location.href = '/pricing?target=closer'
           }}
         >
@@ -300,6 +302,7 @@ function UpgradeInlineNudge(props: { show: boolean }) {
           variant="outline"
           onClick={() => {
             track('upgrade_nudge_clicked', { location: 'dashboard', reason: 'checklist_completed_secondary' })
+            track('upgrade_clicked', { source: 'nudge', location: 'dashboard', reason: 'checklist_completed_secondary' })
             window.location.href = '/pricing'
           }}
         >

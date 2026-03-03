@@ -751,6 +751,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/cron/run': {
+    tier: 'CRON',
+    maxBytes: 8192,
+    rateLimit: {
+      authPerMin: 10,
+      ipPerMin: 5,
+    },
+    originRequired: false,
+    authRequired: false, // auth via x-cron-secret header
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/lifecycle/ensure': {
     tier: 'INTERNAL',
     maxBytes: 8192,

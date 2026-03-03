@@ -100,6 +100,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         // If session exists, user is automatically signed in - redirect immediately
         if (data.session) {
           track('signup_success', { method: 'password' })
+          track('signup_completed', { method: 'password' })
           identifyClientUser(data.session.user.id, { email: data.session.user.email ?? null })
           // Ensure lifecycle + user settings rows exist (idempotent).
           try {
