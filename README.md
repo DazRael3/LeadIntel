@@ -538,6 +538,7 @@ npm run lifecycle:run
 ### Trigger jobs (cron)
 
 **Vercel Cron** calls the configured path using **GET** (timezone is **UTC**).
+On the **Hobby** plan, schedules must be **daily or less frequent** (hourly requires a paid plan).
 
 When `CRON_SECRET` is set in Vercel project env, Vercel sends:
 - `Authorization: Bearer $CRON_SECRET`
