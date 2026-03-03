@@ -537,8 +537,23 @@ npm run lifecycle:run
 
 ### Trigger jobs (cron)
 
-`POST /api/cron/run` with:
-- header: `x-cron-secret: $CRON_SECRET`
+**Vercel Cron** calls the configured path using **GET** (timezone is **UTC**).
+
+When `CRON_SECRET` is set in Vercel project env, Vercel sends:
+- `Authorization: Bearer $CRON_SECRET`
+
+Examples:
+- `GET /api/cron/run?job=kpi_monitor`
+- `GET /api/cron/run?job=content_audit`
+- `GET /api/cron/run?job=lifecycle`
+- `GET /api/cron/run?job=digest_lite`
+
+Optional:
+- `dryRun=1` to skip side effects (returns a JobResult with `status:"skipped"` where supported)
+
+For non-Vercel callers, `POST /api/cron/run` is still supported:
+- preferred header: `Authorization: Bearer $CRON_SECRET`
+- legacy header: `x-cron-secret: $CRON_SECRET`
 - body: `{ "job": "kpi_monitor" | "content_audit" | "lifecycle" | "digest_lite", "dryRun": false }`
 
 ### Recommended schedules
