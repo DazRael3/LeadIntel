@@ -148,6 +148,57 @@ NODE_ENV=production
    - Wait for build to complete
    - Visit the deployment URL
 
+---
+
+## Vercel Cron (Digest + Lifecycle)
+
+LeadIntel uses explicit cron-triggered endpoints for scheduled work. Vercel will **not** run background jobs automatically.
+
+### Endpoints
+
+- **Lifecycle emails**: `POST /api/cron/lifecycle`
+- **Digest runner** (already in repo): `POST /api/digest/run`
+
+### Auth options (production)
+
+Both endpoints are protected by the API guard and support two cron auth methods:
+
+1) **Preferred: signed query token** (`cron_token`)
+- Works even if your cron provider strips custom headers.
+- Requires `CRON_SIGNING_SECRET` (min 16 chars).
+
+2) **Legacy: header secret** (`x-cron-secret`)
+- Requires `CRON_SECRET` (min 16 chars).
+- Use only if your cron provider reliably forwards custom headers.
+
+### Compute `cron_token`
+
+Token is deterministic per route+method:
+\(token = \mathrm{base64url}(\mathrm{HMAC\_SHA256}(\text{CRON\_SIGNING\_SECRET}, \text{`v1:METHOD:PATH`}))\)
+
+You can generate it locally with a Node one-liner:
+
+```bash
+node -e "const crypto=require('crypto');const s=process.env.CRON_SIGNING_SECRET;const msg='v1:POST:/api/cron/lifecycle';console.log(crypto.createHmac('sha256',s).update(msg).digest('base64url'));"
+```
+
+Then configure the cron job URL like:
+
+- `https://dazrael.com/api/cron/lifecycle?cron_token=YOUR_TOKEN`
+- `https://dazrael.com/api/digest/run?cron_token=YOUR_TOKEN_FOR_DIGEST`
+
+### Example schedules
+
+- Lifecycle: every hour (recommended)
+- Digest: daily (or hourly if your digest logic decides “due now” per user)
+
+### Required env vars for lifecycle emails
+
+- `RESEND_API_KEY` (optional; if missing, lifecycle send will no-op safely)
+- `RESEND_FROM_EMAIL` (required to actually send emails)
+- `APP_URL` (recommended for correct links; falls back to `NEXT_PUBLIC_SITE_URL`, then `https://dazrael.com`)
+- `CRON_SIGNING_SECRET` and/or `CRON_SECRET`
+
 #### Option 2: Vercel CLI (Repeatable Deployment)
 
 **Step 1: Install and Login**
