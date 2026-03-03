@@ -1,10 +1,16 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
-import { TopNav } from '@/components/TopNav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Support | LeadIntel',
+  description: 'Get help with billing, upgrades, and using LeadIntel.',
+  openGraph: {
+    title: 'Support | LeadIntel',
+    description: 'Get help with billing, upgrades, and using LeadIntel.',
+    url: 'https://dazrael.com/support',
+  },
 }
 
 export default function SupportPage() {
@@ -13,7 +19,6 @@ export default function SupportPage() {
 
   return (
     <div className="min-h-screen bg-background terminal-grid">
-      <TopNav />
       <div className="container mx-auto px-6 py-12 space-y-8">
         <div className="max-w-3xl">
           <h1 className="text-3xl font-bold bloomberg-font neon-cyan">Support</h1>
@@ -64,12 +69,6 @@ export default function SupportPage() {
               <div className="mt-1">
                 Refresh the page, then visit <span className="font-mono text-foreground">/api/plan</span> once. If it still
                 shows Starter after a successful Stripe checkout, email support.
-              </div>
-            </div>
-            <div>
-              <div className="font-medium text-foreground">Where can I verify the deployed version?</div>
-              <div className="mt-1">
-                Open <span className="font-mono text-foreground">/api/version</span> to see the current branch and commit SHA.
               </div>
             </div>
           </CardContent>

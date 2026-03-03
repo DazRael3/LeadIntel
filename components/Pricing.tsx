@@ -620,6 +620,68 @@ export function Pricing() {
           </Card>
         </div>
 
+        <div className="mt-10 max-w-6xl mx-auto">
+          <Card className="border-cyan-500/10 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Buyer checklist</CardTitle>
+              <CardDescription>What procurement and security reviewers usually ask for.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-muted-foreground">
+              <div className="space-y-2">
+                <div className="font-medium text-foreground">Trust docs</div>
+                <div className="flex flex-wrap gap-3">
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/security"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/security' })}
+                  >
+                    Security
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/privacy"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/privacy' })}
+                  >
+                    Privacy
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/terms"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/terms' })}
+                  >
+                    Terms
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/subprocessors"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/subprocessors' })}
+                  >
+                    Subprocessors
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/dpa"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/dpa' })}
+                  >
+                    DPA
+                  </a>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="font-medium text-foreground">Operations</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Cancel and change seats via Stripe customer portal (in-app “Manage billing”).</li>
+                  <li>Data deletion requests: email <span className="font-medium text-foreground">leadintel@dazrael.com</span>.</li>
+                  <li>
+                    Service status and deploy info: <a className="text-cyan-400 hover:underline" href="/status">/status</a> and{' '}
+                    <a className="text-cyan-400 hover:underline" href="/api/version">/api/version</a>.
+                  </li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">

@@ -792,6 +792,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'GET:/api/version': {
+    tier: 'PUBLIC',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 60,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
 }
 
 /**

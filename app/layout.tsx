@@ -1,12 +1,13 @@
-import type { Metadata } from "next"
-import "./globals.css"
-import { Toaster } from "@/components/ui/toaster"
-import { ThemeProvider } from "@/components/ThemeProvider"
-import { AnalyticsBootstrap } from "@/components/AnalyticsBootstrap"
+import type { Metadata } from 'next'
+import './globals.css'
+import { Toaster } from '@/components/ui/toaster'
+import { ThemeProvider } from '@/components/ThemeProvider'
+import { AnalyticsBootstrap } from '@/components/AnalyticsBootstrap'
 
 export const metadata: Metadata = {
-  title: "LeadIntel - B2B Lead Intelligence Portal",
-  description: "Advanced B2B lead intelligence and personalized pitch generation",
+  metadataBase: new URL('https://dazrael.com'),
+  title: 'LeadIntel - B2B Lead Intelligence Portal',
+  description: 'Daily “why now” signals, deterministic scoring, and outreach templates for outbound teams.',
   icons: {
     icon: '/favicon.svg',
   },

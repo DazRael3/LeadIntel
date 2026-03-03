@@ -7,15 +7,15 @@ import { DemoLoop } from '@/components/landing/DemoLoop'
 type AssetKind = 'mp4' | 'gif' | 'none'
 
 export function OneMinuteDemo() {
-  const [broken, setBroken] = useState(false)
+  const [stage, setStage] = useState<AssetKind>('mp4')
 
   const asset: { kind: AssetKind; src: string } = useMemo(() => {
-    // Prefer mp4 if present at /public/demo.mp4 (or replace with demo.gif).
-    // If you add an asset, keep the filename stable so we don’t need code changes.
-    return { kind: 'mp4', src: '/demo.mp4' }
-  }, [])
+    if (stage === 'gif') return { kind: 'gif', src: '/demo.gif' }
+    if (stage === 'mp4') return { kind: 'mp4', src: '/demo.mp4' }
+    return { kind: 'none', src: '' }
+  }, [stage])
 
-  const showAsset = !broken && asset.kind !== 'none'
+  const showAsset = asset.kind !== 'none'
 
   return (
     <Card className="border-cyan-500/20 bg-card/60">
@@ -34,7 +34,7 @@ export function OneMinuteDemo() {
                 loop
                 playsInline
                 controls={false}
-                onError={() => setBroken(true)}
+                onError={() => setStage('gif')}
                 className="w-full h-auto"
               />
             ) : (
@@ -42,20 +42,14 @@ export function OneMinuteDemo() {
               <img
                 src={asset.src}
                 alt="LeadIntel demo"
-                onError={() => setBroken(true)}
+                onError={() => setStage('none')}
                 className="w-full h-auto"
               />
             )}
           </div>
         ) : (
           <div className="rounded border border-cyan-500/20 bg-background/50 p-4">
-            {/* TODO(marketing): Add /public/demo.mp4 (preferred) or /public/demo.gif and this will auto-render. */}
-            <div className="text-xs text-muted-foreground">
-              Demo asset not found. Showing a lightweight UI simulation instead.
-            </div>
-            <div className="mt-3">
-              <DemoLoop />
-            </div>
+            <DemoLoop />
           </div>
         )}
       </CardContent>

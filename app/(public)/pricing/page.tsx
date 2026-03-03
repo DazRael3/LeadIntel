@@ -1,0 +1,104 @@
+import type { Metadata } from 'next'
+import { JsonLd } from '@/components/seo/JsonLd'
+import PricingClientPage from './PricingClientPage'
+
+export const metadata: Metadata = {
+  title: 'Pricing | LeadIntel',
+  description: 'Transparent pricing for daily digests, scoring, and outreach templates.',
+  openGraph: {
+    title: 'Pricing | LeadIntel',
+    description: 'Transparent pricing for daily digests, scoring, and outreach templates.',
+    url: 'https://dazrael.com/pricing',
+  },
+}
+
+export default function PricingPage() {
+  const offersJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'LeadIntel Pricing',
+    url: 'https://dazrael.com/pricing',
+    isPartOf: { '@type': 'WebSite', name: 'LeadIntel', url: 'https://dazrael.com' },
+    mainEntity: {
+      '@type': 'OfferCatalog',
+      name: 'LeadIntel plans',
+      itemListElement: [
+        {
+          '@type': 'Offer',
+          name: 'Starter',
+          price: '0',
+          priceCurrency: 'USD',
+          url: 'https://dazrael.com/pricing',
+        },
+        {
+          '@type': 'Offer',
+          name: 'Closer',
+          price: '79',
+          priceCurrency: 'USD',
+          url: 'https://dazrael.com/pricing',
+        },
+        {
+          '@type': 'Offer',
+          name: 'Closer+',
+          price: '149',
+          priceCurrency: 'USD',
+          url: 'https://dazrael.com/pricing',
+        },
+        {
+          '@type': 'Offer',
+          name: 'Team (base)',
+          price: '249',
+          priceCurrency: 'USD',
+          url: 'https://dazrael.com/pricing',
+        },
+      ],
+    },
+  }
+
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'What does “Annual (save 2 months)” mean?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Annual billing is priced at 10× the monthly rate. You get the same plan, paid once per year.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Can I cancel anytime?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes. Use “Manage billing” in the dashboard to open Stripe and cancel or adjust your subscription.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'How do Team seats work?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Team includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later in Stripe.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Is my data safe?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Billing runs on Stripe. Authentication runs on Supabase. LeadIntel avoids exposing secrets to the client and enforces structured API responses across the app.',
+        },
+      },
+    ],
+  }
+
+  return (
+    <>
+      <JsonLd data={offersJsonLd} />
+      <JsonLd data={faqJsonLd} />
+      <PricingClientPage />
+    </>
+  )
+}

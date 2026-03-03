@@ -1,4 +1,15 @@
+import type { Metadata } from 'next'
 import { LoginClient } from './LoginClient'
+
+export const metadata: Metadata = {
+  title: 'Log in | LeadIntel',
+  description: 'Log in to your LeadIntel account.',
+  openGraph: {
+    title: 'Log in | LeadIntel',
+    description: 'Log in to your LeadIntel account.',
+    url: 'https://dazrael.com/login',
+  },
+}
 
 interface LoginPageProps {
   searchParams?: {

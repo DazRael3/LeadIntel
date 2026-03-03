@@ -71,8 +71,29 @@ export function TopNav() {
             </span>
           </Link>
 
-          {/* Right: Auth buttons */}
-          <div className="flex items-center space-x-3">
+          {/* Center/Right: Primary nav + auth buttons */}
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <Button
+              asChild
+              variant="ghost"
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            >
+              <Link href="/pricing">Pricing</Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            >
+              <Link href="/use-cases">Use Cases</Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            >
+              <Link href="/security">Security</Link>
+            </Button>
             <Button
               asChild
               variant="ghost"
