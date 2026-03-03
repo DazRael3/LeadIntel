@@ -101,6 +101,12 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         if (data.session) {
           track('signup_success', { method: 'password' })
           identifyClientUser(data.session.user.id, { email: data.session.user.email ?? null })
+          // Ensure lifecycle + user settings rows exist (idempotent).
+          try {
+            await fetch('/api/lifecycle/ensure', { method: 'POST' })
+          } catch {
+            // best-effort
+          }
           router.push(redirectTo)
           return
         }
@@ -142,6 +148,11 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         try {
           const { data } = await supabase.auth.getUser()
           if (data.user) identifyClientUser(data.user.id, { email: data.user.email ?? null })
+        } catch {
+          // best-effort
+        }
+        try {
+          await fetch('/api/lifecycle/ensure', { method: 'POST' })
         } catch {
           // best-effort
         }

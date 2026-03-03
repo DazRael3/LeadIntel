@@ -456,6 +456,55 @@ npm install
 
 ---
 
+## Lifecycle + Activation
+
+LeadIntel includes a production activation checklist and lifecycle emails (welcome → nudges → recap → winback).
+
+### Activation checklist (in-app)
+
+The checklist is derived from real product state (server-side):
+- Define ICP (stored in `api.user_settings`)
+- Add 10 target accounts (count of `api.leads`)
+- Generate first pitch draft (count of `api.pitches`)
+- Turn on digest cadence (digest enabled + digest emails opt-in)
+
+Completion is persisted to:
+- `api.user_settings.checklist_state`
+- `api.user_settings.checklist_completed_at`
+
+### Email preferences
+
+Users manage preferences at:
+- `/settings/notifications`
+
+Lifecycle emails only send when:
+- `api.user_settings.product_tips_opt_in = true`
+
+Digest delivery only emails when:
+- `api.user_settings.digest_emails_opt_in = true` (webhooks are unaffected)
+
+### Lifecycle cron
+
+Lifecycle emails are sent via:
+- `POST /api/cron/lifecycle`
+
+Auth options:
+- `x-cron-secret: $CRON_SECRET` header, or
+- signed `cron_token` query param using `CRON_SIGNING_SECRET` (see `lib/api/cron-auth.ts`)
+
+Recommended env vars:
+- `CRON_SECRET` and/or `CRON_SIGNING_SECRET`
+- `APP_URL` (falls back to `NEXT_PUBLIC_SITE_URL`, then `https://dazrael.com`)
+- `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (otherwise lifecycle runs no-op safely)
+
+### Run locally
+
+```bash
+npm run lifecycle:run
+```
+
+---
+
 ## Support
 
 For issues and questions:

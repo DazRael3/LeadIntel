@@ -35,6 +35,7 @@ import { ActivationGoalCard } from './components/ActivationGoalCard'
 import { InAppTourProvider } from '@/components/tour/InAppTourProvider'
 import { QuickTourActionsCard } from './components/QuickTourActionsCard'
 import { ScoreExplainerCard } from './components/ScoreExplainerCard'
+import { ActivationChecklistCard } from '@/components/ActivationChecklistCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -44,6 +45,8 @@ interface DashboardClientProps {
   initialCompanyInput?: string
   initialHasIcp: boolean
   initialTourCompletedAt: string | null
+  initialOpenOnboardingStep?: 2 | 3 | 4 | 5 | 6 | null
+  initialFocus?: 'pitch' | null
 }
 
 export function DashboardClient({ 
@@ -54,6 +57,8 @@ export function DashboardClient({
   initialCompanyInput,
   initialHasIcp,
   initialTourCompletedAt,
+  initialOpenOnboardingStep,
+  initialFocus,
 }: DashboardClientProps) {
   const [isPro, setIsPro] = useState(initialSubscriptionTier === 'pro')
   const [viewMode, setViewMode] = useState<'startup' | 'enterprise'>('startup')
@@ -62,7 +67,7 @@ export function DashboardClient({
   const [activeCompanyInput, setActiveCompanyInput] = useState<string | null>(null)
   const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
   const router = useRouter()
-  const { plan, isPro: planIsPro, trial } = usePlan()
+  const { plan, tier, isPro: planIsPro, trial } = usePlan()
   // Debug UI should never render in production even if misconfigured env vars are present.
   const debugEnabled = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
   const autopilotUiEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI === 'true'
@@ -90,7 +95,23 @@ export function DashboardClient({
   useEffect(() => {
     loadCredits(planIsPro)
     loadStats()
+    // Ensure lifecycle + settings rows exist (idempotent, best-effort).
+    void fetch('/api/lifecycle/ensure', { method: 'POST' }).catch(() => {})
   }, [loadCredits, loadStats, loadEvents, planIsPro])
+
+  useEffect(() => {
+    if (typeof initialOpenOnboardingStep === 'number') {
+      setManualOnboardingStep(initialOpenOnboardingStep)
+      setManualOnboardingOpen(true)
+    }
+  }, [initialOpenOnboardingStep])
+
+  useEffect(() => {
+    if (initialFocus === 'pitch') {
+      const el = document.querySelector('[data-tour="tour-generate-pitch"]') as HTMLElement | null
+      if (el) el.scrollIntoView({ block: 'center' })
+    }
+  }, [initialFocus])
 
   const triggerFilter = useMemo(() => {
     if (activeCompanyDomain) return { companyDomain: activeCompanyDomain }
@@ -199,6 +220,25 @@ export function DashboardClient({
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
+                <ActivationChecklistCard
+                  isStarter={tier === 'starter'}
+                  onOpenIcp={() => {
+                    setManualOnboardingStep(2)
+                    setManualOnboardingOpen(true)
+                  }}
+                  onOpenAccounts={() => {
+                    setManualOnboardingStep(3)
+                    setManualOnboardingOpen(true)
+                  }}
+                  onOpenDigestCadence={() => {
+                    setManualOnboardingStep(4)
+                    setManualOnboardingOpen(true)
+                  }}
+                  onOpenPitch={() => {
+                    const el = document.querySelector('[data-tour=\"tour-generate-pitch\"]') as HTMLElement | null
+                    if (el) el.scrollIntoView({ block: 'center' })
+                  }}
+                />
                 <QuickTourActionsCard
                   onOpenOnboarding={(step) => {
                     setManualOnboardingStep(step)

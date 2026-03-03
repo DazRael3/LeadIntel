@@ -51,6 +51,19 @@ export default async function DashboardPage({
   const initialCompany =
     typeof searchParams?.company === 'string' ? searchParams.company.trim().slice(0, 1000) : undefined
 
+  const onboardingParam = typeof searchParams?.onboarding === 'string' ? searchParams.onboarding.trim() : ''
+  const focusParam = typeof searchParams?.focus === 'string' ? searchParams.focus.trim() : ''
+  const initialOnboardingStep =
+    onboardingParam === 'icp'
+      ? 2
+      : onboardingParam === 'accounts'
+        ? 3
+        : onboardingParam === 'cadence'
+          ? 4
+          : onboardingParam === 'pitch'
+            ? 5
+            : null
+
   // Try to get subscription tier from billing module
   try {
     subscriptionTier = await getPlan(supabase as Parameters<typeof getPlan>[0], user.id)
@@ -157,6 +170,8 @@ export default async function DashboardPage({
         initialCompanyInput={initialCompany}
         initialHasIcp={hasIcp}
         initialTourCompletedAt={tourCompletedAt}
+        initialOpenOnboardingStep={initialOnboardingStep}
+        initialFocus={focusParam === 'pitch' ? 'pitch' : null}
       />
     </PlanProvider>
   )

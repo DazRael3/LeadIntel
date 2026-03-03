@@ -10,6 +10,7 @@ const ROUTES: string[] = [
   '/pricing',
   '/templates',
   '/support',
+  '/settings/notifications',
   '/use-cases',
   '/use-cases/funding-outreach',
   '/use-cases/hiring-spike',

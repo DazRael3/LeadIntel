@@ -211,6 +211,9 @@ const serverEnvSchema = z.object({
   CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
   CRON_SIGNING_SECRET: z.string().min(16, 'CRON_SIGNING_SECRET must be at least 16 characters').optional(),
 
+  // Lifecycle email links (optional; falls back to NEXT_PUBLIC_SITE_URL or https://dazrael.com)
+  APP_URL: z.string().url().optional(),
+
   // Optional market data provider (server-side; falls back to deterministic mock quotes)
   MARKET_DATA_PROVIDER: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
@@ -318,6 +321,7 @@ function buildServerEnv(): ServerEnv {
     ADMIN_DIGEST_SECRET: process.env.ADMIN_DIGEST_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     CRON_SIGNING_SECRET: process.env.CRON_SIGNING_SECRET,
+    APP_URL: process.env.APP_URL,
     MARKET_DATA_PROVIDER: process.env.MARKET_DATA_PROVIDER,
     MARKET_DATA_API_KEY: process.env.MARKET_DATA_API_KEY,
     HEALTH_CHECK_EXTERNAL: process.env.HEALTH_CHECK_EXTERNAL,

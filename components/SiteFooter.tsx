@@ -103,6 +103,11 @@ export function SiteFooter() {
                 {SUPPORT_EMAIL}
               </a>
             </div>
+            <div className="mt-3 text-sm text-muted-foreground">
+              <Link className="hover:text-foreground" href="/settings/notifications">
+                Email preferences
+              </Link>
+            </div>
             <div className="mt-4 text-xs text-muted-foreground">
               Billing is handled by Stripe. Authentication is handled by Supabase.
             </div>

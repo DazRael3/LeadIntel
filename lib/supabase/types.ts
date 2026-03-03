@@ -70,15 +70,19 @@ export interface WatchlistItem {
 }
 
 export interface UserSettings {
-  id: string
   user_id: string
-  what_you_sell: string
-  ideal_customer: string
+  what_you_sell?: string
+  ideal_customer?: string
   target_industries?: string[]
   sender_name?: string
   sender_email?: string
   onboarding_completed: boolean
-  saved_companies?: any
+  product_tips_opt_in?: boolean
+  digest_emails_opt_in?: boolean
+  digest_enabled?: boolean
+  checklist_state?: unknown
+  checklist_completed_at?: string | null
+  tour_completed_at?: string | null
   created_at: string
   updated_at: string
 }

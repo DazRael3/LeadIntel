@@ -26,6 +26,7 @@ import { LeadDetailView } from "@/components/LeadDetailView"
 import { addLeadToWatchlist } from "@/components/Watchlist"
 import { computeStarterLeadUsage, STARTER_MAX_LEADS } from '@/lib/billing/leads-usage'
 import { COPY } from "@/lib/copy/leadintel"
+import { markUpgradeNudgeShown, shouldShowUpgradeNudge } from '@/lib/growth/nudge-cap'
 
 type WatchlistRow = {
   lead_id: string
@@ -210,6 +211,12 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
     return computeStarterLeadUsage(leads.length, STARTER_MAX_LEADS)
   }, [leads.length])
 
+  const showStarterLimitNudge = useMemo(() => {
+    if (isPro) return false
+    if (leads.length < STARTER_MAX_LEADS) return false
+    return true
+  }, [isPro, leads.length])
+
   return (
     <Card className="border-cyan-500/20 bg-card/50">
       <CardHeader>
@@ -240,6 +247,10 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
             Export CSV
           </Button>
         </div>
+
+        {showStarterLimitNudge ? (
+          <StarterLimitNudge />
+        ) : null}
 
         {/* Search and Filters */}
         <div className="space-y-3">
@@ -469,5 +480,73 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
         />
       )}
     </Card>
+  )
+}
+
+function StarterLimitNudge() {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const can = shouldShowUpgradeNudge({ key: 'upgrade_accounts_limit', minHoursBetween: 24 })
+    if (!can) return
+    setVisible(true)
+    track('upgrade_nudge_viewed', { location: 'lead_library', reason: 'starter_accounts_limit' })
+    markUpgradeNudgeShown({ key: 'upgrade_accounts_limit' })
+    void fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ last_upgrade_nudge_shown_at: new Date().toISOString(), onboarding_completed: true }),
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once
+  }, [])
+
+  if (!visible) return null
+
+  return (
+    <div className="mt-4 rounded-lg border border-purple-500/30 bg-purple-500/5 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-foreground">{COPY.gates.title}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{COPY.gates.body}</div>
+          <ul className="mt-2 list-disc pl-5 text-xs text-muted-foreground space-y-1">
+            {COPY.gates.benefits.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        </div>
+        <button
+          type="button"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            setVisible(false)
+            track('upgrade_nudge_dismissed', { location: 'lead_library' })
+          }}
+        >
+          Not now
+        </button>
+      </div>
+      <div className="mt-3 flex flex-col sm:flex-row gap-2">
+        <Button
+          size="sm"
+          className="neon-border hover:glow-effect"
+          onClick={() => {
+            track('upgrade_nudge_clicked', { location: 'lead_library' })
+            window.location.href = '/pricing?target=closer'
+          }}
+        >
+          {COPY.gates.ctaPrimary}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            track('upgrade_nudge_clicked', { location: 'lead_library', secondary: true })
+            window.location.href = '/pricing'
+          }}
+        >
+          {COPY.gates.ctaSecondary}
+        </Button>
+      </div>
+    </div>
   )
 }
