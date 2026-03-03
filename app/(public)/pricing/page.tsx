@@ -9,6 +9,13 @@ export const metadata: Metadata = {
     title: 'Pricing | LeadIntel',
     description: 'Transparent pricing for daily digests, scoring, and outreach templates.',
     url: 'https://dazrael.com/pricing',
+    images: [
+      {
+        url: '/api/og?title=Pricing&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
 

@@ -13,6 +13,13 @@ export const metadata: Metadata = {
     title: 'Use cases | LeadIntel',
     description: 'High-intent outbound plays powered by daily “why now” signals.',
     url: 'https://dazrael.com/use-cases',
+    images: [
+      {
+        url: '/api/og?title=Use%20cases&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
 

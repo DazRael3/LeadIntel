@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 export const metadata: Metadata = {
   title: 'Privacy | LeadIntel',
@@ -12,10 +13,15 @@ export const metadata: Metadata = {
     title: 'Privacy | LeadIntel',
     description: 'What LeadIntel collects, how it is used, and how to request access or deletion.',
     url: 'https://dazrael.com/privacy',
+    images: [
+      {
+        url: '/api/og?title=Privacy&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
-
-const SUPPORT_EMAIL = 'leadintel@dazrael.com'
 
 export default function PrivacyPage() {
   const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Privacy request')}`

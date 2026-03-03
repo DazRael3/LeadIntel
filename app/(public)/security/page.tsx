@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 export const metadata: Metadata = {
   title: 'Security | LeadIntel',
@@ -14,10 +15,15 @@ export const metadata: Metadata = {
     description:
       'How LeadIntel handles authentication, billing, access controls, rate limiting, logging, and data handling.',
     url: 'https://dazrael.com/security',
+    images: [
+      {
+        url: '/api/og?title=Security&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
-
-const SUPPORT_EMAIL = 'leadintel@dazrael.com'
 
 export default function SecurityPage() {
   const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Security')}`

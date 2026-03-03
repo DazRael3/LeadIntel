@@ -2,6 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { MarketingPage } from '@/components/marketing/MarketingPage'
+import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 
 export const metadata: Metadata = {
   title: 'Support | LeadIntel',
@@ -10,30 +13,31 @@ export const metadata: Metadata = {
     title: 'Support | LeadIntel',
     description: 'Get help with billing, upgrades, and using LeadIntel.',
     url: 'https://dazrael.com/support',
+    images: [
+      {
+        url: '/api/og?title=Support&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
 
 export default function SupportPage() {
-  const supportEmail = 'leadintel@dazrael.com'
-  const mailto = `mailto:${supportEmail}?subject=${encodeURIComponent('LeadIntel Support')}`
+  const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('LeadIntel Support')}`
 
   return (
-    <div className="min-h-screen bg-background terminal-grid">
-      <div className="container mx-auto px-6 py-12 space-y-8">
-        <div className="max-w-3xl">
-          <h1 className="text-3xl font-bold bloomberg-font neon-cyan">Support</h1>
-          <p className="mt-2 text-muted-foreground">
-            If you hit an issue during checkout, upgrades, or report generation, we’ll help you get unblocked quickly.
-          </p>
-        </div>
+    <MarketingPage title="Support" subtitle="Get help with billing, upgrades, and using LeadIntel.">
+      <PageViewTrack event="support_page_view" props={{ page: 'support' }} />
 
+      <div className="grid grid-cols-1 gap-6">
         <Card className="border-cyan-500/20 bg-card/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Contact</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground">
-              Email us at <span className="font-medium text-foreground">{supportEmail}</span>.
+              Email us at <span className="font-medium text-foreground">{SUPPORT_EMAIL}</span>.
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
@@ -74,7 +78,7 @@ export default function SupportPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </MarketingPage>
   )
 }
 

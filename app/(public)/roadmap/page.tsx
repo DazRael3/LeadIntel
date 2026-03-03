@@ -12,6 +12,13 @@ export const metadata: Metadata = {
     title: 'Roadmap | LeadIntel',
     description: 'Product direction and operating principles for LeadIntel.',
     url: 'https://dazrael.com/roadmap',
+    images: [
+      {
+        url: '/api/og?title=Roadmap&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
 

@@ -14,6 +14,7 @@ import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { BrandHero } from '@/components/BrandHero'
 import { track } from '@/lib/analytics'
 import { identifyClientUser } from '@/lib/analytics/posthog-client'
+import { COPY } from '@/lib/copy/leadintel'
 
 interface LoginClientProps {
   initialMode: 'signin' | 'signup'
@@ -338,9 +339,12 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         {mode === 'signup' && (
           <div className="space-y-4">
             <div className="rounded-xl border border-cyan-500/10 bg-card/40 p-4">
-              <div className="text-sm font-semibold">Trigger Events</div>
+              <div className="text-sm font-semibold">Trigger-based account alerts. Instant pitch drafts.</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                Real-time B2B intelligence that surfaces buying signals—funding, hiring, partnerships, and expansion—so you can outreach at exactly the right moment.
+                {COPY.positioning.icpLine}
+              </div>
+              <div className="mt-3 text-sm text-muted-foreground">
+                Daily priorities with a deterministic score and send-ready outreach.
               </div>
             </div>
 

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 export const metadata: Metadata = {
   title: 'DPA | LeadIntel',
@@ -12,10 +13,15 @@ export const metadata: Metadata = {
     title: 'DPA | LeadIntel',
     description: 'A lightweight data processing addendum summary for LeadIntel.',
     url: 'https://dazrael.com/dpa',
+    images: [
+      {
+        url: '/api/og?title=DPA&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
-
-const SUPPORT_EMAIL = 'leadintel@dazrael.com'
 
 export default function DpaPage() {
   const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('DPA request')}`

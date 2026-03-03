@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-const SUPPORT_EMAIL = 'leadintel@dazrael.com'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 export function SiteFooter() {
   const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('LeadIntel Support')}`

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { StatusAutoRefresh } from './status-auto-refresh'
 
 export const metadata: Metadata = {
   title: 'Status | LeadIntel',
@@ -14,11 +15,31 @@ export const metadata: Metadata = {
     title: 'Status | LeadIntel',
     description: 'Service status and basic health checks for LeadIntel.',
     url: 'https://dazrael.com/status',
+    images: [
+      {
+        url: '/api/og?title=Status&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
 
 type HealthEnvelope =
-  | { ok: true; data: { ok: boolean; checks?: Record<string, unknown> } }
+  | {
+      ok: true
+      data: {
+        status: 'operational' | 'degraded' | 'down'
+        checkedAt: string
+        components: Record<
+          string,
+          {
+            status: 'ok' | 'degraded' | 'down' | 'not_enabled' | 'not_checked'
+            message: string
+          }
+        >
+      }
+    }
   | { ok: false; error?: { message?: string } }
 
 type VersionEnvelope =
@@ -33,23 +54,40 @@ export default async function StatusPage() {
     safeFetchJson<VersionEnvelope>(`${baseUrl}/api/version`),
   ])
 
-  const isOperational = health?.ok === true && Boolean(health.data?.ok)
+  const status = health?.ok === true ? health.data.status : 'degraded'
+  const checkedAt = health?.ok === true ? health.data.checkedAt : null
+
+  const badge =
+    status === 'operational'
+      ? { label: 'Operational', cls: 'text-green-400 border-green-500/30' }
+      : status === 'down'
+        ? { label: 'Outage', cls: 'text-red-400 border-red-500/30' }
+        : { label: 'Degraded', cls: 'text-yellow-400 border-yellow-500/30' }
 
   return (
     <MarketingPage title="Status" subtitle="Operational signals for the LeadIntel service.">
       <PageViewTrack event="status_page_view" props={{ page: 'status' }} />
+      <StatusAutoRefresh />
 
       <div className="grid grid-cols-1 gap-6">
         <Card className="border-cyan-500/20 bg-card/60">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-lg">Current status</CardTitle>
-              <Badge variant="outline" className={isOperational ? 'text-green-400 border-green-500/30' : 'text-yellow-400 border-yellow-500/30'}>
-                {isOperational ? 'All systems operational' : 'Degraded / unknown'}
+              <Badge variant="outline" className={badge.cls}>
+                {badge.label}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
+            <div className="text-xs text-muted-foreground">
+              This page shows lightweight checks designed not to expose secrets.
+            </div>
+            {checkedAt ? (
+              <div>
+                <span className="font-medium text-foreground">Last checked:</span> {new Date(checkedAt).toLocaleString()}
+              </div>
+            ) : null}
             <div>
               <span className="font-medium text-foreground">Health endpoint:</span>{' '}
               <Link className="text-cyan-400 hover:underline" href="/api/health">
@@ -68,20 +106,52 @@ export default async function StatusPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="border-cyan-500/20 bg-card/60">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Health checks</CardTitle>
+              <CardTitle className="text-lg">Components</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-2">
-              {health ? (
-                <>
-                  <div>
-                    <span className="font-medium text-foreground">OK:</span> {String(health.ok === true && Boolean((health as any).data?.ok))}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    This is a lightweight check designed not to expose secrets.
-                  </div>
-                </>
+              {health?.ok === true ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-cyan-500/10 text-xs text-muted-foreground">
+                        <th className="text-left py-2 pr-3">Component</th>
+                        <th className="text-left py-2 pr-3">Status</th>
+                        <th className="text-left py-2">Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(health.data.components).map(([name, c]) => (
+                        <tr key={name} className="border-b border-cyan-500/10">
+                          <td className="py-2 pr-3 font-medium text-foreground">{name}</td>
+                          <td className="py-2 pr-3">
+                            <span
+                              className={
+                                c.status === 'ok'
+                                  ? 'text-green-400'
+                                  : c.status === 'down'
+                                    ? 'text-red-400'
+                                    : c.status === 'not_enabled'
+                                      ? 'text-muted-foreground'
+                                      : c.status === 'not_checked'
+                                        ? 'text-muted-foreground'
+                                        : 'text-yellow-400'
+                              }
+                            >
+                              {c.status === 'not_enabled'
+                                ? 'Not enabled'
+                                : c.status === 'not_checked'
+                                  ? 'Not checked'
+                                  : c.status}
+                            </span>
+                          </td>
+                          <td className="py-2">{c.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <div>Unable to load health checks.</div>
+                <div>Unable to load components.</div>
               )}
             </CardContent>
           </Card>

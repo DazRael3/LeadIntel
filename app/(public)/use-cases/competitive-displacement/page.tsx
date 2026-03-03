@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { PlaybookTemplate } from '@/components/marketing/PlaybookTemplate'
 
 export const metadata: Metadata = {
   title: 'Competitive displacement playbook | LeadIntel',
@@ -12,6 +10,13 @@ export const metadata: Metadata = {
     title: 'Competitive displacement playbook | LeadIntel',
     description: 'Use battlecard-style angles when an account is evaluating alternatives.',
     url: 'https://dazrael.com/use-cases/competitive-displacement',
+    images: [
+      {
+        url: '/api/og?title=Competitive%20displacement&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
 
@@ -19,60 +24,79 @@ export default function CompetitiveDisplacementUseCasePage() {
   return (
     <MarketingPage title="Competitive displacement" subtitle="A crisp POV and checklist beats generic comparison claims.">
       <PageViewTrack event="use_case_view" props={{ useCase: 'competitive_displacement' }} />
-
-      <div className="grid grid-cols-1 gap-6">
-        <Card className="border-cyan-500/20 bg-card/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Problem → why now</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-3">
-            <p>
-              Displacement wins happen when you bring structure to a messy evaluation: what matters, how to compare, and how to
-              decide quickly. The “why now” angle is a clean decision checklist.
-            </p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Lead with a 3-point checklist (requirements, risks, rollout).</li>
-              <li>Offer a short “battlecard” summary without trash-talking competitors.</li>
-              <li>Ask where they are in evaluation (research → shortlist → pilot).</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card className="border-cyan-500/20 bg-card/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Template preview</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Template
-              title="Short email"
-              body={`Subject: Quick evaluation checklist\n\nIf you’re evaluating alternatives to [VENDOR], here’s a quick checklist to make the decision fast:\n1) Must-have requirements\n2) Rollout + adoption risks\n3) Reporting + long-term maintenance\n\nIf you want, I can share a 1‑page battlecard-style comparison for teams in your space.\n\nWorth a quick 10 minutes?`}
-            />
-            <Template
-              title="LinkedIn DM"
-              body={`If you’re evaluating alternatives to [VENDOR], I can share a 1‑page checklist we use to compare options quickly (requirements, rollout risk, maintenance).\n\nWant it?`}
-            />
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Button asChild className="neon-border hover:glow-effect">
-            <Link href="/#try-sample">Try a sample digest</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/use-cases">Back to use cases</Link>
-          </Button>
-        </div>
-      </div>
+      <PlaybookTemplate
+        title="Competitive displacement"
+        promise="Help buyers compare options fast with a clean checklist and a calm POV."
+        problemWhyNow={[
+          'Displacement is usually a messy evaluation: requirements are unclear, risks are hidden, and timelines slip.',
+          'The window is when the account is moving from research → shortlist → pilot and wants structure.',
+        ]}
+        lookFor={[
+          'Signals of dissatisfaction (role churn, “rebuild”, “consolidate”, “migration”)',
+          'New decision-maker or new owner of the workflow',
+          'Mentions of “vendor review”, “renewal”, “tool consolidation”',
+          'Security/legal review language (risk is part of the decision)',
+          'A new initiative that changes requirements (new segment, new geo)',
+          'Budget timing (renewal window, fiscal planning)',
+          'Process gaps mentioned publicly (reporting, handoffs, enablement)',
+          'Any “RFP / shortlist / pilot” wording',
+        ]}
+        angles={[
+          { title: 'Decision checklist', detail: 'Lead with 3–5 decision points: requirements, rollout risk, reporting, maintenance.' },
+          { title: 'Timeline control', detail: 'Offer a 10-minute “what to decide first” working session.' },
+          { title: 'Risk reduction', detail: 'Ask what would make the project fail (adoption, data quality, ownership).' },
+          { title: 'Status quo cost', detail: 'Frame the cost of waiting: manual work, inconsistency, missed timing windows.' },
+          { title: 'Pilot design', detail: 'Offer a small pilot plan with clear success criteria.' },
+          { title: 'Owner mapping', detail: 'Ask who owns evaluation: RevOps, Enablement, Sales, Security.' },
+        ]}
+        templates={{
+          cold1: {
+            label: 'Cold email #1 (short)',
+            body:
+              'Subject: Quick evaluation checklist\n\nIf you’re evaluating alternatives to [VENDOR], here’s a simple checklist to decide fast:\n1) must-have requirements\n2) rollout + adoption risk\n3) reporting + maintenance\n\nWant the 1‑page version?',
+          },
+          cold2: {
+            label: 'Cold email #2 (medium)',
+            body:
+              'Subject: Shortlist → pilot decision points\n\nIf you’re moving from research → shortlist → pilot for [WORKFLOW], the fastest path is to agree on:\n- what “good” looks like (success criteria)\n- rollout risk (who adopts + how)\n- reporting/maintenance (what breaks over time)\n\nIf you want, I can share a 1‑page battlecard-style checklist and a pilot plan.\n\nAre you the right owner, or should I ask [ALT_OWNER]?',
+          },
+          cold3: {
+            label: 'Cold email #3 (breakup)',
+            body:
+              'Subject: Close the loop?\n\nShould I close the loop on this?\n\nIf you’re not evaluating alternatives to [VENDOR] right now, no problem — I can reach back out later.',
+          },
+          dm1: {
+            label: 'LinkedIn DM #1 (ultra short)',
+            body: 'If you’re evaluating alternatives to [VENDOR], want a 1‑page decision checklist?',
+          },
+          dm2: {
+            label: 'LinkedIn DM #2 (value + question)',
+            body:
+              'When teams displace a vendor, timelines slip because requirements and rollout risk aren’t pinned down.\n\nIf helpful, I can share a short checklist + pilot plan.\n\nWant it?',
+          },
+          call1: {
+            label: 'Call opener #1',
+            body:
+              'Hey [NAME] — quick question: are you in research, shortlist, or pilot for [WORKFLOW]? I’ll keep this tight.',
+          },
+          call2: {
+            label: 'Call opener #2',
+            body:
+              'Hi [NAME] — when teams displace a vendor, the decision usually hinges on rollout risk and reporting. Who owns evaluation on your side — you or [ALT_OWNER]?',
+          },
+        }}
+        tokens={[
+          { token: '[VENDOR]', how: 'The incumbent vendor or category. Keep it factual; avoid trash-talking.' },
+          { token: '[WORKFLOW]', how: 'The workflow being evaluated (e.g., outbound prioritization, enablement, reporting).' },
+          { token: '[ALT_OWNER]', how: 'Likely owner: RevOps, Enablement, VP Sales, Security.' },
+          { token: '[NAME]', how: 'First name.' },
+        ]}
+        related={[
+          { href: '/use-cases/funding-outreach', label: 'Funding outreach' },
+          { href: '/use-cases/expansion-signals', label: 'Expansion signals' },
+          { href: '/use-cases/product-launch-timing', label: 'Product launch' },
+        ]}
+      />
     </MarketingPage>
   )
 }
-
-function Template(props: { title: string; body: string }) {
-  return (
-    <div className="rounded border border-cyan-500/20 bg-background/50 p-4">
-      <div className="text-xs font-medium text-foreground">{props.title}</div>
-      <pre className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{props.body}</pre>
-    </div>
-  )
-}
-

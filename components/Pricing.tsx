@@ -12,6 +12,7 @@ import { formatErrorMessage } from "@/lib/utils/format-error"
 import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { COPY } from '@/lib/copy/leadintel'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
@@ -94,7 +95,6 @@ function isStripeConfigError(message: string): boolean {
 }
 
 export function Pricing() {
-  const supportEmail = 'leadintel@dazrael.com'
   const router = useRouter()
   const [target, setTarget] = useState<string | null>(null) // optional: closer
   const supabase = createClient()
@@ -234,9 +234,7 @@ export function Pricing() {
                 <li key={b}>• {b}</li>
               ))}
             </ul>
-            <div className="mt-4 text-xs text-muted-foreground">
-              {COPY.pricing.hero.trustStrip(supportEmail)}
-            </div>
+            <div className="mt-4 text-xs text-muted-foreground">{COPY.pricing.hero.trustStrip(SUPPORT_EMAIL)}</div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
               <Button asChild size="lg" className="neon-border hover:glow-effect">
                 <a href="/signup?redirect=/dashboard">{COPY.pricing.hero.primaryCta}</a>
@@ -689,7 +687,9 @@ export function Pricing() {
                 <div className="font-medium text-foreground">Operations</div>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>Cancel and change seats via Stripe customer portal (in-app “Manage billing”).</li>
-                  <li>Data deletion requests: email <span className="font-medium text-foreground">leadintel@dazrael.com</span>.</li>
+                  <li>
+                    Data deletion requests: email <span className="font-medium text-foreground">{SUPPORT_EMAIL}</span>.
+                  </li>
                   <li>
                     Service status and deploy info: <a className="text-cyan-400 hover:underline" href="/status">/status</a> and{' '}
                     <a className="text-cyan-400 hover:underline" href="/api/version">/api/version</a>.

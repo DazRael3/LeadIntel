@@ -10,6 +10,13 @@ export const metadata: Metadata = {
     title: 'Changelog | LeadIntel',
     description: 'Product updates and notable changes.',
     url: 'https://dazrael.com/changelog',
+    images: [
+      {
+        url: '/api/og?title=Changelog&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
 }
 
