@@ -49,7 +49,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
 
     const parsed = BodySchema.safeParse({ job: jobRaw, dryRun })
     if (!parsed.success) {
-      return fail(ErrorCode.VALIDATION_ERROR, 'Invalid cron payload', parsed.error.flatten(), { status: 422 }, bridge, requestId)
+      return fail(ErrorCode.VALIDATION_ERROR, 'Invalid cron payload', parsed.error.flatten(), { status: 400 }, bridge, requestId)
     }
 
     const job = parsed.data.job as JobName
@@ -92,7 +92,7 @@ export const POST = withApiGuard(
 
       const parsed = BodySchema.safeParse(body)
       if (!parsed.success) {
-        return fail(ErrorCode.VALIDATION_ERROR, 'Invalid cron payload', parsed.error.flatten(), { status: 422 }, bridge, requestId)
+        return fail(ErrorCode.VALIDATION_ERROR, 'Invalid cron payload', parsed.error.flatten(), { status: 400 }, bridge, requestId)
       }
 
       const job = parsed.data.job as JobName

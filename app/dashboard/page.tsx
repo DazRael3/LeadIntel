@@ -4,6 +4,7 @@ import { DashboardClient } from './DashboardClient'
 import { getPlan } from '@/lib/billing/plan'
 import { PlanProvider } from '@/components/PlanProvider'
 import { getBuildInfo } from '@/lib/debug/buildInfo'
+import { checkLifecycleForUser } from '@/lib/lifecycle/checkUser'
 
 export const dynamic = 'force-dynamic'
 
@@ -159,6 +160,10 @@ export default async function DashboardPage({
   }
 
   const buildInfo = getBuildInfo()
+
+  // "Lazy cron": best-effort lifecycle evaluation on user activity (Hobby-safe).
+  // Never block dashboard render; swallow errors.
+  void checkLifecycleForUser(user.id, { triggeredBy: 'request' }).catch(() => {})
 
   return (
     <PlanProvider initialPlan={subscriptionTier} initialBuildInfo={buildInfo}>

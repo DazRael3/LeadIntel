@@ -509,6 +509,14 @@ npm run lifecycle:run
 
 LeadIntel includes a small jobs framework used by cron and the admin Growth Ops dashboard.
 
+### Vercel Hobby automation (free)
+
+- **Schedules are UTC**
+- **Hobby cron jobs must run at most once per day** (weekly is fine). Hourly scheduling requires a paid plan.
+- Lifecycle is kept timely with:
+  - a **daily sweep** (`job=lifecycle`)
+  - plus **lazy cron**: a best-effort per-user lifecycle check on normal authenticated activity
+
 ### Required env vars (by feature)
 
 - **Cron protection**

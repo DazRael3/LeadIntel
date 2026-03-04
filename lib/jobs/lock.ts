@@ -7,11 +7,10 @@ export type LockAcquireResult =
   | { enabled: false; acquired: true }
 
 export function defaultJobLockTtlSeconds(job: JobName): number {
-  // Keep these comfortably below the schedule interval to avoid stale-lock blocking.
-  if (job === 'lifecycle') return 55 * 60
-  if (job === 'digest_lite') return 60 * 60
-  if (job === 'kpi_monitor') return 15 * 60
-  return 15 * 60
+  // Hobby-safe default: lock auto-expires after 30 minutes to prevent deadlocks.
+  // This is a concurrency guard, not a schedule.
+  void job
+  return 30 * 60
 }
 
 export async function tryAcquireJobLock(args: { job: JobName; ttlSeconds?: number }): Promise<LockAcquireResult> {
