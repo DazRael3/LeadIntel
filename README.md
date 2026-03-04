@@ -517,6 +517,18 @@ LeadIntel includes a small jobs framework used by cron and the admin Growth Ops 
   - a **daily sweep** (`job=lifecycle`)
   - plus **lazy cron**: a best-effort per-user lifecycle check on normal authenticated activity
 
+### External scheduler (cron-job.org)
+
+If you want more frequent automation than Vercel Hobby allows, you can use `cron-job.org` (or similar) to call:
+- `GET /api/cron/run?job=...`
+
+Auth is required via header:
+- `Authorization: Bearer $EXTERNAL_CRON_SECRET`
+
+Rules:
+- Secrets are **never** accepted via query params.
+- For lifecycle batching: use `limit` (clamped to 10..1000; default 200), e.g. `job=lifecycle&limit=200`.
+
 ### Required env vars (by feature)
 
 - **Cron protection**

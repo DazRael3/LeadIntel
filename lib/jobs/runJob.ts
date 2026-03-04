@@ -7,7 +7,7 @@ import { runContentAudit } from '@/lib/jobs/contentAudit'
 
 export async function runJob(
   job: JobName,
-  opts: { dryRun?: boolean; triggeredBy: TriggeredBy }
+  opts: { dryRun?: boolean; triggeredBy: TriggeredBy; limit?: number }
 ): Promise<JobResult> {
   const startedAt = new Date().toISOString()
   let status: JobResult['status'] = 'ok'
@@ -17,7 +17,7 @@ export async function runJob(
   try {
     const dryRun = Boolean(opts.dryRun)
     if (job === 'lifecycle') {
-      const res = await runLifecycleEmails({ dryRun })
+      const res = await runLifecycleEmails({ dryRun, limit: opts.limit })
       status = res.status
       summary = res.summary as Record<string, unknown>
     } else if (job === 'digest_lite') {

@@ -209,6 +209,7 @@ const serverEnvSchema = z.object({
   ZAPIER_WEBHOOK_URL: z.string().url().optional(),
   ADMIN_DIGEST_SECRET: z.string().optional(),
   CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
+  EXTERNAL_CRON_SECRET: z.string().min(16, 'EXTERNAL_CRON_SECRET must be at least 16 characters').optional(),
   CRON_SIGNING_SECRET: z.string().min(16, 'CRON_SIGNING_SECRET must be at least 16 characters').optional(),
 
   // Lifecycle email links (optional; falls back to NEXT_PUBLIC_SITE_URL or https://dazrael.com)
