@@ -24,6 +24,8 @@
     "scraper": "tsx scripts/scraper.ts",
     "marketing": "tsx scripts/auto-marketing.ts",
     "dry-run": "tsx scripts/dry-run.ts",
+    "lifecycle:run": "tsx scripts/runLifecycle.ts",
+    "content:audit": "tsx scripts/contentAudit.ts",
     "migration": "tsx scripts/apply-migration.ts",
     "db:sanity": "tsx scripts/db-sanity-rls.ts",
     "verify:ready": "npm run lint && npm run test:unit && npm run test:e2e"
@@ -51,6 +53,8 @@
     "next-themes": "^0.4.6",
     "openai": "^4.28.0",
     "playwright": "^1.41.0",
+    "posthog-js": "^1.357.0",
+    "posthog-node": "^5.21.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "resend": "^3.2.0",

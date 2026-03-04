@@ -4,6 +4,7 @@ import { DashboardClient } from './DashboardClient'
 import { getPlan } from '@/lib/billing/plan'
 import { PlanProvider } from '@/components/PlanProvider'
 import { getBuildInfo } from '@/lib/debug/buildInfo'
+import { checkLifecycleForUser } from '@/lib/lifecycle/checkUser'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,8 +47,23 @@ export default async function DashboardPage({
   let creditsRemaining = 1
   let onboardingCompleted = false
   let autopilotEnabled = false
+  let hasIcp = false
+  let tourCompletedAt: string | null = null
   const initialCompany =
     typeof searchParams?.company === 'string' ? searchParams.company.trim().slice(0, 1000) : undefined
+
+  const onboardingParam = typeof searchParams?.onboarding === 'string' ? searchParams.onboarding.trim() : ''
+  const focusParam = typeof searchParams?.focus === 'string' ? searchParams.focus.trim() : ''
+  const initialOnboardingStep =
+    onboardingParam === 'icp'
+      ? 2
+      : onboardingParam === 'accounts'
+        ? 3
+        : onboardingParam === 'cadence'
+          ? 4
+          : onboardingParam === 'pitch'
+            ? 5
+            : null
 
   // Try to get subscription tier from billing module
   try {
@@ -120,7 +136,7 @@ export default async function DashboardPage({
   try {
     const { data: settingsRow, error: settingsError } = await supabase
       .from('user_settings')
-      .select('onboarding_completed, autopilot_enabled')
+      .select('onboarding_completed, autopilot_enabled, ideal_customer, tour_completed_at')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -135,6 +151,8 @@ export default async function DashboardPage({
     } else {
       onboardingCompleted = Boolean(settingsRow?.onboarding_completed)
       autopilotEnabled = Boolean((settingsRow as { autopilot_enabled?: boolean } | null)?.autopilot_enabled)
+      hasIcp = Boolean((settingsRow as { ideal_customer?: string | null } | null)?.ideal_customer?.trim())
+      tourCompletedAt = ((settingsRow as { tour_completed_at?: string | null } | null)?.tour_completed_at ?? null) || null
     }
   } catch (err) {
     console.warn('[Dashboard] Error loading settings, using defaults:', err)
@@ -142,6 +160,10 @@ export default async function DashboardPage({
   }
 
   const buildInfo = getBuildInfo()
+
+  // "Lazy cron": best-effort lifecycle evaluation on user activity (Hobby-safe).
+  // Never block dashboard render; swallow errors.
+  void checkLifecycleForUser(user.id, { triggeredBy: 'request' }).catch(() => {})
 
   return (
     <PlanProvider initialPlan={subscriptionTier} initialBuildInfo={buildInfo}>
@@ -151,6 +173,10 @@ export default async function DashboardPage({
         initialOnboardingCompleted={onboardingCompleted}
         initialAutopilotEnabled={autopilotEnabled}
         initialCompanyInput={initialCompany}
+        initialHasIcp={hasIcp}
+        initialTourCompletedAt={tourCompletedAt}
+        initialOpenOnboardingStep={initialOnboardingStep}
+        initialFocus={focusParam === 'pitch' ? 'pitch' : null}
       />
     </PlanProvider>
   )

@@ -1,0 +1,27 @@
+name: Scheduled Jobs
+
+on:
+  schedule:
+    - cron: '0 15 * * *' # 15:00 UTC daily
+  workflow_dispatch: {}
+
+jobs:
+  run-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run KPI monitor
+        env:
+          CRON_RUN_URL_BASE: ${{ secrets.CRON_RUN_URL_BASE }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS "$CRON_RUN_URL_BASE/api/cron/run?job=kpi_monitor" \
+            -H "Authorization: Bearer $CRON_SECRET"
+
+      - name: Run content audit
+        env:
+          CRON_RUN_URL_BASE: ${{ secrets.CRON_RUN_URL_BASE }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS "$CRON_RUN_URL_BASE/api/cron/run?job=content_audit" \
+            -H "Authorization: Bearer $CRON_SECRET"
+

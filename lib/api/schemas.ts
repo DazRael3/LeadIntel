@@ -59,6 +59,9 @@ export const UserSettingsSchema = z.object({
   display_name: z.string().min(1).max(200).optional(),
   from_email: z.string().email('Invalid email address').optional(),
   from_name: z.string().max(200).optional(),
+  // ICP fields (optional)
+  what_you_sell: z.string().max(1000).optional(),
+  ideal_customer: z.string().max(2000).optional(),
   // Optional phone number for account contact (stored as free-form text; normalized to null on save when empty).
   phone: z.string().trim().max(64).optional(),
   role: z.string().max(64).optional(),
@@ -68,12 +71,16 @@ export const UserSettingsSchema = z.object({
   preferred_contact_channel: z.enum(['email', 'phone', 'linkedin', 'slack', 'other']).optional(),
   preferred_contact_detail: z.string().max(200).optional(),
   allow_product_updates: z.boolean().optional(),
+  product_tips_opt_in: z.boolean().optional(),
+  digest_emails_opt_in: z.boolean().optional(),
+  last_upgrade_nudge_shown_at: z.string().datetime().optional(),
   onboarding_completed: z.boolean().optional(),
   digest_enabled: z.boolean().optional().default(false),
   digest_dow: z.number().int().min(0).max(6).optional().default(1),
   digest_hour: z.number().int().min(0).max(23).optional().default(9),
   digest_webhook_url: z.string().url('Invalid webhook URL').optional().or(z.literal('')),
   autopilot_enabled: z.boolean().optional(),
+  tour_completed_at: z.string().datetime().optional(),
 })
 
 /**

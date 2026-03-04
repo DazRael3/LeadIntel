@@ -11,6 +11,8 @@ import { usePlan } from "@/components/PlanProvider"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { COPY } from '@/lib/copy/leadintel'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
@@ -152,6 +154,7 @@ export function Pricing() {
     
     try {
       track('pricing_cta_clicked', { source: 'pricing', planId })
+      track('upgrade_clicked', { source: 'pricing', planId, billingCycle, seats: planId === 'team' ? teamSeats : undefined })
       // Check authentication before calling /api/checkout
       const user = await getUserSafe(supabase)
       if (!user) {
@@ -224,10 +227,24 @@ export function Pricing() {
     <div className="min-h-screen bg-background terminal-grid py-20">
       <div className="container mx-auto px-6">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">Pricing</h1>
-          <p className="text-muted-foreground text-lg">
-            Premium, ROI-focused outbound engine — built to create pipeline, not dashboards.
-          </p>
+          <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">{COPY.pricing.hero.headline}</h1>
+          <p className="text-muted-foreground text-lg">{COPY.pricing.hero.subhead}</p>
+          <div className="mt-6 max-w-3xl mx-auto">
+            <ul className="text-sm text-muted-foreground space-y-1">
+              {COPY.pricing.hero.bullets.map((b) => (
+                <li key={b}>• {b}</li>
+              ))}
+            </ul>
+            <div className="mt-4 text-xs text-muted-foreground">{COPY.pricing.hero.trustStrip(SUPPORT_EMAIL)}</div>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+              <Button asChild size="lg" className="neon-border hover:glow-effect">
+                <a href="/signup?redirect=/dashboard">{COPY.pricing.hero.primaryCta}</a>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <a href="#plan-closer">{COPY.pricing.hero.secondaryCta}</a>
+              </Button>
+            </div>
+          </div>
           <div className="mt-6 flex flex-col items-center gap-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-card/40 p-1 text-xs">
               <button
@@ -270,7 +287,7 @@ export function Pricing() {
                 <span className="text-5xl font-bold neon-cyan">$0</span>
                 <span className="text-muted-foreground">/month</span>
               </div>
-              <CardDescription>Free (limited) — kick the tires with limited scoring and basic pitches.</CardDescription>
+              <CardDescription>{COPY.pricing.plans.starterDescription}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <ul className="space-y-3 text-sm text-muted-foreground">
@@ -288,7 +305,7 @@ export function Pricing() {
                 </li>
               </ul>
               <Button asChild variant="outline" className="w-full h-11">
-                <a href="/signup?redirect=/dashboard">Start free</a>
+                <a href="/signup?redirect=/dashboard">{COPY.pricing.hero.primaryCta}</a>
               </Button>
             </CardContent>
           </Card>
@@ -312,7 +329,7 @@ export function Pricing() {
                 <div className="mt-2 text-xs text-muted-foreground">Equivalent to {formatCurrency(PRICING.closerMonthly)}/mo.</div>
               )}
               <CardDescription>
-                For solo reps who want a daily deal shortlist and conversion-ready templates.
+                {COPY.pricing.plans.closerDescription}
               </CardDescription>
             </CardHeader>
 
@@ -620,6 +637,70 @@ export function Pricing() {
           </Card>
         </div>
 
+        <div className="mt-10 max-w-6xl mx-auto">
+          <Card className="border-cyan-500/10 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Buyer checklist</CardTitle>
+              <CardDescription>What procurement and security reviewers usually ask for.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-muted-foreground">
+              <div className="space-y-2">
+                <div className="font-medium text-foreground">Trust docs</div>
+                <div className="flex flex-wrap gap-3">
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/security"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/security' })}
+                  >
+                    Security
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/privacy"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/privacy' })}
+                  >
+                    Privacy
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/terms"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/terms' })}
+                  >
+                    Terms
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/subprocessors"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/subprocessors' })}
+                  >
+                    Subprocessors
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/dpa"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/dpa' })}
+                  >
+                    DPA
+                  </a>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="font-medium text-foreground">Operations</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Cancel and change seats via Stripe customer portal (in-app “Manage billing”).</li>
+                  <li>
+                    Data deletion requests: email <span className="font-medium text-foreground">{SUPPORT_EMAIL}</span>.
+                  </li>
+                  <li>
+                    Service status and deploy info: <a className="text-cyan-400 hover:underline" href="/status">/status</a> and{' '}
+                    <a className="text-cyan-400 hover:underline" href="/api/version">/api/version</a>.
+                  </li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">
@@ -635,7 +716,7 @@ export function Pricing() {
               <TrendingUp className="h-8 w-8 mx-auto mb-3 text-green-400" />
               <h3 className="font-bold mb-2">Proven Results</h3>
               <p className="text-sm text-muted-foreground">
-                Join hundreds of sales orgs closing more deals.
+                {COPY.pricing.plans.replacementClaim}
               </p>
             </CardContent>
           </Card>

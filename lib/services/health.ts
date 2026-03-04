@@ -1,134 +1,165 @@
-import { serverEnv } from '@/lib/env'
 import { isTestLikeEnv } from '@/lib/runtimeFlags'
-import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { Redis } from '@upstash/redis'
 
-export type ComponentStatus = 'ok' | 'degraded' | 'down'
+export type ServiceStatus = 'operational' | 'degraded' | 'down'
+export type ComponentStatus = 'ok' | 'degraded' | 'down' | 'not_enabled' | 'not_checked'
 
 export type HealthComponent = {
   status: ComponentStatus
   message: string
+  meta?: Record<string, unknown>
 }
 
 export type HealthReport = {
-  status: ComponentStatus
-  components: {
-    db: HealthComponent
-    redis: HealthComponent
-    supabaseApi: HealthComponent
-    resend: HealthComponent
-    openai: HealthComponent
-    clearbit: HealthComponent
-  }
+  status: ServiceStatus
+  checkedAt: string
+  components: Record<string, HealthComponent>
 }
 
-function overallStatus(components: HealthReport['components']): ComponentStatus {
-  const statuses = Object.values(components).map((c) => c.status)
-  if (statuses.includes('down')) return 'down'
-  if (statuses.includes('degraded')) return 'degraded'
-  return 'ok'
+function nowIso(): string {
+  return new Date().toISOString()
 }
 
-function componentOk(message: string): HealthComponent {
-  return { status: 'ok', message }
+function ok(message: string, meta?: Record<string, unknown>): HealthComponent {
+  return { status: 'ok', message, ...(meta ? { meta } : {}) }
 }
-function componentDegraded(message: string): HealthComponent {
-  return { status: 'degraded', message }
+function degraded(message: string, meta?: Record<string, unknown>): HealthComponent {
+  return { status: 'degraded', message, ...(meta ? { meta } : {}) }
 }
-function componentDown(message: string): HealthComponent {
-  return { status: 'down', message }
+function down(message: string, meta?: Record<string, unknown>): HealthComponent {
+  return { status: 'down', message, ...(meta ? { meta } : {}) }
+}
+function notEnabled(message: string): HealthComponent {
+  return { status: 'not_enabled', message }
+}
+function notChecked(message: string): HealthComponent {
+  return { status: 'not_checked', message }
 }
 
-function shouldActiveCheckExternal(): boolean {
-  if (serverEnv.NODE_ENV !== 'production') return true
-  return serverEnv.HEALTH_CHECK_EXTERNAL === '1'
+function hasEnv(name: string): boolean {
+  return typeof process.env[name] === 'string' && process.env[name]!.trim().length > 0
 }
 
-export async function checkDb(): Promise<HealthComponent> {
-  // Avoid real network calls in unit/e2e by default.
-  if (isTestLikeEnv()) return componentOk('skipped in test-like env')
+function isTruthyEnv(name: string): boolean {
+  const v = (process.env[name] ?? '').trim().toLowerCase()
+  return v === '1' || v === 'true'
+}
 
+function computeOverallStatus(critical: HealthComponent[]): ServiceStatus {
+  if (critical.some((c) => c.status === 'down')) return 'down'
+  if (critical.some((c) => c.status === 'degraded' || c.status === 'not_checked')) return 'degraded'
+  return 'operational'
+}
+
+async function checkSupabaseAuth(): Promise<HealthComponent> {
+  if (isTestLikeEnv()) return ok('skipped in test-like env')
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
+  const anon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+  if (!url || !anon) return notChecked('Supabase env not present on server')
+
+  const endpoint = `${url.replace(/\/$/, '')}/auth/v1/health`
   try {
-    const supabaseAdmin = createSupabaseAdminClient()
-    const { error } = await supabaseAdmin.from('users').select('id').limit(1)
-    if (error) return componentDown('db query failed')
-    return componentOk('ok')
-  } catch {
-    return componentDown('db unavailable')
-  }
-}
-
-export async function checkSupabaseApi(): Promise<HealthComponent> {
-  if (isTestLikeEnv()) return componentOk('skipped in test-like env')
-  try {
-    const url = `${serverEnv.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health`
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 1500)
-    const res = await fetch(url, { method: 'GET', signal: controller.signal })
+    const timeout = setTimeout(() => controller.abort(), 2000)
+    const res = await fetch(endpoint, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        apikey: anon,
+      },
+    })
     clearTimeout(timeout)
-    if (!res.ok) return componentDegraded(`supabase api returned ${res.status}`)
-    return componentOk('ok')
+
+    if (res.status === 401 || res.status === 403) {
+      return degraded('Supabase auth health returned 401/403 (check ANON key)', { status: res.status })
+    }
+    if (!res.ok) {
+      return degraded(`Supabase auth health returned ${res.status}`, { status: res.status })
+    }
+
+    const text = await res.text().catch(() => '')
+    let meta: Record<string, unknown> | undefined = undefined
+    try {
+      meta = text ? (JSON.parse(text) as Record<string, unknown>) : undefined
+    } catch {
+      meta = undefined
+    }
+
+    return ok('ok', meta)
   } catch {
-    return componentDown('supabase api unreachable')
+    return down('Supabase auth health unreachable')
   }
 }
 
-export async function checkRedis(): Promise<HealthComponent> {
-  if (isTestLikeEnv()) return componentOk('skipped in test-like env')
-  const url = (process.env.UPSTASH_REDIS_REST_URL ?? '').trim()
-  const token = (process.env.UPSTASH_REDIS_REST_TOKEN ?? '').trim()
-  const hasValidUrl = /^https?:\/\//.test(url)
-  const hasValidToken = token.length > 0
-  if (!hasValidUrl || !hasValidToken) {
-    return serverEnv.NODE_ENV === 'production' ? componentDown('redis not configured') : componentDegraded('not configured')
-  }
+async function checkSupabaseDb(): Promise<HealthComponent> {
+  if (isTestLikeEnv()) return ok('skipped in test-like env')
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
+  const serviceRole = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim()
+  if (!url || !serviceRole) return notChecked('Supabase service env not present on server')
+
+  // Trivial, low-cost read (requires `api.users` to exist and schema cache to be healthy).
+  const endpoint = `${url.replace(/\/$/, '')}/rest/v1/users?select=id&limit=1`
   try {
-    const redis = new Redis({ url, token })
-    // Use a read-only operation (no writes)
-    await redis.get('@leadintel/health')
-    return componentOk('ok')
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 2000)
+    const res = await fetch(endpoint, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        apikey: serviceRole,
+        Authorization: `Bearer ${serviceRole}`,
+      },
+    })
+    clearTimeout(timeout)
+
+    if (res.status === 401 || res.status === 403) {
+      return degraded('Supabase DB probe returned 401/403 (check service role key)', { status: res.status })
+    }
+    if (!res.ok) {
+      return degraded(`Supabase DB probe returned ${res.status}`, { status: res.status })
+    }
+    return ok('ok')
   } catch {
-    // In production, Redis is required for rate limiting; treat as down.
-    return componentDown('redis unavailable')
+    return down('Supabase DB probe unreachable')
   }
 }
 
-export async function checkResend(): Promise<HealthComponent> {
-  const hasKey = Boolean(serverEnv.RESEND_API_KEY)
-  if (!hasKey) return componentDegraded('not configured')
-  if (!shouldActiveCheckExternal()) return componentOk('configured (not actively checked)')
-  // Avoid calling provider endpoints; shallow check only.
-  return componentOk('configured')
-}
+function checkOptionalConfig(): Record<string, HealthComponent> {
+  const components: Record<string, HealthComponent> = {}
 
-export async function checkOpenAI(): Promise<HealthComponent> {
-  const hasKey = Boolean(serverEnv.OPENAI_API_KEY)
-  if (!hasKey) return componentDegraded('not configured')
-  if (!shouldActiveCheckExternal()) return componentOk('configured (not actively checked)')
-  return componentOk('configured')
-}
+  // Redis (Upstash) - optional for this status report (not all deployments require it).
+  const redisUrl = (process.env.UPSTASH_REDIS_REST_URL ?? '').trim()
+  const redisToken = (process.env.UPSTASH_REDIS_REST_TOKEN ?? '').trim()
+  components.redis =
+    /^https?:\/\//.test(redisUrl) && redisToken.length > 0 ? ok('configured') : notEnabled('Not enabled')
 
-export async function checkClearbit(): Promise<HealthComponent> {
-  const hasKey = Boolean(serverEnv.CLEARBIT_REVEAL_API_KEY || serverEnv.CLEARBIT_API_KEY)
-  if (!hasKey) return componentDegraded('not configured')
-  if (!shouldActiveCheckExternal()) return componentOk('configured (not actively checked)')
-  return componentOk('configured')
+  components.resend = hasEnv('RESEND_API_KEY') ? ok('configured') : notEnabled('Not enabled')
+  components.openai = hasEnv('OPENAI_API_KEY') ? ok('configured') : notEnabled('Not enabled')
+  components.clearbit = hasEnv('CLEARBIT_REVEAL_API_KEY') || hasEnv('CLEARBIT_API_KEY') ? ok('configured') : notEnabled('Not enabled')
+  components.posthog =
+    (hasEnv('POSTHOG_API_KEY') || hasEnv('NEXT_PUBLIC_POSTHOG_KEY')) && isTruthyEnv('NEXT_PUBLIC_ANALYTICS_ENABLED')
+      ? ok('configured')
+      : notEnabled('Not enabled')
+  components.sentry = hasEnv('SENTRY_DSN') ? ok('configured') : notEnabled('Not enabled')
+
+  return components
 }
 
 export async function getHealthReport(): Promise<HealthReport> {
-  const [db, redis, supabaseApi, resend, openai, clearbit] = await Promise.all([
-    checkDb(),
-    checkRedis(),
-    checkSupabaseApi(),
-    checkResend(),
-    checkOpenAI(),
-    checkClearbit(),
-  ])
+  const checkedAt = nowIso()
 
-  const components = { db, redis, supabaseApi, resend, openai, clearbit }
-  return {
-    status: overallStatus(components),
-    components,
+  const [auth, db] = await Promise.all([checkSupabaseAuth(), checkSupabaseDb()])
+  const app = ok('ok')
+  const optional = checkOptionalConfig()
+
+  const components: Record<string, HealthComponent> = {
+    app,
+    auth,
+    db,
+    ...optional,
   }
+
+  const status = computeOverallStatus([app, auth, db])
+
+  return { status, checkedAt, components }
 }
 

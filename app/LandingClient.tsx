@@ -10,13 +10,14 @@ import { createClient } from "@/lib/supabase/client"
 import type { TriggerEvent } from "@/lib/supabaseClient"
 import { TrendingUp, Zap, Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { TopNav } from "@/components/TopNav"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import Link from "next/link"
 import { BrandHero } from "@/components/BrandHero"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
-import { DemoLoop } from "@/components/landing/DemoLoop"
-import { TryLeadIntel } from "@/components/landing/TryLeadIntel"
+import { OneMinuteDemo } from "@/components/landing/OneMinuteDemo"
+import { TrySampleDigest } from "@/components/landing/TrySampleDigest"
+import { track } from "@/lib/analytics"
+import { COPY } from "@/lib/copy/leadintel"
 
 type TriggerEventRow = {
   id: string
@@ -223,13 +224,18 @@ export default function LandingClient() {
     }
   }, [supabase, loadEvents, checkSubscription, loadQuickStats])
 
+  useEffect(() => {
+    if (!isLoggedIn) {
+      track('landing_view', { path: '/' })
+    }
+  }, [isLoggedIn])
+
   const handleGeneratePitch = (companyUrl: string, companyName: string) => {
     router.push(`/pitch?url=${encodeURIComponent(companyUrl)}&name=${encodeURIComponent(companyName)}`)
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNav />
       {/* Header */}
       <header className="border-b border-border">
         <div className="container mx-auto px-4 py-4">
@@ -280,40 +286,41 @@ export default function LandingClient() {
           <div className="space-y-16">
             {/* Hero */}
             <section className="pt-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+              <div className="grid grid-cols-1 gap-8 items-start">
                 <div className="max-w-4xl">
                   <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-                    Wake up to a daily shortlist of accounts ready to talk.
+                    {COPY.home.hero.headline}
                   </h2>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    For solo SDRs/AEs selling B2B SaaS to mid‑market/enterprise.
+                    {COPY.positioning.icpLine}
                   </p>
                   <p className="text-lg text-muted-foreground mt-4 max-w-3xl">
-                    LeadIntel turns noisy markets into a <span className="font-semibold text-foreground">Daily Deal Digest</span>, scores your accounts
-                    <span className="font-semibold text-foreground"> 0–100</span>, and generates <span className="font-semibold text-foreground">conversion-ready pitch templates</span> so you can
-                    spend mornings booking meetings — not researching.
+                    {COPY.home.hero.support}
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                    <Button asChild size="lg">
-                      <Link href="/signup?redirect=/dashboard">Start free</Link>
+                    <Button asChild size="lg" className="neon-border hover:glow-effect">
+                      <Link href="#try-sample">{COPY.home.hero.primaryCta}</Link>
                     </Button>
                     <Button asChild variant="outline" size="lg">
-                      <Link href="#try-it">Try it</Link>
+                      <Link
+                        href="/pricing"
+                        onClick={() => track('pricing_cta_clicked', { source: 'landing_hero' })}
+                      >
+                        {COPY.home.hero.secondaryCta}
+                      </Link>
                     </Button>
                   </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    {COPY.home.hero.microTrust}
+                  </div>
 
-                  <div className="mt-6 text-sm text-muted-foreground">
-                    <div className="font-medium text-foreground">Trigger types</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <Badge variant="outline">Funding</Badge>
-                      <Badge variant="outline">Hiring spikes</Badge>
-                      <Badge variant="outline">Partnerships</Badge>
-                      <Badge variant="outline">Product launches</Badge>
-                    </div>
-                    <div className="mt-4 font-medium text-foreground">Regions</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      North America, UK/EU, and ANZ (best-effort via English-language sources).
-                    </div>
+                  <div className="mt-6">
+                    <div className="text-sm font-medium text-foreground">{COPY.home.whatYouGet.title}</div>
+                    <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                      {COPY.home.whatYouGet.bullets.map((b) => (
+                        <li key={b}>{b}</li>
+                      ))}
+                    </ul>
                   </div>
 
                   <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -352,13 +359,48 @@ export default function LandingClient() {
                   </Card>
                 </div>
                 </div>
+              </div>
+            </section>
 
-                <div className="space-y-4">
-                  <DemoLoop />
-                  <div id="try-it" className="scroll-mt-24">
-                    <TryLeadIntel />
-                  </div>
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              <OneMinuteDemo />
+              <div className="space-y-4">
+                <div id="try-sample" className="scroll-mt-24">
+                  <TrySampleDigest />
                 </div>
+                <Card className="border-cyan-500/10 bg-card/50">
+                  <CardContent className="pt-6 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">New here?</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Take a 2-minute tour of the workflow.</div>
+                    </div>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="neon-border hover:glow-effect"
+                      onClick={() => track('tour_cta_clicked', { source: 'home', location: 'try_sample' })}
+                    >
+                      <Link href="/tour">Take a tour</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+                <Card className="border-cyan-500/10 bg-card/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Signals included</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">Funding</Badge>
+                      <Badge variant="outline">Product launches</Badge>
+                      <Badge variant="outline">Hiring spikes</Badge>
+                      <Badge variant="outline">Press / partnerships</Badge>
+                      <Badge variant="outline">Other trigger events</Badge>
+                    </div>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Signals are provider-backed and configurable. This list is illustrative, not exhaustive.
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </section>
 

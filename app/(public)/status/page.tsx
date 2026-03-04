@@ -1,0 +1,212 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { headers } from 'next/headers'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { MarketingPage } from '@/components/marketing/MarketingPage'
+import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { StatusAutoRefresh } from './status-auto-refresh'
+
+export const metadata: Metadata = {
+  title: 'Status | LeadIntel',
+  description: 'Service status and basic health checks for LeadIntel.',
+  openGraph: {
+    title: 'Status | LeadIntel',
+    description: 'Service status and basic health checks for LeadIntel.',
+    url: 'https://dazrael.com/status',
+    images: [
+      {
+        url: '/api/og?title=Status&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        width: 1200,
+        height: 630,
+      },
+    ],
+  },
+}
+
+type HealthEnvelope =
+  | {
+      ok: true
+      data: {
+        status: 'operational' | 'degraded' | 'down'
+        checkedAt: string
+        components: Record<
+          string,
+          {
+            status: 'ok' | 'degraded' | 'down' | 'not_enabled' | 'not_checked'
+            message: string
+          }
+        >
+      }
+    }
+  | { ok: false; error?: { message?: string } }
+
+type VersionEnvelope =
+  | { ok: true; data: { appEnv?: string; nodeEnv?: string; branch?: string; commitSha?: string } }
+  | { ok: false; error?: { message?: string } }
+
+export default async function StatusPage() {
+  const baseUrl = getBaseUrl()
+
+  const [health, version] = await Promise.all([
+    safeFetchJson<HealthEnvelope>(`${baseUrl}/api/health`),
+    safeFetchJson<VersionEnvelope>(`${baseUrl}/api/version`),
+  ])
+
+  const status = health?.ok === true ? health.data.status : 'degraded'
+  const checkedAt = health?.ok === true ? health.data.checkedAt : null
+
+  const badge =
+    status === 'operational'
+      ? { label: 'Operational', cls: 'text-green-400 border-green-500/30' }
+      : status === 'down'
+        ? { label: 'Outage', cls: 'text-red-400 border-red-500/30' }
+        : { label: 'Degraded', cls: 'text-yellow-400 border-yellow-500/30' }
+
+  return (
+    <MarketingPage title="Status" subtitle="Operational signals for the LeadIntel service.">
+      <PageViewTrack event="status_page_view" props={{ page: 'status' }} />
+      <StatusAutoRefresh />
+
+      <div className="grid grid-cols-1 gap-6">
+        <Card className="border-cyan-500/20 bg-card/60">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-lg">Current status</CardTitle>
+              <Badge variant="outline" className={badge.cls}>
+                {badge.label}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-2">
+            <div className="text-xs text-muted-foreground">
+              This page shows lightweight checks designed not to expose secrets.
+            </div>
+            {checkedAt ? (
+              <div>
+                <span className="font-medium text-foreground">Last checked:</span> {new Date(checkedAt).toLocaleString()}
+              </div>
+            ) : null}
+            <div>
+              <span className="font-medium text-foreground">Health endpoint:</span>{' '}
+              <Link className="text-cyan-400 hover:underline" href="/api/health">
+                /api/health
+              </Link>
+            </div>
+            <div>
+              <span className="font-medium text-foreground">Version endpoint:</span>{' '}
+              <Link className="text-cyan-400 hover:underline" href="/api/version">
+                /api/version
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Components</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground space-y-2">
+              {health?.ok === true ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-cyan-500/10 text-xs text-muted-foreground">
+                        <th className="text-left py-2 pr-3">Component</th>
+                        <th className="text-left py-2 pr-3">Status</th>
+                        <th className="text-left py-2">Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(health.data.components).map(([name, c]) => (
+                        <tr key={name} className="border-b border-cyan-500/10">
+                          <td className="py-2 pr-3 font-medium text-foreground">{name}</td>
+                          <td className="py-2 pr-3">
+                            <span
+                              className={
+                                c.status === 'ok'
+                                  ? 'text-green-400'
+                                  : c.status === 'down'
+                                    ? 'text-red-400'
+                                    : c.status === 'not_enabled'
+                                      ? 'text-muted-foreground'
+                                      : c.status === 'not_checked'
+                                        ? 'text-muted-foreground'
+                                        : 'text-yellow-400'
+                              }
+                            >
+                              {c.status === 'not_enabled'
+                                ? 'Not enabled'
+                                : c.status === 'not_checked'
+                                  ? 'Not checked'
+                                  : c.status}
+                            </span>
+                          </td>
+                          <td className="py-2">{c.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div>Unable to load components.</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Deploy info</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground space-y-2">
+              {version && version.ok === true ? (
+                <>
+                  <div>
+                    <span className="font-medium text-foreground">Branch:</span> {version.data?.branch ?? 'unknown'}
+                  </div>
+                  <div>
+                    <span className="font-medium text-foreground">Commit:</span> {version.data?.commitSha ?? 'unknown'}
+                  </div>
+                </>
+              ) : (
+                <div>Unable to load version info.</div>
+              )}
+              <Button asChild variant="outline" size="sm" className="mt-2">
+                <Link href="/api/version">View raw version</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button asChild className="neon-border hover:glow-effect">
+            <Link href="/support">Contact support</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/security">Security overview</Link>
+          </Button>
+        </div>
+      </div>
+    </MarketingPage>
+  )
+}
+
+function getBaseUrl(): string {
+  const h = headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000'
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
+  return `${proto}://${host}`
+}
+
+async function safeFetchJson<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
+

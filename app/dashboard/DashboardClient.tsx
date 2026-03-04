@@ -32,6 +32,10 @@ import { ProOnlyCard } from './components/ProOnlyCard'
 import { CommunicationPreferencesCard } from './components/CommunicationPreferencesCard'
 import { ProGate } from '@/components/ProGate'
 import { ActivationGoalCard } from './components/ActivationGoalCard'
+import { InAppTourProvider } from '@/components/tour/InAppTourProvider'
+import { QuickTourActionsCard } from './components/QuickTourActionsCard'
+import { ScoreExplainerCard } from './components/ScoreExplainerCard'
+import { ActivationChecklistCard } from '@/components/ActivationChecklistCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -39,6 +43,10 @@ interface DashboardClientProps {
   initialOnboardingCompleted: boolean
   initialAutopilotEnabled: boolean
   initialCompanyInput?: string
+  initialHasIcp: boolean
+  initialTourCompletedAt: string | null
+  initialOpenOnboardingStep?: 2 | 3 | 4 | 5 | 6 | null
+  initialFocus?: 'pitch' | null
 }
 
 export function DashboardClient({ 
@@ -47,6 +55,10 @@ export function DashboardClient({
   initialOnboardingCompleted,
   initialAutopilotEnabled,
   initialCompanyInput,
+  initialHasIcp,
+  initialTourCompletedAt,
+  initialOpenOnboardingStep,
+  initialFocus,
 }: DashboardClientProps) {
   const [isPro, setIsPro] = useState(initialSubscriptionTier === 'pro')
   const [viewMode, setViewMode] = useState<'startup' | 'enterprise'>('startup')
@@ -55,7 +67,7 @@ export function DashboardClient({
   const [activeCompanyInput, setActiveCompanyInput] = useState<string | null>(null)
   const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
   const router = useRouter()
-  const { plan, isPro: planIsPro, trial } = usePlan()
+  const { plan, tier, isPro: planIsPro, trial } = usePlan()
   // Debug UI should never render in production even if misconfigured env vars are present.
   const debugEnabled = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
   const autopilotUiEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI === 'true'
@@ -68,6 +80,8 @@ export function DashboardClient({
   const { showOnboarding, onboardingComplete, onboardingChecked, handleOnboardingComplete, dismissOnboarding } =
     useOnboarding(initialOnboardingCompleted)
   const { debugInfo, showDebug, checkWhoami, hideDebug } = useDebugInfo()
+  const [manualOnboardingStep, setManualOnboardingStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
+  const [manualOnboardingOpen, setManualOnboardingOpen] = useState(false)
 
   // Sync isPro state with plan hook
   useEffect(() => {
@@ -81,7 +95,23 @@ export function DashboardClient({
   useEffect(() => {
     loadCredits(planIsPro)
     loadStats()
+    // Ensure lifecycle + settings rows exist (idempotent, best-effort).
+    void fetch('/api/lifecycle/ensure', { method: 'POST' }).catch(() => {})
   }, [loadCredits, loadStats, loadEvents, planIsPro])
+
+  useEffect(() => {
+    if (typeof initialOpenOnboardingStep === 'number') {
+      setManualOnboardingStep(initialOpenOnboardingStep)
+      setManualOnboardingOpen(true)
+    }
+  }, [initialOpenOnboardingStep])
+
+  useEffect(() => {
+    if (initialFocus === 'pitch') {
+      const el = document.querySelector('[data-tour="tour-generate-pitch"]') as HTMLElement | null
+      if (el) el.scrollIntoView({ block: 'center' })
+    }
+  }, [initialFocus])
 
   const triggerFilter = useMemo(() => {
     if (activeCompanyDomain) return { companyDomain: activeCompanyDomain }
@@ -104,12 +134,25 @@ export function DashboardClient({
 
   const loading = creditsLoading
 
+  const autoStartEligible = (!initialHasIcp || totalLeads === 0) && !onboardingComplete
+
   return (
     <div className="min-h-screen bg-background terminal-grid">
-      <DashboardHeader />
+      <InAppTourProvider autoStartEligible={autoStartEligible} serverTourCompletedAt={initialTourCompletedAt}>
+        <DashboardHeader />
       {/* Onboarding Wizard - Only show if server says not completed */}
-      {onboardingChecked && showOnboarding && !onboardingComplete && (
-        <OnboardingWizard onComplete={handleOnboardingComplete} onClose={dismissOnboarding} />
+      {((onboardingChecked && showOnboarding && !onboardingComplete) || manualOnboardingOpen) && (
+        <OnboardingWizard
+          initialStep={manualOnboardingOpen ? manualOnboardingStep : undefined}
+          onComplete={() => {
+            handleOnboardingComplete()
+            setManualOnboardingOpen(false)
+          }}
+          onClose={() => {
+            if (manualOnboardingOpen) setManualOnboardingOpen(false)
+            else dismissOnboarding()
+          }}
+        />
       )}
 
       {/* Header */}
@@ -177,11 +220,37 @@ export function DashboardClient({
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
+                <ActivationChecklistCard
+                  isStarter={tier === 'starter'}
+                  onOpenIcp={() => {
+                    setManualOnboardingStep(2)
+                    setManualOnboardingOpen(true)
+                  }}
+                  onOpenAccounts={() => {
+                    setManualOnboardingStep(3)
+                    setManualOnboardingOpen(true)
+                  }}
+                  onOpenDigestCadence={() => {
+                    setManualOnboardingStep(4)
+                    setManualOnboardingOpen(true)
+                  }}
+                  onOpenPitch={() => {
+                    const el = document.querySelector('[data-tour=\"tour-generate-pitch\"]') as HTMLElement | null
+                    if (el) el.scrollIntoView({ block: 'center' })
+                  }}
+                />
+                <QuickTourActionsCard
+                  onOpenOnboarding={(step) => {
+                    setManualOnboardingStep(step)
+                    setManualOnboardingOpen(true)
+                  }}
+                />
                 <ActivationGoalCard totalLeads={totalLeads} />
                 <PitchGenerator
                   initialUrl={initialCompanyInput}
                   onCompanyContextChange={onCompanyContextChange}
                 />
+                <ScoreExplainerCard />
               </div>
 
               {/* Secondary column */}
@@ -402,6 +471,7 @@ export function DashboardClient({
           </main>
         </div>
       </div>
+      </InAppTourProvider>
     </div>
   )
 }

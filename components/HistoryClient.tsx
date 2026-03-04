@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Download, Copy, Eye, ArrowDownUp, ArrowLeft, ArrowRight, Lock } from 'lucide-react'
 import { scoreLead } from '@/lib/leadScoring'
+import { COPY } from '@/lib/copy/leadintel'
 
 export interface HistoryLead {
   id: string
@@ -140,7 +141,10 @@ export function HistoryClient({ initialLeads, canAccessPitchHistory, canExportLe
         {!canExportLeads && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Lock className="h-4 w-4" />
-            Exports are locked. <a href="/pricing" className="text-cyan-400 underline ml-1">Upgrade</a>
+            {COPY.gates.label}.{' '}
+            <a href="/pricing?target=closer" className="text-cyan-400 underline ml-1">
+              {COPY.gates.ctaPrimary}
+            </a>
           </div>
         )}
 
@@ -166,23 +170,55 @@ export function HistoryClient({ initialLeads, canAccessPitchHistory, canExportLe
               <div className="mx-auto inline-flex items-center justify-center h-12 w-12 rounded-full border border-cyan-500/20 bg-cyan-500/10">
                 <Lock className="h-5 w-5 text-cyan-300" />
               </div>
-              <p className="text-lg font-semibold">Your trial work is safely stored</p>
-              <p className="text-muted-foreground">
-                Upgrade to Pro to unlock your pitch history and continue where you left off.
-              </p>
-              <Button asChild className="neon-border hover:glow-effect">
-                <a href="/pricing">Upgrade to Pro</a>
-              </Button>
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{COPY.gates.label}</div>
+              <p className="text-lg font-semibold">{COPY.gates.variants.savedOutputs.title}</p>
+              <p className="text-muted-foreground">{COPY.gates.variants.savedOutputs.body}</p>
+              <div className="flex flex-col sm:flex-row justify-center gap-2">
+                <Button asChild className="neon-border hover:glow-effect">
+                  <a href="/pricing?target=closer">{COPY.gates.ctaPrimary}</a>
+                </Button>
+                <Button asChild variant="outline">
+                  <a href="/pricing">{COPY.gates.ctaSecondary}</a>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : filtered.length === 0 ? (
           <Card className="border-cyan-500/20 bg-card/60">
             <CardContent className="py-10 text-center space-y-3">
-              <p className="text-lg font-semibold">No pitches yet</p>
-              <p className="text-muted-foreground">Generate your first pitch to see it here.</p>
-              <Button asChild className="neon-border hover:glow-effect">
-                <a href="/dashboard">Generate your first pitch</a>
-              </Button>
+              {initialLeads.length === 0 ? (
+                <>
+                  <p className="text-lg font-semibold">{COPY.states.empty.noSavedOutputs.title}</p>
+                  <p className="text-muted-foreground">{COPY.states.empty.noSavedOutputs.body}</p>
+                  <div className="flex flex-col sm:flex-row justify-center gap-2">
+                    <Button asChild className="neon-border hover:glow-effect">
+                      <a href="/dashboard">{COPY.states.empty.noSavedOutputs.primary}</a>
+                    </Button>
+                    <Button asChild variant="outline">
+                      <a href="/dashboard">{COPY.states.empty.noSavedOutputs.secondary}</a>
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-semibold">{COPY.states.empty.noResults.title}</p>
+                  <p className="text-muted-foreground">{COPY.states.empty.noResults.body}</p>
+                  <div className="flex flex-col sm:flex-row justify-center gap-2">
+                    <Button
+                      className="neon-border hover:glow-effect"
+                      onClick={() => {
+                        setQuery('')
+                        setPage(0)
+                      }}
+                    >
+                      {COPY.states.empty.noResults.primary}
+                    </Button>
+                    <Button asChild variant="outline">
+                      <a href="/dashboard">{COPY.states.empty.noResults.secondary}</a>
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         ) : (

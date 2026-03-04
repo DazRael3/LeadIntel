@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client"
 import { EmailShield } from "@/components/EmailShield"
 import { UpgradeOverlay } from "@/components/UpgradeOverlay"
 import { LeadDetailView } from "@/components/LeadDetailView"
+import { track } from "@/lib/analytics"
 
 interface LeadCardProps {
   lead: Lead
@@ -179,6 +180,7 @@ export function LeadCard({ lead }: LeadCardProps) {
                     }
                     
                     if (response.ok) {
+                      track('account_added', { source: 'unlock_lead', leadId: lead.id })
                       setShowDetail(true)
                     }
                   } catch (error) {

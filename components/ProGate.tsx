@@ -5,6 +5,7 @@ import { usePlan } from '@/components/PlanProvider'
 import { Button } from '@/components/ui/button'
 import { Lock, DollarSign } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { COPY } from '@/lib/copy/leadintel'
 
 type Tier = 'starter' | 'closer' | 'closer_plus' | 'team'
 type RequiredTier = Exclude<Tier, 'starter'>
@@ -41,7 +42,13 @@ export function ProGate(props: {
   children: ReactNode
   requiredTier: RequiredTier
   upgradeTarget?: UpgradeTarget
+  /** Optional: choose a feature-specific gate variant */
+  variant?: 'general' | 'moreAccounts' | 'savedOutputs' | 'advancedSignals'
+  /** Whether to show benefit bullets (default: true) */
+  showBenefits?: boolean
+  /** Back-compat; ignored in unified copy mode */
   label?: string
+  /** Back-compat; ignored in unified copy mode */
   description?: string
 }) {
   const { tier } = usePlan()
@@ -51,8 +58,27 @@ export function ProGate(props: {
 
   if (allowed) return <>{props.children}</>
 
-  const ctaLabel = `Upgrade to ${tierLabel(upgradeTarget)}`
   const ctaHref = `/pricing?target=${upgradeTarget}`
+  const showBenefits = props.showBenefits ?? true
+  const variant = props.variant ?? 'general'
+
+  const variantTitle =
+    variant === 'moreAccounts'
+      ? COPY.gates.variants.moreAccounts.title
+      : variant === 'savedOutputs'
+        ? COPY.gates.variants.savedOutputs.title
+        : variant === 'advancedSignals'
+          ? COPY.gates.variants.advancedSignals.title
+          : COPY.gates.title
+
+  const variantBody =
+    variant === 'moreAccounts'
+      ? COPY.gates.variants.moreAccounts.body
+      : variant === 'savedOutputs'
+        ? COPY.gates.variants.savedOutputs.body
+        : variant === 'advancedSignals'
+          ? COPY.gates.variants.advancedSignals.body
+          : COPY.gates.body
 
   return (
     <div className="relative">
@@ -64,19 +90,23 @@ export function ProGate(props: {
           <div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-full border border-purple-500/30 bg-purple-500/10">
             <Lock className="h-5 w-5 text-purple-300" />
           </div>
-          <div className="text-sm font-semibold">{props.label ?? 'Pro feature'}</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {props.description ?? 'Unlock real-time signals and automation with the Closer plan.'}
-          </div>
-          <div className="mt-3 flex justify-center">
-            <Button
-              type="button"
-              size="sm"
-              className="neon-border hover:glow-effect"
-              onClick={() => router.push(ctaHref)}
-            >
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{COPY.gates.label}</div>
+          <div className="mt-1 text-sm font-semibold">{variantTitle}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{variantBody}</div>
+          {showBenefits ? (
+            <ul className="mt-3 text-left text-xs text-muted-foreground list-disc pl-5 space-y-1">
+              {COPY.gates.benefits.map((b) => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="mt-4 flex flex-col sm:flex-row justify-center gap-2">
+            <Button type="button" size="sm" className="neon-border hover:glow-effect" onClick={() => router.push(ctaHref)}>
               <DollarSign className="h-4 w-4 mr-2" />
-              {ctaLabel}
+              {COPY.gates.ctaPrimary}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => router.push('/pricing')}>
+              {COPY.gates.ctaSecondary}
             </Button>
           </div>
         </div>

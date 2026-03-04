@@ -1,3 +1,9 @@
 {
-  "version": 2
+  "version": 2,
+  "crons": [
+    { "path": "/api/cron/run?job=kpi_monitor", "schedule": "5 15 * * *" },
+    { "path": "/api/cron/run?job=content_audit", "schedule": "15 15 * * *" },
+    { "path": "/api/cron/run?job=lifecycle", "schedule": "25 15 * * *" },
+    { "path": "/api/cron/run?job=digest_lite", "schedule": "30 15 * * 1" }
+  ]
 }

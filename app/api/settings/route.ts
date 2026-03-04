@@ -75,6 +75,8 @@ export const POST = withApiGuard(
       const display_name = typeof input.display_name === 'string' ? input.display_name : undefined
       const from_email = typeof input.from_email === 'string' ? input.from_email : undefined
       const from_name = typeof input.from_name === 'string' ? input.from_name : display_name || null
+      const what_you_sell = typeof input.what_you_sell === 'string' ? input.what_you_sell : undefined
+      const ideal_customer = typeof input.ideal_customer === 'string' ? input.ideal_customer : undefined
       const digest_enabled = input.digest_enabled ?? false
       const digest_dow = input.digest_dow ?? 1
       const digest_hour = input.digest_hour ?? 9
@@ -87,12 +89,17 @@ export const POST = withApiGuard(
       const preferred_contact_channel = typeof input.preferred_contact_channel === 'string' ? input.preferred_contact_channel : undefined
       const preferred_contact_detail = typeof input.preferred_contact_detail === 'string' ? input.preferred_contact_detail : undefined
       const allow_product_updates = typeof input.allow_product_updates === 'boolean' ? input.allow_product_updates : undefined
+      const product_tips_opt_in = typeof input.product_tips_opt_in === 'boolean' ? input.product_tips_opt_in : undefined
+      const digest_emails_opt_in = typeof input.digest_emails_opt_in === 'boolean' ? input.digest_emails_opt_in : undefined
+      const last_upgrade_nudge_shown_at =
+        typeof input.last_upgrade_nudge_shown_at === 'string' ? input.last_upgrade_nudge_shown_at : undefined
       const phone =
         input.phone === undefined
           ? undefined
           : (typeof input.phone === 'string' ? input.phone.trim() : '').trim() || null
       const onboarding_completed =
         typeof input.onboarding_completed === 'boolean' ? input.onboarding_completed : true
+      const tour_completed_at = typeof input.tour_completed_at === 'string' ? input.tour_completed_at : undefined
 
       const { error, data: updated } = await supabase
         .from('user_settings')
@@ -102,6 +109,8 @@ export const POST = withApiGuard(
             ...(display_name !== undefined ? { display_name } : {}),
             ...(from_email !== undefined ? { from_email } : {}),
             from_name: from_name || null,
+            ...(what_you_sell !== undefined ? { what_you_sell } : {}),
+            ...(ideal_customer !== undefined ? { ideal_customer } : {}),
             onboarding_completed,
             digest_enabled,
             digest_dow,
@@ -114,8 +123,12 @@ export const POST = withApiGuard(
             ...(preferred_contact_channel !== undefined ? { preferred_contact_channel } : {}),
             ...(preferred_contact_detail !== undefined ? { preferred_contact_detail } : {}),
             ...(allow_product_updates !== undefined ? { allow_product_updates } : {}),
+            ...(product_tips_opt_in !== undefined ? { product_tips_opt_in } : {}),
+            ...(digest_emails_opt_in !== undefined ? { digest_emails_opt_in } : {}),
+            ...(last_upgrade_nudge_shown_at !== undefined ? { last_upgrade_nudge_shown_at } : {}),
             ...(autopilot_enabled !== undefined ? { autopilot_enabled } : {}),
             ...(phone !== undefined ? { phone } : {}),
+            ...(tour_completed_at !== undefined ? { tour_completed_at } : {}),
             updated_at: new Date().toISOString(),
           },
           {
@@ -123,7 +136,7 @@ export const POST = withApiGuard(
           }
         )
         .select(
-          'user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, phone, digest_enabled, digest_dow, digest_hour, digest_webhook_url, updated_at'
+          'user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, product_tips_opt_in, digest_emails_opt_in, last_upgrade_nudge_shown_at, phone, what_you_sell, ideal_customer, digest_enabled, digest_dow, digest_hour, digest_webhook_url, tour_completed_at, updated_at'
         )
         .single()
 
@@ -135,6 +148,10 @@ export const POST = withApiGuard(
           error.message?.includes('digest_dow') ||
           error.message?.includes('digest_enabled') ||
           error.message?.includes('digest_hour') ||
+          error.message?.includes('product_tips_opt_in') ||
+          error.message?.includes('digest_emails_opt_in') ||
+          error.message?.includes('last_upgrade_nudge_shown_at') ||
+          error.message?.includes('tour_completed_at') ||
           error.code === 'PGRST204' ||
           error.code === '42P01' || // PostgreSQL: undefined_table
           error.hint?.includes('schema cache')

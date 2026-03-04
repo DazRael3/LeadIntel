@@ -125,6 +125,52 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NODE_ENV=development
 ```
 
+---
+
+## Optional: Analytics (PostHog)
+
+Analytics are **fully optional**. If you do not set these env vars, tracking is a no-op and the app will not error.
+
+```env
+# Enable analytics capture (0/1)
+NEXT_PUBLIC_ANALYTICS_ENABLED=1
+
+# PostHog project API key (client-side)
+NEXT_PUBLIC_POSTHOG_KEY=phc_...
+
+# Optional PostHog host (defaults to https://app.posthog.com)
+NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
+
+# Optional server key (if omitted, the server will fall back to NEXT_PUBLIC_POSTHOG_KEY)
+POSTHOG_API_KEY=phc_...
+```
+
+### Tracked events (key ones)
+
+- `landing_try_sample_submitted`
+- `landing_sample_generated` (includes `score`)
+- `landing_sample_email_requested`
+- `landing_sample_email_sent`
+- `cta_signup_clicked`
+- `pricing_cta_clicked`
+
+### Verify locally
+
+- Set the env vars above in `.env.local`
+- Start the app and trigger actions (homepage CTAs, sample generator, pricing CTA)
+- Confirm events in PostHog “Live events”
+
+---
+
+## Optional: 1-minute demo asset
+
+To use a real demo media asset on the homepage, add one of:
+
+- `public/demo.mp4` (preferred)
+- `public/demo.gif`
+
+If no asset exists, the homepage shows a terminal-style placeholder simulation.
+
 #### Optional: Third-Party Integrations
 
 ```env
@@ -409,6 +455,135 @@ npm install
 - [Project Documentation](./docs/)
 
 ---
+
+## Lifecycle + Activation
+
+LeadIntel includes a production activation checklist and lifecycle emails (welcome → nudges → recap → winback).
+
+### Activation checklist (in-app)
+
+The checklist is derived from real product state (server-side):
+- Define ICP (stored in `api.user_settings`)
+- Add 10 target accounts (count of `api.leads`)
+- Generate first pitch draft (count of `api.pitches`)
+- Turn on digest cadence (digest enabled + digest emails opt-in)
+
+Completion is persisted to:
+- `api.user_settings.checklist_state`
+- `api.user_settings.checklist_completed_at`
+
+### Email preferences
+
+Users manage preferences at:
+- `/settings/notifications`
+
+Lifecycle emails only send when:
+- `api.user_settings.product_tips_opt_in = true`
+
+Digest delivery only emails when:
+- `api.user_settings.digest_emails_opt_in = true` (webhooks are unaffected)
+
+### Lifecycle cron
+
+Lifecycle emails are sent via:
+- `POST /api/cron/lifecycle`
+
+Auth options:
+- `x-cron-secret: $CRON_SECRET` header, or
+- signed `cron_token` query param using `CRON_SIGNING_SECRET` (see `lib/api/cron-auth.ts`)
+
+Recommended env vars:
+- `CRON_SECRET` and/or `CRON_SIGNING_SECRET`
+- `APP_URL` (falls back to `NEXT_PUBLIC_SITE_URL`, then `https://dazrael.com`)
+- `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (otherwise lifecycle runs no-op safely)
+
+### Run locally
+
+```bash
+npm run lifecycle:run
+```
+
+---
+
+## Growth Automation
+
+LeadIntel includes a small jobs framework used by cron and the admin Growth Ops dashboard.
+
+### Vercel Hobby automation (free)
+
+- **Schedules are UTC**
+- **Hobby cron jobs must run at most once per day** (weekly is fine). Hourly scheduling requires a paid plan.
+- Lifecycle is kept timely with:
+  - a **daily sweep** (`job=lifecycle`)
+  - plus **lazy cron**: a best-effort per-user lifecycle check on normal authenticated activity
+
+### External scheduler (cron-job.org)
+
+If you want more frequent automation than Vercel Hobby allows, you can use `cron-job.org` (or similar) to call:
+- `GET /api/cron/run?job=...`
+
+Auth is required via header:
+- `Authorization: Bearer $EXTERNAL_CRON_SECRET`
+
+Rules:
+- Secrets are **never** accepted via query params.
+- For lifecycle batching: use `limit` (clamped to 10..1000; default 200), e.g. `job=lifecycle&limit=200`.
+
+### Required env vars (by feature)
+
+- **Cron protection**
+  - `CRON_SECRET` (required for `POST /api/cron/run`)
+  - `CRON_SIGNING_SECRET` (optional; used by other cron routes via `cron_token`)
+
+- **Admin Growth Ops**
+  - `ADMIN_TOKEN` (required to access `/admin/growth`; invalid/missing token returns 404)
+
+- **Resend (email sending)**
+  - `RESEND_API_KEY` (optional; if missing, email jobs skip safely)
+  - `RESEND_FROM_EMAIL` (required to actually send)
+
+- **KPI monitor (PostHog API reads)**
+  - `POSTHOG_PROJECT_ID` (required to enable KPI reads)
+  - `POSTHOG_PERSONAL_API_KEY` (required to enable KPI reads)
+  - `POSTHOG_HOST` (optional; default `https://app.posthog.com`)
+  - `ALERT_EMAIL_TO` (required to send alerts)
+
+### Run locally
+
+```bash
+npm run content:audit
+npm run lifecycle:run
+```
+
+### Trigger jobs (cron)
+
+**Vercel Cron** calls the configured path using **GET** (timezone is **UTC**).
+On the **Hobby** plan, schedules must be **daily or less frequent** (hourly requires a paid plan).
+
+When `CRON_SECRET` is set in Vercel project env, Vercel sends:
+- `Authorization: Bearer $CRON_SECRET`
+
+Examples:
+- `GET /api/cron/run?job=kpi_monitor`
+- `GET /api/cron/run?job=content_audit`
+- `GET /api/cron/run?job=lifecycle`
+- `GET /api/cron/run?job=digest_lite`
+
+Optional:
+- `dryRun=1` to skip side effects (returns a JobResult with `status:"skipped"` where supported)
+
+For non-Vercel callers, `POST /api/cron/run` is still supported:
+- preferred header: `Authorization: Bearer $CRON_SECRET`
+- legacy header: `x-cron-secret: $CRON_SECRET`
+- body: `{ "job": "kpi_monitor" | "content_audit" | "lifecycle" | "digest_lite", "dryRun": false }`
+
+### Recommended schedules
+
+- lifecycle: hourly
+- digest_lite: weekly
+- kpi_monitor: daily
+- content_audit: daily
+
 
 ## Support
 

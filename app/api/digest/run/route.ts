@@ -10,6 +10,7 @@ import { buildUserDigest } from '@/lib/services/digest'
 import { renderDailyDigestEmailHtml, renderDailyDigestEmailText } from '@/lib/email/templates'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { insertEmailLog } from '@/lib/email/email-logs'
+import { captureServerEvent } from '@/lib/analytics/posthog-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +45,7 @@ export const POST = withApiGuard(
       // Find digest-enabled users due now (simple: enabled + any)
       const { data: users, error: usersError } = await supabase
         .from('user_settings')
-        .select('user_id, digest_enabled, digest_webhook_url')
+        .select('user_id, digest_enabled, digest_webhook_url, digest_emails_opt_in')
         .eq('digest_enabled', true)
 
       if (usersError) {
@@ -60,7 +61,11 @@ export const POST = withApiGuard(
 
       const summaries: { user_id: string; delivered: boolean }[] = []
 
-      type DigestUserRow = { user_id: string; digest_webhook_url?: string | null }
+      type DigestUserRow = {
+        user_id: string
+        digest_webhook_url?: string | null
+        digest_emails_opt_in?: boolean | null
+      }
       for (const u of (users || []) as DigestUserRow[]) {
         const userCorrelationId = `${runCorrelationId}:${u.user_id}`
         logInfo({ scope: 'digest', message: 'digest.user_start', userId: u.user_id, correlationId: userCorrelationId })
@@ -124,7 +129,9 @@ export const POST = withApiGuard(
         }
 
         // Email delivery (new; best-effort, safe for missing config).
-        if (toEmail) {
+        // Respect digest email opt-out; webhooks can still deliver.
+        const digestEmailsOptIn = (u.digest_emails_opt_in ?? true) === true
+        if (toEmail && digestEmailsOptIn) {
           const fromEmail = serverEnv.RESEND_FROM_EMAIL || 'noreply@leadintel.com'
           const sendRes = await sendEmailWithResend({
             from: fromEmail,
@@ -152,6 +159,15 @@ export const POST = withApiGuard(
               resendMessageId: sendRes.messageId,
               kind: 'digest',
             })
+            // Funnel tracking: accounts -> first digest sent.
+            await captureServerEvent({
+              distinctId: u.user_id,
+              event: 'digest_sent',
+              properties: {
+                kind: 'daily',
+                hasWebhook: Boolean(u.digest_webhook_url),
+              },
+            })
           } else {
             logWarn({
               scope: 'digest',
@@ -171,10 +187,17 @@ export const POST = withApiGuard(
               kind: 'digest',
             })
           }
-        } else {
+        } else if (!toEmail) {
           logWarn({
             scope: 'digest',
             message: 'digest.user_email_missing',
+            userId: u.user_id,
+            correlationId: userCorrelationId,
+          })
+        } else {
+          logInfo({
+            scope: 'digest',
+            message: 'digest.email_opted_out',
             userId: u.user_id,
             correlationId: userCorrelationId,
           })

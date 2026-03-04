@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: ['*']
   push:
-    branches: ['main', 'master']
+    branches: ['*']
 
 # Cancel in-progress runs for the same workflow and branch
 concurrency:
@@ -100,8 +100,16 @@ jobs:
         run: npx tsc --noEmit
         continue-on-error: false
 
+      - name: Build
+        run: npm run build:ci
+        continue-on-error: false
+
+      - name: Content audit
+        run: npm run content:audit
+        continue-on-error: false
+
       - name: Unit tests
-        run: npm run test
+        run: npm run test:unit
         continue-on-error: false
 
       - name: Playwright smoke tests
