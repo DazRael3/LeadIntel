@@ -34,7 +34,7 @@ create table if not exists api.growth_alerts (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
   metric text not null,
-  window text not null,
+  window_key text not null,
   current_count int not null,
   previous_count int not null,
   drop_pct numeric not null,

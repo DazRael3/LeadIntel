@@ -6,6 +6,7 @@ import { generateSampleDigest } from '@/lib/sampleDigest'
 import { checkPublicRateLimit } from '@/lib/rateLimit'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { serverEnv } from '@/lib/env'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,6 +107,7 @@ export const POST = withApiGuard(
           const send = await sendEmailWithResend({
             from,
             to,
+            replyTo: SUPPORT_EMAIL,
             subject,
             html,
             text: lines.join('\n'),

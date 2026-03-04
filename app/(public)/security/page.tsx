@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { buildMailto } from '@/lib/mailto'
 
 export const metadata: Metadata = {
   title: 'Security | LeadIntel',
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
 }
 
 export default function SecurityPage() {
-  const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Security')}`
+  const mailto = buildMailto(SUPPORT_EMAIL, 'LeadIntel Security')
 
   return (
     <MarketingPage
@@ -134,7 +135,7 @@ export default function SecurityPage() {
             </p>
             <p>
               To request deletion or export, email{' '}
-              <a className="text-cyan-400 hover:underline" href={`mailto:${SUPPORT_EMAIL}`}>
+              <a className="text-cyan-400 hover:underline" href={buildMailto(SUPPORT_EMAIL, 'LeadIntel Data request')}>
                 {SUPPORT_EMAIL}
               </a>
               .

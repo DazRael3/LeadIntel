@@ -4,6 +4,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, ErrorCode } from '@/lib/api/http'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { serverEnv } from '@/lib/env'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 const BodySchema = z.object({
   email: z.string().trim().email(),
@@ -52,6 +53,7 @@ ${escapeHtml(text)}
       const result = await sendEmailWithResend({
         from,
         to: parsed.data.email,
+        replyTo: SUPPORT_EMAIL,
         subject,
         html,
         text,

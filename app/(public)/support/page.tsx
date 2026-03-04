@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { buildMailto } from '@/lib/mailto'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
 }
 
 export default function SupportPage() {
-  const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('LeadIntel Support')}`
+  const mailto = buildMailto(SUPPORT_EMAIL, 'LeadIntel Support')
 
   return (
     <MarketingPage title="Support" subtitle="Get help with billing, upgrades, and using LeadIntel.">

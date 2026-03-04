@@ -1,9 +1,10 @@
 import Link from 'next/link'
 
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { buildMailto } from '@/lib/mailto'
 
 export function SiteFooter() {
-  const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('LeadIntel Support')}`
+  const mailto = buildMailto(SUPPORT_EMAIL, 'LeadIntel Support')
 
   return (
     <footer className="border-t border-cyan-500/20 bg-card/40">

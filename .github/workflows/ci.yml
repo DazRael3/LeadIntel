@@ -108,6 +108,10 @@ jobs:
         run: npm run content:audit
         continue-on-error: false
 
+      - name: Check no legacy support email
+        run: npm run check:no-old-support-email
+        continue-on-error: false
+
       - name: Unit tests
         run: npm run test:unit
         continue-on-error: false

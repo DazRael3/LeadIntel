@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { buildMailto } from '@/lib/mailto'
 
 export const metadata: Metadata = {
   title: 'Privacy | LeadIntel',
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
 }
 
 export default function PrivacyPage() {
-  const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Privacy request')}`
+  const mailto = buildMailto(SUPPORT_EMAIL, 'LeadIntel Privacy request')
 
   return (
     <MarketingPage title="Privacy" subtitle="What we collect, how we use it, and your choices.">

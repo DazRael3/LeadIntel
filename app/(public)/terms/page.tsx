@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { buildMailto } from '@/lib/mailto'
 
 export const metadata: Metadata = {
   title: 'Terms | LeadIntel',
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
 }
 
 export default function TermsPage() {
-  const supportMailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('LeadIntel Terms')}`
+  const supportMailto = buildMailto(SUPPORT_EMAIL, 'LeadIntel Terms')
 
   return (
     <MarketingPage title="Terms" subtitle="Service terms for using LeadIntel.">

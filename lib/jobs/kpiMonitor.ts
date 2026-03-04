@@ -2,6 +2,7 @@ import { serverEnv } from '@/lib/env'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { queryHogQL, getPostHogApiConfig } from '@/lib/posthog/server'
 import { sendEmailWithResend } from '@/lib/email/resend'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 type WindowKey = '24h' | '7d'
 
@@ -109,7 +110,7 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
     for (const a of alerts) {
       await supabase.from('growth_alerts').insert({
         metric: a.metric,
-        window: a.window,
+        window_key: a.window,
         current_count: a.current,
         previous_count: a.previous,
         drop_pct: a.dropPct,
@@ -157,6 +158,7 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
     await sendEmailWithResend({
       from,
       to,
+      replyTo: SUPPORT_EMAIL,
       subject: subj,
       text: body,
       html: `<pre style="white-space:pre-wrap;font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${body.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`,
