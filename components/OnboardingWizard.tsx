@@ -25,17 +25,42 @@ type Cadence = 'daily' | 'weekly' | 'off'
 
 const MAX_ACCOUNTS_IMPORT = 50
 
-function extractDomain(input: string): string | null {
-  const raw = input.trim()
+function normalizeCompanyToken(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '')
+    .slice(0, 48)
+}
+
+function normalizeAccountInput(input: string): { raw: string; domain: string; url: string; name: string } | null {
+  const raw = input.trim().replace(/[,\s]+$/g, '')
   if (!raw) return null
+
+  // URL
   try {
-    const hasScheme = raw.startsWith('http://') || raw.startsWith('https://')
-    if (hasScheme) return new URL(raw).hostname.replace(/^www\./, '')
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      const hostname = new URL(raw).hostname.replace(/^www\./, '').toLowerCase()
+      if (!hostname) return null
+      return { raw, domain: hostname, url: `https://${hostname}`, name: hostname }
+    }
   } catch {
-    return null
+    // fall through
   }
-  if (raw.includes('.') && !raw.includes(' ')) return raw.replace(/^www\./, '')
-  return null
+
+  // Domain
+  const looksLikeDomain = raw.includes('.') && !raw.includes(' ')
+  if (looksLikeDomain) {
+    const hostname = raw.replace(/^www\./, '').toLowerCase()
+    return { raw, domain: hostname, url: `https://${hostname}`, name: hostname }
+  }
+
+  // Name: make it user-friendly by assuming .com for single/multi-word names.
+  const token = normalizeCompanyToken(raw)
+  if (!token) return null
+  const domain = `${token}.com`
+  return { raw, domain, url: `https://${domain}`, name: raw }
 }
 
 function buildIdealCustomerSummary(args: {
@@ -131,11 +156,12 @@ export function OnboardingWizard({ onComplete, onClose, initialStep }: Onboardin
   }
 
   async function handleAddAccounts() {
-    const lines = accountsText
+    const tokens = accountsText
       .split('\n')
+      .flatMap((line) => line.split(','))
       .map((l) => l.trim())
       .filter(Boolean)
-    const unique = Array.from(new Set(lines))
+    const unique = Array.from(new Set(tokens))
 
     if (unique.length === 0) {
       toast({ variant: 'destructive', title: COPY.validation.required, description: COPY.onboarding.screen3.emptyHelper })
@@ -157,19 +183,28 @@ export function OnboardingWizard({ onComplete, onClose, initialStep }: Onboardin
 
     setLoading(true)
     try {
-      const rows = unique.map((raw) => {
-        const domain = extractDomain(raw)
-        const companyName = domain ? domain : raw
+      const parsed = unique.map((raw) => normalizeAccountInput(raw)).filter(Boolean) as Array<{
+        raw: string
+        domain: string
+        url: string
+        name: string
+      }>
+      if (parsed.length === 0) {
+        toast({ variant: 'destructive', title: COPY.validation.required, description: COPY.onboarding.screen3.emptyHelper })
+        return
+      }
+
+      const rows = parsed.map((p) => {
         return {
           user_id: userId,
-          company_url: raw,
-          company_domain: domain,
-          company_name: companyName,
+          company_url: p.url,
+          company_domain: p.domain,
+          company_name: p.name,
           ai_personalized_pitch: null,
         }
       })
 
-      const { error } = await supabase.from('leads').insert(rows)
+      const { error } = await supabase.from('leads').upsert(rows, { onConflict: 'user_id,company_domain' })
       if (error) throw error
 
       setAccountsAdded(unique)
