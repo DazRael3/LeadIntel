@@ -132,14 +132,15 @@ function checkOptionalConfig(): Record<string, HealthComponent> {
   components.redis =
     /^https?:\/\//.test(redisUrl) && redisToken.length > 0 ? ok('configured') : notEnabled('Not enabled')
 
-  components.resend = hasEnv('RESEND_API_KEY') ? ok('configured') : notEnabled('Not enabled')
-  components.openai = hasEnv('OPENAI_API_KEY') ? ok('configured') : notEnabled('Not enabled')
-  components.clearbit = hasEnv('CLEARBIT_REVEAL_API_KEY') || hasEnv('CLEARBIT_API_KEY') ? ok('configured') : notEnabled('Not enabled')
+  components.resend = hasEnv('RESEND_API_KEY') ? ok('configured') : notEnabled('not configured')
+  components.openai = hasEnv('OPENAI_API_KEY') ? ok('configured') : notEnabled('not configured')
+  components.clearbit =
+    hasEnv('CLEARBIT_REVEAL_API_KEY') || hasEnv('CLEARBIT_API_KEY') ? ok('configured') : notEnabled('not configured')
   components.posthog =
     (hasEnv('POSTHOG_API_KEY') || hasEnv('NEXT_PUBLIC_POSTHOG_KEY')) && isTruthyEnv('NEXT_PUBLIC_ANALYTICS_ENABLED')
       ? ok('configured')
-      : notEnabled('Not enabled')
-  components.sentry = hasEnv('SENTRY_DSN') ? ok('configured') : notEnabled('Not enabled')
+      : notEnabled('not configured')
+  components.sentry = hasEnv('SENTRY_DSN') ? ok('configured') : notEnabled('not configured')
 
   return components
 }
