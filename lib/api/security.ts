@@ -194,6 +194,11 @@ export function validateOrigin(
 export function getSecurityHeaders(request: NextRequest): HeadersInit {
   const headers: HeadersInit = {}
   
+  // Cross-Origin-Opener-Policy: isolate browsing context group
+  headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+  // Cross-Origin-Resource-Policy: restrict who can embed resources
+  headers['Cross-Origin-Resource-Policy'] = 'same-site'
+
   // X-Content-Type-Options: Prevent MIME type sniffing
   headers['X-Content-Type-Options'] = 'nosniff'
   
@@ -208,35 +213,57 @@ export function getSecurityHeaders(request: NextRequest): HeadersInit {
     'camera=()',
     'microphone=()',
     'geolocation=()',
-    'interest-cohort=()',
   ].join(', ')
   
   // HSTS: Only in production and for HTTPS
   if (serverEnv.NODE_ENV === 'production') {
-    const protocol = request.nextUrl.protocol
-    if (protocol === 'https:') {
+    const forwardedProto = request.headers.get('x-forwarded-proto')
+    const protocol = (forwardedProto ?? request.nextUrl.protocol.replace(':', '')).toLowerCase()
+    if (protocol === 'https') {
       // HSTS: 1 year, includeSubDomains, preload
       headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
     }
   }
   
-  // Content-Security-Policy: Basic CSP (can be customized per route)
-  // Note: This is a baseline. Adjust based on your needs.
-  // We use a relaxed CSP for Next.js compatibility (allows inline scripts/styles)
-  // For stricter security, customize per route or use nonce-based CSP
-  const csp = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Allow inline scripts for Next.js
-    "style-src 'self' 'unsafe-inline'", // Allow inline styles
-    "img-src 'self' data: https:", // Allow images from self, data URIs, and HTTPS
-    "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co https://*.stripe.com https://api.openai.com https://*.upstash.io", // Allow API calls
-    "frame-ancestors 'none'", // Prevent framing (also covered by X-Frame-Options)
-  ].join('; ')
-  
-  headers['Content-Security-Policy'] = csp
+  // Content-Security-Policy: conservative baseline with Stripe/PostHog/Supabase compatibility.
+  headers['Content-Security-Policy'] = buildCsp()
   
   return headers
+}
+
+function originFromUrl(raw: string): string | null {
+  const v = raw.trim()
+  if (!v) return null
+  try {
+    return new URL(v).origin
+  } catch {
+    return null
+  }
+}
+
+function buildCsp(): string {
+  const supabaseOrigin = originFromUrl(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '')
+  const posthogOrigin =
+    originFromUrl(process.env.NEXT_PUBLIC_POSTHOG_HOST ?? '') ?? originFromUrl(process.env.POSTHOG_HOST ?? '')
+
+  const connectSrc = new Set<string>(["'self'", 'https:', 'wss:'])
+  if (supabaseOrigin) connectSrc.add(supabaseOrigin)
+  if (posthogOrigin) connectSrc.add(posthogOrigin)
+
+  const directives: string[] = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "img-src 'self' data: https:",
+    "font-src 'self' https: data:",
+    "style-src 'self' 'unsafe-inline' https:",
+    // Next.js requires relaxed script-src unless you implement a nonce-based CSP.
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https:",
+    `connect-src ${Array.from(connectSrc).join(' ')}`,
+    'frame-src https://js.stripe.com https://hooks.stripe.com',
+  ]
+  return directives.join('; ')
 }
 
 /**
