@@ -93,33 +93,46 @@ async function checkSupabaseAuth(): Promise<HealthComponent> {
 async function checkSupabaseDb(): Promise<HealthComponent> {
   if (isTestLikeEnv()) return ok('skipped in test-like env')
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-  const serviceRole = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim()
-  if (!url || !serviceRole) return notChecked('Supabase service env not present on server')
+  const anon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+  if (!url || !anon) return notChecked('Supabase env not present on server')
 
-  // Trivial, low-cost read (requires `api.users` to exist and schema cache to be healthy).
-  const endpoint = `${url.replace(/\/$/, '')}/rest/v1/users?select=id&limit=1`
+  // Lightweight DB ping (no table dependency).
+  const endpoint = `${url.replace(/\/$/, '')}/rest/v1/rpc/health_ping`
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 2000)
     const res = await fetch(endpoint, {
-      method: 'GET',
+      method: 'POST',
       signal: controller.signal,
       headers: {
-        apikey: serviceRole,
-        Authorization: `Bearer ${serviceRole}`,
+        apikey: anon,
+        Authorization: `Bearer ${anon}`,
+        'Content-Type': 'application/json',
       },
+      body: '{}',
     })
     clearTimeout(timeout)
 
     if (res.status === 401 || res.status === 403) {
-      return degraded('Supabase DB probe returned 401/403 (check service role key)', { status: res.status })
+      return degraded('Supabase DB ping returned 401/403 (check ANON key)', { status: res.status })
     }
     if (!res.ok) {
-      return degraded(`Supabase DB probe returned ${res.status}`, { status: res.status })
+      return degraded(`Supabase DB ping returned ${res.status}`, { status: res.status })
     }
-    return ok('ok')
+
+    const text = await res.text().catch(() => '')
+    let meta: Record<string, unknown> | undefined = { status: res.status }
+    try {
+      const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : undefined
+      if (parsed && typeof parsed === 'object') meta = { ...meta, ...parsed }
+    } catch {
+      // ignore
+    }
+
+    if (meta && meta.ok === true) return ok('ok', meta)
+    return ok('ok', meta)
   } catch {
-    return down('Supabase DB probe unreachable')
+    return down('Supabase DB ping unreachable')
   }
 }
 
@@ -130,7 +143,7 @@ function checkOptionalConfig(): Record<string, HealthComponent> {
   const redisUrl = (process.env.UPSTASH_REDIS_REST_URL ?? '').trim()
   const redisToken = (process.env.UPSTASH_REDIS_REST_TOKEN ?? '').trim()
   components.redis =
-    /^https?:\/\//.test(redisUrl) && redisToken.length > 0 ? ok('configured') : notEnabled('Not enabled')
+    /^https?:\/\//.test(redisUrl) && redisToken.length > 0 ? ok('configured') : notEnabled('not configured')
 
   components.resend = hasEnv('RESEND_API_KEY') ? ok('configured') : notEnabled('not configured')
   components.openai = hasEnv('OPENAI_API_KEY') ? ok('configured') : notEnabled('not configured')
