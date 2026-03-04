@@ -755,8 +755,8 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     tier: 'CRON',
     maxBytes: 8192,
     rateLimit: {
-      authPerMin: 10,
-      ipPerMin: 5,
+      authPerMin: 1,
+      ipPerMin: 1,
     },
     originRequired: false,
     authRequired: false, // auth via x-cron-secret header
@@ -768,11 +768,24 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     tier: 'CRON',
     maxBytes: 0,
     rateLimit: {
-      authPerMin: 10,
-      ipPerMin: 5,
+      authPerMin: 1,
+      ipPerMin: 1,
     },
     originRequired: false,
     authRequired: false, // auth via Authorization: Bearer CRON_SECRET
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/digest-lite/subscribe': {
+    tier: 'PUBLIC',
+    maxBytes: 4096,
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 0, // rate limiting handled inside the route (Upstash-first + in-memory fallback)
+    },
+    originRequired: true,
+    authRequired: false,
     cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,
@@ -845,6 +858,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     webhookSignatureRequired: false,
   },
   'GET:/api/version': {
+    tier: 'PUBLIC',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 60,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/public/automation': {
     tier: 'PUBLIC',
     maxBytes: 0,
     rateLimit: {

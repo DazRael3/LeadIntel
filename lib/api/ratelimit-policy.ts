@@ -139,14 +139,17 @@ export async function checkPolicyRateLimit(
     return checkPolicyRateLimitMemory(request, userId, route, policy)
   }
   
-  // If Upstash isn't configured, disable rate limiting in non-prod; in prod, return 503 (existing behavior).
+  // Upstash-first with in-memory fallback (best-effort).
+  // This avoids silently disabling rate limiting in production when Redis isn't configured.
   if (!getUpstashRedisConfig()) {
-    if (serverEnv.NODE_ENV === 'production') {
-      throw new RedisNotConfiguredError(
-        'Rate limiting service unavailable. UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be configured in production.'
+    if (!hasLoggedWarning) {
+      console.warn(
+        '[ratelimit] Upstash Redis not configured (missing/invalid UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN). ' +
+          'Falling back to in-memory rate limiting.'
       )
+      hasLoggedWarning = true
     }
-    return null
+    return checkPolicyRateLimitMemory(request, userId, route, policy)
   }
   
   const isAuthenticated = userId !== null
