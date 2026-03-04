@@ -25,6 +25,8 @@ export const metadata: Metadata = {
   },
 }
 
+export const revalidate = 0
+
 type HealthEnvelope =
   | {
       ok: true
@@ -82,6 +84,9 @@ export default async function StatusPage() {
           <CardContent className="text-sm text-muted-foreground space-y-2">
             <div className="text-xs text-muted-foreground">
               This page shows lightweight checks designed not to expose secrets.
+            </div>
+            <div>
+              <span className="font-medium text-foreground">Status:</span> {status}
             </div>
             {checkedAt ? (
               <div>
