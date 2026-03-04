@@ -2,6 +2,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { getAppUrl } from '@/lib/app-url'
 import { serverEnv } from '@/lib/env'
 import { sendEmailWithResend } from '@/lib/email/resend'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import {
   renderAccountsNudgeEmail,
   renderPitchNudgeEmail,
@@ -90,6 +91,7 @@ async function sendLifecycleEmail(args: { toEmail: string; type: LifecycleEmailT
   const res = await sendEmailWithResend({
     from,
     to: args.toEmail,
+    replyTo: SUPPORT_EMAIL,
     subject: payload.subject,
     html: payload.html,
     text: payload.text,

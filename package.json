@@ -26,6 +26,7 @@
     "dry-run": "tsx scripts/dry-run.ts",
     "lifecycle:run": "tsx scripts/runLifecycle.ts",
     "content:audit": "tsx scripts/contentAudit.ts",
+    "check:no-old-support-email": "node scripts/checkNoOldSupportEmail.js",
     "migration": "tsx scripts/apply-migration.ts",
     "db:sanity": "tsx scripts/db-sanity-rls.ts",
     "verify:ready": "npm run lint && npm run test:unit && npm run test:e2e"

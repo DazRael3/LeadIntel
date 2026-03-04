@@ -7,6 +7,7 @@ import { serverEnv } from '@/lib/env'
 import { getAppUrl } from '@/lib/app-url'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { renderWelcomeEmail } from '@/lib/email/lifecycle'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +46,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId }) => 
       const sendRes = await sendEmailWithResend({
         from,
         to: toEmail,
+        replyTo: SUPPORT_EMAIL,
         subject: email.subject,
         html: email.html,
         text: email.text,

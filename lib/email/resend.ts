@@ -8,6 +8,7 @@ export type ResendSendEmailInput = {
   from: string
   to: string | string[]
   subject: string
+  replyTo?: string
   html: string
   text?: string
   tags?: Array<{ name: string; value: string }>
@@ -40,6 +41,7 @@ export async function sendEmailWithResend(input: ResendSendEmailInput): Promise<
     const { data, error } = await resend.emails.send({
       from: input.from,
       to: input.to,
+      reply_to: input.replyTo,
       subject: input.subject,
       html: input.html,
       text: input.text,
