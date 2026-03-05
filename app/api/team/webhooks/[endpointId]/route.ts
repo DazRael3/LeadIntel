@@ -56,11 +56,13 @@ export const PATCH = withApiGuard(
 
         const secret = generateWebhookSecret()
         const secretHash = sha256Hex(secret)
+        const secretLast4 = secret.slice(-4)
+        const rotatedAt = new Date().toISOString()
 
         const { error: updateError } = await supabase
           .schema('api')
           .from('webhook_endpoints')
-          .update({ secret_hash: secretHash })
+          .update({ secret_hash: secretHash, secret_last4: secretLast4, rotated_at: rotatedAt })
           .eq('id', endpointId)
           .eq('workspace_id', workspace.id)
 
@@ -109,7 +111,9 @@ export const PATCH = withApiGuard(
         .update(update)
         .eq('id', endpointId)
         .eq('workspace_id', workspace.id)
-        .select('id, workspace_id, url, events, is_enabled, created_by, created_at, last_success_at, last_error_at, failure_count')
+        .select(
+          'id, workspace_id, url, events, is_enabled, created_by, created_at, last_success_at, last_error_at, failure_count, secret_last4, rotated_at'
+        )
         .single()
 
       if (error || !endpoint) return fail(ErrorCode.DATABASE_ERROR, 'Save failed', undefined, undefined, bridge, requestId)

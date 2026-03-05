@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
+import { formatRelativeDate } from '@/lib/domain/explainability'
 
 type Role = 'owner' | 'admin' | 'member'
 
@@ -14,6 +15,8 @@ type WebhookEndpoint = {
   events: string[]
   is_enabled: boolean
   created_at: string
+  secret_last4?: string | null
+  rotated_at?: string | null
   last_success_at: string | null
   last_error_at: string | null
   failure_count: number
@@ -162,6 +165,7 @@ export function IntegrationsSettingsClient() {
       }
       setRevealedSecret(json.data?.secret ?? null)
       toast({ title: 'Saved.' })
+      await refresh()
     } catch {
       toast({ variant: 'destructive', title: 'Rotate failed', description: 'Please try again.' })
     }
@@ -272,6 +276,24 @@ export function IntegrationsSettingsClient() {
                     <div className="space-y-3">
                       <div className="text-foreground font-medium">Endpoint</div>
                       <div className="text-xs break-all">{activeEndpoint.url}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Secret ending:{' '}
+                        {activeEndpoint.secret_last4 ? (
+                          <span className="text-foreground">•••• {activeEndpoint.secret_last4}</span>
+                        ) : (
+                          <span>Not available</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Last rotated:{' '}
+                        {activeEndpoint.rotated_at ? (
+                          <span className="text-foreground" title={activeEndpoint.rotated_at}>
+                            {formatRelativeDate(activeEndpoint.rotated_at)}
+                          </span>
+                        ) : (
+                          <span>Not available</span>
+                        )}
+                      </div>
                       {isAdmin && (
                         <div className="flex flex-wrap gap-2">
                           <Button

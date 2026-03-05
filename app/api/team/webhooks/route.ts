@@ -43,7 +43,9 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const { data: endpoints, error } = await supabase
       .schema('api')
       .from('webhook_endpoints')
-      .select('id, workspace_id, url, events, is_enabled, created_by, created_at, last_success_at, last_error_at, failure_count')
+      .select(
+        'id, workspace_id, url, events, is_enabled, created_by, created_at, last_success_at, last_error_at, failure_count, secret_last4, rotated_at'
+      )
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false })
       .limit(100)
@@ -84,6 +86,8 @@ export const POST = withApiGuard(
 
       const secret = generateWebhookSecret()
       const secretHash = sha256Hex(secret)
+      const secretLast4 = secret.slice(-4)
+      const rotatedAt = new Date().toISOString()
 
       const { data: endpoint, error } = await supabase
         .schema('api')
@@ -95,8 +99,12 @@ export const POST = withApiGuard(
           is_enabled: true,
           created_by: user.id,
           secret_hash: secretHash,
+          secret_last4: secretLast4,
+          rotated_at: rotatedAt,
         })
-        .select('id, workspace_id, url, events, is_enabled, created_by, created_at, last_success_at, last_error_at, failure_count')
+        .select(
+          'id, workspace_id, url, events, is_enabled, created_by, created_at, last_success_at, last_error_at, failure_count, secret_last4, rotated_at'
+        )
         .single()
 
       if (error || !endpoint) return fail(ErrorCode.DATABASE_ERROR, 'Create failed', undefined, undefined, bridge, requestId)
