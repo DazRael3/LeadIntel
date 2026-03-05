@@ -150,7 +150,7 @@ export function ActivationChecklistCard(props: {
   }
 
   return (
-    <Card className="border-cyan-500/20 bg-card/50">
+    <Card className="border-cyan-500/20 bg-card/50" data-testid="activation-checklist">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -166,7 +166,7 @@ export function ActivationChecklistCard(props: {
       </CardHeader>
       <CardContent className="space-y-3">
         {model.steps.map((s) => (
-          <div key={s.id} className="rounded-lg border border-cyan-500/10 bg-background/30 p-3">
+          <div key={s.id} className="rounded-lg border border-cyan-500/10 bg-background/30 p-3" data-testid={`checklist-step-${s.id}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -201,6 +201,7 @@ export function ActivationChecklistCard(props: {
                     else if (s.id === 'digest_cadence') props.onOpenDigestCadence()
                     else props.onOpenPitch()
                   }}
+                  data-testid={`checklist-action-${s.id}`}
                 >
                   {s.id === 'icp'
                     ? 'Set ICP'

@@ -137,7 +137,7 @@ export function DashboardClient({
   const autoStartEligible = (!initialHasIcp || totalLeads === 0) && !onboardingComplete
 
   return (
-    <div className="min-h-screen bg-background terminal-grid">
+    <div className="min-h-screen bg-background terminal-grid" data-testid="dashboard-root">
       <InAppTourProvider autoStartEligible={autoStartEligible} serverTourCompletedAt={initialTourCompletedAt}>
         <DashboardHeader />
       {/* Onboarding Wizard - Only show if server says not completed */}

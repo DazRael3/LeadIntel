@@ -136,6 +136,17 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     latestSignal: { type: string; detectedAt: string } | null
     scoreReasons: string[]
   }>({ loading: false, signalsCount: 0, latestSignal: null, scoreReasons: [] })
+  const [teamTemplates, setTeamTemplates] = useState<{
+    loading: boolean
+    templates: Array<{
+      id: string
+      title: string
+      channel: 'email' | 'linkedin_dm' | 'call_opener'
+      subject: string | null
+      body: string
+      tokens: string[]
+    }>
+  }>({ loading: false, templates: [] })
   const router = useRouter()
   const supabase = createClient()
 
@@ -162,6 +173,52 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   }, [supabase])
 
   const isStarter = tier === 'starter'
+
+  useEffect(() => {
+    if (tier !== 'team') return
+    if (!pitch) return
+    let cancelled = false
+    const load = async () => {
+      setTeamTemplates((s) => ({ ...s, loading: true }))
+      try {
+        const setsRes = await fetch('/api/team/template-sets', { method: 'GET', cache: 'no-store' })
+        if (!setsRes.ok) throw new Error('Access restricted')
+        const setsJson = (await setsRes.json()) as {
+          ok?: boolean
+          data?: { workspace?: { default_template_set_id?: string | null } }
+        }
+        const defaultSetId = setsJson.data?.workspace?.default_template_set_id ?? null
+        if (!defaultSetId) {
+          if (!cancelled) setTeamTemplates({ loading: false, templates: [] })
+          return
+        }
+        const tplRes = await fetch(`/api/team/templates?setId=${encodeURIComponent(defaultSetId)}&status=approved`, {
+          method: 'GET',
+          cache: 'no-store',
+        })
+        if (!tplRes.ok) throw new Error('Access restricted')
+        const tplJson = (await tplRes.json()) as {
+          ok?: boolean
+          data?: { templates?: Array<any> }
+        }
+        const templates = (tplJson.data?.templates ?? []).slice(0, 6).map((t: any) => ({
+          id: String(t.id),
+          title: String(t.title ?? ''),
+          channel: (t.channel as 'email' | 'linkedin_dm' | 'call_opener') ?? 'email',
+          subject: typeof t.subject === 'string' ? t.subject : null,
+          body: String(t.body ?? ''),
+          tokens: Array.isArray(t.tokens) ? (t.tokens as string[]) : [],
+        }))
+        if (!cancelled) setTeamTemplates({ loading: false, templates })
+      } catch {
+        if (!cancelled) setTeamTemplates({ loading: false, templates: [] })
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [tier, pitch])
 
   const loadSaved = useCallback(
     async (userIdOverride?: string | null) => {
@@ -911,6 +968,53 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                 </div>
               )}
             </div>
+
+            {tier === 'team' ? (
+              <div className="mt-4 rounded-lg border border-cyan-500/10 bg-background/30 p-4" data-testid="team-templates-block">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Team templates</div>
+                {teamTemplates.loading ? (
+                  <div className="mt-2 text-xs text-muted-foreground">Loading templates…</div>
+                ) : teamTemplates.templates.length === 0 ? (
+                  <div className="mt-2 text-xs text-muted-foreground">No approved templates in your default set.</div>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    {teamTemplates.templates.map((t) => {
+                      const company =
+                        (companyUrl || '')
+                          .replace(/^https?:\/\//i, '')
+                          .replace(/\/.*$/, '')
+                          .trim() || 'your company'
+                      const trigger = context.latestSignal ? formatSignalType(context.latestSignal.type) : 'recent activity'
+                      const fill = (text: string) =>
+                        text
+                          .replace(/\{\{company\}\}/gi, company)
+                          .replace(/\{\{trigger\}\}/gi, trigger)
+                      const subject = t.subject ? fill(t.subject) : null
+                      const body = fill(t.body)
+                      const both = subject ? `Subject: ${subject}\n\n${body}` : body
+                      return (
+                        <div key={t.id} className="rounded-md border border-cyan-500/10 bg-card/30 p-3" data-testid={`team-template-${t.id}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-foreground truncate">{t.title}</div>
+                              <div className="text-xs text-muted-foreground">{t.channel}</div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void navigator.clipboard.writeText(both)}
+                              data-testid={`team-template-copy-${t.id}`}
+                            >
+                              Copy
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       )}

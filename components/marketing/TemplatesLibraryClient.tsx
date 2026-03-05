@@ -79,7 +79,12 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <div className="text-xs text-muted-foreground mb-1">Search</div>
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title or body…" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search title or body…"
+              data-testid="templates-search"
+            />
           </div>
           <div>
             <div className="text-xs text-muted-foreground mb-1">Channel</div>
@@ -92,6 +97,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                   variant={channel === c ? 'default' : 'outline'}
                   className={channel === c ? 'neon-border hover:glow-effect' : ''}
                   onClick={() => setChannel(c)}
+                  data-testid={`templates-filter-channel-${c}`}
                 >
                   {c === 'all' ? 'All' : channelLabel(c)}
                 </Button>
@@ -107,6 +113,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                 variant={tag === 'all' ? 'default' : 'outline'}
                 className={tag === 'all' ? 'neon-border hover:glow-effect' : ''}
                 onClick={() => setTag('all')}
+                data-testid="templates-filter-tag-all"
               >
                 All
               </Button>
@@ -117,6 +124,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                   size="sm"
                   variant={tag === t ? 'default' : 'outline'}
                   onClick={() => setTag(t)}
+                  data-testid={`templates-filter-tag-${t}`}
                 >
                   {t}
                 </Button>
@@ -181,6 +189,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                       const ok = await copyToClipboard(bodyText)
                       toast({ title: ok ? 'Copied body.' : 'Copy failed.', description: ok ? undefined : 'Your browser blocked clipboard access.' })
                     }}
+                    data-testid={`templates-copy-body-${t.id}`}
                   >
                     Copy body
                   </Button>
@@ -194,6 +203,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                       const ok = await copyToClipboard(subject)
                       toast({ title: ok ? 'Copied subject.' : 'Copy failed.', description: ok ? undefined : 'Your browser blocked clipboard access.' })
                     }}
+                    data-testid={`templates-copy-subject-${t.id}`}
                   >
                     Copy subject
                   </Button>
@@ -205,6 +215,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                       const ok = await copyToClipboard(both)
                       toast({ title: ok ? 'Copied.' : 'Copy failed.', description: ok ? 'Subject + body' : 'Your browser blocked clipboard access.' })
                     }}
+                    data-testid={`templates-copy-both-${t.id}`}
                   >
                     Copy both
                   </Button>

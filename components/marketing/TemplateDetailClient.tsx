@@ -65,6 +65,7 @@ export function TemplateDetailClient(props: {
                   const ok = await copyToClipboard(bodyText)
                   toast({ title: ok ? 'Copied body.' : 'Copy failed.', description: ok ? undefined : 'Your browser blocked clipboard access.' })
                 }}
+                data-testid="template-detail-copy-body"
               >
                 Copy body
               </Button>
@@ -78,6 +79,7 @@ export function TemplateDetailClient(props: {
                   const ok = await copyToClipboard(subject)
                   toast({ title: ok ? 'Copied subject.' : 'Copy failed.', description: ok ? undefined : 'Your browser blocked clipboard access.' })
                 }}
+                data-testid="template-detail-copy-subject"
               >
                 Copy subject
               </Button>
@@ -89,6 +91,7 @@ export function TemplateDetailClient(props: {
                   const ok = await copyToClipboard(both)
                   toast({ title: ok ? 'Copied.' : 'Copy failed.', description: ok ? 'Subject + body' : 'Your browser blocked clipboard access.' })
                 }}
+                data-testid="template-detail-copy-both"
               >
                 Copy both
               </Button>

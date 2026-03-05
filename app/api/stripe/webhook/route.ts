@@ -9,6 +9,8 @@ import { isFeatureEnabled } from '@/lib/services/feature-flags'
 import { recordCounter } from '@/lib/observability/metrics'
 import { logger } from '@/lib/observability/logger'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
+import { randomUUID } from 'crypto'
 
 /**
  * Stripe Webhook Handler
@@ -198,6 +200,39 @@ export const POST = withApiGuard(
               .from('users')
               .update({ subscription_tier: 'free' })
               .eq('stripe_customer_id', customerId)
+          }
+
+          // Workspace webhooks (best-effort): only emit when we can resolve a workspace.
+          if (userId) {
+            try {
+              const { data: ws } = await supabaseAdmin
+                .from('workspaces')
+                .select('id')
+                .eq('owner_user_id', userId)
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .maybeSingle()
+
+              const workspaceId = (ws as { id?: string } | null)?.id ?? null
+              if (workspaceId) {
+                await enqueueWebhookEvent({
+                  workspaceId,
+                  eventType: 'billing.subscription_updated',
+                  eventId: randomUUID(),
+                  payload: {
+                    workspaceId,
+                    userId,
+                    stripeCustomerId: customerId,
+                    stripeSubscriptionId: subscription.id,
+                    status: subscription.status,
+                    priceId: subscription.items.data[0]?.price?.id ?? null,
+                    updatedAt: new Date().toISOString(),
+                  },
+                })
+              }
+            } catch {
+              // best-effort
+            }
           }
         }
         break

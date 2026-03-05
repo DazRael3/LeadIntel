@@ -136,6 +136,30 @@ export async function resolveTierFromDb(
     }
   }
 
+  // Manual/admin tier overrides stored on api.users.subscription_tier.
+  // This is used in some deployments where billing sync is asynchronous.
+  if (userRow?.subscription_tier === 'team') {
+    return {
+      tier: 'team',
+      plan: 'pro',
+      planId: 'team',
+      isHouseCloserOverride: false,
+      subscriptionStatus: lastSub?.status ?? null,
+      stripeTrialEnd: lastSub?.trial_end ?? null,
+    }
+  }
+
+  if (userRow?.subscription_tier === 'closer_plus') {
+    return {
+      tier: 'closer_plus',
+      plan: 'pro',
+      planId: 'closer_plus',
+      isHouseCloserOverride: false,
+      subscriptionStatus: lastSub?.status ?? null,
+      stripeTrialEnd: lastSub?.trial_end ?? null,
+    }
+  }
+
   // House Closer override: if email is in HOUSE_CLOSER_EMAILS, treat as Closer even without subscription.
   const rawHouse = process.env.HOUSE_CLOSER_EMAILS
   if (rawHouse && rawHouse.trim().length > 0) {

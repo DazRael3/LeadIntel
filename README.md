@@ -187,12 +187,27 @@ ZAPIER_WEBHOOK_URL=https://hooks.zapier.com/hooks/catch/your-webhook-id/
 ADMIN_DIGEST_SECRET=your-secret-here
 
 # Dev Seed Secret (for dev user creation - development only)
-DEV_SEED_SECRET=dev-secret-change-me
+DEV_SEED_SECRET=... # generate a random secret; do not use a shared default
 ```
 
 ### 4. Database Setup
 
 #### Run Migrations
+
+**Recommended (Supabase CLI)**:
+
+```bash
+# Install Supabase CLI (one-time)
+npx supabase --version
+
+# Link the repo to your Supabase project
+supabase link --project-ref <your-project-ref>
+
+# Apply migrations in supabase/migrations/
+supabase db push
+```
+
+**Alternative (Supabase Dashboard SQL Editor)**:
 
 1. **List available migrations:**
    ```bash
@@ -266,6 +281,97 @@ npm run migration <filename>
 # Example: View digest settings migration
 npm run migration 0004_digest_settings.sql
 ```
+
+---
+
+## Team plan features (workspaces, templates, audit logs)
+
+Team features are exposed via the following settings pages (Team plan gated):
+
+- `/settings/team`: Manage workspace members (invite, role changes, removals)
+- `/settings/templates`: Workspace-governed template sets + approval workflow (draft vs approved)
+- `/settings/audit`: Immutable audit log view with filters
+
+Key behavior (production):
+
+- **Plan gating**: Team settings are only available to users on the **Team** tier (an upgrade gate is shown otherwise).
+- **Governance**: Only workspace **owner/admin** can invite members, change roles, approve templates, and manage integrations/exports.
+- **Auditability**: Member/template/integration/export actions insert audit events (IP + user agent captured when available).
+
+Database migrations for these live in `supabase/migrations/0036_*` and `supabase/migrations/0039_*` and create:
+
+- `api.workspaces`, `api.workspace_members`, `api.workspace_invites`
+- `api.template_sets`, `api.templates`
+- `api.audit_logs`
+
+## Integrations: Webhooks
+
+Webhook endpoints are managed at `/settings/integrations` (Team plan gated). Deliveries are executed asynchronously via a cron-triggered runner.
+
+### Signing
+
+Each webhook delivery is sent as a JSON `POST` with headers:
+
+- `X-LeadIntel-Event`: event type
+- `X-LeadIntel-Timestamp`: unix seconds
+- `X-LeadIntel-Signature`: `sha256=<hex>`
+
+Signature algorithm:
+
+- Compute `rawBody` as the exact request body string
+- Verify:
+  \[
+  \text{sig} = \mathrm{HMAC\_SHA256}(\text{secret},\ \text{timestamp} \,||\, "." \,||\, \text{rawBody})
+  \]
+
+### Runner
+
+- `POST /api/cron/webhooks` runs pending deliveries (due now) with exponential backoff and a 5s per-attempt timeout.
+
+Webhook tables are created in:
+
+- `supabase/migrations/0037_webhooks.sql`
+- `supabase/migrations/0040_webhook_secret_records.sql` (stores raw secrets in `api.webhook_endpoint_secrets` and only hashes on `api.webhook_endpoints`)
+
+## Integrations: Exports (CSV)
+
+Exports are managed at `/settings/exports` (Team plan gated).
+
+- Creating an export: `POST /api/exports/create` (server generates CSV and uploads it)
+- Downloading: `GET /api/exports/[jobId]/download` (returns a short-lived signed URL in production)
+
+Storage expectations:
+
+- Create a **private** Supabase Storage bucket named `exports`
+- CSV objects are stored as: `exports/{workspaceId}/{jobId}.csv`
+
+Export jobs table is created in `supabase/migrations/0038_exports.sql`.
+
+---
+
+## E2E testing (Playwright)
+
+E2E tests live in `tests/e2e/` and run via:
+
+```bash
+npm run test:e2e:install
+npm run test:e2e
+```
+
+Windows PowerShell example:
+
+```powershell
+$env:E2E_BASE_URL="http://localhost:3000"
+$env:E2E_EMAIL="you@example.com"
+$env:E2E_PASSWORD="..."
+$env:E2E_TEAM_EMAIL="team-owner@example.com"
+$env:E2E_TEAM_PASSWORD="..."
+$env:E2E_INVITEE_EMAIL="invitee@example.com"
+$env:E2E_WEBHOOK_TARGET_URL="https://example-requestbin.com/..."
+npm run test:e2e
+```
+
+More details: `docs/E2E_QUICK_START.md`
 
 ### Utility Scripts
 
@@ -596,4 +702,4 @@ For issues and questions:
 
 ## License
 
-[Add your license here]
+MIT (see `LICENSE`)

@@ -9,16 +9,6 @@ describe('/api/demo/email', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.stubEnv('NODE_ENV', 'test')
-    process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co'
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key'
-    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_123'
-    process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
-    process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
-    process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
-    process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test-openai'
-    process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || 're_test_123'
-    process.env.RESEND_FROM_EMAIL = 'leadintel@dazrael.com'
   })
 
   it('sends digest email (no auth) and returns sent=true', async () => {

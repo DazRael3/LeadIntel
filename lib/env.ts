@@ -9,11 +9,37 @@
  */
 
 import { z } from 'zod'
+import { isTestLikeEnv } from '@/lib/runtimeFlags'
+
+function requiredInProduction<T extends z.ZodTypeAny>(schema: T): z.ZodTypeAny {
+  // In production we enforce strict env validation for ops safety.
+  // In test-like environments (unit/E2E/CI), allow missing secrets so the app can run
+  // with in-memory shims and without external integrations.
+  return process.env.NODE_ENV === 'production' && !isTestLikeEnv() ? schema : schema.optional()
+}
 
 const siteUrlSchema = z
   .preprocess((v) => (typeof v === 'string' ? v.trim() : ''), z.string().url().or(z.literal('')))
-  .refine((val) => process.env.NODE_ENV !== 'production' || val.length > 0, {
+  .refine((val) => process.env.NODE_ENV !== 'production' || isTestLikeEnv() || val.length > 0, {
     message: 'NEXT_PUBLIC_SITE_URL is required in production',
+  })
+
+const publicSupabaseUrlSchema = z
+  .preprocess((v) => (typeof v === 'string' ? v.trim() : ''), z.string().url().or(z.literal('')))
+  .refine((val) => process.env.NODE_ENV !== 'production' || isTestLikeEnv() || val.length > 0, {
+    message: 'NEXT_PUBLIC_SUPABASE_URL is required in production',
+  })
+
+const publicSupabaseAnonKeySchema = z
+  .preprocess((v) => (typeof v === 'string' ? v.trim() : ''), z.string().min(1).or(z.literal('')))
+  .refine((val) => process.env.NODE_ENV !== 'production' || isTestLikeEnv() || val.length > 0, {
+    message: 'NEXT_PUBLIC_SUPABASE_ANON_KEY is required in production',
+  })
+
+const publicStripePublishableKeySchema = z
+  .preprocess((v) => (typeof v === 'string' ? v.trim() : ''), z.string().startsWith('pk_').or(z.literal('')))
+  .refine((val) => process.env.NODE_ENV !== 'production' || isTestLikeEnv() || val.length > 0, {
+    message: 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is required in production',
   })
 
 /**
@@ -22,12 +48,12 @@ const siteUrlSchema = z
  */
 const clientEnvSchema = z.object({
   // Supabase (public keys only)
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url('Invalid Supabase URL'),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'Supabase anon key required'),
+  NEXT_PUBLIC_SUPABASE_URL: publicSupabaseUrlSchema,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: publicSupabaseAnonKeySchema,
   NEXT_PUBLIC_SUPABASE_DB_SCHEMA: z.string().default('api'),
   
   // Stripe (publishable key only)
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_', 'Invalid Stripe publishable key format'),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: publicStripePublishableKeySchema,
   
   // Application
   NEXT_PUBLIC_SITE_URL: siteUrlSchema,
@@ -57,18 +83,18 @@ const clientEnvSchema = z.object({
  */
 const serverEnvSchema = z.object({
   // Public env (validated here too so serverEnv can be a single source for ops checks)
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url('Invalid Supabase URL'),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'Supabase anon key required'),
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_', 'Invalid Stripe publishable key format'),
+  NEXT_PUBLIC_SUPABASE_URL: publicSupabaseUrlSchema,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: publicSupabaseAnonKeySchema,
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: publicStripePublishableKeySchema,
   NEXT_PUBLIC_SITE_URL: siteUrlSchema,
 
   // Supabase (server-only secrets)
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'Supabase service role key required'),
+  SUPABASE_SERVICE_ROLE_KEY: requiredInProduction(z.string().min(1, 'Supabase service role key required')),
   SUPABASE_DB_SCHEMA: z.string().optional(),
   SUPABASE_DB_SCHEMA_FALLBACK: z.string().default('api'),
   
   // Stripe (server-only secrets)
-  STRIPE_SECRET_KEY: z.string().startsWith('sk_', 'Invalid Stripe secret key format'),
+  STRIPE_SECRET_KEY: requiredInProduction(z.string().startsWith('sk_', 'Invalid Stripe secret key format')),
   STRIPE_PRICE_ID: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_PRO: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_TEAM: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
@@ -81,10 +107,10 @@ const serverEnvSchema = z.object({
   STRIPE_PRICE_ID_TEAM_BASE_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_TEAM_SEAT: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_TEAM_SEAT_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_', 'Invalid Stripe webhook secret format'),
+  STRIPE_WEBHOOK_SECRET: requiredInProduction(z.string().startsWith('whsec_', 'Invalid Stripe webhook secret format')),
   
   // OpenAI
-  OPENAI_API_KEY: z.string().startsWith('sk-', 'Invalid OpenAI API key format'),
+  OPENAI_API_KEY: requiredInProduction(z.string().startsWith('sk-', 'Invalid OpenAI API key format')),
   
   // Resend
   RESEND_API_KEY: z.string().startsWith('re_', 'Invalid Resend API key format').optional(),

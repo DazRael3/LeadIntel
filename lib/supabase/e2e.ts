@@ -2,12 +2,12 @@ type AuthUser = { id: string; email?: string | null }
 
 type AuthResponse = { data: { user: AuthUser | null; session?: unknown | null }; error: null }
 
-type PlanTier = 'free' | 'pro'
+type PlanTier = 'free' | 'pro' | 'closer_plus' | 'team'
 
-function getE2EUser(userId?: string | null): AuthUser {
+function getE2EUser(userId?: string | null, emailOverride?: string | null): AuthUser {
   return {
     id: (userId && userId.trim()) || 'e2e-user-id',
-    email: process.env.E2E_TEST_USER_EMAIL || 'e2e-test@example.com',
+    email: (emailOverride && emailOverride.trim()) || process.env.E2E_EMAIL || process.env.E2E_TEAM_EMAIL || process.env.E2E_TEST_USER_EMAIL || null,
   }
 }
 
@@ -25,6 +25,49 @@ type UserWatchlistRow = {
   sort_order: number
 }
 
+type AnyRow = Record<string, unknown>
+
+const globalTableKey = '__leadintelE2ETableStore'
+function getTableStore(): Map<string, AnyRow[]> {
+  const g = globalThis as unknown as Record<string, unknown>
+  const existing = g[globalTableKey]
+  if (existing instanceof Map) return existing as Map<string, AnyRow[]>
+  const next = new Map<string, AnyRow[]>()
+  g[globalTableKey] = next
+  return next
+}
+
+function randomUuid(): string {
+  // Best-effort UUID v4 (works in Node + browsers).
+  const g = globalThis as unknown as { crypto?: { getRandomValues?: (arr: Uint8Array) => void; randomUUID?: () => string } }
+  if (g.crypto?.randomUUID) return g.crypto.randomUUID()
+  const bytes = new Uint8Array(16)
+  if (g.crypto?.getRandomValues) {
+    g.crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256)
+  }
+  // Per RFC 4122
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0'))
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
+}
+
+function tableKey(table: string): string {
+  return `t:${table}`
+}
+
+function readRows(table: string): AnyRow[] {
+  const store = getTableStore()
+  return store.get(tableKey(table)) ?? []
+}
+
+function writeRows(table: string, rows: AnyRow[]): void {
+  const store = getTableStore()
+  store.set(tableKey(table), rows)
+}
+
 const globalWatchlistKey = '__leadintelE2EUserWatchlists'
 function getWatchlistStore(): Map<string, UserWatchlistRow[]> {
   const g = globalThis as unknown as Record<string, unknown>
@@ -37,7 +80,10 @@ function getWatchlistStore(): Map<string, UserWatchlistRow[]> {
 
 function getPlanFromCookie(getCookie: (name: string) => string | null | undefined): PlanTier {
   const raw = (getCookie('li_e2e_plan') || '').toLowerCase()
-  return raw === 'pro' ? 'pro' : 'free'
+  if (raw === 'team') return 'team'
+  if (raw === 'closer_plus') return 'closer_plus'
+  if (raw === 'pro') return 'pro'
+  return 'free'
 }
 
 class E2EQuery<T = unknown> {
@@ -50,6 +96,7 @@ class E2EQuery<T = unknown> {
   private filters: Record<string, unknown> = {}
   private orderBy: { col: string; asc: boolean } | null = null
   private pendingRows: unknown[] | null = null
+  private updatePatch: AnyRow | null = null
 
   constructor(table: string, ctx: { userId: string; plan: PlanTier }) {
     this.table = table
@@ -65,7 +112,11 @@ class E2EQuery<T = unknown> {
     return this
   }
   eq(column?: string, value?: unknown) {
-    if (column) this.filters[column] = value
+    if (column) this.filters[column] = { op: 'eq', value }
+    return this
+  }
+  is(column?: string, value?: unknown) {
+    if (column) this.filters[column] = { op: 'is', value }
     return this
   }
   in() {
@@ -74,7 +125,12 @@ class E2EQuery<T = unknown> {
   not() {
     return this
   }
-  gte() {
+  gte(column?: string, value?: unknown) {
+    if (column) this.filters[column] = { op: 'gte', value }
+    return this
+  }
+  lte(column?: string, value?: unknown) {
+    if (column) this.filters[column] = { op: 'lte', value }
     return this
   }
   order() {
@@ -101,6 +157,7 @@ class E2EQuery<T = unknown> {
   }
   update() {
     this.mode = 'update'
+    this.updatePatch = (arguments[0] as AnyRow) ?? null
     return this
   }
   upsert() {
@@ -114,8 +171,24 @@ class E2EQuery<T = unknown> {
   }
 
   private async execute(): Promise<any> {
+    // Count queries (head: true) are used by activation and other surfaces.
     if (this.isCountQuery) {
-      return { data: null, error: null, count: 0 }
+      const rows = readRows(this.table)
+      const filtered = rows.filter((r) =>
+        Object.entries(this.filters).every(([k, v]) => {
+          const raw = (r as AnyRow)[k]
+          if (v && typeof v === 'object' && 'op' in (v as any)) {
+            const op = String((v as any).op)
+            const val = (v as any).value as unknown
+            if (op === 'eq' || op === 'is') return raw === val
+            if (op === 'gte') return String(raw ?? '') >= String(val ?? '')
+            if (op === 'lte') return String(raw ?? '') <= String(val ?? '')
+            return true
+          }
+          return raw === v
+        })
+      )
+      return { data: null, error: null, count: filtered.length }
     }
 
     // Users table: provide subscription_tier (drives plan gating in UI/API).
@@ -168,6 +241,126 @@ class E2EQuery<T = unknown> {
       return { data: rows, error: null }
     }
 
+    // Generic in-memory tables used across the app.
+    if (
+      this.table === 'user_settings' ||
+      this.table === 'leads' ||
+      this.table === 'pitches' ||
+      this.table === 'workspaces' ||
+      this.table === 'workspace_members' ||
+      this.table === 'workspace_invites' ||
+      this.table === 'template_sets' ||
+      this.table === 'templates' ||
+      this.table === 'audit_logs' ||
+      this.table === 'webhook_endpoints' ||
+      this.table === 'webhook_deliveries' ||
+      this.table === 'export_jobs'
+    ) {
+      let rows = readRows(this.table)
+      const match = (r: AnyRow): boolean =>
+        Object.entries(this.filters).every(([k, v]) => {
+          const raw = (r as AnyRow)[k]
+          if (v && typeof v === 'object' && 'op' in (v as any)) {
+            const op = String((v as any).op)
+            const val = (v as any).value as unknown
+            if (op === 'eq' || op === 'is') return raw === val
+            if (op === 'gte') return String(raw ?? '') >= String(val ?? '')
+            if (op === 'lte') return String(raw ?? '') <= String(val ?? '')
+            return true
+          }
+          return raw === v
+        })
+
+      if (this.mode === 'delete') {
+        rows = rows.filter((r) => !match(r))
+        writeRows(this.table, rows)
+        return { data: null, error: null }
+      }
+
+      if (this.mode === 'update') {
+        const patch = this.updatePatch ?? {}
+        rows = rows.map((r) => (match(r) ? { ...r, ...patch } : r))
+        writeRows(this.table, rows)
+        const updated = rows.filter((r) => match(r))
+        if (this.forceSingle) return { data: updated[0] ?? null, error: null }
+        return { data: updated, error: null }
+      }
+
+      if (this.mode === 'insert' || this.mode === 'upsert') {
+        const inserted = (this.pendingRows ?? []).map((r) => {
+          const row = { ...(r as AnyRow) }
+          if (!row.id) row.id = randomUuid()
+          if (this.table === 'user_settings') {
+            if (!row.user_id) row.user_id = this.ctx.userId
+          }
+          if (this.table === 'leads') {
+            if (!row.user_id) row.user_id = this.ctx.userId
+            if (!row.created_at) row.created_at = new Date().toISOString()
+            if (!row.updated_at) row.updated_at = row.created_at
+          }
+          if (this.table === 'pitches') {
+            if (!row.user_id) row.user_id = this.ctx.userId
+            if (!row.created_at) row.created_at = new Date().toISOString()
+          }
+          if (this.table === 'workspaces') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+          }
+          if (this.table === 'workspace_members') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+          }
+          if (this.table === 'audit_logs') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+          }
+          if (this.table === 'webhook_deliveries') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+            if (!row.updated_at) row.updated_at = row.created_at
+          }
+          if (this.table === 'export_jobs') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+          }
+          return row
+        })
+        if (this.mode === 'upsert') {
+          // Minimal conflict handling for common tables.
+          if (this.table === 'user_settings') {
+            for (const ins of inserted) {
+              const userId = String(ins.user_id ?? '')
+              rows = rows.filter((r) => String(r.user_id ?? '') !== userId)
+              rows.push(ins)
+            }
+          } else if (this.table === 'workspace_members') {
+            for (const ins of inserted) {
+              const ws = String(ins.workspace_id ?? '')
+              const uid = String(ins.user_id ?? '')
+              rows = rows.filter((r) => !(String(r.workspace_id ?? '') === ws && String(r.user_id ?? '') === uid))
+              rows.push(ins)
+            }
+          } else {
+            rows = rows.concat(inserted)
+          }
+        } else {
+          rows = rows.concat(inserted)
+        }
+        writeRows(this.table, rows)
+        if (this.forceSingle) return { data: inserted[0] ?? null, error: null }
+        return { data: inserted, error: null }
+      }
+
+      // select
+      let selected = rows.filter((r) => match(r))
+      if (this.orderBy) {
+        selected = selected.slice().sort((a, b) => {
+          const av = a[this.orderBy!.col]
+          const bv = b[this.orderBy!.col]
+          if (av === bv) return 0
+          const cmp = String(av ?? '').localeCompare(String(bv ?? ''))
+          return this.orderBy!.asc ? cmp : -cmp
+        })
+      }
+      if (this.forceSingle) return { data: selected[0] ?? null, error: null }
+      return { data: selected, error: null }
+    }
+
     // Default: behave like before (empty results).
     if (this.forceSingle) return { data: null, error: null }
     return { data: [], error: null }
@@ -194,14 +387,16 @@ export function createE2EBrowserSupabaseClient(): any {
       getUser: async (): Promise<AuthResponse> => {
         const authed = typeof document !== 'undefined' && document.cookie.includes('li_e2e_auth=1')
         const uid = getBrowserCookie('li_e2e_uid')
-        return { data: { user: authed ? getE2EUser(uid) : null }, error: null }
+        const email = getBrowserCookie('li_e2e_email')
+        return { data: { user: authed ? getE2EUser(uid, email) : null }, error: null }
       },
       onAuthStateChange: (callback: (event: string, session: any) => void) => {
         // Minimal compatibility for components that subscribe to auth changes.
         // We don't attempt to simulate real refresh behavior; we just emit current state once.
         const authed = typeof document !== 'undefined' && document.cookie.includes('li_e2e_auth=1')
         const uid = getBrowserCookie('li_e2e_uid')
-        const user = authed ? getE2EUser(uid) : null
+        const email = getBrowserCookie('li_e2e_email')
+        const user = authed ? getE2EUser(uid, email) : null
         const session = user ? { user, access_token: 'e2e' } : null
         setTimeout(() => {
           callback(authed ? 'SIGNED_IN' : 'SIGNED_OUT', session)
@@ -212,14 +407,14 @@ export function createE2EBrowserSupabaseClient(): any {
         if (typeof document !== 'undefined') {
           document.cookie = 'li_e2e_auth=1; path=/'
         }
-        const user = getE2EUser(getBrowserCookie('li_e2e_uid'))
+        const user = getE2EUser(getBrowserCookie('li_e2e_uid'), getBrowserCookie('li_e2e_email'))
         return { data: { user, session: { access_token: 'e2e' } }, error: null }
       },
       signUp: async () => {
         if (typeof document !== 'undefined') {
           document.cookie = 'li_e2e_auth=1; path=/'
         }
-        const user = getE2EUser(getBrowserCookie('li_e2e_uid'))
+        const user = getE2EUser(getBrowserCookie('li_e2e_uid'), getBrowserCookie('li_e2e_email'))
         return { data: { user, session: { access_token: 'e2e' } }, error: null }
       },
       signOut: async () => {
@@ -241,6 +436,10 @@ export function createE2EBrowserSupabaseClient(): any {
       const plan = getPlanFromCookie((name) => getBrowserCookie(name))
       return new E2EQuery(table, { userId: uid, plan })
     },
+    rpc: async () => {
+      // Browser-side RPC is not needed for current E2E flows.
+      return { data: null, error: null }
+    },
   }
   // Supabase JS supports `supabase.schema('api').from('table')`.
   // In E2E shim, schema is a no-op (tables are already modeled without schema prefix).
@@ -254,7 +453,8 @@ export function createE2EServerSupabaseClient(args: { getCookie: (name: string) 
       getUser: async (): Promise<AuthResponse> => {
         const authed = args.getCookie('li_e2e_auth') === '1'
         const uid = args.getCookie('li_e2e_uid')
-        return { data: { user: authed ? getE2EUser(uid) : null }, error: null }
+        const email = args.getCookie('li_e2e_email') ?? null
+        return { data: { user: authed ? getE2EUser(uid, email) : null }, error: null }
       },
       signOut: async () => ({ error: null }),
     },
@@ -262,6 +462,99 @@ export function createE2EServerSupabaseClient(args: { getCookie: (name: string) 
       const uid = args.getCookie('li_e2e_uid') || 'e2e-user-id'
       const plan = getPlanFromCookie((name) => args.getCookie(name))
       return new E2EQuery(table, { userId: uid, plan })
+    },
+    rpc: async (fn: string, params?: Record<string, unknown>) => {
+      // Minimal RPC surface for team governance flows.
+      const authed = args.getCookie('li_e2e_auth') === '1'
+      const uid = args.getCookie('li_e2e_uid') || 'e2e-user-id'
+      const email = String(args.getCookie('li_e2e_email') ?? '').trim().toLowerCase()
+      if (!authed) return { data: null, error: { message: 'Authentication required' } }
+
+      const sha256 = async (s: string): Promise<string> => {
+        const cryptoObj = (globalThis as unknown as { crypto?: Crypto }).crypto
+        const subtle = cryptoObj?.subtle
+        if (!subtle) {
+          // Fallback for environments without WebCrypto (should be rare in supported Node/browsers).
+          let out = 0
+          for (let i = 0; i < s.length; i++) out = (out * 31 + s.charCodeAt(i)) >>> 0
+          return String(out)
+        }
+        const data = new TextEncoder().encode(s)
+        const digest = await subtle.digest('SHA-256', data)
+        const bytes = new Uint8Array(digest)
+        return Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('')
+      }
+
+      if (fn === 'accept_workspace_invite') {
+        const token = String((params ?? {}).p_token ?? '')
+        const tokenHash = await sha256(token)
+        const invites = readRows('workspace_invites')
+        const now = Date.now()
+        const inv = invites.find((r) => {
+          const expiresAt = Date.parse(String(r.expires_at ?? ''))
+          const okExpires = Number.isFinite(expiresAt) && expiresAt > now
+          const okEmail = email ? String(r.email ?? '').toLowerCase() === email : true
+          return String(r.token_hash ?? '') === tokenHash && !r.accepted_at && okExpires && okEmail
+        })
+        if (!inv) return { data: null, error: { message: 'Invalid or expired invite' } }
+        const workspaceId = String(inv.workspace_id)
+        const members = readRows('workspace_members')
+        if (!members.some((m) => String(m.workspace_id) === workspaceId && String(m.user_id) === uid)) {
+          members.push({
+            workspace_id: workspaceId,
+            user_id: uid,
+            role: String(inv.role ?? 'member'),
+            created_at: new Date().toISOString(),
+          })
+          writeRows('workspace_members', members)
+        }
+        const nextInvites = invites.map((r) =>
+          String(r.id) === String(inv.id)
+            ? { ...r, accepted_at: new Date().toISOString(), accepted_by: uid }
+            : r
+        )
+        writeRows('workspace_invites', nextInvites)
+        return { data: workspaceId, error: null }
+      }
+
+      if (fn === 'set_workspace_member_role') {
+        const workspaceId = String((params ?? {}).p_workspace_id ?? '')
+        const userId = String((params ?? {}).p_user_id ?? '')
+        const role = String((params ?? {}).p_role ?? '')
+        const members = readRows('workspace_members')
+        const actor = members.find((m) => String(m.workspace_id) === workspaceId && String(m.user_id) === uid)
+        if (!actor) return { data: null, error: { message: 'Access restricted' } }
+        if (role === 'owner' && actor.role !== 'owner') return { data: null, error: { message: 'Access restricted' } }
+        const next = members.map((m) =>
+          String(m.workspace_id) === workspaceId && String(m.user_id) === userId ? { ...m, role } : m
+        )
+        writeRows('workspace_members', next)
+        const ws = readRows('workspaces')
+        if (role === 'owner') {
+          writeRows(
+            'workspaces',
+            ws.map((w) => (String(w.id) === workspaceId ? { ...w, owner_user_id: userId } : w))
+          )
+        }
+        return { data: null, error: null }
+      }
+
+      if (fn === 'remove_workspace_member') {
+        const workspaceId = String((params ?? {}).p_workspace_id ?? '')
+        const userId = String((params ?? {}).p_user_id ?? '')
+        const members = readRows('workspace_members')
+        const actor = members.find((m) => String(m.workspace_id) === workspaceId && String(m.user_id) === uid)
+        if (!actor || (actor.role !== 'owner' && actor.role !== 'admin')) return { data: null, error: { message: 'Access restricted' } }
+        writeRows(
+          'workspace_members',
+          members.filter((m) => !(String(m.workspace_id) === workspaceId && String(m.user_id) === userId))
+        )
+        return { data: null, error: null }
+      }
+
+      return { data: null, error: { message: 'RPC not implemented' } }
     },
   }
   client.schema = (_schema: string) => client
