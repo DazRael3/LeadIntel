@@ -116,7 +116,7 @@ export function Pricing() {
   const supabase = createClient()
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
-  const { isPro } = usePlan()
+  const { isPro, isHouseCloserOverride } = usePlan()
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [teamSeats, setTeamSeats] = useState<number>(5)
 
@@ -226,9 +226,21 @@ export function Pricing() {
           (code === 'CHECKOUT_NOT_CONFIGURED' ||
             errorMessage.toLowerCase().includes('checkout is not configured') ||
             isStripeConfigError(errorMessage))
-        setCheckoutError(
-          showActionable ? errorMessage : 'Checkout is currently unavailable. Please try again later.'
-        )
+        // Owner debugging: if you're using the House Closer override, show safe error details
+        // (Stripe code/type/request id) so you can fix config quickly.
+        const requestId =
+          payload && typeof payload === 'object'
+            ? (payload as { error?: { requestId?: unknown } }).error?.requestId
+            : undefined
+        const rid = typeof requestId === 'string' ? requestId : null
+
+        if (isHouseCloserOverride && response.status === 500) {
+          const suffix = rid ? ` (requestId: ${rid})` : ''
+          setCheckoutError(`${errorMessage}${suffix}`)
+          return
+        }
+
+        setCheckoutError(showActionable ? errorMessage : 'Checkout is currently unavailable. Please try again later.')
         return
       }
 

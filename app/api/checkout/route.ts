@@ -10,6 +10,7 @@ import { captureMessage } from '@/lib/observability/sentry'
 import { logger } from '@/lib/observability/logger'
 import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
 import { resolveCheckoutLineItems, type BillingCycle, type CheckoutLineItem, type PaidPlanId } from '@/lib/billing/stripePriceMap'
+import { isHouseCloserEmail } from '@/lib/billing/houseAccounts'
 
 /**
  * Validates required Stripe environment variables
@@ -114,6 +115,8 @@ const POST_GUARDED = withApiGuard(
     if (authError || !user) {
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
+
+    const isOwnerDebug = isHouseCloserEmail(user.email ?? null, process.env.HOUSE_CLOSER_EMAILS)
 
     const rawPlanId = parsedBody.planId
     const planId: PaidPlanId | null =
@@ -298,6 +301,12 @@ const POST_GUARDED = withApiGuard(
         stripeDeclineCode: typeof (stripeErr as any)?.decline_code === 'string' ? (stripeErr as any).decline_code : null,
         stripeRawType: typeof stripeErr?.rawType === 'string' ? stripeErr.rawType : null,
       }
+      const debugMessage =
+        isOwnerDebug && error instanceof Error
+          ? error.message.length > 300
+            ? error.message.slice(0, 297) + '...'
+            : error.message
+          : null
 
       logger.error({
         level: 'error',
@@ -311,7 +320,10 @@ const POST_GUARDED = withApiGuard(
 
       // Keep the user-facing message stable, but include safe Stripe metadata for troubleshooting.
       // (No secrets, no env values, no full payloads.)
-      const details = safeStripeDetails
+      const details = {
+        ...safeStripeDetails,
+        ...(debugMessage ? { debugMessage } : {}),
+      }
       return fail(
         ErrorCode.EXTERNAL_API_ERROR,
         'Stripe checkout session creation failed',
