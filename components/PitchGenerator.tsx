@@ -17,6 +17,7 @@ import { ProGate } from '@/components/ProGate'
 import { usePlan } from '@/components/PlanProvider'
 import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 import { track } from '@/lib/analytics'
+import { formatRelativeDate, formatSignalType } from '@/lib/domain/explainability'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -71,6 +72,16 @@ type PitchUsageSummary = ApiEnvelope<{
   pitchesLimit: number | null
 }>
 
+type ExplainabilityEnvelope =
+  | {
+      ok: true
+      data: {
+        signals: Array<{ id: string; type: string; detectedAt: string; title: string }>
+        scoreExplainability: { score: number; reasons: string[] }
+      }
+    }
+  | { ok: false; error?: { message?: string } }
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -118,6 +129,13 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const [templateId, setTemplateId] = useState<PitchTemplateId>('default')
   const [freeLimitError, setFreeLimitError] = useState<string | null>(null)
   const [pitchUsage, setPitchUsage] = useState<{ pitchesUsed: number; pitchesLimit: number | null } | null>(null)
+  const [generatedLeadId, setGeneratedLeadId] = useState<string | null>(null)
+  const [context, setContext] = useState<{
+    loading: boolean
+    signalsCount: number
+    latestSignal: { type: string; detectedAt: string } | null
+    scoreReasons: string[]
+  }>({ loading: false, signalsCount: 0, latestSignal: null, scoreReasons: [] })
   const router = useRouter()
   const supabase = createClient()
 
@@ -521,6 +539,13 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
         setPitch('Pitch generation completed, but no pitch text was returned.')
       }
 
+      // Capture lead id for explainability context (best-effort).
+      let leadId: string | null = null
+      if (isRecord(data.lead) && typeof data.lead.id === 'string') {
+        leadId = data.lead.id
+      }
+      setGeneratedLeadId(leadId)
+
       // Parse warnings array defensively (non-blocking)
       const parsedWarnings = Array.isArray(data.warnings)
         ? (data.warnings as unknown[]).filter((w): w is string => typeof w === 'string')
@@ -572,6 +597,62 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadContext = async () => {
+      if (!generatedLeadId) {
+        setContext({ loading: false, signalsCount: 0, latestSignal: null, scoreReasons: [] })
+        return
+      }
+      setContext((prev) => ({ ...prev, loading: true }))
+      try {
+        const res = await fetch(`/api/accounts/${generatedLeadId}/explainability?window=90d&limit=50&sort=recent`, {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+          signal: controller.signal,
+        })
+        if (!res.ok) {
+          if (cancelled) return
+          setContext({ loading: false, signalsCount: 0, latestSignal: null, scoreReasons: [] })
+          return
+        }
+        const json = (await res.json().catch(() => null)) as ExplainabilityEnvelope | null
+        if (!json || json.ok !== true) {
+          if (cancelled) return
+          setContext({ loading: false, signalsCount: 0, latestSignal: null, scoreReasons: [] })
+          return
+        }
+        const signals = Array.isArray(json.data.signals) ? json.data.signals : []
+        const first = signals[0] ?? null
+        const latestSignal =
+          first && typeof first.type === 'string' && typeof first.detectedAt === 'string'
+            ? { type: first.type, detectedAt: first.detectedAt }
+            : null
+        const reasonsRaw = Array.isArray(json.data.scoreExplainability?.reasons) ? json.data.scoreExplainability.reasons : []
+        const scoreReasons = reasonsRaw.filter((r): r is string => typeof r === 'string').slice(0, 3)
+        if (cancelled) return
+        setContext({
+          loading: false,
+          signalsCount: signals.length,
+          latestSignal,
+          scoreReasons,
+        })
+      } catch {
+        if (cancelled) return
+        setContext({ loading: false, signalsCount: 0, latestSignal: null, scoreReasons: [] })
+      }
+    }
+
+    void loadContext()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [generatedLeadId])
 
   const handleCopy = async (text: string, part: number) => {
     await navigator.clipboard.writeText(text)
@@ -799,6 +880,36 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
               <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
                 {pitch}
               </p>
+            </div>
+            <div className="mt-4 rounded-lg border border-cyan-500/10 bg-background/30 p-4">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Context used</div>
+              {context.loading ? (
+                <div className="mt-2 text-xs text-muted-foreground">Loading context…</div>
+              ) : (
+                <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                  <div>
+                    <span className="font-medium text-foreground">Signals considered:</span> {context.signalsCount}
+                  </div>
+                  {context.latestSignal ? (
+                    <div>
+                      <span className="font-medium text-foreground">Latest signal:</span> {formatSignalType(context.latestSignal.type)} ·{' '}
+                      <span title={new Date(context.latestSignal.detectedAt).toLocaleString()}>
+                        {formatRelativeDate(context.latestSignal.detectedAt)}
+                      </span>
+                    </div>
+                  ) : null}
+                  {context.scoreReasons.length > 0 ? (
+                    <div>
+                      <div className="font-medium text-foreground">Score reasons</div>
+                      <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                        {context.scoreReasons.map((r) => (
+                          <li key={r}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

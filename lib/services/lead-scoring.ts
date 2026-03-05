@@ -29,6 +29,16 @@ export interface LeadScoreResult {
   reasons: string[]
 }
 
+export interface LeadScoreBreakdownItem {
+  label: string
+  points: number
+}
+
+export interface LeadScoreDetailedResult extends LeadScoreResult {
+  breakdown: LeadScoreBreakdownItem[]
+  reasonCodes: string[]
+}
+
 function clampScore(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)))
 }
@@ -184,5 +194,38 @@ export function scoreLead(ctx: LeadScoringContext): LeadScoreResult {
   }
 
   return { score: out, reasons: uniq }
+}
+
+export function scoreLeadDetailed(ctx: LeadScoringContext): LeadScoreDetailedResult {
+  const reasonCodes: string[] = []
+  let score = 10
+
+  const eventsScore = scoreEvents(ctx.events)
+  score += eventsScore.points
+  reasonCodes.push(...eventsScore.reasons)
+
+  const engagement = scoreEngagement(ctx)
+  score += engagement.points
+  reasonCodes.push(...engagement.reasons)
+
+  const icp = scoreIcpFit(ctx)
+  score += icp.points
+  reasonCodes.push(...icp.reasons)
+
+  const out = clampScore(score)
+
+  const uniq: string[] = []
+  for (const r of reasonCodes) {
+    if (!uniq.includes(r)) uniq.push(r)
+    if (uniq.length >= 12) break
+  }
+
+  const breakdown: LeadScoreBreakdownItem[] = [
+    { label: 'Trigger signals', points: eventsScore.points },
+    { label: 'Engagement', points: engagement.points },
+    { label: 'ICP fit', points: icp.points },
+  ]
+
+  return { score: out, reasons: uniq, reasonCodes: uniq, breakdown }
 }
 

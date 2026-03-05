@@ -16,12 +16,25 @@ import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { formatErrorMessage } from "@/lib/utils/format-error"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
+import { SignalsPanel, type SignalsPanelSort, type SignalsPanelWindow } from "@/components/account/SignalsPanel"
+import { ScoreExplainer } from "@/components/account/ScoreExplainer"
+import type { SignalEvent, ScoreExplainability } from "@/lib/domain/explainability"
 
 interface LeadDetailViewProps {
   lead: Lead
   isPro: boolean
   onClose: () => void
 }
+
+type ExplainabilityEnvelope =
+  | {
+      ok: true
+      data: {
+        signals: SignalEvent[]
+        scoreExplainability: ScoreExplainability
+      }
+    }
+  | { ok: false; error?: { message?: string } }
 
 export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
   const router = useRouter()
@@ -33,6 +46,15 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
   const [unlocked, setUnlocked] = useState(isPro) // Pro users are always unlocked
   const [unlocking, setUnlocking] = useState(false)
   const [unlockError, setUnlockError] = useState<string | null>(null)
+  const [signalsWindow, setSignalsWindow] = useState<SignalsPanelWindow>('30d')
+  const [signalsSort, setSignalsSort] = useState<SignalsPanelSort>('recent')
+  const [signalsType, setSignalsType] = useState<string | null>(null)
+  const [explainability, setExplainability] = useState<{
+    loading: boolean
+    error: string | null
+    signals: SignalEvent[]
+    scoreExplainability: ScoreExplainability | null
+  }>({ loading: true, error: null, signals: [], scoreExplainability: null })
 
   const handleUnlockLead = async () => {
     if (isPro || unlocked) return // Pro users or already unlocked
@@ -97,6 +119,49 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadExplainability = async () => {
+      setExplainability((prev) => ({ ...prev, loading: true, error: null }))
+      try {
+        const qs = new URLSearchParams()
+        qs.set('window', signalsWindow)
+        qs.set('sort', signalsSort)
+        qs.set('limit', '50')
+        if (signalsType) qs.set('type', signalsType)
+        const res = await fetch(`/api/accounts/${lead.id}/explainability?${qs.toString()}`, {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+          signal: controller.signal,
+        })
+        const json = (await res.json().catch(() => null)) as ExplainabilityEnvelope | null
+        if (cancelled) return
+        if (!res.ok || !json || json.ok !== true) {
+          setExplainability({ loading: false, error: 'Unable to load explainability.', signals: [], scoreExplainability: null })
+          return
+        }
+        setExplainability({
+          loading: false,
+          error: null,
+          signals: Array.isArray(json.data.signals) ? json.data.signals : [],
+          scoreExplainability: json.data.scoreExplainability ?? null,
+        })
+      } catch (_err) {
+        if (cancelled) return
+        setExplainability({ loading: false, error: 'Unable to load explainability.', signals: [], scoreExplainability: null })
+      }
+    }
+
+    void loadExplainability()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [lead.id, signalsWindow, signalsSort, signalsType])
 
   const handleCopyPitch = async () => {
     try {
@@ -266,6 +331,28 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
               )}
             </div>
           )}
+
+          <ScoreExplainer explainability={explainability.scoreExplainability} loading={explainability.loading} />
+
+          <SignalsPanel
+            signals={explainability.signals}
+            loading={explainability.loading}
+            error={explainability.error}
+            window={signalsWindow}
+            sort={signalsSort}
+            selectedType={signalsType}
+            onChangeWindow={setSignalsWindow}
+            onChangeSort={setSignalsSort}
+            onChangeType={setSignalsType}
+            onGeneratePitchDraft={() => {
+              onClose()
+              const company = (lead.company_domain || lead.company_name || '').trim()
+              const qs = new URLSearchParams()
+              qs.set('focus', 'pitch')
+              if (company) qs.set('company', company)
+              router.push(`/dashboard?${qs.toString()}`)
+            }}
+          />
 
           {/* Social Warmer */}
           {lead.prospect_linkedin && (

@@ -23,21 +23,32 @@ type TriggerRow = {
   created_at?: string | null
 }
 
-function toLeadModel(row: LeadRow, triggerText: string): Lead {
+type LatestSignal = { type: string; detectedAt: string; title: string }
+
+type LeadWithLatestSignal = Lead & { latestSignal?: LatestSignal }
+
+function isIsoString(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const ts = Date.parse(value)
+  return Number.isFinite(ts)
+}
+
+function toLeadModel(row: LeadRow, latestSignal: LatestSignal | null): LeadWithLatestSignal {
   return {
     id: row.id,
     company_name: row.company_name || row.company_domain || row.company_url,
-    trigger_event: triggerText,
+    trigger_event: latestSignal?.title ?? '',
     ai_personalized_pitch: row.ai_personalized_pitch || '',
     company_domain: row.company_domain || undefined,
     company_url: row.company_url || undefined,
     created_at: row.created_at || new Date().toISOString(),
+    ...(latestSignal ? { latestSignal } : {}),
   }
 }
 
 export function useLeadLibrary() {
   const supabase = createClient()
-  const [leads, setLeads] = useState<Lead[]>([])
+  const [leads, setLeads] = useState<LeadWithLatestSignal[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,7 +77,7 @@ export function useLeadLibrary() {
       }
 
       // Best-effort: fetch latest trigger per lead to populate "Event".
-      const triggersByLead = new Map<string, string>()
+      const triggersByLead = new Map<string, LatestSignal>()
       try {
         const { data: triggerRows } = await supabase
           .from('trigger_events')
@@ -79,15 +90,18 @@ export function useLeadLibrary() {
         for (const r of rows) {
           if (!r.lead_id) continue
           if (triggersByLead.has(r.lead_id)) continue
-          const text = r.headline || r.event_description || r.event_type || '—'
-          triggersByLead.set(r.lead_id, text)
+          const title = (r.headline || r.event_description || r.event_type || '').trim()
+          const detectedAt = r.detected_at ?? r.created_at
+          const type = (r.event_type || '').trim()
+          if (!title || !type || !isIsoString(detectedAt)) continue
+          triggersByLead.set(r.lead_id, { type, detectedAt, title })
         }
       } catch {
         // ignore
       }
 
       const rows = (leadRows || []) as LeadRow[]
-      setLeads(rows.map((r) => toLeadModel(r, triggersByLead.get(r.id) || '—')))
+      setLeads(rows.map((r) => toLeadModel(r, triggersByLead.get(r.id) ?? null)))
       setError(null)
     } catch (err) {
       setLeads([])

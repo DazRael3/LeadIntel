@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge"
 import { Copy, Check, Mail, Linkedin, Send, Loader2, Eye, Lock, DollarSign } from "lucide-react"
 import { formatDate } from "@/lib/utils"
 import type { Lead } from "@/lib/supabaseClient"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { EmailShield } from "@/components/EmailShield"
 import { UpgradeOverlay } from "@/components/UpgradeOverlay"
 import { LeadDetailView } from "@/components/LeadDetailView"
 import { track } from "@/lib/analytics"
+import { formatRelativeDate, formatSignalType } from "@/lib/domain/explainability"
 
 interface LeadCardProps {
   lead: Lead
@@ -23,9 +24,13 @@ export function LeadCard({ lead }: LeadCardProps) {
   const [pushingToCrm, setPushingToCrm] = useState(false)
   const [crmPushed, setCrmPushed] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
-  
-  // Generate confidence score (85-98%) - stable per lead
-  const confidenceScore = useMemo(() => Math.floor(Math.random() * (98 - 85 + 1)) + 85, [])
+  const [latestSignal, setLatestSignal] = useState<{ type: string; detectedAt: string } | null>(null)
+  type ExplainabilityEnvelope =
+    | {
+        ok: true
+        data: { signals: Array<{ type: unknown; detectedAt: unknown }> }
+      }
+    | { ok: false }
 
   useEffect(() => {
     checkSubscription()
@@ -50,6 +55,39 @@ export function LeadCard({ lead }: LeadCardProps) {
       console.error('Error checking subscription:', error)
     }
   }
+
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadLatestSignal = async () => {
+      try {
+        const res = await fetch(`/api/accounts/${lead.id}/explainability?window=90d&limit=1&sort=recent`, {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+          signal: controller.signal,
+        })
+        if (!res.ok) return
+        const json = (await res.json().catch(() => null)) as ExplainabilityEnvelope | null
+        if (!json || json.ok !== true) return
+        const first = Array.isArray(json.data.signals) ? json.data.signals[0] : null
+        const type = typeof first?.type === 'string' ? first.type : null
+        const detectedAt = typeof first?.detectedAt === 'string' ? first.detectedAt : null
+        if (!type || !detectedAt) return
+        if (cancelled) return
+        setLatestSignal({ type, detectedAt })
+      } catch {
+        // best-effort
+      }
+    }
+
+    void loadLatestSignal()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [lead.id])
 
   const handleCopyPitch = async () => {
     if (!isPro) {
@@ -105,15 +143,17 @@ export function LeadCard({ lead }: LeadCardProps) {
               >
                 {lead.trigger_event}
               </Badge>
-              <Badge 
-                variant="outline" 
-                className="border-green-500/30 text-green-400 bg-green-500/10"
-              >
-                {confidenceScore}% Confidence
-              </Badge>
             </div>
             <CardDescription className="text-xs uppercase tracking-wider">
               {formatDate(lead.created_at)}
+              {latestSignal ? (
+                <span className="ml-3 text-xs text-muted-foreground">
+                  Latest signal: {formatSignalType(latestSignal.type)} ·{' '}
+                  <span title={new Date(latestSignal.detectedAt).toLocaleString()}>
+                    {formatRelativeDate(latestSignal.detectedAt)}
+                  </span>
+                </span>
+              ) : null}
               {lead.prospect_email && (
                 <span className="ml-3 relative inline-flex items-center gap-1 group">
                   <Mail className="h-3 w-3" />
