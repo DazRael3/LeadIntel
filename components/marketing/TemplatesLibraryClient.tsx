@@ -11,6 +11,7 @@ export type TemplateChannel = 'email' | 'linkedin' | 'call'
 
 export type Template = {
   id: string
+  slug: string
   channel: TemplateChannel
   title: string
   body: string
@@ -70,7 +71,9 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-lg">Template library</CardTitle>
-            <Badge variant="outline">{filtered.length} shown</Badge>
+            <Badge variant="outline">
+              {filtered.length} shown / {props.templates.length}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -153,7 +156,11 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
             <Card key={t.id} className="border-cyan-500/20 bg-card/60">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-3">
-                  <CardTitle className="text-base">{t.title}</CardTitle>
+                  <CardTitle className="text-base">
+                    <a className="hover:underline" href={`/templates/${t.slug}`}>
+                      {t.title}
+                    </a>
+                  </CardTitle>
                   <Badge variant="outline">{channelLabel(t.channel)}</Badge>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
