@@ -91,7 +91,8 @@ function isStripeConfigError(message: string): boolean {
   const lowerMessage = message.toLowerCase()
   return lowerMessage.includes('stripe_price_id') || 
          lowerMessage.includes('price_') ||
-         lowerMessage.includes('stripe configuration')
+         lowerMessage.includes('stripe configuration') ||
+         lowerMessage.includes('invalid stripe configuration')
 }
 
 export function Pricing() {
@@ -197,8 +198,22 @@ export function Pricing() {
           extractApiErrorMessage(payload) ||
           (raw.trim().length > 0 ? raw : `Checkout failed (${response.status})`)
         console.error('[Pricing] Checkout failed:', { status: response.status, message: errorMessage })
-        // User-friendly message (do not leak internals). Keep details in console logs.
-        setCheckoutError('Checkout is currently unavailable. Please try again later.')
+        // User-friendly message (do not leak internals).
+        // If it's a configuration issue, we can surface an actionable message safely
+        // because the server returns only missing env var *names* (never values).
+        const maybeCode =
+          payload && typeof payload === 'object'
+            ? (payload as { error?: { code?: unknown } }).error?.code
+            : undefined
+        const code = typeof maybeCode === 'string' ? maybeCode : null
+        const showActionable =
+          response.status === 500 &&
+          (code === 'CHECKOUT_NOT_CONFIGURED' ||
+            errorMessage.toLowerCase().includes('checkout is not configured') ||
+            isStripeConfigError(errorMessage))
+        setCheckoutError(
+          showActionable ? errorMessage : 'Checkout is currently unavailable. Please try again later.'
+        )
         return
       }
 
