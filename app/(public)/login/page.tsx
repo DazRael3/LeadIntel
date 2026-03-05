@@ -12,18 +12,19 @@ export const metadata: Metadata = {
 }
 
 interface LoginPageProps {
-  searchParams?: {
+  searchParams?: Promise<{
     mode?: string
     redirect?: string
-  }
+  }>
 }
 
-export default function LoginPage({ searchParams = {} }: LoginPageProps) {
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const sp = (await searchParams) ?? {}
   // Read mode from searchParams (default: 'signin')
-  const initialMode = searchParams?.mode === 'signup' ? 'signup' : 'signin'
+  const initialMode = sp.mode === 'signup' ? 'signup' : 'signin'
   
   // Read redirect from searchParams (default: '/dashboard')
-  const redirectTo = searchParams?.redirect ?? '/dashboard'
+  const redirectTo = sp.redirect ?? '/dashboard'
 
   return <LoginClient initialMode={initialMode} redirectTo={redirectTo} />
 }

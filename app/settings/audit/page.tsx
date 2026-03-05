@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 }
 
 export default async function AuditSettingsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const {
     data: { user },
     error,

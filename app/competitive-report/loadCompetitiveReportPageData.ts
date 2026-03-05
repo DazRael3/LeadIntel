@@ -10,7 +10,7 @@ export type CompetitiveReportPageData = {
 }
 
 export async function loadCompetitiveReportPageData(): Promise<CompetitiveReportPageData> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {

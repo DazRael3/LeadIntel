@@ -12,8 +12,8 @@ import { COMPARE_PAGES } from '@/lib/compare/registry'
 
 type Params = { slug: string }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const { slug } = params
+export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
+  const { slug } = await params
   const page = COMPARE_PAGES.find((p) => p.slug === slug)
   if (!page) return {}
 
@@ -36,8 +36,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   }
 }
 
-export default async function CompareDetailPage({ params }: { params: Params }) {
-  const { slug } = params
+export default async function CompareDetailPage({ params }: { params: Promise<Params> }) {
+  const { slug } = await params
   const page = COMPARE_PAGES.find((p) => p.slug === slug)
   if (!page) notFound()
 

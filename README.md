@@ -2,13 +2,13 @@
 
 B2B Lead Intelligence Platform - AI-powered lead generation, personalized pitch creation, and intent tracking.
 
-Built with Next.js 14 (App Router), Supabase, Stripe, and OpenAI.
+Built with Next.js (App Router), Supabase, Stripe, and OpenAI.
 
 ---
 
 ## Prerequisites
 
-- **Node.js**: v18.x or v20.x (LTS recommended)
+- **Node.js**: v20.x (LTS recommended)
 - **Package Manager**: npm (comes with Node.js) or yarn/pnpm
 - **Supabase Account**: [supabase.com](https://supabase.com) - Free tier works for development
 - **Stripe Account**: [stripe.com](https://stripe.com) - Test mode for development

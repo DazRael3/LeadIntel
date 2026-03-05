@@ -16,8 +16,9 @@ const LeadTagDeleteQuerySchema = z.object({
   tagId: z.string().uuid('Invalid tag ID format'),
 })
 
-export async function POST(request: NextRequest, { params }: { params: { leadId: string } }) {
-  const leadIdResult = LeadIdSchema.safeParse(params.leadId)
+export async function POST(request: NextRequest, ctx: { params: Promise<{ leadId: string }> }) {
+  const { leadId: rawLeadId } = await ctx.params
+  const leadIdResult = LeadIdSchema.safeParse(rawLeadId)
   if (!leadIdResult.success) {
     return fail(ErrorCode.VALIDATION_ERROR, 'Invalid leadId format')
   }
@@ -56,8 +57,9 @@ export async function POST(request: NextRequest, { params }: { params: { leadId:
   return POST_GUARDED(request)
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { leadId: string } }) {
-  const leadIdResult = LeadIdSchema.safeParse(params.leadId)
+export async function DELETE(request: NextRequest, ctx: { params: Promise<{ leadId: string }> }) {
+  const { leadId: rawLeadId } = await ctx.params
+  const leadIdResult = LeadIdSchema.safeParse(rawLeadId)
   if (!leadIdResult.success) {
     return fail(ErrorCode.VALIDATION_ERROR, 'Invalid leadId format')
   }

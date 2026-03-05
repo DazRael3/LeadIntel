@@ -6,8 +6,9 @@ import { JsonLd } from '@/components/seo/JsonLd'
 import { getTemplateBySlug, getTokenGlossaryForTemplate } from '@/lib/templates/registry'
 import { TemplateDetailClient } from '@/components/marketing/TemplateDetailClient'
 
-export function generateMetadata(props: { params: { slug: string } }): Metadata {
-  const t = getTemplateBySlug(props.params.slug)
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await props.params
+  const t = getTemplateBySlug(slug)
   if (!t) return {}
   const url = `https://dazrael.com/templates/${t.slug}`
   return {
@@ -29,8 +30,9 @@ export function generateMetadata(props: { params: { slug: string } }): Metadata 
   }
 }
 
-export default function TemplateDetailPage(props: { params: { slug: string } }) {
-  const t = getTemplateBySlug(props.params.slug)
+export default async function TemplateDetailPage(props: { params: Promise<{ slug: string }> }) {
+  const { slug } = await props.params
+  const t = getTemplateBySlug(slug)
   if (!t) notFound()
 
   const glossary = getTokenGlossaryForTemplate(t)

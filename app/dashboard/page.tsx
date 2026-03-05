@@ -31,9 +31,10 @@ function maybeLogApiSchemaHint(error: unknown): void {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const supabase = createClient()
+  const sp = (await searchParams) ?? {}
+  const supabase = await createClient()
   
   // Check authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -50,10 +51,10 @@ export default async function DashboardPage({
   let hasIcp = false
   let tourCompletedAt: string | null = null
   const initialCompany =
-    typeof searchParams?.company === 'string' ? searchParams.company.trim().slice(0, 1000) : undefined
+    typeof sp.company === 'string' ? sp.company.trim().slice(0, 1000) : undefined
 
-  const onboardingParam = typeof searchParams?.onboarding === 'string' ? searchParams.onboarding.trim() : ''
-  const focusParam = typeof searchParams?.focus === 'string' ? searchParams.focus.trim() : ''
+  const onboardingParam = typeof sp.onboarding === 'string' ? sp.onboarding.trim() : ''
+  const focusParam = typeof sp.focus === 'string' ? sp.focus.trim() : ''
   const initialOnboardingStep =
     onboardingParam === 'icp'
       ? 2

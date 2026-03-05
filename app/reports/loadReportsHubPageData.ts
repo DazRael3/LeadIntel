@@ -10,7 +10,7 @@ export type ReportsHubPageData = {
 }
 
 export async function loadReportsHubPageData(): Promise<ReportsHubPageData> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 
   if (error || !user) {
