@@ -279,6 +279,26 @@ const POST_GUARDED = withApiGuard(
       })
       sessionUrl = session.url ?? null
     } catch (error) {
+      // Expose only safe Stripe error metadata (no secrets) to help debug production config.
+      const stripeErr = error as {
+        type?: unknown
+        code?: unknown
+        param?: unknown
+        requestId?: unknown
+        statusCode?: unknown
+        decline_code?: unknown
+        rawType?: unknown
+      }
+      const safeStripeDetails = {
+        stripeType: typeof stripeErr?.type === 'string' ? stripeErr.type : null,
+        stripeCode: typeof stripeErr?.code === 'string' ? stripeErr.code : null,
+        stripeParam: typeof stripeErr?.param === 'string' ? stripeErr.param : null,
+        stripeRequestId: typeof stripeErr?.requestId === 'string' ? stripeErr.requestId : null,
+        stripeStatusCode: typeof stripeErr?.statusCode === 'number' ? stripeErr.statusCode : null,
+        stripeDeclineCode: typeof (stripeErr as any)?.decline_code === 'string' ? (stripeErr as any).decline_code : null,
+        stripeRawType: typeof stripeErr?.rawType === 'string' ? stripeErr.rawType : null,
+      }
+
       logger.error({
         level: 'error',
         scope: 'checkout',
@@ -286,12 +306,12 @@ const POST_GUARDED = withApiGuard(
         planId,
         stripeMode,
         error: error instanceof Error ? error.message : String(error),
+        ...safeStripeDetails,
       })
 
-      const details =
-        serverEnv.NODE_ENV === 'development'
-          ? { message: error instanceof Error ? error.message : String(error) }
-          : undefined
+      // Keep the user-facing message stable, but include safe Stripe metadata for troubleshooting.
+      // (No secrets, no env values, no full payloads.)
+      const details = safeStripeDetails
       return fail(
         ErrorCode.EXTERNAL_API_ERROR,
         'Stripe checkout session creation failed',

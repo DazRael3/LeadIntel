@@ -3,12 +3,24 @@
 ### Canonical sources of truth
 
 - **Subscription row**: `api.subscriptions` (preferred)
-- **Fallback marker**: `api.users.subscription_tier` (internal marker: `'free' | 'pro'`)
+- **Fallback marker**: `api.users.subscription_tier` (internal marker; supports `'pro' | 'closer_plus' | 'team'`)
 
 The application maps these DB markers to product tiers:
 
 - `subscription_tier = 'free'` (or no active subscription) → **Starter**
 - `subscription_tier = 'pro'` (or active subscription) → **Closer**
+- `subscription_tier = 'closer_plus'` → **Closer+**
+- `subscription_tier = 'team'` → **Team**
+
+### Owner testing override (no Stripe required)
+
+If you want to unlock Team-only surfaces for your own account without changing Stripe, set the marker on your `api.users` row:
+
+```sql
+update api.users
+set subscription_tier = 'team'
+where id = '<USER_ID>';
+```
 
 ### SQL: inspect a user’s plan state
 
