@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/utils"
 import { Star, Building2, TrendingUp, AlertCircle, X } from "lucide-react"
 import { LeadDetailView } from "@/components/LeadDetailView"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
+import { formatRelativeDate, formatSignalType } from "@/lib/domain/explainability"
 
 interface WatchlistProps {
   isPro: boolean
@@ -20,6 +21,7 @@ export function Watchlist({ isPro }: WatchlistProps) {
   const [watchlistItems, setWatchlistItems] = useState<(WatchlistItem & { lead: Lead })[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [latestSignals, setLatestSignals] = useState<Record<string, { type: string; detectedAt: string }>>({})
 
   const loadWatchlist = useCallback(async () => {
     try {
@@ -39,14 +41,50 @@ export function Watchlist({ isPro }: WatchlistProps) {
 
       // Filter out expired items and transform data
       const now = new Date()
-      const validItems = (data || [])
-        .filter((item: any) => new Date(item.expires_at) > now)
-        .map((item: any) => ({
+      const rows = (data ?? []) as Array<WatchlistItem & { lead?: Lead | null }>
+      const validItems: Array<WatchlistItem & { lead: Lead }> = rows
+        .filter((item) => {
+          if (!item.expires_at) return false
+          const expiresMs = new Date(item.expires_at).getTime()
+          if (!Number.isFinite(expiresMs)) return false
+          if (expiresMs <= now.getTime()) return false
+          return Boolean(item.lead)
+        })
+        .map((item) => ({
           ...item,
-          lead: item.lead as Lead
+          lead: item.lead as Lead,
         }))
 
       setWatchlistItems(validItems)
+
+      // Best-effort: fetch latest trigger event per lead (for provenance snippet).
+      try {
+        const leadIds = validItems.map((i: WatchlistItem & { lead: Lead }) => i.lead_id).filter(Boolean)
+        if (leadIds.length > 0) {
+          const { data: rows } = await supabase
+            .from('trigger_events')
+            .select('lead_id, event_type, detected_at, created_at')
+            .eq('user_id', user.id)
+            .in('lead_id', leadIds)
+            .order('detected_at', { ascending: false })
+            .limit(500)
+
+          const out: Record<string, { type: string; detectedAt: string }> = {}
+          for (const r of (rows ?? []) as Array<{ lead_id?: string | null; event_type?: string | null; detected_at?: string | null; created_at?: string | null }>) {
+            if (!r.lead_id) continue
+            if (out[r.lead_id]) continue
+            if (!r.event_type) continue
+            const ts = r.detected_at ?? r.created_at
+            if (!ts) continue
+            out[r.lead_id] = { type: r.event_type, detectedAt: ts }
+          }
+          setLatestSignals(out)
+        } else {
+          setLatestSignals({})
+        }
+      } catch {
+        setLatestSignals({})
+      }
     } catch (error) {
       console.error('Error loading watchlist:', error)
     } finally {
@@ -236,6 +274,14 @@ export function Watchlist({ isPro }: WatchlistProps) {
                             </Badge>
                           )}
                         </div>
+                        {latestSignals[item.lead.id] ? (
+                          <div className="text-xs text-muted-foreground">
+                            Latest signal: {formatSignalType(latestSignals[item.lead.id].type)} ·{' '}
+                            <span title={new Date(latestSignals[item.lead.id].detectedAt).toLocaleString()}>
+                              {formatRelativeDate(latestSignals[item.lead.id].detectedAt)}
+                            </span>
+                          </div>
+                        ) : null}
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>Watched: {formatDate(item.watched_at)}</span>
                           <span>•</span>

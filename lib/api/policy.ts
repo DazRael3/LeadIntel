@@ -883,6 +883,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'GET:/api/accounts/[leadId]/explainability': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 120,
+      ipPerMin: 60,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
 }
 
 /**

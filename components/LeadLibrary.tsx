@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/utils"
 import { useLeadLibrary } from "@/app/dashboard/hooks/useLeadLibrary"
 import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { formatRelativeDate, formatSignalType } from "@/lib/domain/explainability"
 import { 
   Search, 
   Filter, 
@@ -119,7 +120,11 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
 
   // Get unique event types and industries
   const eventTypes = useMemo(() => {
-    const types = new Set(leads.map((l) => l.trigger_event).filter(Boolean))
+    const types = new Set(
+      leads
+        .map((l) => (l as unknown as { latestSignal?: { type?: string } }).latestSignal?.type)
+        .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+    )
     return Array.from(types).sort()
   }, [leads])
 
@@ -156,7 +161,10 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
 
     // Event type filter
     if (selectedEventType) {
-      filtered = filtered.filter(lead => lead.trigger_event === selectedEventType)
+      filtered = filtered.filter((lead) => {
+        const latestType = (lead as unknown as { latestSignal?: { type?: string } }).latestSignal?.type
+        return latestType === selectedEventType
+      })
     }
 
     // Industry filter (placeholder - would use actual industry field)
@@ -191,7 +199,7 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
           `"${lead.company_name}"`,
           `"${lead.company_domain || ''}"`,
           `"${lead.company_url || ''}"`,
-          `"${lead.trigger_event || ''}"`,
+          `"${((lead as unknown as { latestSignal?: { type?: string; detectedAt?: string } }).latestSignal?.type ?? '')}"`,
           `"${lead.created_at}"`
         ].join(',')
       )
@@ -409,7 +417,28 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
                       </td>
                       <td className="py-3 px-4">
                         <div className={`text-xs ${shouldBlur ? 'blur-sm' : ''}`}>
-                          <span className="text-muted-foreground">{lead.trigger_event || '—'}</span>
+                          {(lead as unknown as { latestSignal?: { type?: string; detectedAt?: string } }).latestSignal ? (
+                            <span className="text-muted-foreground">
+                              Latest signal:{' '}
+                              {formatSignalType(
+                                (lead as unknown as { latestSignal?: { type?: string } }).latestSignal?.type ?? ''
+                              )}{' '}
+                              ·{' '}
+                              <span
+                                title={new Date(
+                                  (lead as unknown as { latestSignal?: { detectedAt?: string } }).latestSignal?.detectedAt ??
+                                    ''
+                                ).toLocaleString()}
+                              >
+                                {formatRelativeDate(
+                                  (lead as unknown as { latestSignal?: { detectedAt?: string } }).latestSignal?.detectedAt ??
+                                    ''
+                                )}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground" />
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4 text-xs text-muted-foreground">
