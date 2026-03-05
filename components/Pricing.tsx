@@ -71,12 +71,16 @@ function extractApiErrorMessage(payload: unknown): string {
       }
     }
 
-    // If Stripe checkout failed, surface the Stripe error code safely when provided.
+    // If Stripe checkout failed, surface safe Stripe hints when provided.
     if (obj.error && typeof obj.error === 'object') {
       const err = obj.error as { code?: unknown; details?: unknown; requestId?: unknown }
       const code = typeof err.code === 'string' ? err.code : null
       if (code === 'EXTERNAL_API_ERROR' && err.details && typeof err.details === 'object') {
-        const details = err.details as { stripeCode?: unknown; stripeType?: unknown }
+        const details = err.details as { stripeCode?: unknown; stripeType?: unknown; debugMessage?: unknown }
+        const debugMessage = typeof details.debugMessage === 'string' ? details.debugMessage : null
+        if (debugMessage && debugMessage.trim().length > 0) {
+          return debugMessage
+        }
         const stripeCode = typeof details.stripeCode === 'string' ? details.stripeCode : null
         const stripeType = typeof details.stripeType === 'string' ? details.stripeType : null
         if (stripeCode || stripeType) {

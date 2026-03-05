@@ -301,8 +301,10 @@ const POST_GUARDED = withApiGuard(
         stripeDeclineCode: typeof (stripeErr as any)?.decline_code === 'string' ? (stripeErr as any).decline_code : null,
         stripeRawType: typeof stripeErr?.rawType === 'string' ? stripeErr.rawType : null,
       }
+      // Stripe error messages do not contain secrets, but can contain configuration hints
+      // (e.g. invalid price, wrong mode). Truncate defensively.
       const debugMessage =
-        isOwnerDebug && error instanceof Error
+        error instanceof Error
           ? error.message.length > 300
             ? error.message.slice(0, 297) + '...'
             : error.message
