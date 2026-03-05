@@ -5,7 +5,7 @@ import { getPlanDetails } from '@/lib/billing/plan'
 import { getEntitlements } from '@/lib/billing/entitlements'
 
 export default async function HistoryPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (authError || !user) {

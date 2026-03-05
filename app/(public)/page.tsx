@@ -5,7 +5,7 @@ import { JsonLd } from '@/components/seo/JsonLd'
 
 export default async function Page() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       redirect('/dashboard')

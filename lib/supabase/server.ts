@@ -22,14 +22,14 @@ function getSupabaseKey(): string {
  * 
  * Configured with schema from environment (default: 'api')
  */
-export function createClient() {
+export async function createClient() {
   if (isE2E()) {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     return createE2EServerSupabaseClient({
       getCookie: (name) => cookieStore.get(name)?.value,
     })
   }
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = getSupabaseKey()
   const { primary } = getDbSchema()

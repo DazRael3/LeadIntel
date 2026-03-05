@@ -12,13 +12,14 @@ export const metadata: Metadata = {
 }
 
 interface SignupPageProps {
-  searchParams?: {
+  searchParams?: Promise<{
     redirect?: string
-  }
+  }>
 }
 
-export default function SignupPage({ searchParams = {} }: SignupPageProps) {
-  const redirectTo = searchParams?.redirect ?? '/dashboard'
+export default async function SignupPage({ searchParams }: SignupPageProps) {
+  const sp = (await searchParams) ?? {}
+  const redirectTo = sp.redirect ?? '/dashboard'
   return <LoginClient initialMode="signup" redirectTo={redirectTo} />
 }
 

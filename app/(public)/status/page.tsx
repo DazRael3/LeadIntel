@@ -59,7 +59,7 @@ type AutomationEnvelope =
   | { ok: false; error?: { message?: string } }
 
 export default async function StatusPage() {
-  const baseUrl = getBaseUrl()
+  const baseUrl = await getBaseUrl()
 
   const [health, version, automation] = await Promise.all([
     safeFetchJson<HealthEnvelope>(`${baseUrl}/api/health`),
@@ -248,8 +248,8 @@ export default async function StatusPage() {
   )
 }
 
-function getBaseUrl(): string {
-  const h = headers()
+async function getBaseUrl(): Promise<string> {
+  const h = await headers()
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000'
   const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
   return `${proto}://${host}`

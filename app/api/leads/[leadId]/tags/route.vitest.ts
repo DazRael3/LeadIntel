@@ -63,7 +63,7 @@ describe('/api/leads/[leadId]/tags', () => {
       headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
       body: JSON.stringify({ tagId: '123e4567-e89b-12d3-a456-426614174000' }),
     })
-    const res = await POST(req, { params: { leadId: '123e4567-e89b-12d3-a456-426614174000' } })
+    const res = await POST(req, { params: Promise.resolve({ leadId: '123e4567-e89b-12d3-a456-426614174000' }) })
     expect(res.status).toBe(401)
   })
 
@@ -74,7 +74,7 @@ describe('/api/leads/[leadId]/tags', () => {
       headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
       body: JSON.stringify({ tagId: '123e4567-e89b-12d3-a456-426614174000' }),
     })
-    const res = await POST(req, { params: { leadId: '123e4567-e89b-12d3-a456-426614174000' } })
+    const res = await POST(req, { params: Promise.resolve({ leadId: '123e4567-e89b-12d3-a456-426614174000' }) })
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.ok).toBe(true)
@@ -87,7 +87,7 @@ describe('/api/leads/[leadId]/tags', () => {
       'http://localhost:3000/api/leads/123e4567-e89b-12d3-a456-426614174000/tags?tagId=123e4567-e89b-12d3-a456-426614174000',
       { method: 'DELETE', headers: { origin: 'http://localhost:3000' } }
     )
-    const res = await DELETE(req, { params: { leadId: '123e4567-e89b-12d3-a456-426614174000' } })
+    const res = await DELETE(req, { params: Promise.resolve({ leadId: '123e4567-e89b-12d3-a456-426614174000' }) })
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.ok).toBe(true)
