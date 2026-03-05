@@ -70,6 +70,21 @@ function extractApiErrorMessage(payload: unknown): string {
         return err.message
       }
     }
+
+    // If Stripe checkout failed, surface the Stripe error code safely when provided.
+    if (obj.error && typeof obj.error === 'object') {
+      const err = obj.error as { code?: unknown; details?: unknown; requestId?: unknown }
+      const code = typeof err.code === 'string' ? err.code : null
+      if (code === 'EXTERNAL_API_ERROR' && err.details && typeof err.details === 'object') {
+        const details = err.details as { stripeCode?: unknown; stripeType?: unknown }
+        const stripeCode = typeof details.stripeCode === 'string' ? details.stripeCode : null
+        const stripeType = typeof details.stripeType === 'string' ? details.stripeType : null
+        if (stripeCode || stripeType) {
+          const hint = stripeCode ? `Stripe error: ${stripeCode}` : stripeType ? `Stripe error: ${stripeType}` : ''
+          return hint || 'Stripe checkout failed'
+        }
+      }
+    }
     
     // Check for direct message property
     if (typeof obj.message === 'string') {
