@@ -22,6 +22,9 @@ import { formatRelativeDate, formatSignalType } from '@/lib/domain/explainabilit
 interface PitchGeneratorProps {
   initialUrl?: string
   onCompanyContextChange?: (args: { companyInput: string; companyDomain: string | null }) => void
+  initialTemplateId?: PitchTemplateId
+  autoGenerate?: boolean
+  navigateToPitchOnGenerate?: boolean
 }
 
 type ApiSuccess<T> = { ok: true; data: T }
@@ -113,7 +116,13 @@ function normalizeSaved(value: unknown): string[] {
   return out
 }
 
-export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: PitchGeneratorProps) {
+export function PitchGenerator({
+  initialUrl = "",
+  onCompanyContextChange,
+  initialTemplateId = 'default',
+  autoGenerate = false,
+  navigateToPitchOnGenerate = false,
+}: PitchGeneratorProps) {
   const [companyUrl, setCompanyUrl] = useState(initialUrl)
   const { tier } = usePlan()
   const [loading, setLoading] = useState(false)
@@ -126,7 +135,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const [savedCompanies, setSavedCompanies] = useState<string[]>([])
   const [savedCompanyNotice, setSavedCompanyNotice] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [templateId, setTemplateId] = useState<PitchTemplateId>('default')
+  const [templateId, setTemplateId] = useState<PitchTemplateId>(initialTemplateId)
   const [freeLimitError, setFreeLimitError] = useState<string | null>(null)
   const [pitchUsage, setPitchUsage] = useState<{ pitchesUsed: number; pitchesLimit: number | null } | null>(null)
   const [generatedLeadId, setGeneratedLeadId] = useState<string | null>(null)
@@ -153,6 +162,8 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
   const MISSING_LEAD_WARNING = 'Pitch history not saved (missing lead id).'
   const loadingRef = useRef<boolean>(false)
   const selectedSavedCompanyRef = useRef<string | null>(null)
+  const handleGenerateRef = useRef<(() => Promise<void>) | null>(null)
+  const autoAttemptedRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     loadingRef.current = loading
@@ -367,6 +378,9 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     if (initialUrl) {
       setCompanyUrl(initialUrl)
     }
+    if (initialTemplateId) {
+      setTemplateId(initialTemplateId)
+    }
     void loadSaved()
     // Keep saved companies scoped to the current authenticated user.
     const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
@@ -377,7 +391,7 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     return () => {
       data.subscription.unsubscribe()
     }
-  }, [initialUrl, loadSaved, supabase.auth])
+  }, [initialUrl, initialTemplateId, loadSaved, supabase.auth])
 
   useEffect(() => {
     let cancelled = false
@@ -655,6 +669,47 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
     }
   }
 
+  // Make handleGenerate callable from effects without churn.
+  useEffect(() => {
+    handleGenerateRef.current = handleGenerate
+  }, [handleGenerate])
+
+  // Auto-generate when explicitly requested (e.g. deep link from a "Generate pitch" button).
+  useEffect(() => {
+    if (!autoGenerate) return
+    const trimmed = companyUrl.trim()
+    if (!trimmed) return
+    if (loadingRef.current) return
+    if (typeof pitch === 'string' && pitch.trim().length > 0) return
+    if (autoAttemptedRef.current.has(trimmed)) return
+
+    // Give "latest pitch" hydration a moment to populate if it exists.
+    const t = window.setTimeout(() => {
+      if (!autoGenerate) return
+      if (loadingRef.current) return
+      if (typeof pitch === 'string' && pitch.trim().length > 0) return
+      if (autoAttemptedRef.current.has(trimmed)) return
+      autoAttemptedRef.current.add(trimmed)
+      void handleGenerateRef.current?.()
+    }, 650)
+
+    return () => window.clearTimeout(t)
+  }, [autoGenerate, companyUrl, pitch])
+
+  const handleGenerateOrNavigate = () => {
+    const trimmed = companyUrl.trim()
+    if (!trimmed) return
+    if (navigateToPitchOnGenerate) {
+      const qs = new URLSearchParams()
+      qs.set('url', trimmed)
+      qs.set('auto', '1')
+      qs.set('template', templateId)
+      router.push(`/pitch?${qs.toString()}`)
+      return
+    }
+    void handleGenerate()
+  }
+
   useEffect(() => {
     let cancelled = false
     const controller = new AbortController()
@@ -817,13 +872,13 @@ export function PitchGenerator({ initialUrl = "", onCompanyContextChange }: Pitc
                     const next = (e.target as HTMLInputElement | null)?.value
                     if (typeof next === 'string') setCompanyUrl(next)
                   }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGenerateOrNavigate()}
                   className="flex-1"
                   data-testid="pitch-input"
                   disabled={isPitchCapReached}
                 />
                 <Button
-                  onClick={handleGenerate}
+                  onClick={handleGenerateOrNavigate}
                   disabled={isPitchCapReached || loading || !companyUrl.trim()}
                   data-testid="pitch-generate"
                   data-tour="tour-generate-pitch"

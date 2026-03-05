@@ -113,7 +113,7 @@ export function renderAccountsNudgeEmail(args: { appUrl: string }): LifecycleEma
 
 export function renderPitchNudgeEmail(args: { appUrl: string }): LifecycleEmail {
   const subject = 'Generate your first pitch draft'
-  const primaryHref = `${args.appUrl}/dashboard?focus=pitch`
+  const primaryHref = `${args.appUrl}/pitch`
   const secondaryHref = `${args.appUrl}/tour`
   const footerBlock = footer({ appUrl: args.appUrl })
 

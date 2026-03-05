@@ -235,8 +235,7 @@ export function DashboardClient({
                     setManualOnboardingOpen(true)
                   }}
                   onOpenPitch={() => {
-                    const el = document.querySelector('[data-tour=\"tour-generate-pitch\"]') as HTMLElement | null
-                    if (el) el.scrollIntoView({ block: 'center' })
+                    router.push('/pitch')
                   }}
                 />
                 <QuickTourActionsCard
@@ -249,6 +248,7 @@ export function DashboardClient({
                 <PitchGenerator
                   initialUrl={initialCompanyInput}
                   onCompanyContextChange={onCompanyContextChange}
+                  navigateToPitchOnGenerate
                 />
                 <ScoreExplainerCard />
               </div>
