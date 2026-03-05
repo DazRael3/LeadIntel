@@ -11,6 +11,7 @@ import { logger } from '@/lib/observability/logger'
 import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
 import { resolveCheckoutLineItems, type BillingCycle, type CheckoutLineItem, type PaidPlanId } from '@/lib/billing/stripePriceMap'
 import { isHouseCloserEmail } from '@/lib/billing/houseAccounts'
+import { validateSubscriptionLineItemsAreRecurring } from '@/lib/billing/stripePriceValidation'
 
 /**
  * Validates required Stripe environment variables
@@ -204,6 +205,30 @@ const POST_GUARDED = withApiGuard(
       proPriceId: serverEnv.STRIPE_PRICE_ID_PRO ?? serverEnv.STRIPE_PRICE_ID ?? null,
       teamPriceId: serverEnv.STRIPE_PRICE_ID_TEAM ?? null,
     })
+
+    // Fail fast before creating a Stripe customer if a configured "subscription" price is not recurring.
+    // This avoids orphan Stripe customers caused by price misconfiguration.
+    const priceValidation = await validateSubscriptionLineItemsAreRecurring(stripe, lineItems)
+    if (!priceValidation.ok) {
+      const details =
+        priceValidation.reason === 'stripe_error'
+          ? { ...priceValidation.error, priceId: priceValidation.priceId }
+          : { reason: priceValidation.reason, invalidPrices: priceValidation.invalidPrices }
+
+      return fail(
+        'CHECKOUT_NOT_CONFIGURED',
+        'Stripe price configuration is invalid for subscription checkout',
+        {
+          planId,
+          billingCycle,
+          ...details,
+          hint: 'All prices used with mode="subscription" must be recurring (monthly/yearly) and active.',
+        },
+        { status: 500 },
+        bridge,
+        requestId
+      )
+    }
 
     // Check if user already has a Stripe customer ID
     let { data: userData } = await supabase
