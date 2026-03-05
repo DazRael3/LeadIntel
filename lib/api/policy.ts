@@ -751,6 +751,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/cron/webhooks': {
+    tier: 'CRON',
+    maxBytes: 8192,
+    rateLimit: {
+      authPerMin: 5,
+      ipPerMin: 5,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: true,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/cron/run': {
     tier: 'CRON',
     maxBytes: 8192,

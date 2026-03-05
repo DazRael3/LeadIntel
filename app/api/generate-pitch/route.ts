@@ -20,6 +20,9 @@ import { logInfo } from '@/lib/observability/logger'
 import { checkStarterPitchUsage, getStarterLeadCountFromDb, getStarterPitchCapSummary, recordStarterPitchCapUsage } from '@/lib/billing/usage'
 import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 import { makeNameCompanyKey } from '@/lib/company-key'
+import { ensurePersonalWorkspace, getCurrentWorkspace } from '@/lib/team/workspace'
+import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
+import { randomUUID } from 'crypto'
 
 export const dynamic = "force-dynamic";
 
@@ -438,6 +441,30 @@ export const POST = withApiGuard(
         schema: dbSchemaUsed,
         fallbackUsed: dbFallbackUsed,
       })
+    }
+
+    // Webhooks: emit only when pitch was persisted with a lead id.
+    if (typeof leadId === 'string' && leadId.length > 0) {
+      try {
+        await ensurePersonalWorkspace({ supabase, userId })
+        const workspace = await getCurrentWorkspace({ supabase, userId })
+        if (workspace) {
+          await enqueueWebhookEvent({
+            workspaceId: workspace.id,
+            eventType: 'pitch.generated',
+            eventId: randomUUID(),
+            payload: {
+              workspaceId: workspace.id,
+              leadId,
+              companyDomain: domain,
+              companyName: topicName || null,
+              createdAt: new Date().toISOString(),
+            },
+          })
+        }
+      } catch {
+        // best-effort
+      }
     }
 
     const successResponse = ok(response, undefined, bridge, requestId)

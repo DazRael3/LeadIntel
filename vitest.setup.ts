@@ -82,34 +82,10 @@ vi.mock('resend', () => ({
   })),
 }))
 
-// Set minimal environment variables before any imports
-// This prevents env validation from failing during tests
-process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co'
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key'
-process.env.NEXT_PUBLIC_SUPABASE_DB_SCHEMA = process.env.NEXT_PUBLIC_SUPABASE_DB_SCHEMA || 'api'
-process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_123'
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
-process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
-process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
-process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test123'
-process.env.RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || 'test-resend-webhook-secret'
-process.env.CRON_SECRET = process.env.CRON_SECRET || 'test-cron-secret-123456'
-process.env.CRON_SIGNING_SECRET = process.env.CRON_SIGNING_SECRET || 'test-cron-signing-secret-123456'
-process.env.SENTRY_DSN = process.env.SENTRY_DSN || ''
-process.env.SENTRY_ENVIRONMENT = process.env.SENTRY_ENVIRONMENT || 'test'
-process.env.HEALTH_CHECK_EXTERNAL = process.env.HEALTH_CHECK_EXTERNAL || '0'
-process.env.FEATURE_AUTOPILOT_ENABLED = process.env.FEATURE_AUTOPILOT_ENABLED || 'true'
-process.env.FEATURE_RESEND_WEBHOOK_ENABLED = process.env.FEATURE_RESEND_WEBHOOK_ENABLED || 'true'
-process.env.FEATURE_STRIPE_WEBHOOK_ENABLED = process.env.FEATURE_STRIPE_WEBHOOK_ENABLED || 'true'
-process.env.FEATURE_CLEARBIT_ENABLED = process.env.FEATURE_CLEARBIT_ENABLED || 'true'
-process.env.FEATURE_ZAPIER_PUSH_ENABLED = process.env.FEATURE_ZAPIER_PUSH_ENABLED || 'true'
 // Set NODE_ENV only if not already set (it's read-only in some contexts)
 if (!process.env.NODE_ENV) {
   Object.defineProperty(process.env, 'NODE_ENV', { value: 'test', writable: true, configurable: true })
 }
-// Set Upstash env vars for tests (prevents validation errors)
-process.env.UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL || 'https://example.com'
-process.env.UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || 'test-token'
 
 // Suppress console warnings in tests (can be enabled for debugging)
 // vi.spyOn(console, 'warn').mockImplementation(() => {})

@@ -104,7 +104,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
           identifyClientUser(data.session.user.id, { email: data.session.user.email ?? null })
           // Ensure lifecycle + user settings rows exist (idempotent).
           try {
-            await fetch('/api/lifecycle/ensure', { method: 'POST' })
+            void fetch('/api/lifecycle/ensure', { method: 'POST' })
           } catch {
             // best-effort
           }
@@ -153,7 +153,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
           // best-effort
         }
         try {
-          await fetch('/api/lifecycle/ensure', { method: 'POST' })
+          void fetch('/api/lifecycle/ensure', { method: 'POST' })
         } catch {
           // best-effort
         }
@@ -239,7 +239,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
             </div>
           </div>
 
-          <form onSubmit={handleAuth} className="space-y-4">
+          <form onSubmit={handleAuth} className="space-y-4" data-testid="login-form">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -251,6 +251,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
                 required
                 disabled={loading}
                 className="bg-background"
+                data-testid="login-email"
               />
             </div>
             <div className="space-y-2">
@@ -264,6 +265,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
                 disabled={loading}
                 className="bg-background"
                 minLength={mode === 'signup' ? 6 : undefined}
+                data-testid="login-password"
               />
               {mode === 'signup' && (
                 <p className="text-xs text-muted-foreground">Password must be at least 6 characters</p>
@@ -339,6 +341,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
                 type="submit"
                 disabled={loading}
                 className="flex-1 bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30"
+                data-testid="login-submit"
               >
                 {loading ? 'Loading...' : mode === 'signin' ? 'Sign in' : 'Create account'}
               </Button>
