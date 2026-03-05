@@ -41,18 +41,25 @@ export function Watchlist({ isPro }: WatchlistProps) {
 
       // Filter out expired items and transform data
       const now = new Date()
-      const validItems = (data || [])
-        .filter((item: any) => new Date(item.expires_at) > now)
-        .map((item: any) => ({
+      const rows = (data ?? []) as Array<WatchlistItem & { lead?: Lead | null }>
+      const validItems: Array<WatchlistItem & { lead: Lead }> = rows
+        .filter((item) => {
+          if (!item.expires_at) return false
+          const expiresMs = new Date(item.expires_at).getTime()
+          if (!Number.isFinite(expiresMs)) return false
+          if (expiresMs <= now.getTime()) return false
+          return Boolean(item.lead)
+        })
+        .map((item) => ({
           ...item,
-          lead: item.lead as Lead
+          lead: item.lead as Lead,
         }))
 
       setWatchlistItems(validItems)
 
       // Best-effort: fetch latest trigger event per lead (for provenance snippet).
       try {
-        const leadIds = validItems.map((i) => i.lead_id).filter(Boolean)
+        const leadIds = validItems.map((i: WatchlistItem & { lead: Lead }) => i.lead_id).filter(Boolean)
         if (leadIds.length > 0) {
           const { data: rows } = await supabase
             .from('trigger_events')

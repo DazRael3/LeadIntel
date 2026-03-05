@@ -146,12 +146,12 @@ export async function getAccountExplainability(args: {
   const triggerRows = (triggersRes.data ?? []) as unknown as DbTriggerRow[]
 
   const signals: SignalEvent[] = triggerRows
-    .map((r) => {
+    .map((r): SignalEvent | null => {
       const detectedAt = r.detected_at ?? r.created_at
       if (!isIsoString(detectedAt)) return null
       const title = (r.headline ?? r.event_description ?? r.event_type ?? '').trim()
       if (!title) return null
-      return {
+      const ev: SignalEvent = {
         id: r.id,
         type: (r.event_type ?? 'unknown').toString(),
         title,
@@ -161,9 +161,10 @@ export async function getAccountExplainability(args: {
         sourceName: null,
         sourceUrl: safeExternalLink(r.source_url),
         confidence: null,
-      } satisfies SignalEvent
+      }
+      return ev
     })
-    .filter((x): x is SignalEvent => Boolean(x))
+    .filter((x): x is SignalEvent => x !== null)
 
   // Score explainability (deterministic; computed from stored signals + user activity).
   const [watchlistRes, pitchesRes, emailLogsRes, userSettingsRes] = await Promise.all([
