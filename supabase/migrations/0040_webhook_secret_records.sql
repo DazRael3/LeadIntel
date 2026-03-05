@@ -3,6 +3,10 @@ begin;
 -- Store webhook signing secrets in a separate table that is only readable by the service role.
 -- `api.webhook_endpoints` keeps a hash for integrity + rotation, but secrets are never returned.
 
+-- Ensure pgcrypto digest() is available and resolvable on Supabase.
+create extension if not exists pgcrypto;
+set local search_path = public, extensions, api;
+
 alter table api.webhook_endpoints
   add column if not exists secret_hash text null;
 
@@ -37,7 +41,7 @@ begin
       );
 
     update api.webhook_endpoints e
-       set secret_hash = encode(digest(e.secret, 'sha256'), 'hex')
+       set secret_hash = encode(digest(convert_to(e.secret, 'utf8'), 'sha256'), 'hex')
      where e.secret is not null and length(trim(e.secret)) > 0;
 
     alter table api.webhook_endpoints drop column if exists secret;

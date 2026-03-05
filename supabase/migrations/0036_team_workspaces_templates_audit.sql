@@ -3,6 +3,12 @@ begin;
 -- Team governance primitives live in the `api` schema.
 -- RLS is enforced for all tables; elevated operations use role checks.
 
+-- Ensure pgcrypto digest() is available (Supabase commonly installs extensions).
+create extension if not exists pgcrypto;
+
+-- Supabase may install extensions under `extensions` schema; include it for digest resolution.
+set local search_path = public, extensions, api;
+
 -- Workspaces
 create table if not exists api.workspaces (
   id uuid primary key default gen_random_uuid(),
@@ -84,7 +90,7 @@ returns text
 language sql
 stable
 as $$
-  select encode(digest(coalesce(p_token, ''), 'sha256'), 'hex');
+  select encode(digest(convert_to(coalesce(p_token, ''), 'utf8'), 'sha256'), 'hex');
 $$;
 
 -- Workspace invites
