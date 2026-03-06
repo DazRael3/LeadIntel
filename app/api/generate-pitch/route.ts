@@ -205,8 +205,11 @@ export const POST = withApiGuard(
 
     // Tier gating rules (explicit):
     // - starter: enforce daily usage cap
-    // - closer/team: no usage cap in this patch
-    const tier = await resolveTierForUser(supabase, userId)
+    // - paid tiers + House Closer override: no Starter caps
+    //
+    // IMPORTANT: plan detection (`isProPlan`) already includes HOUSE_CLOSER_EMAILS and
+    // `api.users.subscription_tier` overrides. Starter caps must respect that.
+    const tier = isPro ? 'closer' : await resolveTierForUser(supabase, userId)
     if (tier === 'starter') {
       // Starter hard cap: 3 total leads/pitches. DB-backed so it remains consistent across restarts.
       const leadCount = await getStarterLeadCountFromDb(userId)

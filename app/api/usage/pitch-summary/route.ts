@@ -8,6 +8,8 @@ import { getStarterLeadCountFromDb, getStarterPitchCapSummary } from '@/lib/bill
 import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { resolveTierFromDb } from '@/lib/billing/resolve-tier'
+import { createRouteClient } from '@/lib/supabase/route'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,9 +25,12 @@ export const GET = withApiGuard(
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
+      const supabase = createRouteClient(request, bridge)
+      const sessionUser = await getUserSafe(supabase)
+
       // Resolve tier from canonical billing sources (service role, api schema).
       const admin = createSupabaseAdminClient({ schema: 'api' })
-      const resolved = await resolveTierFromDb(admin as any, userId, null)
+      const resolved = await resolveTierFromDb(admin as any, userId, sessionUser?.email ?? null)
       const tier = resolved.tier
 
       let pitchesUsed = 0

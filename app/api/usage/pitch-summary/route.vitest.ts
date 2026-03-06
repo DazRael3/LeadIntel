@@ -48,7 +48,7 @@ class FakeQuery {
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
     auth: {
-      getUser: vi.fn(async () => ({ data: { user: { id: 'user_1' } }, error: null })),
+      getUser: vi.fn(async () => ({ data: { user: { id: 'user_1', email: 'user@example.com' } }, error: null })),
     },
     from: (table: string) => new FakeQuery(table),
     schema: () => ({
