@@ -346,11 +346,12 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             onChangeType={setSignalsType}
             onGeneratePitchDraft={() => {
               onClose()
-              const company = (lead.company_domain || lead.company_name || '').trim()
+              const urlLike = (lead.company_url || lead.company_domain || lead.company_name || '').trim()
               const qs = new URLSearchParams()
-              qs.set('focus', 'pitch')
-              if (company) qs.set('company', company)
-              router.push(`/dashboard?${qs.toString()}`)
+              qs.set('auto', '1')
+              if (urlLike) qs.set('url', urlLike)
+              if (lead.company_name) qs.set('name', lead.company_name)
+              router.push(`/pitch?${qs.toString()}`)
             }}
           />
 
@@ -388,6 +389,21 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-400">AI Personalized Pitch (Single)</h3>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const urlLike = (lead.company_url || lead.company_domain || lead.company_name || '').trim()
+                    const qs = new URLSearchParams()
+                    qs.set('auto', '1')
+                    if (urlLike) qs.set('url', urlLike)
+                    if (lead.company_name) qs.set('name', lead.company_name)
+                    router.push(`/pitch?${qs.toString()}`)
+                  }}
+                  className="neon-border hover:glow-effect whitespace-nowrap"
+                >
+                  Generate pitch
+                </Button>
                 {isPro && lead.prospect_email && (
                   <Button
                     size="sm"

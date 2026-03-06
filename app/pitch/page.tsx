@@ -6,18 +6,27 @@ import { PitchGenerator } from "@/components/PitchGenerator"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { PlanProvider } from "@/components/PlanProvider"
+import type { PitchTemplateId } from "@/lib/ai/pitch-templates"
 
 function PitchContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [companyUrl, setCompanyUrl] = useState("")
   const [companyName, setCompanyName] = useState("")
+  const [auto, setAuto] = useState(false)
+  const [templateId, setTemplateId] = useState<PitchTemplateId>('default')
 
   useEffect(() => {
     const url = searchParams.get('url')
     const name = searchParams.get('name')
+    const autoParam = searchParams.get('auto')
+    const tpl = searchParams.get('template')
     if (url) setCompanyUrl(decodeURIComponent(url))
     if (name) setCompanyName(decodeURIComponent(name))
+    setAuto(autoParam === '1' || autoParam === 'true')
+    if (tpl === 'default' || tpl === 'short_email' || tpl === 'call_opener' || tpl === 'linkedin_dm') {
+      setTemplateId(tpl)
+    }
   }, [searchParams])
 
   return (
@@ -45,7 +54,7 @@ function PitchContent() {
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <PlanProvider initialPlan="free">
-          <PitchGenerator initialUrl={companyUrl} />
+          <PitchGenerator initialUrl={companyUrl} initialTemplateId={templateId} autoGenerate={auto} />
         </PlanProvider>
       </main>
     </div>

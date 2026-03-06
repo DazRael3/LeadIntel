@@ -137,7 +137,7 @@ export function SignalsPanel(props: {
                 className="neon-border hover:glow-effect"
                 onClick={() => {
                   if (props.onGeneratePitchDraft) props.onGeneratePitchDraft()
-                  else router.push('/dashboard?focus=pitch')
+                  else router.push('/pitch')
                 }}
               >
                 {COPY.states.empty.noSignals.primary}
