@@ -1,4 +1,4 @@
-export type JobName = 'lifecycle' | 'digest_lite' | 'kpi_monitor' | 'content_audit'
+export type JobName = 'lifecycle' | 'digest_lite' | 'kpi_monitor' | 'content_audit' | 'growth_cycle'
 export type TriggeredBy = 'cron' | 'admin'
 export type JobStatus = 'ok' | 'skipped' | 'error'
 

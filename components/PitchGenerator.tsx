@@ -668,11 +668,8 @@ export function PitchGenerator({
       setLoading(false)
     }
   }
-
-  // Make handleGenerate callable from effects without churn.
-  useEffect(() => {
-    handleGenerateRef.current = handleGenerate
-  }, [handleGenerate])
+  // Keep latest generate handler available without re-render churn.
+  handleGenerateRef.current = handleGenerate
 
   // Auto-generate when explicitly requested (e.g. deep link from a "Generate pitch" button).
   useEffect(() => {

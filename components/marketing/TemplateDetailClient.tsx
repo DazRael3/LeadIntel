@@ -1,21 +1,11 @@
 'use client'
 
-import { useMemo } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import type { OutreachTemplate, TemplateTokenDef } from '@/lib/templates/registry'
-
-function extractSubject(body: string): { subject: string | null; bodyWithoutSubject: string } {
-  const lines = body.split('\n')
-  const first = (lines[0] ?? '').trim()
-  if (!/^subject:/i.test(first)) return { subject: null, bodyWithoutSubject: body }
-  const subject = first.replace(/^subject:\s*/i, '').trim()
-  const rest = lines.slice(1).join('\n').replace(/^\s*\n/, '')
-  return { subject: subject || null, bodyWithoutSubject: rest }
-}
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -35,13 +25,19 @@ export function TemplateDetailClient(props: {
   glossary: TemplateTokenDef[]
 }) {
   const { toast } = useToast()
-  const parsed = useMemo(() => extractSubject(props.template.body), [props.template.body])
-  const subject = parsed.subject
-  const bodyText = subject ? parsed.bodyWithoutSubject : props.template.body
+  const subject = props.template.subject
+  const bodyText = props.template.body
   const both = subject ? `Subject: ${subject}\n\n${bodyText}` : bodyText
 
   return (
     <div className="grid grid-cols-1 gap-6">
+      <Card className="border-cyan-500/20 bg-card/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">When to use</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">{props.template.notes}</CardContent>
+      </Card>
+
       <Card className="border-cyan-500/20 bg-card/60">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -100,7 +96,7 @@ export function TemplateDetailClient(props: {
         </CardHeader>
         <CardContent>
           <pre className="whitespace-pre-wrap text-sm text-muted-foreground rounded border border-cyan-500/10 bg-background/40 p-4">
-            {props.template.body}
+            {subject ? `Subject: ${subject}\n\n${props.template.body}` : props.template.body}
           </pre>
         </CardContent>
       </Card>

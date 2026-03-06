@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { USE_CASES } from '@/lib/use-cases/registry'
 
 export const metadata: Metadata = {
   title: 'Use cases | LeadIntel',
@@ -33,56 +34,14 @@ type UseCase = {
 }
 
 export default function UseCasesPage() {
-  const useCases: UseCase[] = [
-    {
-      href: '/use-cases/funding-outreach',
-      title: 'Funding outreach',
-      problem: 'New capital changes priorities and timelines.',
-      whyNow: 'Reach out while budgets and project scopes are being set.',
-      template: '“Congrats on the raise — are you prioritizing X in the next 60 days?”',
-      tag: 'Funding',
-    },
-    {
-      href: '/use-cases/hiring-spike',
-      title: 'Hiring spike outreach',
-      problem: 'Hiring often signals growth initiatives or tooling gaps.',
-      whyNow: 'Catch the build phase before a vendor is locked in.',
-      template: '“Noticed you’re hiring for Y — is this tied to Z initiative?”',
-      tag: 'Hiring',
-    },
-    {
-      href: '/use-cases/partnership-announcement',
-      title: 'Partnership announcements',
-      problem: 'Partnerships create integration needs and new workflows.',
-      whyNow: 'Offer a specific wedge aligned to the announcement.',
-      template: '“Saw the partnership — curious how you’re handling the handoff between A and B?”',
-      tag: 'Partnership',
-    },
-    {
-      href: '/use-cases/product-launch-timing',
-      title: 'Product launch timing',
-      problem: 'Launch cycles increase cross-functional load and tooling demand.',
-      whyNow: 'Help remove friction while the team is shipping.',
-      template: '“Congrats on the launch — teams often hit X bottleneck right after GA.”',
-      tag: 'Launch',
-    },
-    {
-      href: '/use-cases/competitive-displacement',
-      title: 'Competitive displacement',
-      problem: 'Competitors change pricing, features, or reliability.',
-      whyNow: 'Use a crisp battlecard angle when churn risk is highest.',
-      template: '“If you’re re-evaluating vendor Y, I can share a quick comparison checklist.”',
-      tag: 'Battlecard',
-    },
-    {
-      href: '/use-cases/expansion-signals',
-      title: 'Expansion signals',
-      problem: 'Expansion adds complexity: regions, teams, and processes.',
-      whyNow: 'Pitch standardization and visibility before the org scales.',
-      template: '“Expansion usually exposes gaps in X — worth a fast audit?”',
-      tag: 'Expansion',
-    },
-  ]
+  const useCases: UseCase[] = USE_CASES.map((u) => ({
+    href: u.href,
+    title: u.title,
+    problem: u.problem,
+    whyNow: u.whyNow,
+    template: u.templatePreview,
+    tag: u.tag,
+  }))
 
   return (
     <MarketingPage title="Use cases" subtitle="Six high-intent outbound plays built around “why now” signals.">

@@ -11,6 +11,9 @@ import { readLatestJobRuns } from '@/lib/jobs/persist'
 import { runJob } from '@/lib/jobs/runJob'
 import type { JobName } from '@/lib/jobs/types'
 import { getPostHogApiConfig, queryHogQL } from '@/lib/posthog/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { seedPublishQueue } from '@/lib/growth/seedPublishQueue'
+import { CopyTextButton } from '@/components/admin/CopyTextButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +32,26 @@ type JobRunRow = {
   finished_at: string
   summary: unknown
   error_text: string | null
+}
+
+type PublishQueueRow = {
+  id: string
+  type: string
+  slug: string
+  status: string
+  scheduled_for: string
+  published_at: string | null
+  last_error: string | null
+  created_at: string
+}
+
+type PostQueueRow = {
+  id: string
+  channel: string
+  status: string
+  related_url: string
+  content: string
+  created_at: string
 }
 
 function isEnabledResend(): boolean {
@@ -92,19 +115,96 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
   const token = typeof sp.token === 'string' ? sp.token : null
   requireAdminToken(token)
 
+  async function seedQueuesNow(formData: FormData) {
+    'use server'
+    const tok = String(formData.get('token') ?? '')
+    requireAdminToken(tok)
+    const supabase = createSupabaseAdminClient({ schema: 'api' })
+    await seedPublishQueue({ supabase })
+    revalidatePath('/admin/growth')
+  }
+
   async function runNow(formData: FormData) {
     'use server'
     const tok = String(formData.get('token') ?? '')
     requireAdminToken(tok)
     const job = String(formData.get('job') ?? '') as JobName
-    const allowed: JobName[] = ['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit']
+    const allowed: JobName[] = ['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit', 'growth_cycle']
     if (!allowed.includes(job)) notFound()
     await runJob(job, { triggeredBy: 'admin' })
     revalidatePath('/admin/growth')
   }
 
+  async function retryPublishQueue(formData: FormData) {
+    'use server'
+    const tok = String(formData.get('token') ?? '')
+    requireAdminToken(tok)
+    const id = String(formData.get('id') ?? '')
+    if (!id) notFound()
+    const supabase = createSupabaseAdminClient({ schema: 'api' })
+    const nowIso = new Date().toISOString()
+    await supabase.from('publish_queue').update({ status: 'queued', scheduled_for: nowIso, last_error: null }).eq('id', id)
+    revalidatePath('/admin/growth')
+  }
+
+  async function retryAllFailed(formData: FormData) {
+    'use server'
+    const tok = String(formData.get('token') ?? '')
+    requireAdminToken(tok)
+    const supabase = createSupabaseAdminClient({ schema: 'api' })
+    const nowIso = new Date().toISOString()
+    await supabase.from('publish_queue').update({ status: 'queued', scheduled_for: nowIso, last_error: null }).eq('status', 'failed')
+    revalidatePath('/admin/growth')
+  }
+
+  async function markPosted(formData: FormData) {
+    'use server'
+    const tok = String(formData.get('token') ?? '')
+    requireAdminToken(tok)
+    const id = String(formData.get('id') ?? '')
+    if (!id) notFound()
+    const supabase = createSupabaseAdminClient({ schema: 'api' })
+    await supabase.from('post_queue').update({ status: 'posted' }).eq('id', id)
+    revalidatePath('/admin/growth')
+  }
+
   const jobRuns = await readLatestJobRuns(20)
   const kpis = await getKpis24h()
+
+  let publishQueueEnabled = false
+  let publishQueue: PublishQueueRow[] = []
+  let postQueueEnabled = false
+  let postQueue: PostQueueRow[] = []
+  let lastDistributionAt: string | null = null
+  try {
+    const supabase = createSupabaseAdminClient({ schema: 'api' })
+    publishQueueEnabled = true
+    postQueueEnabled = true
+
+    const [{ data: pq }, { data: posts }, { data: state }] = await Promise.all([
+      supabase
+        .from('publish_queue')
+        .select('id, type, slug, status, scheduled_for, published_at, last_error, created_at')
+        .order('created_at', { ascending: true })
+        .limit(500),
+      supabase
+        .from('post_queue')
+        .select('id, channel, status, related_url, content, created_at')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase.from('growth_state').select('last_distribution_at').eq('key', 'growth_cycle').maybeSingle(),
+    ])
+
+    publishQueue = (pq ?? []) as unknown as PublishQueueRow[]
+    postQueue = (posts ?? []) as unknown as PostQueueRow[]
+    lastDistributionAt = (state as { last_distribution_at?: string | null } | null)?.last_distribution_at ?? null
+  } catch {
+    publishQueueEnabled = false
+    postQueueEnabled = false
+    publishQueue = []
+    postQueue = []
+    lastDistributionAt = null
+  }
 
   return (
     <div className="min-h-screen bg-background terminal-grid">
@@ -177,15 +277,142 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
             <CardTitle className="text-base">Run a job now</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
-            {(['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit'] as JobName[]).map((job) => (
+            {(['growth_cycle', 'lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit'] as JobName[]).map((job) => (
               <form key={job} action={runNow}>
                 <input type="hidden" name="token" value={token ?? ''} />
                 <input type="hidden" name="job" value={job} />
-                <Button type="submit" className={job === 'lifecycle' ? 'neon-border hover:glow-effect' : ''} variant={job === 'lifecycle' ? 'default' : 'outline'}>
+                <Button type="submit" className={job === 'growth_cycle' ? 'neon-border hover:glow-effect' : ''} variant={job === 'growth_cycle' ? 'default' : 'outline'}>
                   Run {job.replace('_', ' ')}
                 </Button>
               </form>
             ))}
+            <form action={seedQueuesNow}>
+              <input type="hidden" name="token" value={token ?? ''} />
+              <Button type="submit" variant="outline">
+                Seed publish queue
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="border-cyan-500/20 bg-card/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <CardTitle className="text-base">Growth cycle</CardTitle>
+              <Badge variant="outline">publish + distribution + post drafts</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-4">
+            <div>
+              Last distribution:{' '}
+              <span className="text-foreground font-medium">{lastDistributionAt ? lastDistributionAt : 'Not sent yet'}</span>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <form action={retryAllFailed}>
+                <input type="hidden" name="token" value={token ?? ''} />
+                <Button type="submit" variant="outline">
+                  Retry failed publishes
+                </Button>
+              </form>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-cyan-500/20 bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Publish queue</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {!publishQueueEnabled ? (
+              <div>Publish queue storage isn’t enabled on this deployment.</div>
+            ) : publishQueue.length === 0 ? (
+              <div>No queue entries yet. Use “Seed publish queue”.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-cyan-500/10 text-xs text-muted-foreground">
+                      <th className="text-left py-2 pr-3">Type</th>
+                      <th className="text-left py-2 pr-3">Slug</th>
+                      <th className="text-left py-2 pr-3">Status</th>
+                      <th className="text-left py-2 pr-3">Scheduled</th>
+                      <th className="text-left py-2 pr-3">Published</th>
+                      <th className="text-left py-2 pr-3">Error</th>
+                      <th className="text-left py-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {publishQueue.map((r) => (
+                      <tr key={r.id} className="border-b border-cyan-500/10 align-top">
+                        <td className="py-2 pr-3 font-medium text-foreground">{r.type}</td>
+                        <td className="py-2 pr-3">{r.slug}</td>
+                        <td className="py-2 pr-3">
+                          <Badge variant="outline">{r.status}</Badge>
+                        </td>
+                        <td className="py-2 pr-3 text-xs">{r.scheduled_for}</td>
+                        <td className="py-2 pr-3 text-xs">{r.published_at ?? '—'}</td>
+                        <td className="py-2 pr-3 text-xs text-red-300">{r.last_error ?? ''}</td>
+                        <td className="py-2">
+                          {r.status === 'failed' ? (
+                            <form action={retryPublishQueue}>
+                              <input type="hidden" name="token" value={token ?? ''} />
+                              <input type="hidden" name="id" value={r.id} />
+                              <Button type="submit" size="sm" variant="outline">
+                                Retry
+                              </Button>
+                            </form>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-cyan-500/20 bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Post queue (drafts)</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {!postQueueEnabled ? (
+              <div>Post queue storage isn’t enabled on this deployment.</div>
+            ) : postQueue.length === 0 ? (
+              <div>No post drafts queued yet.</div>
+            ) : (
+              <div className="space-y-4">
+                {postQueue.map((p) => (
+                  <div key={p.id} className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-xs">
+                        <span className="font-medium text-foreground">{p.channel}</span>{' '}
+                        <Badge variant="outline">{p.status}</Badge>
+                        <div className="mt-1">
+                          <a className="text-cyan-400 hover:underline" href={p.related_url} target="_blank" rel="noreferrer">
+                            {p.related_url}
+                          </a>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CopyTextButton text={p.content} />
+                        {p.status !== 'posted' ? (
+                          <form action={markPosted}>
+                            <input type="hidden" name="token" value={token ?? ''} />
+                            <input type="hidden" name="id" value={p.id} />
+                            <Button size="sm" variant="outline" type="submit">
+                              Mark posted
+                            </Button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </div>
+                    <pre className="mt-3 whitespace-pre-wrap text-xs text-muted-foreground">{p.content}</pre>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -11,6 +11,10 @@ import { logAudit } from '@/lib/audit/log'
 
 export const dynamic = 'force-dynamic'
 
+function containsBracketTokens(input: string): boolean {
+  return input.includes('[') || input.includes(']')
+}
+
 const CreateSchema = z.object({
   setId: z.string().uuid().nullable(),
   slug: z.string().trim().min(1).max(80),
@@ -122,6 +126,9 @@ export const POST = withApiGuard(
       if (!bodyCheck.ok) {
         return fail(ErrorCode.VALIDATION_ERROR, bodyCheck.message, undefined, undefined, bridge, requestId)
       }
+      if (containsBracketTokens(subject ?? '') || containsBracketTokens(bodyText)) {
+        return fail(ErrorCode.VALIDATION_ERROR, 'Curly tokens only. Use {{token}} format.', undefined, undefined, bridge, requestId)
+      }
 
       const tokens = Array.from(new Set([...extractCurlyTokens(subject ?? ''), ...extractCurlyTokens(bodyText)]))
 
@@ -207,6 +214,9 @@ export const PATCH = withApiGuard(
       if (!subjectCheck.ok) return fail(ErrorCode.VALIDATION_ERROR, subjectCheck.message, undefined, undefined, bridge, requestId)
       const bodyCheck = validateCurlyTokensOnly(bodyText)
       if (!bodyCheck.ok) return fail(ErrorCode.VALIDATION_ERROR, bodyCheck.message, undefined, undefined, bridge, requestId)
+      if (containsBracketTokens(subject ?? '') || containsBracketTokens(bodyText)) {
+        return fail(ErrorCode.VALIDATION_ERROR, 'Curly tokens only. Use {{token}} format.', undefined, undefined, bridge, requestId)
+      }
 
       const tokens = Array.from(new Set([...extractCurlyTokens(subject ?? ''), ...extractCurlyTokens(bodyText)]))
 

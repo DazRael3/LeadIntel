@@ -17,10 +17,12 @@ export type ComparePage = {
     summary: string
     atAGlance: { leadintelFocus: string; competitorFocus: string }
   }
+  useTogether: string[]
   whoWins: { leadintel: string[]; competitor: string[] }
   whenLeadIntel: string[]
   whenCompetitor: string[]
   checklist: string[]
+  migrationSteps: string[]
   table: CompareTableRow[]
   faqs: CompareFaq[]
   ctas: {
@@ -58,6 +60,11 @@ export const COMPARE_PAGES: ComparePage[] = [
         competitorFocus: 'Prospecting workflow (contacts/accounts) and outbound tooling. ' + varies() + '.',
       },
     },
+    useTogether: [
+      'Use Apollo for contact discovery and list building.',
+      'Use LeadIntel to monitor your chosen accounts for timing signals and produce a daily shortlist.',
+      'Paste LeadIntel drafts into your existing sequencing/outbound workflow.',
+    ],
     whoWins: {
       leadintel: [
         'You already know your target accounts and care about timing.',
@@ -95,6 +102,15 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Do you want a simple daily loop or a multi-module platform?',
       'Do you need reasons behind a score (transparent prioritization)?',
       'What does “value in week 1” look like for your team?',
+      'Do you need a team-wide messaging standard that stays consistent?',
+      'Do you want triggers tied to a fixed watchlist (vs broad browsing)?',
+    ],
+    migrationSteps: [
+      'Define your ICP (who you want, who you don’t).',
+      'Build a watchlist of 10–25 target accounts (use your existing lists as inputs).',
+      'Set a cadence: review the daily shortlist and run one outreach block per day.',
+      'Use the templates and pitch drafts for first-touch and follow-ups; paste into your sequencer if you use one.',
+      'Review outcomes weekly and refine the angles/tokens for your ICP.',
     ],
     table: [
       { dimension: 'Primary workflow', leadintel: 'Account watchlist → daily shortlist → draft outreach', competitor: 'Prospecting + outbound workflow (' + varies() + ')' },
@@ -128,21 +144,26 @@ export const COMPARE_PAGES: ComparePage[] = [
     },
   },
   {
-    slug: 'leadintel-vs-linkedin-sales-navigator',
-    competitorName: 'LinkedIn Sales Navigator',
+    slug: 'leadintel-vs-sales-navigator',
+    competitorName: 'Sales Navigator',
     competitorType: 'LinkedIn-native research',
     bestFor: 'Best for: relationship context and LinkedIn-native research.',
-    title: 'LeadIntel vs LinkedIn Sales Navigator — Trigger-based alerts and instant pitch drafts',
+    title: 'LeadIntel vs Sales Navigator — Trigger-based alerts and instant pitch drafts',
     description:
       'A conservative comparison: LinkedIn-native research and relationship context vs trigger-based daily prioritization and pitch drafts.',
     hero: {
       summary:
-        'LinkedIn Sales Navigator is commonly used for LinkedIn-native research and account/lead context. LeadIntel is built for trigger-based alerts, a daily shortlist, and instant pitch drafts you can send.',
+        'Sales Navigator is commonly used for LinkedIn-native research and account/lead context. LeadIntel is built for trigger-based alerts, a daily shortlist, and instant pitch drafts you can send.',
       atAGlance: {
         leadintelFocus: 'Trigger-based shortlist + send-ready drafts tied to “why now”.',
         competitorFocus: 'LinkedIn-native account/lead research and relationship context. ' + varies() + '.',
       },
     },
+    useTogether: [
+      'Use Sales Navigator for relationship/context research and org mapping.',
+      'Use LeadIntel for daily timing signals and a short “who to contact today” list.',
+      'Paste LeadIntel drafts into your messaging workflow (email, LinkedIn, sequences).',
+    ],
     whoWins: {
       leadintel: [
         'You want daily prioritization from trigger signals.',
@@ -179,6 +200,16 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Will reps paste content into sequences elsewhere?',
       'Is your workflow primarily in LinkedIn messaging?',
       'Is the key pain “who do I message today?” or “who is this person?”',
+      'Do you need a repeatable first-week workflow for new reps?',
+      'Do you need team-wide template governance?',
+      'Do you want the system to explain “why this account, today?”',
+    ],
+    migrationSteps: [
+      'Define your ICP and the account list you care about.',
+      'Use Sales Navigator for context (org, roles, relationship mapping) when needed.',
+      'Use LeadIntel for daily trigger monitoring and a short prioritized list.',
+      'Generate drafts and paste them into your LinkedIn/email workflow.',
+      'Review outcomes weekly and refine angles/tokens for your ICP.',
     ],
     table: [
       { dimension: 'Primary workflow', leadintel: 'Signals → shortlist → draft outreach', competitor: 'LinkedIn-native research + outreach context (' + varies() + ')' },
@@ -227,6 +258,11 @@ export const COMPARE_PAGES: ComparePage[] = [
         competitorFocus: 'Company and funding intelligence research. ' + varies() + '.',
       },
     },
+    useTogether: [
+      'Use Crunchbase for research and list building (companies, funding context, market mapping).',
+      'Use LeadIntel to monitor your chosen targets for timing signals and decide who to contact today.',
+      'Use LeadIntel drafts as the starting point, then add any research context you have.',
+    ],
     whoWins: {
       leadintel: [
         'You want an execution loop, not just research.',
@@ -262,6 +298,17 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Do you want transparent scoring reasons?',
       'Where will outreach be executed (sequence tool, manual, CRM)?',
       'What does a successful week look like: better lists or more replies?',
+      'Do you need to standardize messaging across reps?',
+      'Do you need visible reasons behind a shortlist, not just data?',
+      'Do you want signals tied to your targets (not broad search results)?',
+      'Do you want value without building a new research process?',
+    ],
+    migrationSteps: [
+      'Define your ICP and the segment you’re targeting.',
+      'Build a list of 10–25 target accounts from your existing research inputs.',
+      'Create a watchlist and review the daily shortlist on a fixed cadence.',
+      'Use the templates/drafts to run a 7-day sequence; paste into your sequencer if you use one.',
+      'Review results weekly and refine angles and tokens for your ICP.',
     ],
     table: [
       { dimension: 'Primary workflow', leadintel: 'Watchlist → shortlist → draft outreach', competitor: 'Company intelligence research (' + varies() + ')' },
@@ -310,6 +357,11 @@ export const COMPARE_PAGES: ComparePage[] = [
         competitorFocus: 'Keyword-based alerts across the web.',
       },
     },
+    useTogether: [
+      'Use Google Alerts for broad topic monitoring and awareness.',
+      'Use LeadIntel for a watchlist-based daily shortlist tied to your targets.',
+      'Use LeadIntel drafts to turn relevant signals into messages quickly.',
+    ],
     whoWins: {
       leadintel: [
         'You care about a curated daily list of target accounts.',
@@ -345,6 +397,17 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Is timing/recency critical for replies?',
       'Do you need saved outputs and reuse?',
       'Do you need a repeatable daily routine?',
+      'Do you need consistent outreach templates across reps?',
+      'Do you need to route to the right owner quickly?',
+      'Do you want signals tied to your ICP (not just keywords)?',
+      'What does success look like: awareness or booked meetings?',
+    ],
+    migrationSteps: [
+      'Define your ICP and the accounts you care about.',
+      'Keep Google Alerts for broad monitoring if it helps your awareness.',
+      'Create a watchlist and review LeadIntel’s daily shortlist on a cadence.',
+      'Use templates and drafts to send first-touch and follow-ups consistently.',
+      'Review outcomes weekly and refine angles and tokens.',
     ],
     table: [
       { dimension: 'Primary workflow', leadintel: 'Accounts → shortlist → draft outreach', competitor: 'Keyword alerts → read links' },
@@ -393,6 +456,11 @@ export const COMPARE_PAGES: ComparePage[] = [
         competitorFocus: 'Ad hoc research and messaging built from scratch.',
       },
     },
+    useTogether: [
+      'Use manual research when an account is truly high stakes and needs bespoke context.',
+      'Use LeadIntel to standardize daily prioritization so research time is spent on the right accounts.',
+      'Use LeadIntel drafts as the starting point, then add your research where it matters.',
+    ],
     whoWins: {
       leadintel: [
         'You want consistency across days and reps.',
@@ -428,6 +496,17 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Are you spending time researching accounts that never respond?',
       'Do you need a system that scales to more accounts?',
       'Do you want to standardize execution across a team?',
+      'Do you want consistent follow-ups without rewriting from scratch?',
+      'Do you need a way to explain “why now” to new reps?',
+      'Do you want a tight first-week workflow (ICP → watchlist → shortlist → outreach)?',
+      'What does success look like: more depth or more consistent output?',
+    ],
+    migrationSteps: [
+      'Define your ICP and create a stable watchlist of target accounts.',
+      'Review the daily shortlist on a fixed cadence (keep it short).',
+      'Use drafts/templates as the starting point; add deep research only where it changes the outcome.',
+      'Run a 7-day sequence and keep notes on objections and patterns.',
+      'Refine tokens and angles weekly so output improves over time.',
     ],
     table: [
       { dimension: 'Primary workflow', leadintel: 'Signals → shortlist → drafts', competitor: 'Research → write from scratch → repeat' },
@@ -446,6 +525,103 @@ export const COMPARE_PAGES: ComparePage[] = [
       { q: 'What if I already have my own templates?', a: 'Keep them. LeadIntel can generate drafts that match your tone, and you can save/reuse outputs.' },
       { q: 'How does scoring work?', a: 'Deterministic 0–100 with reasons so you can trust the prioritization.' },
       { q: 'What’s required to get value in week 1?', a: 'ICP + 10–25 accounts. Then use the daily shortlist and draft generator.' },
+    ],
+    ctas: {
+      primaryHref: '/#try-sample',
+      primaryLabel: 'Generate a sample digest',
+      secondaryHref: '/pricing',
+      secondaryLabel: 'See pricing',
+      bottomTitle: 'See it with your targets',
+      bottomBody: 'Generate a sample digest, then decide if daily “why now” prioritization fits your motion.',
+      bottomPrimaryHref: '/#try-sample',
+      bottomPrimaryLabel: 'Generate a sample digest',
+      bottomSecondaryHref: '/templates',
+      bottomSecondaryLabel: 'Browse templates',
+    },
+  },
+  {
+    slug: 'leadintel-vs-spreadsheets',
+    competitorName: 'Spreadsheets',
+    competitorType: 'Manual tracking',
+    bestFor: 'Best for: small lists and simple tracking when automation isn’t required.',
+    title: 'LeadIntel vs spreadsheets — Trigger-based alerts and instant pitch drafts',
+    description:
+      'A conservative comparison: spreadsheets for tracking vs a workflow that turns timing signals into daily prioritization and drafts.',
+    hero: {
+      summary:
+        'Spreadsheets can work for tracking a list, but they don’t detect timing signals or generate outreach. LeadIntel is built for watchlist monitoring, daily prioritization, and send-ready drafts.',
+      atAGlance: {
+        leadintelFocus: 'Signals → shortlist → drafts (repeatable daily routine).',
+        competitorFocus: 'Manual tracking and updates. ' + varies() + '.',
+      },
+    },
+    useTogether: [
+      'Use a spreadsheet as a simple “source list” if that’s your team habit.',
+      'Use LeadIntel to monitor those accounts for timing signals and generate a daily shortlist.',
+      'Use LeadIntel drafts to standardize outreach so the sheet isn’t where messaging lives.',
+    ],
+    whoWins: {
+      leadintel: [
+        'You want timing signals without manual checking.',
+        'You want a daily shortlist with reasons.',
+        'You want send-ready drafts for first-touch and follow-ups.',
+        'You want consistent execution across reps.',
+        'You want outputs you can save and reuse.',
+      ],
+      competitor: [
+        'You have a very small list and can update it manually.',
+        'You only need basic tracking fields.',
+        'You don’t need a daily routine or “why now” signals.',
+        'You prefer to write messaging from scratch every time.',
+        'You don’t need drafting or scoring.',
+      ],
+    },
+    whenLeadIntel: [
+      'You’re running account-based outbound and need daily prioritization.',
+      'You want a repeatable workflow that produces drafts quickly.',
+      'You want a consistent cadence and saved outputs.',
+    ],
+    whenCompetitor: [
+      'Your list is tiny and updates are infrequent.',
+      'You only need a lightweight tracking artifact.',
+      'You don’t need a standardized execution workflow.',
+    ],
+    checklist: [
+      'Do you need timing signals or just a tracking list?',
+      'Do you lose time deciding who to contact today?',
+      'Do you need reasons behind prioritization?',
+      'Do you need send-ready drafts or just notes?',
+      'Do you need a repeatable daily routine?',
+      'Do you want consistent follow-ups without rewriting?',
+      'Do you need outputs you can save and reuse?',
+      'Do you want to standardize execution across reps?',
+      'Is your watchlist stable and intentional?',
+      'Do you need to route to the right owner quickly?',
+      'Do you want “why now” context tied to your ICP?',
+      'What does success look like: tracking completeness or booked meetings?',
+    ],
+    migrationSteps: [
+      'Define your ICP and create a watchlist (start with your spreadsheet if you have one).',
+      'Import or add 10–25 target accounts to monitor.',
+      'Review the daily shortlist and pick a small outreach block each day.',
+      'Use templates/drafts for first-touch and follow-ups; paste into your sequencer if you use one.',
+      'Refine tokens and angles weekly based on what gets replies.',
+    ],
+    table: [
+      { dimension: 'Primary workflow', leadintel: 'Signals → shortlist → drafts', competitor: 'Track list manually (' + varies() + ')' },
+      { dimension: 'Daily prioritization', leadintel: 'Yes (reasons + shortlist)', competitor: 'Manual' },
+      { dimension: '“Why now” signal layer', leadintel: 'Yes', competitor: 'No' },
+      { dimension: 'Pitch draft generation', leadintel: 'Yes', competitor: 'No' },
+      { dimension: 'Sharing + collaboration', leadintel: varies(), competitor: varies() },
+      { dimension: 'Setup complexity', leadintel: 'Light: ICP + watchlist', competitor: 'Low, but ongoing manual upkeep' },
+      { dimension: 'Best-fit buyer', leadintel: 'Teams who want speed + consistency', competitor: 'Small lists and simple tracking' },
+    ],
+    faqs: [
+      { q: 'Can I start from a spreadsheet?', a: 'Yes. Many teams start with a sheet for the initial account list, then use LeadIntel for monitoring, prioritization, and drafts.' },
+      { q: 'Will LeadIntel replace spreadsheets entirely?', a: 'Not necessarily. If your team likes a sheet as a lightweight list, keep it. LeadIntel is meant to drive the daily execution workflow.' },
+      { q: 'What if we already track fields and notes in a sheet?', a: 'Keep those if they’re useful. LeadIntel adds timing signals, a daily shortlist, and drafting to reduce blank-page work.' },
+      { q: 'How does scoring work?', a: 'LeadIntel uses a deterministic 0–100 score with visible reasons so you can trust the prioritization.' },
+      { q: 'What’s required to get value in week 1?', a: 'Define your ICP, add 10–25 accounts, then use the daily shortlist and templates/drafts for consistent outreach.' },
     ],
     ctas: {
       primaryHref: '/#try-sample',

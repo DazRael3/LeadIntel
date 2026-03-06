@@ -28,11 +28,16 @@ export const metadata: Metadata = {
 
 export default function TemplatesPage() {
   const templates: Template[] = TEMPLATE_LIBRARY.map((t) => ({
-    id: t.slug,
+    id: t.id,
     slug: t.slug,
     channel: t.channel,
+    trigger: t.trigger,
+    persona: t.persona,
+    length: t.length,
     title: t.title,
+    subject: t.subject,
     body: t.body,
+    notes: t.notes,
     tags: t.tags,
   }))
 

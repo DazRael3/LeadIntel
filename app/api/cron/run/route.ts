@@ -9,7 +9,7 @@ import type { JobName } from '@/lib/jobs/types'
 import { releaseJobLock, tryAcquireJobLock } from '@/lib/jobs/lock'
 
 const BodySchema = z.object({
-  job: z.enum(['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit']),
+  job: z.enum(['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit', 'growth_cycle']),
   dryRun: z.boolean().optional(),
   limit: z.number().int().optional(),
 })
@@ -34,6 +34,10 @@ function clampLimit(n: number): number {
   return Math.max(10, Math.min(1000, Math.floor(n)))
 }
 
+function clampGrowthLimit(n: number): number {
+  return Math.max(1, Math.min(10, Math.floor(n)))
+}
+
 export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
   try {
@@ -55,7 +59,12 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
     }
 
     const job = parsed.data.job as JobName
-    const limit = job === 'lifecycle' ? clampLimit(parsed.data.limit ?? 200) : undefined
+    const limit =
+      job === 'lifecycle'
+        ? clampLimit(parsed.data.limit ?? 200)
+        : job === 'growth_cycle'
+          ? clampGrowthLimit(parsed.data.limit ?? 3)
+          : undefined
     const startedAt = new Date().toISOString()
 
     const lock = await tryAcquireJobLock({ job })
@@ -98,7 +107,12 @@ export const POST = withApiGuard(
       }
 
       const job = parsed.data.job as JobName
-      const limit = job === 'lifecycle' ? clampLimit(parsed.data.limit ?? 200) : undefined
+      const limit =
+        job === 'lifecycle'
+          ? clampLimit(parsed.data.limit ?? 200)
+          : job === 'growth_cycle'
+            ? clampGrowthLimit(parsed.data.limit ?? 3)
+            : undefined
       const startedAt = new Date().toISOString()
 
       const lock = await tryAcquireJobLock({ job })

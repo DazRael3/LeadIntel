@@ -31,19 +31,19 @@ export default function FounderPage() {
             title: 'Funding signal',
             tag: 'Email',
             body:
-              'Subject: Quick congrats + one question\n\nCongrats on the funding — quick question: is the priority this quarter [X]?\n\nIf yes, I can share a short idea we’ve used to help similar teams move faster.\n\nWorth a quick 10 minutes?',
+              'Subject: Quick congrats + one question\n\nCongrats on the funding — quick question: is the priority this quarter {{initiative}}?\n\nIf yes, I can share a short idea we’ve used to help similar teams move faster.\n\nWorth a quick 10 minutes?',
           },
           {
             title: 'Hiring spike',
             tag: 'LinkedIn',
             body:
-              'Saw you’re hiring for [ROLE] — is that tied to an initiative like [X]?\n\nIf yes, happy to share a short checklist to remove friction during the build phase.',
+              'Saw you’re hiring for {{role}} — is that tied to an initiative like {{initiative}}?\n\nIf yes, happy to share a short checklist to remove friction during the build phase.',
           },
           {
             title: 'Launch timing',
             tag: 'Email',
             body:
-              'Subject: Quick question post‑launch\n\nCongrats on the launch.\n\nRight after GA, teams often hit friction in [X]. Is that on your radar this month?\n\nIf yes, I can share a short checklist to reduce friction in the first 30 days post‑launch.',
+              'Subject: Quick question post‑launch\n\nCongrats on the launch.\n\nRight after GA, teams often hit friction in {{initiative}}. Is that on your radar this month?\n\nIf yes, I can share a short checklist to reduce friction in the first 30 days post‑launch.',
           },
         ]}
       />

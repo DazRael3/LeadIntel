@@ -31,7 +31,7 @@ export default function RevOpsPage() {
             title: 'Ops-friendly check-in',
             tag: 'Email',
             body:
-              'Subject: Quick question on your current priorities\n\nWe’re seeing signals that [ACCOUNT] is in a build phase (hiring/launch/partnership).\n\nIs the priority this month [X] (process) or [Y] (tooling)? If yes, I can share a short checklist we use to reduce friction and standardize outreach timing.\n\nWorth a quick 10 minutes?',
+              'Subject: Quick question on your current priorities\n\nWe’re seeing signals that {{company}} is in a build phase (hiring/launch/partnership).\n\nIs the priority this month {{initiative}} (process) or {{alt_initiative}} (tooling)? If yes, I can share a short checklist we use to reduce friction and standardize outreach timing.\n\nWorth a quick 10 minutes?',
           },
           {
             title: 'Pilot CTA',
