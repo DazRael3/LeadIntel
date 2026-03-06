@@ -65,6 +65,14 @@ vi.mock('@/lib/stripe', () => ({
     customers: {
       create: vi.fn(async () => ({ id: 'cus_123' })),
     },
+    prices: {
+      retrieve: vi.fn(async (_priceId: string) => ({
+        id: _priceId,
+        type: 'recurring',
+        active: true,
+        recurring: { interval: 'month', interval_count: 1 },
+      })),
+    },
     checkout: {
       sessions: {
         create: createSession,

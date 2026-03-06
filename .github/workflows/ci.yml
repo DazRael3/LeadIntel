@@ -3,8 +3,7 @@ name: CI
 on:
   pull_request:
     branches: ['*']
-  push:
-    branches: ['*']
+  workflow_dispatch:
 
 # Cancel in-progress runs for the same workflow and branch
 concurrency:
@@ -67,4 +66,65 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
         continue-on-error: false
+
+  e2e:
+    name: Playwright E2E (optional)
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    env:
+      NODE_ENV: test
+      CI: true
+      HAS_E2E_SECRETS: ${{ secrets.E2E_EMAIL != '' && secrets.E2E_PASSWORD != '' && secrets.E2E_TEAM_EMAIL != '' && secrets.E2E_TEAM_PASSWORD != '' }}
+      E2E_MODE: 'true'
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_TEAM_EMAIL: ${{ secrets.E2E_TEAM_EMAIL }}
+      E2E_TEAM_PASSWORD: ${{ secrets.E2E_TEAM_PASSWORD }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: env.HAS_E2E_SECRETS == 'true'
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: env.HAS_E2E_SECRETS == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        if: env.HAS_E2E_SECRETS == 'true'
+        run: npm run build:ci
+
+      - name: Start server
+        if: env.HAS_E2E_SECRETS == 'true'
+        run: npm run start -- --port 3000 &
+
+      - name: Wait for server
+        if: env.HAS_E2E_SECRETS == 'true'
+        run: |
+          for i in {1..60}; do
+            if curl -fsS "http://localhost:3000/api/health" >/dev/null 2>&1; then
+              echo "Server is up."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not become ready in time."
+          exit 1
+
+      - name: Run E2E tests
+        if: env.HAS_E2E_SECRETS == 'true'
+        run: npm run test:e2e
+
+      - name: Skip E2E (missing secrets)
+        if: env.HAS_E2E_SECRETS != 'true'
+        run: echo "Skipping Playwright E2E: required secrets are not configured (E2E_EMAIL/E2E_PASSWORD/E2E_TEAM_EMAIL/E2E_TEAM_PASSWORD)."
 

@@ -215,7 +215,16 @@ export default async function StatusPage() {
                     <tbody>
                       {Object.entries(automation.data.lastRuns).map(([job, run]) => (
                         <tr key={job} className="border-b border-cyan-500/10">
-                          <td className="py-2 pr-3 font-medium text-foreground">{job}</td>
+                          <td className="py-2 pr-3 font-medium text-foreground">
+                            <div>{job}</div>
+                            {job === 'content_audit' ? (
+                              <div className="mt-1 text-xs font-normal">
+                                <Link className="text-cyan-400 hover:underline" href="/admin/ops">
+                                  Latest content audit
+                                </Link>
+                              </div>
+                            ) : null}
+                          </td>
                           <td className="py-2 pr-3">
                             <Badge variant="outline">{run.status}</Badge>
                           </td>

@@ -14,13 +14,6 @@ export default defineConfig({
     // Enable globals (expect, describe, it, etc.)
     globals: true,
     
-    // Use jsdom for React component/hook tests
-    environmentMatchGlobs: [
-      ['app/**/hooks/**/*.vitest.ts', 'jsdom'],
-      ['components/**/*.vitest.ts', 'jsdom'],
-      ['components/**/*.test.tsx', 'jsdom'],
-    ],
-    
     // Test file patterns
     include: ['**/*.vitest.ts', '**/*.test.ts', '**/*.test.tsx'],
     exclude: [
@@ -49,8 +42,6 @@ export default defineConfig({
         'docs/',
         'scripts/',
       ],
-      // Coverage thresholds (adjusted for initial test suite)
-      // TODO: Increase thresholds as more tests are added
       thresholds: {
         lines: 0, // No global threshold yet (only testing core utilities)
         functions: 0,
