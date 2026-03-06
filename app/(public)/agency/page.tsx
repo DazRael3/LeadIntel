@@ -37,13 +37,13 @@ export default function AgencyPage() {
             title: 'Expansion signal',
             tag: 'Email',
             body:
-              'Subject: Quick scaling checklist\n\nExpansion often exposes friction in [handoffs/reporting/enablement].\n\nIs that on your radar right now? If yes, I can share a short checklist to spot the bottleneck and prioritize fixes.\n\nWorth a quick 10 minutes?',
+              'Subject: Quick scaling checklist\n\nExpansion often exposes friction in {{pain}} (handoffs/reporting/enablement).\n\nIs that on your radar right now? If yes, I can share a short checklist to spot the bottleneck and prioritize fixes.\n\nWorth a quick 10 minutes?',
           },
           {
             title: 'Competitive displacement',
             tag: 'LinkedIn',
             body:
-              'If you’re evaluating alternatives to [VENDOR], I can share a 1‑page decision checklist (requirements, rollout risk, maintenance).\n\nWant it?',
+              'If you’re evaluating alternatives to {{vendor}}, I can share a 1‑page decision checklist (requirements, rollout risk, maintenance).\n\nWant it?',
           },
         ]}
       />

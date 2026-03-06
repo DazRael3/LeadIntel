@@ -31,13 +31,13 @@ export default function AePage() {
             title: 'Competitive displacement',
             tag: 'Email',
             body:
-              'Subject: Quick evaluation checklist\n\nIf you’re evaluating alternatives to [VENDOR], here’s a quick checklist:\n1) Must-have requirements\n2) Rollout + adoption risk\n3) Reporting + long-term maintenance\n\nIf useful, I can share a 1‑page comparison checklist for teams in your space.\n\nWorth a quick 10 minutes?',
+              'Subject: Quick evaluation checklist\n\nIf you’re evaluating alternatives to {{vendor}}, here’s a quick checklist:\n1) Must-have requirements\n2) Rollout + adoption risk\n3) Reporting + long-term maintenance\n\nIf useful, I can share a 1‑page comparison checklist for teams in your space.\n\nWorth a quick 10 minutes?',
           },
           {
             title: 'Expansion signal',
             tag: 'Email',
             body:
-              'Subject: Quick scaling question\n\nWhen teams expand, the first pain often shows up in [handoffs/reporting/enablement].\n\nIs that on your radar right now? If yes, I can share a short checklist to spot the bottleneck and prioritize fixes.\n\nWorth a quick 10 minutes?',
+              'Subject: Quick scaling question\n\nWhen teams expand, the first pain often shows up in {{pain}} (handoffs/reporting/enablement).\n\nIs that on your radar right now? If yes, I can share a short checklist to spot the bottleneck and prioritize fixes.\n\nWorth a quick 10 minutes?',
           },
           {
             title: 'Partnership rollout',

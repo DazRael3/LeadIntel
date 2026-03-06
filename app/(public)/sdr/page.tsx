@@ -31,19 +31,19 @@ export default function SdrPage() {
             title: 'Funding signal opener',
             tag: 'Email',
             body:
-              'Subject: Quick congrats + one question\n\nCongrats on the funding — quick question: is the priority this quarter [X] or [Y]?\n\nIf [X] is on the roadmap, I can share a short checklist we use to prioritize accounts and reach out at the right time.\n\nWorth a quick 10 minutes?',
+              'Subject: Quick congrats + one question\n\nCongrats on the funding — quick question: is the priority this quarter {{initiative}} or {{alt_initiative}}?\n\nIf {{initiative}} is on the roadmap, I can share a short checklist we use to prioritize accounts and reach out at the right time.\n\nWorth a quick 10 minutes?',
           },
           {
             title: 'Hiring spike opener',
             tag: 'LinkedIn',
             body:
-              'Saw you’re hiring for [ROLE] — is that tied to an initiative like [X]?\n\nIf yes, happy to share a short checklist to reduce friction during the build phase.',
+              'Saw you’re hiring for {{role}} — is that tied to an initiative like {{initiative}}?\n\nIf yes, happy to share a short checklist to reduce friction during the build phase.',
           },
           {
             title: 'Product launch timing',
             tag: 'Email',
             body:
-              'Subject: Quick question post‑launch\n\nCongrats on the launch.\n\nRight after GA, teams often hit a bottleneck in [X]. Is that on your radar this month?\n\nIf yes, I can share a short checklist to reduce friction in the first 30 days post‑launch.',
+              'Subject: Quick question post‑launch\n\nCongrats on the launch.\n\nRight after GA, teams often hit a bottleneck in {{initiative}}. Is that on your radar this month?\n\nIf yes, I can share a short checklist to reduce friction in the first 30 days post‑launch.',
           },
         ]}
       />

@@ -120,6 +120,45 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="border-cyan-500/20 bg-card/60">
             <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Use together</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              <ul className="list-disc pl-5 space-y-1">
+                {page.useTogether.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+              <div className="mt-4 flex flex-wrap gap-3 text-xs">
+                <Link className="text-cyan-400 hover:underline" href="/tour">
+                  Product tour
+                </Link>
+                <Link className="text-cyan-400 hover:underline" href="/templates">
+                  Templates
+                </Link>
+                <Link className="text-cyan-400 hover:underline" href="/pricing">
+                  Pricing
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Implementation / migration steps</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              <ol className="list-decimal pl-5 space-y-1">
+                {page.migrationSteps.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
               <CardTitle className="text-lg">Who wins for…</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground grid grid-cols-1 gap-5">

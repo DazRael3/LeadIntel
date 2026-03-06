@@ -65,7 +65,14 @@ function requiresOgMeta(html: string): boolean {
 }
 
 function validateUseCaseHtml(html: string): string | null {
-  const must = ['problem → why now', 'what to look for', 'angle library', 'templates', 'personalization tokens']
+  const must = [
+    'when this play works best',
+    'signals that make timing strong',
+    'angle library',
+    'sequence pack (7 days)',
+    'objection handling',
+    'personalization examples',
+  ]
   const t = html.toLowerCase()
   const missing = must.filter((m) => !t.includes(m))
   if (missing.length > 0) return `use_case_missing_sections:${missing.join(',')}`
@@ -75,6 +82,8 @@ function validateUseCaseHtml(html: string): string | null {
 function validateCompareHtml(html: string): string | null {
   const t = html.toLowerCase()
   if (!t.includes('evaluation checklist')) return 'compare_missing_evaluation_checklist'
+  if (!t.includes('use together')) return 'compare_missing_use_together'
+  if (!t.includes('implementation / migration steps')) return 'compare_missing_migration_steps'
   if (!t.includes('comparison table')) return 'compare_missing_comparison_table'
   return null
 }
@@ -89,7 +98,21 @@ function validateTourHtml(html: string): string | null {
 function validateTemplateRegistry(slug: string): string | null {
   const tpl = TEMPLATE_LIBRARY.find((t) => t.slug === slug)
   if (!tpl) return 'template_not_found_in_registry'
-  if (tpl.body.trim().length < 280) return 'template_body_too_short'
+  if (tpl.channel === 'email') {
+    if (!tpl.subject || tpl.subject.trim().length < 10) return 'template_email_subject_too_short'
+    if (tpl.body.trim().length < 450) return 'template_email_body_too_short'
+    return null
+  }
+  if (tpl.channel === 'linkedin') {
+    const min = tpl.length === 'ultra_short' ? 90 : 140
+    if (tpl.body.trim().length < min) return `template_dm_body_too_short_${min}`
+    return null
+  }
+  if (tpl.channel === 'call') {
+    if (tpl.body.trim().length < 140) return 'template_call_body_too_short'
+    if (!tpl.body.includes('?')) return 'template_call_missing_question'
+    return null
+  }
   return null
 }
 

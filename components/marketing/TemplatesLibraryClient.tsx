@@ -9,12 +9,27 @@ import { useToast } from '@/components/ui/use-toast'
 
 export type TemplateChannel = 'email' | 'linkedin' | 'call'
 
+export type TemplateTrigger =
+  | 'funding'
+  | 'hiring_spike'
+  | 'partnership'
+  | 'product_launch'
+  | 'competitive_displacement'
+  | 'expansion'
+
+export type TemplateLength = 'short' | 'medium' | 'breakup' | 'followup' | 'ultra_short' | 'value' | 'opener'
+
 export type Template = {
   id: string
   slug: string
   channel: TemplateChannel
+  trigger: TemplateTrigger
+  persona: 'sdr_ae'
+  length: TemplateLength
   title: string
+  subject: string | null
   body: string
+  notes: string
   tags: string[]
 }
 
@@ -24,14 +39,34 @@ function channelLabel(c: TemplateChannel): string {
   return c === 'email' ? 'Email' : c === 'linkedin' ? 'LinkedIn' : 'Call'
 }
 
-function extractSubject(body: string): { subject: string | null; bodyWithoutSubject: string } {
-  const lines = body.split('\n')
-  if (lines.length === 0) return { subject: null, bodyWithoutSubject: body }
-  const first = lines[0].trim()
-  if (!/^subject:/i.test(first)) return { subject: null, bodyWithoutSubject: body }
-  const subject = first.replace(/^subject:\s*/i, '').trim()
-  const rest = lines.slice(1).join('\n').replace(/^\s*\n/, '')
-  return { subject: subject || null, bodyWithoutSubject: rest }
+function triggerLabel(t: TemplateTrigger): string {
+  switch (t) {
+    case 'funding':
+      return 'Funding'
+    case 'hiring_spike':
+      return 'Hiring spike'
+    case 'product_launch':
+      return 'Product launch'
+    case 'partnership':
+      return 'Partnership'
+    case 'competitive_displacement':
+      return 'Competitive displacement'
+    case 'expansion':
+      return 'Expansion'
+  }
+}
+
+function lengthLabel(t: TemplateLength): string {
+  switch (t) {
+    case 'ultra_short':
+      return 'Ultra short'
+    case 'followup':
+      return 'Follow-up'
+    case 'opener':
+      return 'Opener'
+    default:
+      return t.charAt(0).toUpperCase() + t.slice(1)
+  }
 }
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -46,6 +81,8 @@ async function copyToClipboard(text: string): Promise<boolean> {
 export function TemplatesLibraryClient(props: { templates: Template[]; tokens: Token[] }) {
   const { toast } = useToast()
   const [channel, setChannel] = useState<TemplateChannel | 'all'>('all')
+  const [trigger, setTrigger] = useState<TemplateTrigger | 'all'>('all')
+  const [length, setLength] = useState<TemplateLength | 'all'>('all')
   const [query, setQuery] = useState('')
   const [tag, setTag] = useState<string | 'all'>('all')
 
@@ -59,11 +96,13 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
     const q = query.trim().toLowerCase()
     return props.templates.filter((t) => {
       if (channel !== 'all' && t.channel !== channel) return false
+      if (trigger !== 'all' && t.trigger !== trigger) return false
+      if (length !== 'all' && t.length !== length) return false
       if (tag !== 'all' && !t.tags.includes(tag)) return false
       if (!q) return true
-      return (t.title + '\n' + t.body).toLowerCase().includes(q)
+      return (t.title + '\n' + (t.subject ?? '') + '\n' + t.body + '\n' + t.notes).toLowerCase().includes(q)
     })
-  }, [props.templates, channel, tag, query])
+  }, [props.templates, channel, trigger, length, tag, query])
 
   return (
     <div className="grid grid-cols-1 gap-6">
@@ -76,7 +115,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <div className="text-xs text-muted-foreground mb-1">Search</div>
             <Input
@@ -105,6 +144,42 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
             </div>
           </div>
           <div>
+            <div className="text-xs text-muted-foreground mb-1">Trigger</div>
+            <div className="flex flex-wrap gap-2">
+              {(['all', 'funding', 'hiring_spike', 'product_launch', 'partnership', 'competitive_displacement', 'expansion'] as const).map((x) => (
+                <Button
+                  key={x}
+                  type="button"
+                  size="sm"
+                  variant={trigger === x ? 'default' : 'outline'}
+                  className={trigger === x ? 'neon-border hover:glow-effect' : ''}
+                  onClick={() => setTrigger(x)}
+                  data-testid={`templates-filter-trigger-${x}`}
+                >
+                  {x === 'all' ? 'All' : triggerLabel(x)}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Length</div>
+            <div className="flex flex-wrap gap-2">
+              {(['all', 'short', 'medium', 'followup', 'breakup', 'ultra_short', 'value', 'opener'] as const).map((x) => (
+                <Button
+                  key={x}
+                  type="button"
+                  size="sm"
+                  variant={length === x ? 'default' : 'outline'}
+                  className={length === x ? 'neon-border hover:glow-effect' : ''}
+                  onClick={() => setLength(x)}
+                  data-testid={`templates-filter-length-${x}`}
+                >
+                  {x === 'all' ? 'All' : lengthLabel(x)}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="md:col-span-4">
             <div className="text-xs text-muted-foreground mb-1">Tag</div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -133,7 +208,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
             {allTags.length > 10 ? <div className="mt-2 text-[11px] text-muted-foreground">Showing 10 tags.</div> : null}
           </div>
 
-          <div className="md:col-span-3 flex items-center justify-between gap-3">
+          <div className="md:col-span-4 flex items-center justify-between gap-3">
             <div className="text-xs text-muted-foreground">
               Tokens use curly format (example: <span className="font-mono text-foreground">{'{{company}}'}</span>).
             </div>
@@ -143,6 +218,8 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
               variant="outline"
               onClick={() => {
                 setChannel('all')
+                setTrigger('all')
+                setLength('all')
                 setTag('all')
                 setQuery('')
               }}
@@ -155,9 +232,8 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filtered.map((t) => {
-          const parsed = extractSubject(t.body)
-          const subject = parsed.subject
-          const bodyText = subject ? parsed.bodyWithoutSubject : t.body
+          const subject = t.subject
+          const bodyText = t.body
           const both = subject ? `Subject: ${subject}\n\n${bodyText}` : bodyText
 
           return (
@@ -169,7 +245,11 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                       {t.title}
                     </a>
                   </CardTitle>
-                  <Badge variant="outline">{channelLabel(t.channel)}</Badge>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <Badge variant="outline">{triggerLabel(t.trigger)}</Badge>
+                    <Badge variant="outline">{channelLabel(t.channel)}</Badge>
+                    <Badge variant="outline">{lengthLabel(t.length)}</Badge>
+                  </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                   {t.tags.map((x) => (
@@ -180,6 +260,9 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">When to use:</span> {t.notes}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -222,7 +305,7 @@ export function TemplatesLibraryClient(props: { templates: Template[]; tokens: T
                 </div>
 
                 <pre className="whitespace-pre-wrap text-sm text-muted-foreground rounded border border-cyan-500/10 bg-background/40 p-4">
-                  {t.body}
+                  {t.subject ? `Subject: ${t.subject}\n\n${t.body}` : t.body}
                 </pre>
               </CardContent>
             </Card>
