@@ -2,7 +2,18 @@ import type { MetadataRoute } from 'next'
 import { COMPARE_PAGES } from '@/lib/compare/registry'
 import { TEMPLATE_LIBRARY } from '@/lib/templates/registry'
 
-const BASE_URL = 'https://dazrael.com'
+const DEFAULT_BASE_URL = 'https://dazrael.com'
+
+// Always include these core routes (content audit depends on their presence).
+const REQUIRED_ROUTES = [
+  '/pricing',
+  '/support',
+  '/tour',
+  '/templates',
+  '/compare',
+  '/use-cases',
+  '/how-scoring-works',
+] as const
 
 const ROUTES: string[] = [
   '/',
@@ -36,13 +47,29 @@ const ROUTES: string[] = [
   '/revops',
 ]
 
+function baseUrl(): string {
+  const raw = (process.env.APP_URL ?? '').trim()
+  const url = raw.length > 0 ? raw : DEFAULT_BASE_URL
+  return url.replace(/\/$/, '')
+}
+
+function normalizePath(p: string): string {
+  const s = p.trim()
+  if (!s) return '/'
+  return s.startsWith('/') ? s : `/${s}`
+}
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date()
   const compareRoutes = COMPARE_PAGES.map((p) => `/compare/${p.slug}`)
   const templateRoutes = TEMPLATE_LIBRARY.map((t) => `/templates/${t.slug}`)
-  const all = [...ROUTES, ...compareRoutes, ...templateRoutes]
+  const all = Array.from(
+    new Set([...REQUIRED_ROUTES, ...ROUTES, ...compareRoutes, ...templateRoutes].map((p) => normalizePath(p)))
+  )
+  const b = baseUrl()
+
   return all.map((path) => ({
-    url: `${BASE_URL}${path}`,
+    url: `${b}${path}`,
     lastModified: now,
     changeFrequency: path === '/' ? 'daily' : 'weekly',
     priority: path === '/' ? 1 : 0.7,
