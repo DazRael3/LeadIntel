@@ -7,7 +7,7 @@ import { MarketTickerBar, computeTickerDuration, mergeTickerInstruments } from '
 import type { InstrumentDefinition } from '@/lib/market/instruments'
 import type { InstrumentQuote } from '@/lib/market/prices'
 
-const fetchInstrumentQuotes = vi.fn<[InstrumentDefinition[]], Promise<InstrumentQuote[]>>(async () => [])
+const fetchInstrumentQuotes = vi.fn(async (_instruments: InstrumentDefinition[]): Promise<InstrumentQuote[]> => [])
 vi.mock('@/lib/market/prices', () => ({
   fetchInstrumentQuotes: (instruments: InstrumentDefinition[]) => fetchInstrumentQuotes(instruments),
 }))

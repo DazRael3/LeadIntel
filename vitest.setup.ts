@@ -7,6 +7,12 @@
 import { vi } from 'vitest'
 import '@testing-library/jest-dom'
 
+// Treat unit tests as "test-like" runtime with the E2E Supabase shim enabled.
+// This avoids requiring real Supabase env vars and keeps route handler tests deterministic.
+process.env.PLAYWRIGHT = '1'
+process.env.CRON_SECRET = process.env.CRON_SECRET || 'test-cron-secret-123456'
+process.env.RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || 'test-resend-webhook-secret'
+
 // Mock external services to avoid requiring API keys in tests
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({

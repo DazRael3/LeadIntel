@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { queryHogQL, getPostHogApiConfig } from '@/lib/posthog/server'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { runEnvDoctor } from '@/lib/ops/envDoctor'
 
 type WindowKey = '24h' | '7d'
 
@@ -41,7 +42,12 @@ async function eventCount(args: { event: string; startIso: string; endIso: strin
 export async function runKpiMonitor(args: { dryRun?: boolean }) {
   const cfg = getPostHogApiConfig()
   if (!cfg) {
-    return { status: 'skipped' as const, summary: { reason: 'posthog_not_configured' } }
+    const doctor = runEnvDoctor()
+    const posthog = doctor.subsystems.find((s) => s.key === 'posthog')
+    return {
+      status: 'skipped' as const,
+      summary: { reason: 'posthog_not_configured', missingKeys: posthog?.missingKeys ?? ['POSTHOG_PROJECT_ID', 'POSTHOG_PERSONAL_API_KEY'] },
+    }
   }
 
   const to = (process.env.ALERT_EMAIL_TO ?? '').trim()

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { logProductEvent } from './analytics'
 
 type InsertResult = { data: null; error: null }
-const insertMock = vi.fn<[], Promise<InsertResult>>(async () => ({ data: null, error: null }))
+const insertMock = vi.fn(async (): Promise<InsertResult> => ({ data: null, error: null }))
 const fromMock = vi.fn(() => ({ insert: insertMock }))
 
 vi.mock('@/lib/supabase/admin', () => ({

@@ -91,7 +91,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Should I close this out for {{company}}?',
     notes: 'Use as a clean close-the-loop when there is no response; avoids guilt and keeps timing control with the buyer.',
     body:
-      'Hi {{name}} — quick close-the-loop.\n\nI reached out because {{trigger_event}} usually creates a short window where {{initiative}} gets set and the owner is clear.\n\nIf that’s not a priority at {{company}} in the next {{timeframe}}, no problem. I can close this out and circle back later when timing changes.\n\nIf it is a priority, what’s the right next step—send the one-page checklist, or a quick 12-minute call with whoever owns {{metric}}?',
+      'Hi {{name}} — quick close-the-loop.\n\nI reached out because {{trigger_event}} usually creates a short window where {{initiative}} gets set, the owner is clear, and teams decide what “good” looks like for the next {{timeframe}}.\n\nThe pattern we see post-funding is consistent:\n- a small set of priorities gets picked fast\n- teams scramble to decide who to focus on first\n- reps end up writing five versions of the same “why now” message\n\nIf that’s not a priority at {{company}} right now, no problem — I can close this out and circle back later when timing changes.\n\nIf it is a priority, what’s the right next step: should I send the one-page checklist, or are you open to a quick 12-minute call with whoever owns {{metric}}?',
   }),
   t({
     id: 'funding-email-followup-1',
@@ -106,7 +106,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'One-page checklist for {{initiative}} after {{trigger_event}}',
     notes: 'Send 2 days after first email; offers a concrete artifact and one easy question.',
     body:
-      'Hi {{name}} — following up with something tangible.\n\nAfter {{trigger_event}}, teams often ask “who do we focus on first?” and “how do we keep messaging consistent while we move fast?”\n\nI can send a one-page checklist for {{initiative}} that covers:\n- what signals to watch on your target list\n- how to score and prioritize daily\n- how to write a first-touch message that’s specific without inventing facts\n\nIf you want it, reply “checklist” and I’ll send it over.\n\nIf you’d rather talk it through, is a 12-minute call this week realistic?',
+      'Hi {{name}} — following up with something tangible.\n\nAfter {{trigger_event}}, teams often ask two questions at the same time:\n1) “who do we focus on first?”\n2) “how do we keep messaging consistent while we move fast?”\n\nI can send a one-page checklist for {{initiative}} that covers:\n- which signals to watch on your target list (so timing is real)\n- how to score and prioritize daily (so reps aren’t guessing)\n- how to draft a first-touch message that’s specific without inventing facts\n\nIt also includes a simple handoff: if a rep can’t fill {{initiative}} or {{metric}} with real context, the play changes (so you don’t ship generic spam).\n\nIf you want it, reply “checklist” and I’ll send it over.\n\nIf you’d rather talk it through, are you open to a quick 12-minute call this week?',
   }),
   t({
     id: 'funding-email-followup-2',
@@ -121,7 +121,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Who owns {{initiative}} execution at {{company}}?',
     notes: 'Send 5 days after first email; tight owner/timing question with a clear next step.',
     body:
-      'Hi {{name}} — quick question so I don’t spam the wrong person.\n\nFor {{company}}, who owns execution for {{initiative}} after {{trigger_event}}—you or {{alt_owner}}?\n\nIf it’s you, I can share a short “signals → shortlist → draft” workflow and a few copy examples that improve {{metric}} without adding process overhead.\n\nIf it’s {{alt_owner}}, I’m happy to reach out directly.\n\nWhat’s the best path?',
+      'Hi {{name}} — quick question so I don’t spam the wrong person.\n\nFor {{company}}, who owns execution for {{initiative}} after {{trigger_event}} — you or {{alt_owner}}?\n\nIf it’s you, I can send:\n- a short “signals → shortlist → draft” workflow\n- a one-page checklist your team can reuse\n- a few copy examples tied to {{metric}} (so it’s measurable)\n\nIf it’s {{alt_owner}}, I’m happy to reach out directly and keep you out of the thread.\n\nWhich way should I go — and if it’s you, are you open to a quick 12-minute call to align on {{initiative}} timing?',
   }),
   t({
     id: 'funding-linkedin-1-ultra-short',
@@ -243,7 +243,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Should I close this out for {{company}}?',
     notes: 'Use when you need a respectful close; keeps timing control with the buyer.',
     body:
-      'Hi {{name}} — quick close-the-loop.\n\nI reached out because hiring spikes in {{function}} often mean a build phase, and teams decide quickly how they’ll run {{initiative}} without letting messaging drift.\n\nIf that’s not a priority for {{company}} in the next {{timeframe}}, I can close this out and circle back later.\n\nIf it is a priority, is the next step “send the checklist” or a quick 12-minute call with whoever owns {{metric}}?',
+      'Hi {{name}} — quick close-the-loop.\n\nI reached out because hiring spikes in {{function}} often mean a build phase, and teams decide quickly how they’ll run {{initiative}} without letting messaging drift.\n\nThe reason I’m persistent is simple: once new reps ramp, the workflow tends to “lock in” (who to prioritize, what counts as a strong signal, and what copy is considered on-message).\n\nIf that’s not a priority for {{company}} in the next {{timeframe}}, no problem — I can close this out and circle back later.\n\nIf it is a priority, what’s the right next step: should I send the one-page ramp checklist, or are you open to a quick 12-minute call with whoever owns {{metric}}?',
   }),
   t({
     id: 'hiring-spike-email-followup-1',
@@ -258,7 +258,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'One-page ramp checklist for new reps ({{function}})',
     notes: 'Send Day 2; delivers value and asks one question.',
     body:
-      'Hi {{name}} — sharing a small artifact in case it helps.\n\nWhen teams add roles like {{role}} during a hiring push, the fastest way to keep output consistent is to standardize two things:\n- what signals count as “why now”\n- what a first-touch message looks like for {{initiative}}\n\nI can send a one-page ramp checklist for {{company}} that includes a tokenized draft and a daily prioritization routine to improve {{metric}} without adding overhead.\n\nWant me to send it, or should I route it to {{alt_owner}}?',
+      'Hi {{name}} — sharing a small artifact in case it helps.\n\nWhen teams add roles like {{role}} during a hiring push, the fastest way to keep output consistent is to standardize two things:\n- what signals count as “why now” (so reps aren’t guessing)\n- what a first-touch message looks like for {{initiative}} (so copy doesn’t drift)\n\nI can send a one-page ramp checklist for {{company}} that includes:\n- a simple signal rubric tied to {{metric}}\n- a daily prioritization routine (watchlist → shortlist)\n- a tokenized draft your team can reuse without inventing context\n\nIf you want it, I can send it here — or if you’re open to a quick 12-minute call, I’ll tailor it to how {{function}} is ramping at {{company}}. Which is easier?',
   }),
   t({
     id: 'hiring-spike-email-followup-2',
@@ -273,7 +273,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Who owns {{initiative}} execution at {{company}}?',
     notes: 'Send Day 5; tight owner question, then stop.',
     body:
-      'Hi {{name}} — last quick one.\n\nFor {{company}}, who owns the workflow for {{initiative}} during this hiring push—your team, or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send the one-page checklist + a few copy examples that align to {{metric}} and keep messaging consistent as {{function}} scales.\n\nWhat’s the best path?',
+      'Hi {{name}} — last quick one.\n\nFor {{company}}, who owns the workflow for {{initiative}} during this hiring push — your team, or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send:\n- the one-page checklist\n- a few copy examples aligned to {{metric}}\n- the “stop rules” (when not to send because context is missing)\n\nIf it’s you, are you open to a quick 12-minute call to confirm how you’re measuring {{initiative}} impact over the next {{timeframe}}?',
   }),
   t({
     id: 'hiring-spike-linkedin-1-ultra-short',
@@ -395,7 +395,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Close the loop on {{partner}} rollout?',
     notes: 'Use when you want a clean close without guilt.',
     body:
-      'Hi {{name}} — quick close-the-loop.\n\nI reached out because partnership rollouts often create a narrow window to standardize messaging and ownership around {{handoff}}. If that’s not a focus for {{company}} right now, no problem—I can close this out.\n\nIf it is a focus, should I send the checklist and copy examples, or is a 12-minute call with the owner for {{metric}} better?',
+      'Hi {{name}} — quick close-the-loop.\n\nI reached out because partnership rollouts often create a narrow window to standardize messaging and ownership around {{handoff}}.\n\nIf that’s not a focus for {{company}} right now, no problem — I can close this out and circle back when timing changes.\n\nIf it is a focus, I can share a short checklist (ownership map + enablement + reporting) and a couple of copy examples that reference {{partner}} without over-claiming.\n\nWould you prefer I send that, or are you open to a quick 12-minute call with the owner for {{metric}} to align on rollout timing?',
   }),
   t({
     id: 'partnership-email-followup-1',
@@ -410,7 +410,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Checklist for handoffs + enablement during rollout',
     notes: 'Day 2 follow-up; offers an artifact and asks permission.',
     body:
-      'Hi {{name}} — following up with something concrete.\n\nI put together a short checklist for partnership rollouts that covers:\n- mapping ownership for {{handoff}}\n- defining one metric for success ({{metric}})\n- drafting outreach that references {{partner}} without over-claiming\n\nIf it’s useful for {{company}}, reply “checklist” and I’ll send it.\n\nIf you’d rather talk, is a quick 12-minute call this week realistic?',
+      'Hi {{name}} — following up with something concrete.\n\nI put together a short checklist for partnership rollouts that covers:\n- mapping ownership for {{handoff}}\n- defining one metric for success ({{metric}})\n- drafting outreach that references {{partner}} without over-claiming\n- “stop rules” so reps don’t message without real context\n\nIf it’s useful for {{company}}, reply “checklist” and I’ll send it.\n\nIf you’d rather talk, are you open to a quick 12-minute call this week?',
   }),
   t({
     id: 'partnership-email-followup-2',
@@ -425,7 +425,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Who owns enablement for the {{partner}} rollout at {{company}}?',
     notes: 'Day 5 follow-up; owner routing question.',
     body:
-      'Hi {{name}} — quick question so I reach the right person.\n\nFor the {{partner}} rollout at {{company}}, who owns enablement/templates and the messaging standard—your team or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send the checklist + 2 copy examples tied to {{handoff}} and {{metric}}.\n\nWhat’s the best path?',
+      'Hi {{name}} — quick question so I reach the right person.\n\nFor the {{partner}} rollout at {{company}}, who owns enablement/templates and the messaging standard — your team or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send:\n- the rollout checklist (ownership map + enablement + reporting)\n- 2 copy examples tied to {{handoff}} and {{metric}}\n- a simple “don’t send” rule so reps don’t invent context mid-rollout\n\nIf it’s you, are you open to a quick 12-minute call to confirm what “good” looks like for {{metric}} during the rollout?',
   }),
   t({
     id: 'partnership-linkedin-1-ultra-short',
@@ -547,7 +547,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Close the loop for {{company}}?',
     notes: 'Use as a final touch when there is no response.',
     body:
-      'Hi {{name}} — closing the loop.\n\nI reached out because immediately after a launch, teams often rework {{initiative}} and outbound messaging. The timing window is short, and the risk is sending generic “congrats” notes that don’t convert.\n\nIf this isn’t a priority at {{company}} in the next {{timeframe}}, I can close this out.\n\nIf it is, should I send the checklist + examples, or is a 12-minute call with the owner for {{metric}} better?',
+      'Hi {{name}} — closing the loop.\n\nI reached out because immediately after a launch, teams often rework {{initiative}} and outbound messaging. The timing window is short, and the risk is sending generic “congrats” notes that don’t convert.\n\nThe teams that do well post-launch usually align on three things quickly:\n- what counts as a real “why now” signal\n- which accounts to prioritize first\n- one message pattern that stays consistent across reps\n\nIf this isn’t a priority at {{company}} in the next {{timeframe}}, no problem — I can close this out.\n\nIf it is, would you prefer I send the one-page checklist + examples, or are you open to a quick 12-minute call with the owner for {{metric}}?',
   }),
   t({
     id: 'product-launch-email-followup-1',
@@ -562,7 +562,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'One-page post-launch outreach checklist',
     notes: 'Day 2 follow-up; sends an artifact.',
     body:
-      'Hi {{name}} — following up with a quick artifact.\n\nI can send a one-page “post-launch outreach” checklist that includes:\n- how to write a truthful why-now tied to {{trigger_event}}\n- how to pick accounts to contact (daily shortlist)\n- 2 message patterns that improve {{metric}} without over-personalizing\n\nIf {{initiative}} is a priority for {{company}} this quarter, it should be useful.\n\nWant me to send it, or should I route it to {{alt_owner}}?',
+      'Hi {{name}} — following up with a quick artifact.\n\nI can send a one-page “post-launch outreach” checklist that includes:\n- how to write a truthful why-now tied to {{trigger_event}}\n- how to pick accounts to contact (daily shortlist)\n- 2 message patterns that improve {{metric}} without over-personalizing\n- a simple “don’t send” rule so reps don’t invent context\n\nIf {{initiative}} is a priority for {{company}} this quarter, it should be useful.\n\nIf you want it, I can send it here — or if you’re open to a quick 12-minute call, I’ll tailor the checklist to the messaging standards you want post-launch. Which is easier?',
   }),
   t({
     id: 'product-launch-email-followup-2',
@@ -577,7 +577,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Who owns outbound enablement at {{company}} post-launch?',
     notes: 'Day 5 follow-up; owner routing question.',
     body:
-      'Hi {{name}} — quick routing question.\n\nPost-launch, who owns outbound enablement and the messaging standard at {{company}}—you or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send the checklist + 2 copy examples tied to {{initiative}} and {{metric}}.\n\nWhat’s the best path?',
+      'Hi {{name}} — quick routing question.\n\nPost-launch, who owns outbound enablement and the messaging standard at {{company}} — you or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send:\n- the one-page checklist (signals → shortlist → draft)\n- 2 copy examples tied to {{initiative}} and {{metric}}\n- the “stop rules” (when not to send because context is missing)\n\nIf it’s you, are you open to a quick 12-minute call to confirm what success looks like for {{metric}} over the next {{timeframe}}?',
   }),
   t({
     id: 'product-launch-linkedin-1-ultra-short',
@@ -650,7 +650,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     tags: ['product_launch', 'call', 'opener', 'owner'],
     related_use_case_path: '/use-cases/product-launch-timing',
     subject: null,
-    notes: 'Owner routing.',
+    notes: 'Use when you need to route to the enablement owner post-launch without pitching.',
     body:
       'Hi {{name}} — quick routing question. Post-launch, who owns outbound enablement and the messaging standard for {{initiative}} at {{company}}—you or {{alt_owner}}? I can send a one-page checklist tied to {{metric}}.',
   }),
@@ -699,7 +699,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Close the loop on {{vendor}} evaluation?',
     notes: 'Use when the evaluation is not active or timing is unclear.',
     body:
-      'Hi {{name}} — quick close-the-loop.\n\nI reached out because when teams evaluate alternatives to {{vendor}}, it helps to standardize criteria early (success, rollout, reporting) so the pilot doesn’t drift.\n\nIf {{workflow}} evaluation isn’t active at {{company}} right now, no problem—I can close this out and circle back later.\n\nIf it is active, should I send the checklist, or is a 12-minute call with the owner for {{metric}} better?',
+      'Hi {{name}} — quick close-the-loop.\n\nI reached out because when teams evaluate alternatives to {{vendor}}, it helps to standardize criteria early (success, rollout, reporting) so the pilot doesn’t drift.\n\nWhat usually goes wrong isn’t intent — it’s ambiguity:\n- stakeholders optimize for different outcomes\n- rollout risk gets discovered late\n- reporting requirements show up after the pilot “worked”\n\nIf {{workflow}} evaluation isn’t active at {{company}} right now, no problem — I can close this out and circle back later.\n\nIf it is active, would you prefer I send the checklist + pilot plan, or are you open to a quick 12-minute call with the owner for {{metric}} to align on decision points?',
   }),
   t({
     id: 'competitive-displacement-email-followup-1',
@@ -714,7 +714,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'One-page checklist: success + rollout + reporting',
     notes: 'Day 2; offers checklist without pitching.',
     body:
-      'Hi {{name}} — following up with something useful.\n\nIf {{company}} is evaluating alternatives to {{vendor}} for {{workflow}}, I can send a one-page checklist that includes:\n- 6 success criteria questions\n- rollout risk checklist (adoption + enablement)\n- reporting and maintenance requirements\n\nIt’s designed to keep the decision neutral and prevent “pilot drift.”\n\nWant me to send it, or should I route it to {{alt_owner}}?',
+      'Hi {{name}} — following up with something useful.\n\nIf {{company}} is evaluating alternatives to {{vendor}} for {{workflow}}, I can send a one-page checklist that includes:\n- 6 success criteria questions\n- rollout risk checklist (adoption + enablement)\n- reporting and maintenance requirements\n- a simple week-1 pilot plan (what to test first)\n\nIt’s designed to keep the decision neutral and prevent “pilot drift.”\n\nIf you want it, I can send it here — or if you’re open to a quick 12-minute call, I’ll tailor the checklist to the metrics you care about most (like {{metric}}). Which is easier?',
   }),
   t({
     id: 'competitive-displacement-email-followup-2',
@@ -729,7 +729,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Who owns {{workflow}} evaluation at {{company}}?',
     notes: 'Day 5; owner routing question.',
     body:
-      'Hi {{name}} — quick question so I reach the right person.\n\nWho owns the evaluation for {{workflow}} at {{company}}—you or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send the checklist and a pilot plan that protects {{metric}} during the transition.\n\nWhat’s the best path?',
+      'Hi {{name}} — quick question so I reach the right person.\n\nWho owns the evaluation for {{workflow}} at {{company}} — you or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send:\n- the checklist (success + rollout + reporting)\n- a week-1 pilot plan\n- “decision points” (what must be true to proceed)\n- the “stop rules” so messaging doesn’t drift mid-evaluation\n\nIf it’s you, are you open to a quick 12-minute call to confirm how you’ll measure {{metric}} during the transition?',
   }),
   t({
     id: 'competitive-displacement-linkedin-1-ultra-short',
@@ -742,7 +742,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     tags: ['competitive_displacement', 'linkedin', 'dm', 'ultra_short'],
     related_use_case_path: '/use-cases/competitive-displacement',
     subject: null,
-    notes: 'One question only.',
+    notes: 'Use when you want to confirm evaluation is active before sending anything else.',
     body:
       'Quick question: are you actively evaluating alternatives to {{vendor}} for {{workflow}} at {{company}}?',
   }),
@@ -802,7 +802,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     tags: ['competitive_displacement', 'call', 'opener', 'owner'],
     related_use_case_path: '/use-cases/competitive-displacement',
     subject: null,
-    notes: 'Owner routing.',
+    notes: 'Use to route to the evaluation owner without pitching; keeps it neutral.',
     body:
       'Hi {{name}} — quick routing question. Who owns the evaluation for {{workflow}} at {{company}}—you or {{alt_owner}}? I can send a neutral checklist and pilot plan tied to {{metric}}.',
   }),
@@ -851,7 +851,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Close the loop for {{company}}?',
     notes: 'Use when expansion execution isn’t active.',
     body:
-      'Hi {{name}} — quick close-the-loop.\n\nI reached out because expansion into {{region_or_segment}} usually forces a decision on {{initiative}} and the messaging standard. If that’s not a priority for {{company}} in the next {{timeframe}}, no problem—I can close this out.\n\nIf it is a priority, should I send the checklist + examples, or is a 12-minute call with the owner for {{metric}} better?',
+      'Hi {{name}} — quick close-the-loop.\n\nI reached out because expansion into {{region_or_segment}} usually forces a decision on {{initiative}} and the messaging standard.\n\nThe common failure mode is predictable: teams keep the same targeting + copy while segments change, so reps either over-personalize (slow) or go generic (low conversion).\n\nIf that’s not a priority for {{company}} in the next {{timeframe}}, no problem — I can close this out.\n\nIf it is a priority, would you prefer I send the one-page checklist + examples, or are you open to a quick 12-minute call with the owner for {{metric}} to align on what “good” looks like during expansion?',
   }),
   t({
     id: 'expansion-email-followup-1',
@@ -866,7 +866,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'One-page expansion execution checklist',
     notes: 'Day 2 follow-up; artifact offer.',
     body:
-      'Hi {{name}} — sharing a quick artifact.\n\nI can send a one-page “expansion execution” checklist that covers:\n- what signals to watch on target accounts\n- how to prioritize daily during expansion\n- how to keep messaging consistent (tokenized drafts) as segments change\n\nIf {{company}} is focusing on {{initiative}} while expanding into {{region_or_segment}}, it should help.\n\nWant me to send it, or should I route it to {{alt_owner}}?',
+      'Hi {{name}} — sharing a quick artifact.\n\nI can send a one-page “expansion execution” checklist that covers:\n- what signals to watch on target accounts (so timing stays real)\n- how to prioritize daily during expansion\n- how to keep messaging consistent (tokenized drafts) as segments change\n- a simple “don’t send” rule when context is missing\n\nIf {{company}} is focusing on {{initiative}} while expanding into {{region_or_segment}}, it should help.\n\nIf you want it, I can send it here — or if you’re open to a quick 12-minute call, I’ll tailor it to how you’re measuring {{metric}} across segments. Which is easier?',
   }),
   t({
     id: 'expansion-email-followup-2',
@@ -881,7 +881,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     subject: 'Who owns {{initiative}} during expansion at {{company}}?',
     notes: 'Day 5 follow-up; owner routing.',
     body:
-      'Hi {{name}} — quick routing question.\n\nDuring expansion into {{region_or_segment}}, who owns execution for {{initiative}} at {{company}}—you or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send the checklist + 2 copy examples tied to {{metric}}.\n\nWhat’s the best path?',
+      'Hi {{name}} — quick routing question.\n\nDuring expansion into {{region_or_segment}}, who owns execution for {{initiative}} at {{company}} — you or {{alt_owner}}?\n\nIf you point me to the owner, I’ll send:\n- the checklist (signals + daily prioritization)\n- 2 copy examples tied to {{metric}}\n- a simple guardrail so reps don’t reuse copy when segments change\n\nIf it’s you, are you open to a quick 12-minute call to confirm what you’re optimizing for over the next {{timeframe}}?',
   }),
   t({
     id: 'expansion-linkedin-1-ultra-short',
@@ -894,7 +894,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     tags: ['expansion', 'linkedin', 'dm', 'ultra_short'],
     related_use_case_path: '/use-cases/expansion-signals',
     subject: null,
-    notes: 'One question only.',
+    notes: 'Use to confirm the expansion priority before sending a longer note.',
     body:
       'Congrats on expansion into {{region_or_segment}} — is the priority in the next {{timeframe}} {{initiative}} or {{alt_initiative}} for {{company}}?',
   }),
@@ -909,7 +909,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     tags: ['expansion', 'linkedin', 'dm', 'value'],
     related_use_case_path: '/use-cases/expansion-signals',
     subject: null,
-    notes: 'Offer checklist.',
+    notes: 'Offer the expansion execution checklist and ask permission to send it.',
     body:
       'Expansion usually breaks messaging consistency + reporting first.\n\nIf {{company}} is focused on {{initiative}} while expanding into {{region_or_segment}}, I can share a one-page checklist: signals to watch, daily prioritization, and tokenized drafts tied to {{metric}}.\n\nWant it?',
   }),
@@ -954,7 +954,7 @@ export const TEMPLATE_LIBRARY: OutreachTemplate[] = [
     tags: ['expansion', 'call', 'opener', 'owner'],
     related_use_case_path: '/use-cases/expansion-signals',
     subject: null,
-    notes: 'Owner routing.',
+    notes: 'Use to route to the initiative owner during expansion without pitching.',
     body:
       'Hi {{name}} — quick routing question. Who owns execution for {{initiative}} at {{company}} during expansion into {{region_or_segment}}—you or {{alt_owner}}? I can send a one-page checklist tied to {{metric}}.',
   }),

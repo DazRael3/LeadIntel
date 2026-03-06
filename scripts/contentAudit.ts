@@ -7,7 +7,7 @@ async function main() {
     console.error('Content audit failed:')
     for (const f of res.failures) {
       // eslint-disable-next-line no-console -- CI output
-      console.error(`- ${f}`)
+      console.error(`- ${f.code}: ${f.message}${f.path ? ` (${f.path})` : ''}`)
     }
     process.exitCode = 1
     return

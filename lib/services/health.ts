@@ -1,4 +1,5 @@
 import { isTestLikeEnv } from '@/lib/runtimeFlags'
+import { runEnvDoctor } from '@/lib/ops/envDoctor'
 
 export type ServiceStatus = 'operational' | 'degraded' | 'down'
 export type ComponentStatus = 'ok' | 'degraded' | 'down' | 'not_enabled' | 'not_checked'
@@ -37,11 +38,6 @@ function notChecked(message: string): HealthComponent {
 
 function hasEnv(name: string): boolean {
   return typeof process.env[name] === 'string' && process.env[name]!.trim().length > 0
-}
-
-function isTruthyEnv(name: string): boolean {
-  const v = (process.env[name] ?? '').trim().toLowerCase()
-  return v === '1' || v === 'true'
 }
 
 function computeOverallStatus(critical: HealthComponent[]): ServiceStatus {
@@ -149,10 +145,9 @@ function checkOptionalConfig(): Record<string, HealthComponent> {
   components.openai = hasEnv('OPENAI_API_KEY') ? ok('configured') : notEnabled('not configured')
   components.clearbit =
     hasEnv('CLEARBIT_REVEAL_API_KEY') || hasEnv('CLEARBIT_API_KEY') ? ok('configured') : notEnabled('not configured')
-  components.posthog =
-    (hasEnv('POSTHOG_API_KEY') || hasEnv('NEXT_PUBLIC_POSTHOG_KEY')) && isTruthyEnv('NEXT_PUBLIC_ANALYTICS_ENABLED')
-      ? ok('configured')
-      : notEnabled('not configured')
+  const env = runEnvDoctor()
+  const posthog = env.subsystems.find((s) => s.key === 'posthog')
+  components.posthog = posthog?.configured ? ok('configured') : notEnabled('not configured')
   components.sentry = hasEnv('SENTRY_DSN') ? ok('configured') : notEnabled('not configured')
 
   return components
