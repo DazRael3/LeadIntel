@@ -2,8 +2,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
+let mockIsPro = false
+
 vi.mock('@/lib/billing/plan', () => ({
-  isPro: vi.fn(async () => true),
+  isPro: vi.fn(async () => mockIsPro),
 }))
 
 vi.mock('@/lib/services/triggerEvents', () => ({
@@ -52,7 +54,7 @@ let mockSubscriptionRow: any = null
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
     auth: {
-      getUser: vi.fn(async () => ({ data: { user: { id: 'user_1' } }, error: null })),
+      getUser: vi.fn(async () => ({ data: { user: { id: 'user_1', email: 'user@example.com' } }, error: null })),
     },
     schema: () => ({
       from: (table: string) => new FakeQuery(table),
@@ -110,6 +112,7 @@ describe('/api/generate-pitch', () => {
     vi.clearAllMocks()
     process.env.ENABLE_DEMO_TRIGGER_EVENTS = 'true'
     mockSubscriptionRow = null
+    mockIsPro = false
   })
 
   it('starter user under limit can generate pitch', async () => {
@@ -224,6 +227,7 @@ describe('/api/generate-pitch', () => {
 
   it('closer user ignores starter cap and can generate pitch', async () => {
     mockSubscriptionRow = { status: 'active', stripe_price_id: process.env.STRIPE_PRICE_ID_PRO ?? 'price_test_pro' }
+    mockIsPro = true
     const { POST } = await import('./route')
     const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
 
@@ -243,6 +247,7 @@ describe('/api/generate-pitch', () => {
     process.env.STRIPE_PRICE_ID_PRO = 'price_test_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_test_pro_123'
     process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
+    mockIsPro = true
     const { POST } = await import('./route')
     const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
 
