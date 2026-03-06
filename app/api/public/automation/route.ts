@@ -11,7 +11,7 @@ type AutomationLastRun = {
   finishedAt: string
 }
 
-const JOBS = ['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit'] as const satisfies readonly JobName[]
+const JOBS = ['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit', 'growth_cycle'] as const satisfies readonly JobName[]
 
 function canReadJobRuns(): boolean {
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()

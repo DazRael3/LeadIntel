@@ -674,6 +674,7 @@ Examples:
 - `GET /api/cron/run?job=content_audit`
 - `GET /api/cron/run?job=lifecycle`
 - `GET /api/cron/run?job=digest_lite`
+- `GET /api/cron/run?job=growth_cycle&limit=3`
 
 Optional:
 - `dryRun=1` to skip side effects (returns a JobResult with `status:"skipped"` where supported)
@@ -681,11 +682,12 @@ Optional:
 For non-Vercel callers, `POST /api/cron/run` is still supported:
 - preferred header: `Authorization: Bearer $CRON_SECRET`
 - legacy header: `x-cron-secret: $CRON_SECRET`
-- body: `{ "job": "kpi_monitor" | "content_audit" | "lifecycle" | "digest_lite", "dryRun": false }`
+- body: `{ "job": "kpi_monitor" | "content_audit" | "lifecycle" | "digest_lite" | "growth_cycle", "dryRun": false, "limit"?: number }`
 
 ### Recommended schedules
 
 - lifecycle: hourly
+- growth_cycle: every 6–12 hours (start at 12h; increase once content + opt-ins grow)
 - digest_lite: weekly
 - kpi_monitor: daily
 - content_audit: daily
