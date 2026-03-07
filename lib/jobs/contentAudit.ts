@@ -4,6 +4,7 @@ import { TEMPLATE_LIBRARY } from '@/lib/templates/registry'
 import { USE_CASE_PLAYBOOKS } from '@/lib/use-cases/playbooks'
 import { COMPARE_PAGES } from '@/lib/compare/registry'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import sitemap from '@/app/sitemap'
 
 export type ContentAuditStatus = 'ok' | 'warn' | 'error'
 export type ContentAuditFailure = { code: string; message: string; path?: string }
@@ -62,6 +63,37 @@ function readText(p: string): string {
   return fs.readFileSync(p, 'utf8')
 }
 
+function normalizePathname(input: string): string {
+  const raw = input.trim()
+  if (!raw) return '/'
+
+  let pathname = raw
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      pathname = new URL(raw).pathname
+    } catch {
+      pathname = raw
+    }
+  }
+
+  if (!pathname.startsWith('/')) pathname = `/${pathname}`
+  // Remove trailing slash except root.
+  if (pathname.length > 1 && pathname.endsWith('/')) pathname = pathname.slice(0, -1)
+  return pathname
+}
+
+function getSitemapPathnames(): Set<string> {
+  // Deterministic + CI-safe: use the exact Next sitemap generator used in production.
+  // This avoids filesystem string-matching or relying on a running server.
+  const entries = sitemap()
+  const set = new Set<string>()
+  for (const e of entries) {
+    if (!e || typeof e.url !== 'string') continue
+    set.add(normalizePathname(e.url))
+  }
+  return set
+}
+
 function listFiles(dir: string, exts: string[], out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -76,10 +108,15 @@ export function auditContent(workspaceRoot: string): AuditResult {
   const failures: ContentAuditFailure[] = []
 
   // 1) Sitemap required routes
-  const sitemapPath = path.join(workspaceRoot, 'app', 'sitemap.ts')
-  const sitemapText = fs.existsSync(sitemapPath) ? readText(sitemapPath) : ''
+  let sitemapPaths: Set<string> | null = null
+  try {
+    sitemapPaths = getSitemapPathnames()
+  } catch {
+    sitemapPaths = null
+  }
   for (const r of REQUIRED_ROUTES) {
-    if (!sitemapText.includes(`'${r}'`) && !sitemapText.includes(`"${r}"`)) {
+    const required = normalizePathname(r)
+    if (!sitemapPaths || !sitemapPaths.has(required)) {
       failures.push({ code: 'SITEMAP_MISSING_ROUTE', message: `Sitemap missing route: ${r}`, path: r })
     }
   }
