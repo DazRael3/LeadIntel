@@ -820,12 +820,12 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     tier: 'CRON',
     maxBytes: 8192,
     rateLimit: {
-      authPerMin: 1,
-      ipPerMin: 1,
+      authPerMin: 60,
+      ipPerMin: 10,
     },
     originRequired: false,
     authRequired: false, // auth via x-cron-secret header
-    cronAllowed: false,
+    cronAllowed: true,
     devOnly: false,
     webhookSignatureRequired: false,
   },
@@ -833,12 +833,12 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     tier: 'CRON',
     maxBytes: 0,
     rateLimit: {
-      authPerMin: 1,
-      ipPerMin: 1,
+      authPerMin: 60,
+      ipPerMin: 10,
     },
     originRequired: false,
     authRequired: false, // auth via Authorization: Bearer CRON_SECRET
-    cronAllowed: false,
+    cronAllowed: true,
     devOnly: false,
     webhookSignatureRequired: false,
   },

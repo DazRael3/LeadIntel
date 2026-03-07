@@ -26,6 +26,7 @@ import { stripe } from '@/lib/stripe'
 import { serverEnv } from '@/lib/env'
 import { timingSafeEqualAscii, verifyCronToken } from '@/lib/api/cron-auth'
 import { recordCounter } from '@/lib/observability/metrics'
+import crypto from 'crypto'
 
 /**
  * Options for withApiGuard
@@ -228,12 +229,21 @@ export function withApiGuard(
         userId = user?.id || undefined
       }
 
+      const cronKey = isCron ? cronRateLimitKey(request) : null
+      const rateLimitUserId = userId ?? cronKey ?? null
+      let rateLimitRoute = pathname
+      if (pathname === '/api/cron/run') {
+        const u = new URL(request.url)
+        const job = (u.searchParams.get('job') ?? '').trim()
+        if (job) rateLimitRoute = `${pathname}:${job}`
+      }
+
       // Check rate limit using policy-defined limits directly
       try {
         const rateLimitResult = await checkPolicyRateLimit(
           request,
-          userId ?? null,
-          pathname,
+          rateLimitUserId,
+          rateLimitRoute,
           policy
         )
 
@@ -242,7 +252,7 @@ export function withApiGuard(
         if (rateLimitResult && !rateLimitResult.success) {
           recordCounter('ratelimit.block', 1, {
             route: pathname,
-            auth: userId ? '1' : '0',
+            auth: rateLimitUserId ? '1' : '0',
           })
           // Convert PolicyRateLimitResult to RateLimitResult for getRateLimitError
           const standardResult = {
@@ -253,7 +263,8 @@ export function withApiGuard(
           }
           const errorResponse = getRateLimitError(standardResult, bridge, requestId)
           // Add policy-defined limit headers (may differ from actual limit used)
-          errorResponse.headers.set('X-RateLimit-Limit', String(policy.rateLimit.authPerMin))
+          const limitToShow = rateLimitUserId ? policy.rateLimit.authPerMin : policy.rateLimit.ipPerMin
+          errorResponse.headers.set('X-RateLimit-Limit', String(limitToShow))
           errorResponse.headers.set('X-RateLimit-Remaining', String(rateLimitResult.remaining))
           return errorResponse
         }
@@ -412,6 +423,16 @@ function isCronRequest(request: NextRequest, policy: { cronAllowed: boolean }): 
     return true
   }
 
+  // 1b) Authorization bearer (cron-job.org / external schedulers)
+  const auth = (request.headers.get('authorization') ?? '').trim()
+  if (auth.toLowerCase().startsWith('bearer ')) {
+    const token = auth.slice('bearer '.length).trim()
+    const expected1 = (serverEnv.CRON_SECRET ?? '').trim()
+    const expected2 = (serverEnv.EXTERNAL_CRON_SECRET ?? '').trim()
+    if (token && expected1 && timingSafeEqualAscii(token, expected1)) return true
+    if (token && expected2 && timingSafeEqualAscii(token, expected2)) return true
+  }
+
   // 2) Preferred: signed query token (works even if custom headers are stripped)
   const cronToken = url.searchParams.get('cron_token')
   const signingSecret = serverEnv.CRON_SIGNING_SECRET
@@ -424,4 +445,19 @@ function isCronRequest(request: NextRequest, policy: { cronAllowed: boolean }): 
   }
 
   return false
+}
+
+function cronRateLimitKey(request: NextRequest): string | null {
+  const auth = (request.headers.get('authorization') ?? '').trim()
+  if (!auth.toLowerCase().startsWith('bearer ')) return null
+  const token = auth.slice('bearer '.length).trim()
+  if (!token) return null
+  const expected1 = (serverEnv.CRON_SECRET ?? '').trim()
+  const expected2 = (serverEnv.EXTERNAL_CRON_SECRET ?? '').trim()
+  const isValid =
+    (expected1.length > 0 && timingSafeEqualAscii(token, expected1)) ||
+    (expected2.length > 0 && timingSafeEqualAscii(token, expected2))
+  if (!isValid) return null
+  const hash = crypto.createHash('sha256').update(token, 'utf8').digest('hex').slice(0, 16)
+  return `cron:${hash}`
 }
