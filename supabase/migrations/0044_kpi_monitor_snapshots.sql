@@ -9,7 +9,7 @@ create table if not exists api.kpi_monitor_snapshots (
   run_started_at timestamptz null,
   run_finished_at timestamptz null,
   metric text not null,
-  window text not null check (window in ('24h', '7d')),
+  time_window text not null check (time_window in ('24h', '7d')),
   current bigint not null,
   previous bigint not null,
   drop_pct numeric not null,
@@ -18,8 +18,8 @@ create table if not exists api.kpi_monitor_snapshots (
   reason text null
 );
 
-create index if not exists kpi_monitor_snapshots_metric_window_created_at_idx
-  on api.kpi_monitor_snapshots (metric, window, created_at desc);
+create index if not exists idx_kpi_snapshots_metric_window_created_at
+  on api.kpi_monitor_snapshots (metric, time_window, created_at desc);
 
 alter table api.kpi_monitor_snapshots enable row level security;
 

@@ -62,7 +62,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const { data, error } = await admin
       .from('kpi_monitor_snapshots')
-      .select('created_at, metric, window, current')
+      .select('created_at, metric, time_window, current')
       .gte('created_at', start.toISOString())
       .order('created_at', { ascending: true })
       .limit(5000)
@@ -77,7 +77,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
       const r = row as Record<string, unknown>
       const createdAt = typeof r.created_at === 'string' ? r.created_at : null
       const metric = typeof r.metric === 'string' ? r.metric : null
-      const window = r.window === '24h' || r.window === '7d' ? (r.window as '24h' | '7d') : null
+      const window = r.time_window === '24h' || r.time_window === '7d' ? (r.time_window as '24h' | '7d') : null
       if (!createdAt || !metric || !window) continue
 
       const date = isoDateKey(new Date(createdAt))

@@ -81,10 +81,10 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
 
     const { data: rowsRaw, error: rowsErr } = await admin
       .from('kpi_monitor_snapshots')
-      .select('run_started_at, run_finished_at, metric, window, current, previous, drop_pct, alert, note, reason')
+      .select('run_started_at, run_finished_at, metric, time_window, current, previous, drop_pct, alert, note, reason')
       .eq('run_finished_at', runFinishedAt)
       .order('metric', { ascending: true })
-      .order('window', { ascending: true })
+      .order('time_window', { ascending: true })
 
     if (rowsErr) {
       return fail(ErrorCode.DATABASE_ERROR, 'Failed to load KPI monitor rows', { message: rowsErr.message }, undefined, bridge, requestId)
@@ -96,7 +96,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         run_started_at: typeof rr.run_started_at === 'string' ? rr.run_started_at : null,
         run_finished_at: typeof rr.run_finished_at === 'string' ? rr.run_finished_at : null,
         metric: String(rr.metric ?? ''),
-        window: (rr.window === '24h' || rr.window === '7d' ? rr.window : '24h') as '24h' | '7d',
+        window: (rr.time_window === '24h' || rr.time_window === '7d' ? rr.time_window : '24h') as '24h' | '7d',
         current: safeNum(rr.current),
         previous: safeNum(rr.previous),
         drop_pct: safeNum(rr.drop_pct),

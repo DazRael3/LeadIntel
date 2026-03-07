@@ -187,6 +187,8 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
 
   // Persist KPI snapshots (best-effort, service-role only). Never fail the job for persistence.
   // Persist all rows (including insufficient/no-baseline) so trends are reliable.
+  let persistenceWarning: string | null = null
+  let persistenceErrorCode: string | null = null
   try {
     const supabase = createSupabaseAdminClient({ schema: 'api' })
     await supabase.from('kpi_monitor_snapshots').insert(
@@ -194,7 +196,7 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
         run_started_at: runStartedAt,
         run_finished_at: runFinishedAt,
         metric: r.metric,
-        window: r.window,
+        time_window: r.window,
         current: r.current,
         previous: r.previous,
         drop_pct: r.dropPct,
@@ -203,8 +205,10 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
         reason: finalReason,
       }))
     )
-  } catch {
-    // best-effort
+  } catch (e) {
+    persistenceWarning = 'kpi_snapshot_insert_failed'
+    const ee = e as unknown as { code?: unknown }
+    persistenceErrorCode = typeof ee?.code === 'string' ? ee.code : null
   }
 
   // Persist triggered alerts (service-role only).
@@ -231,19 +235,43 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
   if (actionableAlerts === 0) {
     return {
       status: 'ok' as const,
-      summary: { reason: finalReason, alerts: 0, actionableAlerts: 0, insufficientRows, rows },
+      summary: {
+        reason: finalReason,
+        alerts: 0,
+        actionableAlerts: 0,
+        insufficientRows,
+        rows,
+        ...(persistenceWarning ? { persistenceWarning, persistenceErrorCode } : {}),
+      },
     }
   }
 
   if (!hasResend) {
     return {
       status: 'skipped' as const,
-      summary: { reason: finalReason, alerts: actionableAlerts, actionableAlerts, insufficientRows, rows },
+      summary: {
+        reason: finalReason,
+        alerts: actionableAlerts,
+        actionableAlerts,
+        insufficientRows,
+        rows,
+        ...(persistenceWarning ? { persistenceWarning, persistenceErrorCode } : {}),
+      },
     }
   }
 
   if (args.dryRun) {
-    return { status: 'skipped' as const, summary: { reason: finalReason, alerts: actionableAlerts, actionableAlerts, insufficientRows, rows } }
+    return {
+      status: 'skipped' as const,
+      summary: {
+        reason: finalReason,
+        alerts: actionableAlerts,
+        actionableAlerts,
+        insufficientRows,
+        rows,
+        ...(persistenceWarning ? { persistenceWarning, persistenceErrorCode } : {}),
+      },
+    }
   }
 
   // Send one email per triggered alert (clear subject).
@@ -275,6 +303,16 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
     })
   }
 
-  return { status: 'ok' as const, summary: { reason: finalReason, alerts: actionableAlerts, actionableAlerts, insufficientRows, rows } }
+  return {
+    status: 'ok' as const,
+    summary: {
+      reason: finalReason,
+      alerts: actionableAlerts,
+      actionableAlerts,
+      insufficientRows,
+      rows,
+      ...(persistenceWarning ? { persistenceWarning, persistenceErrorCode } : {}),
+    },
+  }
 }
 
