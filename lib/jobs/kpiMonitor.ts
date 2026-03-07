@@ -79,33 +79,45 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
     alert: boolean
   }> = []
 
-  for (const m of METRICS) {
-    const [c24, p24, c7, p7] = await Promise.all([
-      eventCount({ event: m.event, startIso: start24, endIso: end }),
-      eventCount({ event: m.event, startIso: prevStart24, endIso: prevEnd24 }),
-      eventCount({ event: m.event, startIso: start7d, endIso: end }),
-      eventCount({ event: m.event, startIso: prevStart7d, endIso: prevEnd7d }),
-    ])
+  try {
+    for (const m of METRICS) {
+      const [c24, p24, c7, p7] = await Promise.all([
+        eventCount({ event: m.event, startIso: start24, endIso: end }),
+        eventCount({ event: m.event, startIso: prevStart24, endIso: prevEnd24 }),
+        eventCount({ event: m.event, startIso: start7d, endIso: end }),
+        eventCount({ event: m.event, startIso: prevStart7d, endIso: prevEnd7d }),
+      ])
 
-    const d24 = pctDrop(c24, p24)
-    const d7 = pctDrop(c7, p7)
+      const d24 = pctDrop(c24, p24)
+      const d7 = pctDrop(c7, p7)
 
-    rows.push({
-      metric: m.key,
-      window: '24h',
-      current: c24,
-      previous: p24,
-      dropPct: d24,
-      alert: p24 >= min24 && d24 >= dropPct24,
-    })
-    rows.push({
-      metric: m.key,
-      window: '7d',
-      current: c7,
-      previous: p7,
-      dropPct: d7,
-      alert: d7 >= dropPct7d && p7 > 0,
-    })
+      rows.push({
+        metric: m.key,
+        window: '24h',
+        current: c24,
+        previous: p24,
+        dropPct: d24,
+        alert: p24 >= min24 && d24 >= dropPct24,
+      })
+      rows.push({
+        metric: m.key,
+        window: '7d',
+        current: c7,
+        previous: p7,
+        dropPct: d7,
+        alert: d7 >= dropPct7d && p7 > 0,
+      })
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'unknown_error'
+    const m = /^posthog_query_failed_(\d+)$/.exec(message)
+    if (m) {
+      return {
+        status: 'error' as const,
+        summary: { error: `posthog_query_failed_${m[1]}`, host: cfg.host, projectId: cfg.projectId },
+      }
+    }
+    return { status: 'error' as const, summary: { error: message, host: cfg.host, projectId: cfg.projectId } }
   }
 
   const alerts = rows.filter((r) => r.alert)

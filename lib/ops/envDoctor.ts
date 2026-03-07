@@ -43,6 +43,18 @@ export function runEnvDoctor(): { subsystems: EnvSubsystemReport[]; missingKeys:
 
   // PostHog (server reads for kpi_monitor)
   const posthogMissing = missing('POSTHOG_PROJECT_ID', 'POSTHOG_PERSONAL_API_KEY')
+  const rawHost = (process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST ?? '').trim()
+  if (rawHost.length > 0) {
+    const withScheme = /^[a-z]+:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`
+    try {
+      const u = new URL(withScheme)
+      if (u.pathname && u.pathname !== '/') {
+        posthogMissing.push('POSTHOG_HOST (must be origin only)')
+      }
+    } catch {
+      posthogMissing.push('POSTHOG_HOST (must be origin only)')
+    }
+  }
   subsystems.push({
     key: 'posthog',
     label: 'PostHog (KPI monitor reads)',
