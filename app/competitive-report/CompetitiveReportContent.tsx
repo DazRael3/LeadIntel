@@ -39,7 +39,7 @@ function LatestReportCard({
               <Link href="/dashboard">Go to dashboard</Link>
             </Button>
             <TrackedButtonLink
-              href="/reports"
+              href="/competitive-report"
               label="View all reports"
               eventName="competitive_report_view_all_reports"
               eventProps={{ tier: tierValue }}
@@ -181,7 +181,7 @@ function LatestReportCard({
             />
 
             <TrackedButtonLink
-              href="/reports"
+              href="/competitive-report"
               label="View all reports"
               eventName="competitive_report_view_all_reports"
               eventProps={{ tier: tierValue }}

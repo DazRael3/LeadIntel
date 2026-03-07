@@ -118,34 +118,35 @@ export const POST = withApiGuard(
     const isDev = env.NODE_ENV !== 'production'
     const bridge = createCookieBridge()
     
-    if (!userId) {
-      return asHttpError(new Error('Authentication required'), '/api/generate-pitch', undefined, bridge, requestId)
-    }
+    try {
+      if (!userId) {
+        return asHttpError(new Error('Authentication required'), '/api/generate-pitch', undefined, bridge, requestId)
+      }
 
-    const data = body as { companyUrl: string; options?: unknown; templateId?: unknown }
-    const { companyUrl } = data
-    
-    // Normalize input
-    const input = companyUrl.trim()
-    if (!input) {
-      return asHttpError(
-        new Error('Please enter a company name, URL, or topic for your pitch'),
-        '/api/generate-pitch',
-        undefined,
-        bridge,
-        requestId
-      )
-    }
+      const data = body as { companyUrl: string; options?: unknown; templateId?: unknown }
+      const { companyUrl } = data
+      
+      // Normalize input
+      const input = companyUrl.trim()
+      if (!input) {
+        return asHttpError(
+          new Error('Please enter a company name, URL, or topic for your pitch'),
+          '/api/generate-pitch',
+          undefined,
+          bridge,
+          requestId
+        )
+      }
 
-    const isUrlLike = looksLikeUrl(input)
-    const topicName = extractTopicName(input)
-    const domain = safeExtractDomain(input)
+      const isUrlLike = looksLikeUrl(input)
+      const topicName = extractTopicName(input)
+      const domain = safeExtractDomain(input)
 
-    if (isDev) {
-      console.log('[generate-pitch] Start:', { userId, input, isUrlLike, topicName, domain })
-    }
+      if (isDev) {
+        console.log('[generate-pitch] Start:', { userId, input, isUrlLike, topicName, domain })
+      }
 
-    const supabase = createRouteClient(request, bridge)
+      const supabase = createRouteClient(request, bridge)
     
     let isPro = false
     try {
@@ -511,8 +512,45 @@ export const POST = withApiGuard(
       }
     }
 
-    const successResponse = ok(response, undefined, bridge, requestId)
-    return successResponse
+      const successResponse = ok(response, undefined, bridge, requestId)
+      return successResponse
+    } catch (error) {
+      // Persist a failed report record (best-effort, user-scoped via RLS). Never block the response.
+      try {
+        const rawInput = typeof (body as any)?.companyUrl === 'string' ? String((body as any).companyUrl).trim() : ''
+        const input = rawInput || ''
+        const isUrlLike = input ? looksLikeUrl(input) : false
+        const topicName = input ? extractTopicName(input) : 'Unknown company'
+        const domain = input ? safeExtractDomain(input) : null
+
+        const title = `Competitive report failed: ${topicName}`
+        const report_markdown =
+          '# Report generation failed\n\nWe couldn’t complete this report due to a temporary issue. Please try again shortly.\n\nIf this repeats, contact leadintel@dazrael.com.'
+
+        await queryWithSchemaFallback(request, bridge, async (client) => {
+          const { error: insertError } = await client.from('user_reports').insert({
+            user_id: userId,
+            status: 'failed',
+            company_name: topicName,
+            company_domain: domain,
+            input_url: isUrlLike ? input : null,
+            title,
+            report_markdown,
+            report_json: null,
+            meta: {
+              source: 'generate_pitch',
+              generatedAt: new Date().toISOString(),
+              errorCode: error instanceof Error ? error.name : 'unknown_error',
+            },
+          })
+          return { data: null, error: insertError }
+        })
+      } catch {
+        // best-effort
+      }
+
+      return asHttpError(error, '/api/generate-pitch', userId, bridge, requestId)
+    }
   },
   {
     bodySchema: CompanyUrlSchema.extend({
