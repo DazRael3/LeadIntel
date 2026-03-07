@@ -392,6 +392,47 @@ export const POST = withApiGuard(
       } catch {
         warnings.push('Pitch history write failed (pitches insert).')
       }
+
+      // Persist competitive report snapshot (best-effort; user-scoped via RLS).
+      try {
+        const leadRow = (savedLead.data ?? null) as
+          | { company_name?: unknown; company_domain?: unknown; company_url?: unknown }
+          | null
+        const companyName =
+          (typeof leadRow?.company_name === 'string' && leadRow.company_name.trim()) ||
+          (typeof topicName === 'string' && topicName.trim()) ||
+          (typeof leadRow?.company_domain === 'string' && leadRow.company_domain.trim()) ||
+          (typeof input === 'string' && input.trim()) ||
+          'Unknown company'
+        const companyDomain =
+          (typeof leadRow?.company_domain === 'string' && leadRow.company_domain.trim()) ||
+          (typeof domain === 'string' && domain.trim()) ||
+          null
+        const inputUrl = typeof leadRow?.company_url === 'string' ? leadRow.company_url : looksLikeUrl(input) ? input : null
+
+        const title = `Competitive Report: ${companyName}`
+        await queryWithSchemaFallback(request, bridge, async (client) => {
+          const { error } = await client.from('user_reports').insert({
+            user_id: userId,
+            status: 'complete',
+            company_name: companyName,
+            company_domain: companyDomain,
+            input_url: inputUrl,
+            title,
+            report_markdown: pitch,
+            report_json: null,
+            meta: {
+              source: 'generate_pitch',
+              lead_id: leadId,
+              template_id: template.id,
+              hasTriggerEvent,
+            },
+          })
+          return { data: null, error }
+        })
+      } catch {
+        warnings.push('Report history write failed (user_reports insert).')
+      }
     } else {
       warnings.push('Pitch history not saved (missing lead id).')
     }

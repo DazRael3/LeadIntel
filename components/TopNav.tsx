@@ -122,6 +122,13 @@ export function TopNav() {
                 <Button
                   asChild
                   variant="ghost"
+                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+                >
+                  <Link href="/competitive-report">Reports</Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="ghost"
                   className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
                 >
                   <Link href="/dashboard">
