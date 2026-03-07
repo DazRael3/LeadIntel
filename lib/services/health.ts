@@ -147,7 +147,18 @@ function checkOptionalConfig(): Record<string, HealthComponent> {
     hasEnv('CLEARBIT_REVEAL_API_KEY') || hasEnv('CLEARBIT_API_KEY') ? ok('configured') : notEnabled('not configured')
   const env = runEnvDoctor()
   const posthog = env.subsystems.find((s) => s.key === 'posthog')
-  components.posthog = posthog?.configured ? ok('configured') : notEnabled('not configured')
+  if (posthog?.configured) {
+    components.posthog = ok('configured')
+  } else {
+    const pid = (process.env.POSTHOG_PROJECT_ID ?? '').trim()
+    if (pid.startsWith('phc_') || pid.startsWith('phx_')) {
+      components.posthog = notEnabled('POSTHOG_PROJECT_ID must be the numeric project id (not a phc_/phx_ token)')
+    } else if (posthog && posthog.missingKeys.length > 0) {
+      components.posthog = notEnabled(`not configured (${posthog.missingKeys.join(', ')})`)
+    } else {
+      components.posthog = notEnabled('not configured')
+    }
+  }
   components.sentry = hasEnv('SENTRY_DSN') ? ok('configured') : notEnabled('not configured')
 
   return components
