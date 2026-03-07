@@ -12,6 +12,11 @@ type Metric = {
   event: string
 }
 
+const MIN_PREVIOUS_BY_WINDOW: Record<WindowKey, number> = {
+  '24h': 10,
+  '7d': 30,
+}
+
 const METRICS: Metric[] = [
   { key: 'landing_try_sample_submitted', event: 'landing_try_sample_submitted' },
   { key: 'landing_sample_generated', event: 'landing_sample_generated' },
@@ -30,6 +35,42 @@ function numEnv(name: string, fallback: number): number {
 function pctDrop(current: number, previous: number): number {
   if (previous <= 0) return 0
   return Math.round(((previous - current) / previous) * 1000) / 10
+}
+
+export type KpiMonitorRow = {
+  metric: string
+  window: WindowKey
+  current: number
+  previous: number
+  dropPct: number
+  alert: boolean
+  note: string | null
+}
+
+export function evaluateKpiMonitorRow(args: {
+  window: WindowKey
+  current: number
+  previous: number
+  dropPctThreshold: number
+  minPrevThreshold: number
+  minPreviousBaseline: number
+}): { dropPct: number; alert: boolean; note: string | null } {
+  const dropPct = pctDrop(args.current, args.previous)
+
+  if (args.previous === 0) {
+    return { dropPct, alert: false, note: 'no_baseline_previous' }
+  }
+
+  if (args.previous < args.minPreviousBaseline) {
+    return { dropPct, alert: false, note: `insufficient_baseline_prev_lt_${args.minPreviousBaseline}` }
+  }
+
+  if (args.previous <= 0) {
+    return { dropPct, alert: false, note: 'no_baseline_previous' }
+  }
+
+  const alert = args.previous >= args.minPrevThreshold && dropPct >= args.dropPctThreshold
+  return { dropPct, alert, note: null }
 }
 
 async function eventCount(args: { event: string; startIso: string; endIso: string }): Promise<number> {
@@ -70,14 +111,7 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
   const prevStart7d = new Date(now.getTime() - 14 * 24 * 3600 * 1000).toISOString()
   const prevEnd7d = start7d
 
-  const rows: Array<{
-    metric: string
-    window: WindowKey
-    current: number
-    previous: number
-    dropPct: number
-    alert: boolean
-  }> = []
+  const rows: KpiMonitorRow[] = []
 
   try {
     for (const m of METRICS) {
@@ -88,24 +122,40 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
         eventCount({ event: m.event, startIso: prevStart7d, endIso: prevEnd7d }),
       ])
 
-      const d24 = pctDrop(c24, p24)
-      const d7 = pctDrop(c7, p7)
+      const row24 = evaluateKpiMonitorRow({
+        window: '24h',
+        current: c24,
+        previous: p24,
+        dropPctThreshold: dropPct24,
+        minPrevThreshold: min24,
+        minPreviousBaseline: MIN_PREVIOUS_BY_WINDOW['24h'],
+      })
+      const row7 = evaluateKpiMonitorRow({
+        window: '7d',
+        current: c7,
+        previous: p7,
+        dropPctThreshold: dropPct7d,
+        minPrevThreshold: 1,
+        minPreviousBaseline: MIN_PREVIOUS_BY_WINDOW['7d'],
+      })
 
       rows.push({
         metric: m.key,
         window: '24h',
         current: c24,
         previous: p24,
-        dropPct: d24,
-        alert: p24 >= min24 && d24 >= dropPct24,
+        dropPct: row24.dropPct,
+        alert: row24.alert,
+        note: row24.note,
       })
       rows.push({
         metric: m.key,
         window: '7d',
         current: c7,
         previous: p7,
-        dropPct: d7,
-        alert: d7 >= dropPct7d && p7 > 0,
+        dropPct: row7.dropPct,
+        alert: row7.alert,
+        note: row7.note,
       })
     }
   } catch (err) {
@@ -121,6 +171,8 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
   }
 
   const alerts = rows.filter((r) => r.alert)
+  const insufficientRows = rows.filter((r) => typeof r.note === 'string' && r.note.startsWith('insufficient_')).length
+  const actionableAlerts = alerts.length
 
   // Persist triggered alerts (service-role only).
   try {
@@ -143,16 +195,22 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
     // best-effort
   }
 
-  if (alerts.length === 0) {
-    return { status: 'ok' as const, summary: { alerts: 0, rows } }
+  if (actionableAlerts === 0) {
+    return {
+      status: 'ok' as const,
+      summary: { reason: 'no_actionable_alerts', alerts: 0, actionableAlerts: 0, insufficientRows, rows },
+    }
   }
 
   if (!hasResend) {
-    return { status: 'skipped' as const, summary: { reason: 'resend_not_configured', alerts: alerts.length, rows } }
+    return {
+      status: 'skipped' as const,
+      summary: { reason: 'resend_not_configured', alerts: actionableAlerts, actionableAlerts, insufficientRows, rows },
+    }
   }
 
   if (args.dryRun) {
-    return { status: 'skipped' as const, summary: { reason: 'dry_run', alerts: alerts.length, rows } }
+    return { status: 'skipped' as const, summary: { reason: 'dry_run', alerts: actionableAlerts, actionableAlerts, insufficientRows, rows } }
   }
 
   // Send one email per triggered alert (clear subject).
@@ -184,6 +242,6 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
     })
   }
 
-  return { status: 'ok' as const, summary: { alerts: alerts.length, rows } }
+  return { status: 'ok' as const, summary: { reason: 'alerts_sent', alerts: actionableAlerts, actionableAlerts, insufficientRows, rows } }
 }
 
