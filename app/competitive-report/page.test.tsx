@@ -85,7 +85,7 @@ describe('/competitive-report page', () => {
       'href',
       '/dashboard?company=acme.com'
     )
-    expect(card.getByRole('link', { name: /view all reports/i })).toHaveAttribute('href', '/reports')
+    expect(card.getByRole('link', { name: /view all reports/i })).toHaveAttribute('href', '/competitive-report')
     expect(card.getByRole('link', { name: /view pricing & plans/i })).toHaveAttribute('href', '/pricing')
   })
 
@@ -122,7 +122,7 @@ describe('/competitive-report page', () => {
       'href',
       '/dashboard?company=google.com'
     )
-    expect(card.getByRole('link', { name: /view all reports/i })).toHaveAttribute('href', '/reports')
+    expect(card.getByRole('link', { name: /view all reports/i })).toHaveAttribute('href', '/competitive-report')
     expect(
       card.queryByText(/upgrade to unlock full competitive analysis, trigger events, and account-ready email copy/i)
     ).not.toBeInTheDocument()
