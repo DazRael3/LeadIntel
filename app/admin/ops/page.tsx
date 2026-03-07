@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CopyTextButton } from '@/components/admin/CopyTextButton'
 import { runEnvDoctor } from '@/lib/ops/envDoctor'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { AdminKpiMonitorPanelClient } from './AdminKpiMonitorPanelClient'
 
 export const dynamic = 'force-dynamic'
 
@@ -163,6 +164,8 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
           )}
         </CardContent>
       </Card>
+
+      <AdminKpiMonitorPanelClient token={token} />
     </div>
   )
 }
