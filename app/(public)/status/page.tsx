@@ -58,13 +58,25 @@ type AutomationEnvelope =
     }
   | { ok: false; error?: { message?: string } }
 
+type OpsHealthEnvelope =
+  | {
+      ok: true
+      data: {
+        score: number
+        grade: 'excellent' | 'good' | 'needs_attention' | 'critical'
+        updatedAt: string
+      }
+    }
+  | { ok: false; error?: { message?: string } }
+
 export default async function StatusPage() {
   const baseUrl = await getBaseUrl()
 
-  const [health, version, automation] = await Promise.all([
+  const [health, version, automation, opsHealth] = await Promise.all([
     safeFetchJson<HealthEnvelope>(`${baseUrl}/api/health`),
     safeFetchJson<VersionEnvelope>(`${baseUrl}/api/version`),
     safeFetchJson<AutomationEnvelope>(`${baseUrl}/api/public/automation`),
+    safeFetchJson<OpsHealthEnvelope>(`${baseUrl}/api/public/ops-health`),
   ])
 
   const status = health?.ok === true ? health.data.status : 'degraded'
@@ -99,6 +111,12 @@ export default async function StatusPage() {
             <div>
               <span className="font-medium text-foreground">Status:</span> {status}
             </div>
+            {opsHealth?.ok === true ? (
+              <div>
+                <span className="font-medium text-foreground">Ops health:</span> {opsHealth.data.score}/100{' '}
+                <span className="text-xs text-muted-foreground">({opsHealth.data.grade})</span>
+              </div>
+            ) : null}
             {checkedAt ? (
               <div>
                 <span className="font-medium text-foreground">Last checked:</span> {new Date(checkedAt).toLocaleString()}

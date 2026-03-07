@@ -9,6 +9,7 @@ import { CopyTextButton } from '@/components/admin/CopyTextButton'
 import { runEnvDoctor } from '@/lib/ops/envDoctor'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { AdminKpiMonitorPanelClient } from './AdminKpiMonitorPanelClient'
+import { computeOpsHealth, type OpsHealthCheckStatus } from '@/lib/ops/opsHealth'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,11 +56,17 @@ function StatusBadge(props: { status: string }) {
   return <Badge variant={variant as 'outline' | 'secondary' | 'destructive'}>{props.status}</Badge>
 }
 
+function CheckStatusBadge(props: { status: OpsHealthCheckStatus }) {
+  const variant = props.status === 'ok' ? 'outline' : props.status === 'error' ? 'destructive' : 'secondary'
+  return <Badge variant={variant as 'outline' | 'secondary' | 'destructive'}>{props.status}</Badge>
+}
+
 export default async function AdminOpsPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = (await props.searchParams) ?? {}
   const token = typeof sp.token === 'string' ? sp.token : null
   requireAdminToken(token)
 
+  const opsHealth = await computeOpsHealth().catch(() => null)
   const env = runEnvDoctor()
 
   let report: ContentAuditReportRow | null = null
@@ -94,6 +101,52 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
           </Button>
         </div>
       </div>
+
+      {opsHealth ? (
+        <Card className="border-cyan-500/20 bg-card/60">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Ops health</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant="outline">{opsHealth.score}/100</Badge>
+              <Badge variant="outline">{opsHealth.grade}</Badge>
+              <div className="text-xs text-muted-foreground">Updated {new Date(opsHealth.updatedAt).toLocaleString()}</div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-cyan-500/10 text-xs text-muted-foreground">
+                    <th className="text-left py-2 pr-3">Check</th>
+                    <th className="text-left py-2 pr-3">Status</th>
+                    <th className="text-left py-2 pr-3">Weight</th>
+                    <th className="text-left py-2">Detail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {opsHealth.checks.map((c) => (
+                    <tr key={c.key} className="border-b border-cyan-500/10">
+                      <td className="py-2 pr-3 font-medium text-foreground">{c.label}</td>
+                      <td className="py-2 pr-3">
+                        <CheckStatusBadge status={c.status} />
+                      </td>
+                      <td className="py-2 pr-3">{c.weight}</td>
+                      <td className="py-2 text-xs text-muted-foreground">{c.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-cyan-500/20 bg-card/60">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Ops health</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Unable to compute ops health on this deployment.</CardContent>
+        </Card>
+      )}
 
       <Card className="border-cyan-500/20 bg-card/60">
         <CardHeader className="pb-3">
