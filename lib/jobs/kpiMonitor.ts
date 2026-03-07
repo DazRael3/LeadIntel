@@ -81,6 +81,7 @@ async function eventCount(args: { event: string; startIso: string; endIso: strin
 }
 
 export async function runKpiMonitor(args: { dryRun?: boolean }) {
+  const runStartedAt = new Date().toISOString()
   const cfg = getPostHogApiConfig()
   if (!cfg) {
     const doctor = runEnvDoctor()
@@ -173,6 +174,38 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
   const alerts = rows.filter((r) => r.alert)
   const insufficientRows = rows.filter((r) => typeof r.note === 'string' && r.note.startsWith('insufficient_')).length
   const actionableAlerts = alerts.length
+  const runFinishedAt = new Date().toISOString()
+
+  const finalReason =
+    actionableAlerts === 0
+      ? 'no_actionable_alerts'
+      : !hasResend
+        ? 'resend_not_configured'
+        : args.dryRun
+          ? 'dry_run'
+          : 'alerts_sent'
+
+  // Persist KPI snapshots (best-effort, service-role only). Never fail the job for persistence.
+  // Persist all rows (including insufficient/no-baseline) so trends are reliable.
+  try {
+    const supabase = createSupabaseAdminClient({ schema: 'api' })
+    await supabase.from('kpi_monitor_snapshots').insert(
+      rows.map((r) => ({
+        run_started_at: runStartedAt,
+        run_finished_at: runFinishedAt,
+        metric: r.metric,
+        window: r.window,
+        current: r.current,
+        previous: r.previous,
+        drop_pct: r.dropPct,
+        alert: r.alert,
+        note: r.note,
+        reason: finalReason,
+      }))
+    )
+  } catch {
+    // best-effort
+  }
 
   // Persist triggered alerts (service-role only).
   try {
@@ -198,19 +231,19 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
   if (actionableAlerts === 0) {
     return {
       status: 'ok' as const,
-      summary: { reason: 'no_actionable_alerts', alerts: 0, actionableAlerts: 0, insufficientRows, rows },
+      summary: { reason: finalReason, alerts: 0, actionableAlerts: 0, insufficientRows, rows },
     }
   }
 
   if (!hasResend) {
     return {
       status: 'skipped' as const,
-      summary: { reason: 'resend_not_configured', alerts: actionableAlerts, actionableAlerts, insufficientRows, rows },
+      summary: { reason: finalReason, alerts: actionableAlerts, actionableAlerts, insufficientRows, rows },
     }
   }
 
   if (args.dryRun) {
-    return { status: 'skipped' as const, summary: { reason: 'dry_run', alerts: actionableAlerts, actionableAlerts, insufficientRows, rows } }
+    return { status: 'skipped' as const, summary: { reason: finalReason, alerts: actionableAlerts, actionableAlerts, insufficientRows, rows } }
   }
 
   // Send one email per triggered alert (clear subject).
@@ -242,6 +275,6 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
     })
   }
 
-  return { status: 'ok' as const, summary: { reason: 'alerts_sent', alerts: actionableAlerts, actionableAlerts, insufficientRows, rows } }
+  return { status: 'ok' as const, summary: { reason: finalReason, alerts: actionableAlerts, actionableAlerts, insufficientRows, rows } }
 }
 
