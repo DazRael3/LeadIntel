@@ -160,6 +160,15 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                 ) : null}
               </>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/competitive-report')}
+              className="neon-border hover:glow-effect"
+              data-testid="dashboard-reports-button"
+            >
+              Reports
+            </Button>
             <ThemeToggle />
             <SignOutButton />
           </div>

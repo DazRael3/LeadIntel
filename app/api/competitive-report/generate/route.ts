@@ -7,6 +7,7 @@ import { generateCompetitiveIntelligenceReportSourced } from '@/lib/reports/comp
 import { looksLikeEmail } from '@/lib/reports/reportFormatGuards'
 import { normalizeReportInput } from '@/lib/reports/reportInput'
 import { assertMinCitationsOrThrow, flattenCitations } from '@/lib/reports/sourceRequirements'
+import { isPro } from '@/lib/billing/plan'
 
 const BodySchema = z.object({
   company_name: z.string().trim().min(1).max(120).nullable().optional(),
@@ -54,6 +55,31 @@ export const POST = withApiGuard(
       const forceRefresh = Boolean((body as z.infer<typeof BodySchema> | undefined)?.force_refresh)
 
       const supabase = createRouteClient(request, bridge)
+
+      // Free plan cap: Starter users can save up to 3 competitive reports.
+      // Fail fast before refreshing sources / calling OpenAI.
+      const pro = await isPro(supabase, userId)
+      if (!pro) {
+        const { data: recentComplete } = await supabase
+          .from('user_reports')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('report_kind', 'competitive')
+          .eq('status', 'complete')
+          .order('created_at', { ascending: false })
+          .limit(3)
+
+        if ((recentComplete ?? []).length >= 3) {
+          return fail(
+            'FREE_PLAN_LIMIT_REACHED',
+            'Starter is limited to 3 competitive reports. Upgrade to create unlimited reports.',
+            { limit: 3 },
+            { status: 429 },
+            bridge,
+            requestId
+          )
+        }
+      }
 
       const { data: userSettings } = await supabase
         .from('user_settings')

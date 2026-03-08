@@ -101,6 +101,17 @@ export function CompetitiveReportNewClient() {
           websiteRef.current?.focus()
           return
         }
+        if (res.status === 429 && json.error?.code === 'FREE_PLAN_LIMIT_REACHED') {
+          setInlineError({
+            title: json.error.message || 'Report limit reached.',
+            tips: [
+              'Starter is limited to 3 saved competitive reports.',
+              'Upgrade to create unlimited reports.',
+              'You can still view your existing reports in the Reports hub.',
+            ],
+          })
+          return
+        }
         toast({
           variant: 'destructive',
           title: 'Report generation failed',

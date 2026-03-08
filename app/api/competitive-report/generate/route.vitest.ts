@@ -8,6 +8,9 @@ let insertedRow: InsertRow | null = { id: 'rep_1' }
 
 type TableName = 'user_settings' | 'trigger_events' | 'user_reports'
 
+let mockIsPro = true
+let mockExistingCompleteReports = 0
+
 class MockQuery {
   private table: TableName
   constructor(table: TableName) {
@@ -53,9 +56,19 @@ class MockQuery {
         error: null,
       })
     }
+    if (this.table === 'user_reports') {
+      return resolve({
+        data: Array.from({ length: mockExistingCompleteReports }).map((_, i) => ({ id: `rep_${i}` })),
+        error: null,
+      })
+    }
     return resolve({ data: null, error: null })
   }
 }
+
+vi.mock('@/lib/billing/plan', () => ({
+  isPro: vi.fn(async () => mockIsPro),
+}))
 
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
@@ -89,6 +102,8 @@ describe('/api/competitive-report/generate', () => {
     vi.clearAllMocks()
     mockAuthedUser = { id: 'user_1' }
     insertedRow = { id: 'rep_1' }
+    mockIsPro = true
+    mockExistingCompleteReports = 0
     process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000'
   })
 
@@ -116,6 +131,22 @@ describe('/api/competitive-report/generate', () => {
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(typeof json.data?.reportId).toBe('string')
+  })
+
+  it('free plan with 3 reports -> 429', async () => {
+    mockIsPro = false
+    mockExistingCompleteReports = 3
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/competitive-report/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ company_name: 'Google', company_domain: 'google.com' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(429)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('FREE_PLAN_LIMIT_REACHED')
   })
 })
 
