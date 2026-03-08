@@ -2,10 +2,14 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { formatDistanceToNow } from 'date-fns'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { buildCompetitiveReportNewUrl } from '@/lib/reports/reportLinks'
 
 type PitchHistoryLeadRow = {
   id: string
   company_name: string | null
+  company_url: string | null
   ai_personalized_pitch: string | null
   created_at: string | null
 }
@@ -20,7 +24,7 @@ export default async function PitchHistoryPage() {
 
   const { data: leads, error } = await supabase
     .from('leads')
-    .select('id, company_name, ai_personalized_pitch, created_at')
+    .select('id, company_name, company_url, ai_personalized_pitch, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(100)
@@ -45,13 +49,26 @@ export default async function PitchHistoryPage() {
           {rows.map((lead) => (
             <Card key={lead.id} className="border-cyan-500/20 bg-card/60">
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex flex-wrap items-center justify-between gap-2">
                   <span>{lead.company_name || 'Unknown company'}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {lead.created_at
-                      ? formatDistanceToNow(new Date(lead.created_at), { addSuffix: true })
-                      : 'Unknown'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {lead.company_name ? (
+                      <Button asChild size="sm" variant="outline">
+                        <Link
+                          href={buildCompetitiveReportNewUrl({
+                            company: lead.company_name,
+                            url: lead.company_url,
+                            auto: true,
+                          })}
+                        >
+                          Create report
+                        </Link>
+                      </Button>
+                    ) : null}
+                    <span className="text-xs text-muted-foreground">
+                      {lead.created_at ? formatDistanceToNow(new Date(lead.created_at), { addSuffix: true }) : 'Unknown'}
+                    </span>
+                  </div>
                 </CardTitle>
                 <CardDescription className="text-xs uppercase tracking-wider">AI Personalized Pitch</CardDescription>
               </CardHeader>

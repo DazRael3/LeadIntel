@@ -1,25 +1,35 @@
 "use client"
 
 import { useMemo } from 'react'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { computeReportQuality } from '@/lib/reports/quality'
+import { MIN_CITATIONS } from '@/lib/reports/reportInput'
+import { buildCompetitiveReportNewUrl } from '@/lib/reports/reportLinks'
 
 function gradeLabel(grade: ReturnType<typeof computeReportQuality>['grade']): string {
   if (grade === 'excellent') return 'Excellent'
   if (grade === 'good') return 'Good'
   if (grade === 'needs_attention') return 'Needs attention'
-  return 'Framework only'
+  return 'Needs attention'
 }
 
 function gradeVariant(grade: ReturnType<typeof computeReportQuality>['grade']): 'outline' | 'secondary' | 'destructive' {
   if (grade === 'excellent') return 'outline'
   if (grade === 'good') return 'secondary'
   if (grade === 'needs_attention') return 'destructive'
-  return 'secondary'
+  return 'destructive'
 }
 
-export function ReportQualityBadge(props: { reportMarkdown: string; sourcesUsed: unknown | null; sourcesFetchedAt: string | null }) {
+export function ReportQualityBadge(props: {
+  reportMarkdown: string
+  sourcesUsed: unknown | null
+  sourcesFetchedAt: string | null
+  companyName?: string | null
+  inputUrl?: string | null
+  ticker?: string | null
+}) {
   const q = useMemo(
     () =>
       computeReportQuality({
@@ -29,6 +39,15 @@ export function ReportQualityBadge(props: { reportMarkdown: string; sourcesUsed:
       }),
     [props.reportMarkdown, props.sourcesUsed, props.sourcesFetchedAt]
   )
+
+  const regenHref = useMemo(() => {
+    return buildCompetitiveReportNewUrl({
+      company: props.companyName ?? null,
+      url: props.inputUrl ?? null,
+      ticker: props.ticker ?? null,
+      auto: true,
+    })
+  }, [props.companyName, props.inputUrl, props.ticker])
 
   return (
     <Card className="border-cyan-500/10 bg-background/30">
@@ -41,6 +60,18 @@ export function ReportQualityBadge(props: { reportMarkdown: string; sourcesUsed:
           <Badge variant="outline">Hypotheses: {q.hypotheses}</Badge>
           {q.lastRefreshedLabel ? <Badge variant="outline">Last refreshed: {q.lastRefreshedLabel}</Badge> : null}
         </div>
+
+        {q.citations < MIN_CITATIONS ? (
+          <div className="rounded border border-yellow-500/20 bg-yellow-500/5 px-3 py-2 text-sm text-muted-foreground">
+            <div className="font-medium text-foreground">Not enough citations to meet the sourcing standard.</div>
+            <div className="mt-1">Add a URL or ticker and regenerate.</div>
+            <div className="mt-2">
+              <Link className="text-cyan-400 hover:underline" href={regenHref}>
+                Regenerate
+              </Link>
+            </div>
+          </div>
+        ) : null}
 
         <details className="rounded border border-cyan-500/10 bg-card/30 px-3 py-2">
           <summary className="cursor-pointer text-sm text-muted-foreground">Explain score</summary>
@@ -58,12 +89,6 @@ export function ReportQualityBadge(props: { reportMarkdown: string; sourcesUsed:
             ) : null}
           </div>
         </details>
-
-        {q.grade === 'framework_only' ? (
-          <div className="text-xs text-muted-foreground">
-            Framework-based report (no live citations). Use the verification checklist to confirm facts.
-          </div>
-        ) : null}
       </CardContent>
     </Card>
   )
