@@ -23,6 +23,11 @@ import { FirstPartyIntentCard } from "@/components/account/FirstPartyIntentCard"
 import { AccountBriefCard } from "@/components/account/AccountBriefCard"
 import { AccountActionCenter } from "@/components/account/AccountActionCenter"
 import type { FirstPartyIntent, SignalEvent, SignalMomentum, ScoreExplainability } from "@/lib/domain/explainability"
+import type { BuyingGroupRecommendation, PersonaRecommendationSummary } from "@/lib/domain/people"
+import { deriveFirstPartyIntentSummary } from "@/lib/services/first-party-intent"
+import { RecommendedPeopleCard } from "@/components/account/RecommendedPeopleCard"
+import { BuyingGroupCard } from "@/components/account/BuyingGroupCard"
+import { SignalMomentumTimeline } from "@/components/account/SignalMomentumTimeline"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -38,9 +43,12 @@ type ExplainabilityEnvelope =
         scoreExplainability: ScoreExplainability
         momentum: SignalMomentum
         firstPartyIntent: FirstPartyIntent
+        people: { personas: PersonaRecommendationSummary; buyingGroup: BuyingGroupRecommendation }
       }
     }
   | { ok: false; error?: { message?: string } }
+
+const EMPTY_VISITOR_MATCHES = { count: 0, lastVisitedAt: null, sampleReferrers: [] as string[] }
 
 export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
   const router = useRouter()
@@ -63,7 +71,16 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     scoreExplainability: ScoreExplainability | null
     momentum: SignalMomentum | null
     firstPartyIntent: FirstPartyIntent
-  }>({ loading: true, error: null, signals: [], scoreExplainability: null, momentum: null, firstPartyIntent: { visitorMatches: { count: 0, lastVisitedAt: null, sampleReferrers: [] } } })
+    people: { personas: PersonaRecommendationSummary; buyingGroup: BuyingGroupRecommendation } | null
+  }>({
+    loading: true,
+    error: null,
+    signals: [],
+    scoreExplainability: null,
+    momentum: null,
+    firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+    people: null,
+  })
 
   const handleUnlockLead = async () => {
     if (isPro || unlocked) return // Pro users or already unlocked
@@ -160,7 +177,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             signals: [],
             scoreExplainability: null,
             momentum: null,
-            firstPartyIntent: { visitorMatches: { count: 0, lastVisitedAt: null, sampleReferrers: [] } },
+            firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+            people: null,
           })
           return
         }
@@ -171,7 +189,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           scoreExplainability: json.data.scoreExplainability ?? null,
           momentum: json.data.momentum ?? null,
           firstPartyIntent:
-            json.data.firstPartyIntent ?? { visitorMatches: { count: 0, lastVisitedAt: null, sampleReferrers: [] } },
+            json.data.firstPartyIntent ?? { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+          people: json.data.people ?? null,
         })
       } catch (_err) {
         if (cancelled) return
@@ -181,7 +200,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           signals: [],
           scoreExplainability: null,
           momentum: null,
-          firstPartyIntent: { visitorMatches: { count: 0, lastVisitedAt: null, sampleReferrers: [] } },
+          firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+          people: null,
         })
       }
     }
@@ -371,11 +391,21 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           />
 
           <FirstPartyIntentCard
+            accountId={lead.id}
             companyName={lead.company_name ?? null}
             companyDomain={lead.company_domain ?? null}
             inputUrl={lead.company_url ?? null}
             firstPartyIntent={explainability.firstPartyIntent}
           />
+
+          {explainability.people ? (
+            <>
+              <RecommendedPeopleCard accountId={lead.id} personas={explainability.people.personas} />
+              <BuyingGroupCard accountId={lead.id} buyingGroup={explainability.people.buyingGroup} />
+            </>
+          ) : null}
+
+          <SignalMomentumTimeline accountId={lead.id} momentum={explainability.momentum} signals={explainability.signals} />
 
           <AccountActionCenter
             accountId={lead.id}
@@ -389,6 +419,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
               ...explainability.signals.slice(0, 3).map((s) => `Signal: ${s.title}`),
             ].join('\n')}
             opener={typeof lead.ai_personalized_pitch === 'string' ? lead.ai_personalized_pitch : null}
+            personas={explainability.people?.personas ?? null}
             onBriefGenerated={() => setBriefRefreshKey((x) => x + 1)}
           />
 

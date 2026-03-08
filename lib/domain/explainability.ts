@@ -29,6 +29,16 @@ export type SignalMomentum = {
   topSignalTypes: Array<{ type: string; count: number }>
   highSignalEvents: number
   mostRecentSignalAt: string | null
+  mostRecentHighImpactEvent?: { title: string; detectedAt: string; sourceUrl: string | null } | null
+}
+
+export type FirstPartyIntentLabel = 'none' | 'early_intent' | 'active_research' | 'returning_interest'
+
+export type FirstPartyIntentSummary = {
+  label: FirstPartyIntentLabel
+  labelText: 'No first-party intent yet' | 'Early intent' | 'Active research' | 'Returning interest'
+  summary: string
+  freshnessDays: number | null
 }
 
 export type FirstPartyIntent = {
@@ -37,6 +47,7 @@ export type FirstPartyIntent = {
     lastVisitedAt: string | null
     sampleReferrers: string[]
   }
+  summary: FirstPartyIntentSummary
 }
 
 export function formatSignalType(type: string): string {

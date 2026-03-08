@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/utils"
 import { Building2, Activity, Lock, Sparkles, TrendingUp } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { UpgradeOverlay } from "@/components/UpgradeOverlay"
+import { track } from "@/lib/analytics"
 
 interface LiveIntentVisitor {
   id: string
@@ -214,8 +215,14 @@ export function LiveIntent({ isPro }: LiveIntentProps) {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      // TODO: Navigate to lead creation or search
-                      console.log('Create lead for:', visitor.company_name)
+                      const urlLike = (visitor.company_domain ? `https://${visitor.company_domain}` : visitor.company_name ?? '').trim()
+                      const qs = new URLSearchParams()
+                      qs.set('auto', '1')
+                      if (urlLike) qs.set('url', urlLike)
+                      if (visitor.company_name) qs.set('name', visitor.company_name)
+                      if (visitor.company_domain) qs.set('domain', visitor.company_domain)
+                      track('live_intent_company_clicked', { companyDomain: visitor.company_domain ?? null })
+                      router.push(`/pitch?${qs.toString()}`)
                     }}
                     className="hover:bg-purple-500/10 text-purple-400"
                   >

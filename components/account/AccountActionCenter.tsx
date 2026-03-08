@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
 import { Copy, Download, Send, Sparkles, Lock } from 'lucide-react'
+import type { PersonaRecommendationSummary } from '@/lib/domain/people'
 
 type ExportEnvelope =
   | { ok: true; data: { jobId: string } }
@@ -35,14 +36,24 @@ export function AccountActionCenter(props: {
   window: '7d' | '30d' | '90d' | 'all'
   whyNowSummary: string
   opener: string | null
+  personas?: PersonaRecommendationSummary | null
   onBriefGenerated?: () => void
 }) {
   const { toast } = useToast()
   const [exporting, setExporting] = useState(false)
   const [pushing, setPushing] = useState(false)
   const [briefing, setBriefing] = useState(false)
+  const [showVariants, setShowVariants] = useState(false)
 
-  const canCopyOpener = useMemo(() => typeof props.opener === 'string' && props.opener.trim().length > 0, [props.opener])
+  const personaVariants = useMemo(() => (props.personas?.items ?? []).slice(0, 3), [props.personas?.items])
+  const recommendedOpener = useMemo(() => {
+    const top = personaVariants[0]
+    if (top?.suggestedFirstTouch?.text?.trim()) return { label: `Opener (${top.persona})`, text: top.suggestedFirstTouch.text.trim() }
+    if (typeof props.opener === 'string' && props.opener.trim().length > 0) return { label: 'Opener (existing draft)', text: props.opener.trim() }
+    return null
+  }, [personaVariants, props.opener])
+
+  const canCopyOpener = Boolean(recommendedOpener?.text)
 
   return (
     <Card className="border-cyan-500/20 bg-card/50">
@@ -57,7 +68,7 @@ export function AccountActionCenter(props: {
           <Button
             variant="outline"
             onClick={async () => {
-              track('account_action_copy_opener', { kind: 'why_now', accountId: props.accountId })
+              track('account_action_copy_why_now', { accountId: props.accountId })
               const ok = await copyToClipboard(props.whyNowSummary)
               toast(ok ? { variant: 'success', title: 'Copied', description: 'Why-now summary copied.' } : { variant: 'destructive', title: 'Copy failed', description: 'Your browser blocked clipboard access.' })
             }}
@@ -70,13 +81,28 @@ export function AccountActionCenter(props: {
             variant="outline"
             disabled={!canCopyOpener}
             onClick={async () => {
-              track('account_action_copy_opener', { kind: 'opener', accountId: props.accountId })
-              const ok = await copyToClipboard((props.opener ?? '').trim())
+              track('account_action_copy_persona_opener', {
+                accountId: props.accountId,
+                source: recommendedOpener?.label ?? 'unknown',
+              })
+              const ok = await copyToClipboard(recommendedOpener?.text ?? '')
               toast(ok ? { variant: 'success', title: 'Copied', description: 'Outreach opener copied.' } : { variant: 'destructive', title: 'Copy failed', description: 'Your browser blocked clipboard access.' })
             }}
           >
             <Copy className="h-4 w-4 mr-2" />
-            Copy outreach opener
+            Copy opener by persona
+          </Button>
+
+          <Button
+            variant="outline"
+            disabled={personaVariants.length === 0}
+            onClick={() => {
+              track('action_center_variant_generated', { accountId: props.accountId, variantCount: personaVariants.length })
+              setShowVariants((v) => !v)
+            }}
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Generate outreach variants
           </Button>
 
           <Button
@@ -144,6 +170,38 @@ export function AccountActionCenter(props: {
             Send payload to webhook
           </Button>
         </div>
+
+        {showVariants ? (
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Outreach variants (persona-aware)</div>
+            <div className="mt-2 grid grid-cols-1 lg:grid-cols-3 gap-2">
+              {personaVariants.map((v) => (
+                <div key={`${v.persona}-${v.priority}`} className="rounded border border-cyan-500/10 bg-background/30 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="outline">{v.persona}</Badge>
+                    <Badge variant="outline">{v.suggestedFirstTouch.channel}</Badge>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground line-clamp-3">{v.whyNowAngle}</div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 h-7 text-xs w-full"
+                    onClick={async () => {
+                      track('account_action_copy_persona_opener', { accountId: props.accountId, source: `variant:${v.persona}` })
+                      const ok = await copyToClipboard(v.suggestedFirstTouch.text)
+                      toast(ok ? { variant: 'success', title: 'Copied', description: 'Variant copied.' } : { variant: 'destructive', title: 'Copy failed', description: 'Your browser blocked clipboard access.' })
+                    }}
+                  >
+                    Copy this variant
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              Variants are heuristic and signal-based. They avoid company-specific factual claims unless supported by sources.
+            </div>
+          </div>
+        ) : null}
 
         <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">

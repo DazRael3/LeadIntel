@@ -87,6 +87,7 @@ export function AccountBriefCard(props: {
         toast({ variant: 'destructive', title: 'Brief failed', description: msg })
         return
       }
+      track('account_brief_saved', { accountId: props.accountId, window: props.signalWindow })
       toast({ variant: 'success', title: 'Brief saved', description: 'Account brief generated.' })
       await load()
     } catch {

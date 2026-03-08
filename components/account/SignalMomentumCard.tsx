@@ -76,6 +76,13 @@ export function SignalMomentumCard(props: { momentum: SignalMomentum | null; cur
                 <div className="mt-1 text-xs text-muted-foreground">No signals in this window.</div>
               )}
             </div>
+
+            {m.mostRecentHighImpactEvent ? (
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">High-impact cue</div>
+                <div className="mt-1 text-sm text-foreground">{m.mostRecentHighImpactEvent.title}</div>
+              </div>
+            ) : null}
           </>
         )}
       </CardContent>
