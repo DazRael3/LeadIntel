@@ -1,0 +1,173 @@
+import { z } from 'zod'
+import { withApiGuard } from '@/lib/api/guard'
+import { createRouteClient } from '@/lib/supabase/route'
+import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
+import { generateCompetitiveIntelligenceReport } from '@/lib/reports/competitive-report'
+
+const BodySchema = z.object({
+  company_name: z.string().trim().min(1).max(120),
+  company_domain: z.string().trim().min(1).max(120).nullable().optional(),
+  input_url: z.string().trim().url().nullable().optional(),
+})
+
+type TriggerEventRow = {
+  headline: string | null
+  event_type: string | null
+  detected_at: string | null
+  source_url: string | null
+  event_description: string | null
+}
+
+function isDemoTriggerEvent(row: TriggerEventRow): boolean {
+  const headline = (row.headline ?? '').toLowerCase()
+  if (headline.startsWith('demo event:')) return true
+  const desc = (row.event_description ?? '').toLowerCase()
+  if (desc.includes('demo trigger event')) return true
+  return false
+}
+
+export const dynamic = 'force-dynamic'
+
+export const POST = withApiGuard(
+  async (request, { body, userId, requestId }) => {
+    const bridge = createCookieBridge()
+    const startedAt = Date.now()
+
+    try {
+      if (!userId) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
+
+      const data = body as z.infer<typeof BodySchema>
+      const companyName = data.company_name.trim()
+      const companyDomain = data.company_domain ? data.company_domain.trim() : null
+      const inputUrl = data.input_url ? data.input_url.trim() : null
+
+      const supabase = createRouteClient(request, bridge)
+
+      const { data: userSettings } = await supabase
+        .from('user_settings')
+        .select('what_you_sell, ideal_customer')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      let q = supabase
+        .from('trigger_events')
+        .select('headline, event_type, detected_at, source_url, event_description')
+        .eq('user_id', userId)
+        .order('detected_at', { ascending: false })
+        .limit(12)
+
+      if (companyDomain) {
+        q = q.eq('company_domain', companyDomain)
+      } else {
+        q = q.eq('company_name', companyName)
+      }
+
+      const { data: triggerRows } = await q
+      const verifiedSignals = ((triggerRows ?? []) as TriggerEventRow[])
+        .filter((r) => !isDemoTriggerEvent(r))
+        .slice(0, 8)
+        .map((r) => ({
+          headline: (r.headline ?? '').trim(),
+          eventType: r.event_type ?? null,
+          detectedAt: r.detected_at ?? null,
+          sourceUrl: r.source_url ?? null,
+          description: r.event_description ?? null,
+        }))
+        .filter((s) => s.headline.length > 0)
+
+      const generated = await generateCompetitiveIntelligenceReport({
+        companyName,
+        companyDomain,
+        inputUrl,
+        userContext: {
+          whatYouSell: typeof userSettings?.what_you_sell === 'string' ? userSettings.what_you_sell : null,
+          idealCustomer: typeof userSettings?.ideal_customer === 'string' ? userSettings.ideal_customer : null,
+        },
+        verifiedSignals,
+      })
+
+      const latencyMs = Date.now() - startedAt
+      const title = `Competitive report: ${companyName}`
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('user_reports')
+        .insert({
+          user_id: userId,
+          status: 'complete',
+          company_name: companyName,
+          company_domain: companyDomain,
+          input_url: inputUrl,
+          title,
+          report_markdown: generated.reportMarkdown,
+          report_json: generated.reportJson,
+          meta: {
+            source: 'competitive-report',
+            generatedAt: new Date().toISOString(),
+            model: generated.model,
+            latencyMs,
+            verifiedSignalsCount: verifiedSignals.length,
+          },
+        })
+        .select('id')
+        .single()
+
+      if (insertError || !inserted?.id) {
+        return fail(
+          ErrorCode.DATABASE_ERROR,
+          'Failed to save report',
+          { hint: 'Check api.user_reports RLS and schema.' },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
+
+      return ok(
+        { reportId: inserted.id, report_markdown: generated.reportMarkdown, report_json: generated.reportJson },
+        undefined,
+        bridge,
+        requestId
+      )
+    } catch (error) {
+      // Persist a failed report record (best-effort, user-scoped via RLS). Never block the response.
+      try {
+        const data = body as Partial<z.infer<typeof BodySchema>> | undefined
+        const companyName =
+          (typeof data?.company_name === 'string' && data.company_name.trim()) ? data.company_name.trim() : 'Unknown company'
+        const companyDomain = typeof data?.company_domain === 'string' ? data.company_domain.trim() : null
+        const inputUrl = typeof data?.input_url === 'string' ? data.input_url.trim() : null
+
+        const supabase = createRouteClient(request, bridge)
+        await supabase.from('user_reports').insert({
+          user_id: userId,
+          status: 'failed',
+          company_name: companyName,
+          company_domain: companyDomain,
+          input_url: inputUrl,
+          title: `Competitive report failed: ${companyName}`,
+          report_markdown:
+            '# Competitive Intelligence Report\n\nWe couldn’t complete this report due to a temporary issue.\n\n## What you can do next\n- Try again in a moment.\n- If this repeats, check your OpenAI configuration and server logs.\n\n## Verification checklist (to avoid guessing)\n- Homepage / product page\n- Pricing page\n- Careers page\n- Press / blog\n- Review sites (G2/Capterra)\n- LinkedIn posts\n',
+          report_json: null,
+          meta: {
+            source: 'competitive-report',
+            generatedAt: new Date().toISOString(),
+            errorCode: error instanceof Error ? error.name : 'unknown_error',
+          },
+        })
+      } catch {
+        // best-effort
+      }
+
+      // Prefer a safe external-api style error code for generator failures.
+      if (error instanceof Error && error.message.includes('openai')) {
+        return fail(ErrorCode.EXTERNAL_API_ERROR, 'Competitive report generation failed', undefined, undefined, bridge, requestId)
+      }
+
+      return asHttpError(error, '/api/competitive-report/generate', userId, bridge, requestId)
+    }
+  },
+  { bodySchema: BodySchema }
+)
+

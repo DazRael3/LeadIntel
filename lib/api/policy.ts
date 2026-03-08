@@ -71,6 +71,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/competitive-report/generate': {
+    tier: 'AI_GENERATION',
+    maxBytes: 65536, // 64KB
+    rateLimit: {
+      authPerMin: 10,
+      ipPerMin: 5,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/generate-sequence': {
     tier: 'AI_GENERATION',
     maxBytes: 65536, // 64KB
