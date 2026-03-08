@@ -1,0 +1,28 @@
+import { test, expect } from './fixtures'
+import { requireEnv, loginViaUi, setE2ECookies } from './utils'
+
+test.describe('Free preview usage coherence', () => {
+  test('pitch preview usage shows on reports page with recent activity (no fake reports)', async ({ page }) => {
+    const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000'
+    const email = requireEnv('E2E_EMAIL')
+    const password = requireEnv('E2E_PASSWORD')
+
+    await setE2ECookies({ page, baseURL, plan: 'free', uid: 'e2e_free_preview', email })
+    await loginViaUi({ page, email, password })
+    await expect(page).toHaveURL(/\/dashboard/)
+
+    const seed = await page.request.post('/api/e2e/seed-free-preview', {
+      data: { companyDomain: 'e2e-preview.example.com', companyName: 'E2E Preview Co' },
+      headers: { 'Content-Type': 'application/json' },
+      failOnStatusCode: false,
+    })
+    expect(seed.status()).toBe(200)
+
+    await page.goto('/competitive-report')
+
+    await expect(page.getByText('Recent premium activity')).toBeVisible()
+    await expect(page.getByText(/No reports yet\./i)).toBeVisible()
+    await expect(page.getByText(/Usage is shared across pitches and reports\./i)).toBeVisible()
+  })
+})
+

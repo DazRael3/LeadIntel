@@ -129,6 +129,7 @@ This app uses **Next.js 14 + Supabase + Stripe + Sentry**. Environment variables
   - A Free (Starter) user can successfully complete up to **3 total** premium generations across **pitches + reports**.
   - The 4th attempt is blocked server-side with `FREE_TIER_GENERATION_LIMIT_REACHED` (429).
   - Free responses do **not** include full premium pitch/report text (preview-only + locked UI).
+  - Reports list remains **reports-only**; pitch previews appear under **Recent premium activity**.
 | `NEXT_PUBLIC_ENABLE_AUTOPILOT_UI` | client-safe | Shows autopilot UI. | Recommended `false` in prod unless using autopilot. |
 
 ---
