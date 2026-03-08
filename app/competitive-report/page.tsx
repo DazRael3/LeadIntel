@@ -14,6 +14,9 @@ import { LegacyCitationBannerClient } from './ui/LegacyCitationBannerClient'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { buildCompetitiveReportNewUrl } from '@/lib/reports/reportLinks'
+import { getPremiumGenerationCapabilities, getPremiumGenerationUsage, redactTextPreview } from '@/lib/billing/premium-generations'
+import { UsageMeter } from '@/components/billing/UsageMeter'
+import { BlurredPremiumSection } from '@/components/gating/BlurredPremiumSection'
 
 export const metadata: Metadata = {
   title: 'Competitive Intelligence Report | LeadIntel',
@@ -66,6 +69,11 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
   if (!user) {
     redirect('/login?mode=signin&redirect=/competitive-report')
   }
+
+  const [capabilities, usage] = await Promise.all([
+    getPremiumGenerationCapabilities({ supabase, userId: user.id, sessionEmail: user.email ?? null }),
+    getPremiumGenerationUsage({ supabase, userId: user.id }),
+  ])
 
   const qRaw = pickString(sp, 'q')
   const q = qRaw ? safeQueryLike(qRaw) : null
@@ -120,6 +128,10 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
     selected = (data ?? null) as UserReportRow | null
   }
 
+  const selectedMarkdownFull = selected?.report_markdown ?? ''
+  const selectedMarkdownForViewer = capabilities.blurPremiumSections ? redactTextPreview(selectedMarkdownFull, 1600) : selectedMarkdownFull
+  const selectedMarkdownForCopy = selectedMarkdownForViewer
+
   const searchParamsForLinks = new URLSearchParams()
   if (qRaw) searchParamsForLinks.set('q', qRaw)
   if (status) searchParamsForLinks.set('status', status)
@@ -142,6 +154,12 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
             </Button>
           </div>
         </div>
+
+        {capabilities.tier === 'starter' ? (
+          <div className="mt-6">
+            <UsageMeter used={usage.used} limit={usage.limit} label="Free: premium generations" eventContext={{ surface: 'competitive_report_hub' }} />
+          </div>
+        ) : null}
 
         {hasQueryCta ? (
           <Card className="mt-6 border-cyan-500/20 bg-card/60">
@@ -252,8 +270,13 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                   {selected ? (
                     <div className="flex items-center gap-2">
                       {statusBadge(selected.status)}
-                      <CopyTextButton text={selected.report_markdown} />
-                      <DownloadMarkdownButton filename={`${selected.company_name.replace(/[^a-z0-9_-]+/gi, '_')}.md`} markdown={selected.report_markdown} />
+                      <CopyTextButton text={selectedMarkdownForCopy} />
+                      {capabilities.blurPremiumSections ? null : (
+                        <DownloadMarkdownButton
+                          filename={`${selected.company_name.replace(/[^a-z0-9_-]+/gi, '_')}.md`}
+                          markdown={selectedMarkdownForCopy}
+                        />
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -262,14 +285,14 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                 {selected ? (
                   <div className="space-y-4">
                     <LegacyCitationBannerClient
-                      reportMarkdown={selected.report_markdown}
+                      reportMarkdown={selectedMarkdownForViewer}
                       companyName={selected.company_name}
                       inputUrl={selected.input_url}
                       sourcesUsed={selected.sources_used}
                       sourcesFetchedAt={selected.sources_fetched_at}
                     />
                     <ReportQualityBadge
-                      reportMarkdown={selected.report_markdown}
+                      reportMarkdown={selectedMarkdownForViewer}
                       sourcesUsed={selected.sources_used}
                       sourcesFetchedAt={selected.sources_fetched_at}
                       companyName={selected.company_name}
@@ -282,9 +305,19 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                       sourcesFetchedAt={selected.sources_fetched_at}
                       sourcesUsed={selected.sources_used}
                     />
-                    <div className="prose prose-invert max-w-none">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{selected.report_markdown}</ReactMarkdown>
-                    </div>
+                    {capabilities.blurPremiumSections ? (
+                      <BlurredPremiumSection
+                        title="Competitive report (locked on Free)"
+                        preview={selectedMarkdownForViewer}
+                        lockedReason="Premium sections stay locked on Free. Upgrade to unlock full report access."
+                        upgradeHref="/pricing?target=closer"
+                        eventContext={{ surface: 'competitive_report_hub', section: 'report' }}
+                      />
+                    ) : (
+                      <div className="prose prose-invert max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedMarkdownForViewer}</ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 ) : selectedId ? (
                   <div className="text-sm text-muted-foreground">

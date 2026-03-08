@@ -8,11 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { UsageMeter } from '@/components/billing/UsageMeter'
 import { ToastAction } from '@/components/ui/toast'
 import { useToast } from '@/components/ui/use-toast'
+import { track } from '@/lib/analytics'
 
 type GenerateResponse =
-  | { ok: true; data: { reportId: string } }
+  | {
+      ok: true
+      data: { reportId: string; isBlurred?: boolean; usage?: { used: number; limit: number; remaining: number } }
+    }
   | { ok: false; error: { code: string; message: string; details?: { tips?: string[] } ; requestId?: string } }
 
 function pickFirstNonEmpty(sp: URLSearchParams, keys: string[]): string | null {
@@ -39,9 +44,31 @@ export function CompetitiveReportNewClient() {
   const [ticker, setTicker] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inlineError, setInlineError] = useState<{ title: string; tips: string[] } | null>(null)
+  const [usage, setUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null)
 
   const websiteRef = useRef<HTMLInputElement | null>(null)
   const didAutoSubmit = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch('/api/usage/premium-generations', { method: 'GET', cache: 'no-store', credentials: 'include' })
+        if (!res.ok) return
+        const json = (await res.json()) as { ok?: boolean; data?: { usage?: { used: number; limit: number; remaining: number } } }
+        if (!json?.ok) return
+        if (cancelled) return
+        const u = json.data?.usage
+        if (u) setUsage(u)
+      } catch {
+        // ignore
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const company = pickFirstNonEmpty(sp, ['company', 'name', 'company_name'])
@@ -72,6 +99,15 @@ export function CompetitiveReportNewClient() {
 
     setIsSubmitting(true)
     try {
+      if (usage && usage.remaining <= 0) {
+        setInlineError({
+          title: 'You’ve used all 3 free generations.',
+          tips: ['Upgrade to unlock unlimited generation and full report access.'],
+        })
+        track('premium_generation_blocked_free_limit', { surface: 'competitive_report_new', used: usage.used, limit: usage.limit })
+        return
+      }
+
       const res = await fetch('/api/competitive-report/generate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -101,15 +137,19 @@ export function CompetitiveReportNewClient() {
           websiteRef.current?.focus()
           return
         }
-        if (res.status === 429 && json.error?.code === 'FREE_PLAN_LIMIT_REACHED') {
+        if (res.status === 429 && json.error?.code === 'FREE_TIER_GENERATION_LIMIT_REACHED') {
+          const used = Number((json as any)?.error?.details?.usage?.used ?? usage?.used ?? 3) || 3
+          const limit = Number((json as any)?.error?.details?.usage?.limit ?? usage?.limit ?? 3) || 3
+          setUsage({ used, limit, remaining: 0 })
           setInlineError({
             title: json.error.message || 'Report limit reached.',
             tips: [
-              'Starter is limited to 3 saved competitive reports.',
-              'Upgrade to create unlimited reports.',
+              'Free includes up to 3 total pitches/reports.',
+              'Upgrade to create unlimited assets and unlock full content.',
               'You can still view your existing reports in the Reports hub.',
             ],
           })
+          track('premium_generation_blocked_free_limit', { surface: 'competitive_report_new', used, limit })
           return
         }
         toast({
@@ -122,6 +162,8 @@ export function CompetitiveReportNewClient() {
 
       const reportId = json.data.reportId
       const href = `/competitive-report?id=${encodeURIComponent(reportId)}`
+      if (json.data.usage) setUsage(json.data.usage)
+      track('premium_generation_completed', { type: 'report', blurred: Boolean(json.data.isBlurred), surface: 'competitive_report_new' })
       toast({
         variant: 'success',
         title: 'Report saved',
@@ -176,6 +218,7 @@ export function CompetitiveReportNewClient() {
           <CardTitle className="text-lg">Report input</CardTitle>
         </CardHeader>
         <CardContent>
+          {usage ? <div className="mb-4"><UsageMeter used={usage.used} limit={usage.limit} label="Free: premium generations" eventContext={{ surface: 'competitive_report_new' }} /></div> : null}
           <form className="space-y-4" onSubmit={onSubmit}>
             {inlineError ? (
               <div className="rounded border border-cyan-500/10 bg-card/30 p-3 text-sm text-muted-foreground">
@@ -228,7 +271,7 @@ export function CompetitiveReportNewClient() {
               <div className="text-xs text-muted-foreground">Used to fetch SEC filings as citations when available.</div>
             </div>
 
-            <Button type="submit" className="neon-border hover:glow-effect" disabled={isSubmitting || !canSubmit}>
+            <Button type="submit" className="neon-border hover:glow-effect" disabled={isSubmitting || !canSubmit || (usage?.remaining ?? 1) <= 0}>
               {isSubmitting ? 'Generating…' : 'Generate report'}
             </Button>
           </form>
