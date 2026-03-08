@@ -1,0 +1,104 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+
+let mockAuthedUser: { id: string } | null = { id: 'user_1' }
+
+type InsertRow = { id: string }
+let insertedRow: InsertRow | null = { id: 'rep_1' }
+
+type TableName = 'user_settings' | 'trigger_events' | 'user_reports'
+
+class MockQuery {
+  private table: TableName
+  constructor(table: TableName) {
+    this.table = table
+  }
+  select() {
+    return this
+  }
+  eq() {
+    return this
+  }
+  order() {
+    return this
+  }
+  limit() {
+    return this
+  }
+  maybeSingle = async () => {
+    if (this.table === 'user_settings') {
+      return { data: { what_you_sell: 'LeadIntel', ideal_customer: 'Outbound teams' }, error: null }
+    }
+    return { data: null, error: null }
+  }
+  insert() {
+    return this
+  }
+  single = async () => {
+    return { data: insertedRow, error: null }
+  }
+  then = async (resolve: (v: unknown) => unknown, _reject?: (e: unknown) => unknown) => {
+    // Used for `await q` on trigger_events query.
+    if (this.table === 'trigger_events') {
+      return resolve({
+        data: [
+          {
+            headline: 'Internal signal: example (verify)',
+            event_type: 'expansion',
+            detected_at: '2026-01-01T00:00:00.000Z',
+            source_url: 'https://example.com',
+            event_description: 'Captured by internal detection.',
+          },
+        ],
+        error: null,
+      })
+    }
+    return resolve({ data: null, error: null })
+  }
+}
+
+vi.mock('@/lib/supabase/route', () => ({
+  createRouteClient: vi.fn(() => ({
+    auth: {
+      getUser: vi.fn(async () => ({ data: { user: mockAuthedUser }, error: null })),
+    },
+    from: (table: TableName) => new MockQuery(table),
+  })),
+}))
+
+describe('/api/competitive-report/generate', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    mockAuthedUser = { id: 'user_1' }
+    insertedRow = { id: 'rep_1' }
+    process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000'
+  })
+
+  it('unauthenticated -> 401', async () => {
+    mockAuthedUser = null
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/competitive-report/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ company_name: 'Google' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(401)
+  })
+
+  it('authenticated -> saves report and returns id', async () => {
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/competitive-report/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ company_name: 'Google', company_domain: 'google.com' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(typeof json.data?.reportId).toBe('string')
+  })
+})
+

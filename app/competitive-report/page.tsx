@@ -114,7 +114,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
           </div>
           <div className="flex items-center gap-2">
             <Button asChild size="sm" className="neon-border hover:glow-effect">
-              <Link href="/pitch">New report</Link>
+              <Link href="/competitive-report/new">New report</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href="/dashboard">Dashboard</Link>
@@ -153,7 +153,11 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
 
                 {list.length === 0 ? (
                   <div className="text-sm text-muted-foreground">
-                    No saved reports yet. Generate one from <Link className="text-cyan-400 hover:underline" href="/pitch">Pitch</Link>.
+                    No saved reports yet. Generate one from{' '}
+                    <Link className="text-cyan-400 hover:underline" href="/competitive-report/new">
+                      New report
+                    </Link>
+                    .
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -217,8 +221,8 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                 ) : (
                   <div className="text-sm text-muted-foreground">
                     Choose a report from the list, or generate a new one from{' '}
-                    <Link className="text-cyan-400 hover:underline" href="/pitch">
-                      Pitch
+                    <Link className="text-cyan-400 hover:underline" href="/competitive-report/new">
+                      New report
                     </Link>
                     .
                   </div>

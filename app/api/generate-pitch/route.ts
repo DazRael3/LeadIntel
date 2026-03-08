@@ -393,47 +393,6 @@ export const POST = withApiGuard(
       } catch {
         warnings.push('Pitch history write failed (pitches insert).')
       }
-
-      // Persist competitive report snapshot (best-effort; user-scoped via RLS).
-      try {
-        const leadRow = (savedLead.data ?? null) as
-          | { company_name?: unknown; company_domain?: unknown; company_url?: unknown }
-          | null
-        const companyName =
-          (typeof leadRow?.company_name === 'string' && leadRow.company_name.trim()) ||
-          (typeof topicName === 'string' && topicName.trim()) ||
-          (typeof leadRow?.company_domain === 'string' && leadRow.company_domain.trim()) ||
-          (typeof input === 'string' && input.trim()) ||
-          'Unknown company'
-        const companyDomain =
-          (typeof leadRow?.company_domain === 'string' && leadRow.company_domain.trim()) ||
-          (typeof domain === 'string' && domain.trim()) ||
-          null
-        const inputUrl = typeof leadRow?.company_url === 'string' ? leadRow.company_url : looksLikeUrl(input) ? input : null
-
-        const title = `Competitive Report: ${companyName}`
-        await queryWithSchemaFallback(request, bridge, async (client) => {
-          const { error } = await client.from('user_reports').insert({
-            user_id: userId,
-            status: 'complete',
-            company_name: companyName,
-            company_domain: companyDomain,
-            input_url: inputUrl,
-            title,
-            report_markdown: pitch,
-            report_json: null,
-            meta: {
-              source: 'generate_pitch',
-              lead_id: leadId,
-              template_id: template.id,
-              hasTriggerEvent,
-            },
-          })
-          return { data: null, error }
-        })
-      } catch {
-        warnings.push('Report history write failed (user_reports insert).')
-      }
     } else {
       warnings.push('Pitch history not saved (missing lead id).')
     }
@@ -515,40 +474,6 @@ export const POST = withApiGuard(
       const successResponse = ok(response, undefined, bridge, requestId)
       return successResponse
     } catch (error) {
-      // Persist a failed report record (best-effort, user-scoped via RLS). Never block the response.
-      try {
-        const rawInput = typeof (body as any)?.companyUrl === 'string' ? String((body as any).companyUrl).trim() : ''
-        const input = rawInput || ''
-        const isUrlLike = input ? looksLikeUrl(input) : false
-        const topicName = input ? extractTopicName(input) : 'Unknown company'
-        const domain = input ? safeExtractDomain(input) : null
-
-        const title = `Competitive report failed: ${topicName}`
-        const report_markdown =
-          '# Report generation failed\n\nWe couldn’t complete this report due to a temporary issue. Please try again shortly.\n\nIf this repeats, contact leadintel@dazrael.com.'
-
-        await queryWithSchemaFallback(request, bridge, async (client) => {
-          const { error: insertError } = await client.from('user_reports').insert({
-            user_id: userId,
-            status: 'failed',
-            company_name: topicName,
-            company_domain: domain,
-            input_url: isUrlLike ? input : null,
-            title,
-            report_markdown,
-            report_json: null,
-            meta: {
-              source: 'generate_pitch',
-              generatedAt: new Date().toISOString(),
-              errorCode: error instanceof Error ? error.name : 'unknown_error',
-            },
-          })
-          return { data: null, error: insertError }
-        })
-      } catch {
-        // best-effort
-      }
-
       return asHttpError(error, '/api/generate-pitch', userId, bridge, requestId)
     }
   },
