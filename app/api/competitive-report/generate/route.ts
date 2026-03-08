@@ -5,6 +5,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { refreshCompanySources } from '@/lib/sources/orchestrate'
 import { generateCompetitiveIntelligenceReportSourced } from '@/lib/reports/competitive-report-sourced'
 import { normalizeCompanyKey } from '@/lib/sources/normalize'
+import { looksLikeEmail } from '@/lib/reports/reportFormatGuards'
 
 const BodySchema = z.object({
   company_name: z.string().trim().min(1).max(120),
@@ -100,7 +101,7 @@ export const POST = withApiGuard(
         }))
         .filter((s) => s.headline.length > 0 && s.sourceUrl.startsWith('http'))
 
-      const generated = await generateCompetitiveIntelligenceReportSourced({
+      const baseGenArgs = {
         companyName,
         companyDomain,
         inputUrl,
@@ -111,7 +112,16 @@ export const POST = withApiGuard(
           idealCustomer: typeof userSettings?.ideal_customer === 'string' ? userSettings.ideal_customer : null,
         },
         internalSignals,
-      })
+      } satisfies Parameters<typeof generateCompetitiveIntelligenceReportSourced>[0]
+
+      let generated = await generateCompetitiveIntelligenceReportSourced(baseGenArgs)
+      if (looksLikeEmail(generated.reportMarkdown)) {
+        // One strict-format retry to avoid persisting email-like output as a report.
+        generated = await generateCompetitiveIntelligenceReportSourced({ ...baseGenArgs, strictFormat: true })
+        if (looksLikeEmail(generated.reportMarkdown)) {
+          throw new Error('REPORT_FORMAT_INVALID')
+        }
+      }
 
       const latencyMs = Date.now() - startedAt
       const title = `Competitive report: ${companyName}`
@@ -182,7 +192,9 @@ export const POST = withApiGuard(
           input_url: inputUrl,
           title: `Competitive report failed: ${companyName}`,
           report_markdown:
-            '# Competitive Intelligence Report\n\nWe couldn’t complete this report due to a temporary issue.\n\n## What you can do next\n- Try again in a moment.\n- If this repeats, check your OpenAI configuration and server logs.\n\n## Verification checklist (to avoid guessing)\n- Homepage / product page\n- Pricing page\n- Careers page\n- Press / blog\n- Review sites (G2/Capterra)\n- LinkedIn posts\n',
+            error instanceof Error && error.message === 'REPORT_FORMAT_INVALID'
+              ? '# Competitive Intelligence Report\n\nWe couldn’t save this report because the generated content did not match the required report format.\n\n## What you can do next\n- Try again.\n- If it repeats, refresh sources and regenerate.\n\n## Verification checklist\n- Homepage / product page\n- Pricing page\n- Careers page\n- Press / blog\n- Review sites (G2/Capterra)\n- LinkedIn posts\n'
+              : '# Competitive Intelligence Report\n\nWe couldn’t complete this report due to a temporary issue.\n\n## What you can do next\n- Try again in a moment.\n- If this repeats, check your OpenAI configuration and server logs.\n\n## Verification checklist\n- Homepage / product page\n- Pricing page\n- Careers page\n- Press / blog\n- Review sites (G2/Capterra)\n- LinkedIn posts\n',
           report_json: null,
           sources_used: [],
           sources_fetched_at: null,
@@ -196,6 +208,17 @@ export const POST = withApiGuard(
         })
       } catch {
         // best-effort
+      }
+
+      if (error instanceof Error && error.message === 'REPORT_FORMAT_INVALID') {
+        return fail(
+          ErrorCode.EXTERNAL_API_ERROR,
+          'Report format invalid — please try again',
+          { code: 'REPORT_FORMAT_INVALID' },
+          undefined,
+          bridge,
+          requestId
+        )
       }
 
       // Prefer a safe external-api style error code for generator failures.
