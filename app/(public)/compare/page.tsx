@@ -6,19 +6,21 @@ import { Badge } from '@/components/ui/badge'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 import { JsonLd } from '@/components/seo/JsonLd'
-import { COMPARE_PAGES } from '@/lib/compare/registry'
+import { COMPARE_PAGES, COMPETITOR_MATRIX } from '@/lib/compare/registry'
+import { CompetitorMatrix } from '@/components/compare/CompetitorMatrix'
+import { CategoryStrengthTable } from '@/components/compare/CategoryStrengthTable'
 
 export const metadata: Metadata = {
   title: 'Compare | LeadIntel',
-  description: 'See where LeadIntel fits—and when another approach is a better match.',
+  description: 'A buyer-grade comparison hub for signal-based outbound workflows and why-now execution.',
   alternates: { canonical: 'https://dazrael.com/compare' },
   openGraph: {
     title: 'Compare | LeadIntel',
-    description: 'See where LeadIntel fits—and when another approach is a better match.',
+    description: 'A buyer-grade comparison hub for signal-based outbound workflows and why-now execution.',
     url: 'https://dazrael.com/compare',
     images: [
       {
-        url: '/api/og?title=Compare&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        url: '/api/og?title=Compare&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20outreach',
         width: 1200,
         height: 630,
       },
@@ -28,6 +30,15 @@ export const metadata: Metadata = {
 
 export default function CompareHubPage() {
   const pages = COMPARE_PAGES
+  const matrixEntries = COMPETITOR_MATRIX.map((e) => ({
+    key: e.key,
+    name: e.name,
+    score: e.threatScore,
+    threatSummary: e.threatSummary,
+    leadIntelWins: e.leadIntelWins,
+    theyDoBetter: e.theyDoBetter,
+    compareHref: e.compareSlug ? `/compare/${e.compareSlug}` : undefined,
+  }))
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -42,11 +53,24 @@ export default function CompareHubPage() {
   }
 
   return (
-    <MarketingPage title="Compare" subtitle="See where LeadIntel fits—and when another approach is a better match.">
+    <MarketingPage title="Compare" subtitle="Buyer-grade comparisons for signal-based outbound workflows.">
       <JsonLd data={jsonLd} />
       <PageViewTrack event="compare_hub_view" props={{ page: 'compare' }} />
 
       <div className="grid grid-cols-1 gap-6">
+        <CompetitorMatrix entries={matrixEntries} />
+
+        <CategoryStrengthTable
+          title="How LeadIntel fits the category"
+          rows={[
+            { category: 'Clarity', leadintel: 'Strong: simple daily loop and explainable scoring.', competitorSet: 'Often broad and multi-module; can be harder to evaluate quickly.' },
+            { category: 'Explainability', leadintel: 'Strong: visible reasons behind the 0–100 score.', competitorSet: 'Often deeper but can be less transparent or more complex.' },
+            { category: 'Speed-to-value', leadintel: 'Strong: no-signup sample + quick workflow understanding.', competitorSet: 'Frequently requires deeper setup and longer evaluation.' },
+            { category: 'Signal breadth', leadintel: 'Focused: best when timing is the priority.', competitorSet: 'Typically stronger breadth and identity capture.' },
+            { category: 'Workflow depth', leadintel: 'Growing: action layer via webhooks/exports + team governance.', competitorSet: 'Often stronger automation and enterprise depth.' },
+          ]}
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {pages.map((p) => (
             <Card key={p.slug} className="border-cyan-500/20 bg-card/60">

@@ -147,7 +147,7 @@ export function InteractiveWorkspaceDemo() {
   const markInteracted = useCallback(() => {
     if (interacted.current) return
     interacted.current = true
-    track('tour_workspace_interacted', { surface: 'interactive_demo' })
+    track('tour_preview_interacted', { surface: 'interactive_demo' })
   }, [])
 
   const copyText = useCallback(
@@ -156,7 +156,7 @@ export function InteractiveWorkspaceDemo() {
       try {
         await navigator.clipboard.writeText(text)
         toast({ variant: 'success', title: 'Copied', description: 'Copied to clipboard.' })
-        track('tour_workspace_copy', { kind })
+        track('tour_preview_copy', { kind })
       } catch {
         toast({ variant: 'destructive', title: 'Copy failed', description: 'Your browser blocked clipboard access.' })
       }
@@ -179,7 +179,7 @@ export function InteractiveWorkspaceDemo() {
     a.click()
     URL.revokeObjectURL(url)
     toast({ variant: 'success', title: 'Exported', description: 'Downloaded a 1-account CSV.' })
-    track('tour_workspace_export_clicked', { kind: 'single_account_csv' })
+    track('tour_preview_export_clicked', { kind: 'single_account_csv' })
   }, [active, markInteracted, momentum.label, toast])
 
   return (
@@ -187,13 +187,13 @@ export function InteractiveWorkspaceDemo() {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-lg">Interactive workspace preview</CardTitle>
+            <CardTitle className="text-lg">Interactive product preview</CardTitle>
             <div className="mt-1 text-sm text-muted-foreground">
-              A simulated walk-through of the workflow: target accounts → daily shortlist → score explanation → why-now → send-ready action.
+              Preview based on realistic example data: tracked accounts → daily shortlist → score explanation → signal timeline → send-ready action.
             </div>
           </div>
           <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
-            Simulated demo
+            Preview
           </Badge>
         </div>
       </CardHeader>

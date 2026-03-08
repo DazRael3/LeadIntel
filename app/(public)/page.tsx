@@ -2,6 +2,27 @@ import { redirect } from 'next/navigation'
 import LandingClient from '../LandingClient'
 import { createClient } from '@/lib/supabase/server'
 import { JsonLd } from '@/components/seo/JsonLd'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'LeadIntel | Why-now signals and send-ready outreach',
+  description:
+    'Signal-based outbound platform: why-now intelligence, daily shortlist, explainable scoring, and send-ready outreach.',
+  alternates: { canonical: 'https://dazrael.com' },
+  openGraph: {
+    title: 'LeadIntel | Why-now signals and send-ready outreach',
+    description:
+      'Why-now intelligence, daily shortlist, explainable scoring, and send-ready outreach in minutes.',
+    url: 'https://dazrael.com',
+    images: [
+      {
+        url: '/api/og?title=LeadIntel&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20outreach',
+        width: 1200,
+        height: 630,
+      },
+    ],
+  },
+}
 
 export default async function Page() {
   try {

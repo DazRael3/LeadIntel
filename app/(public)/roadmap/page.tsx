@@ -7,14 +7,14 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 
 export const metadata: Metadata = {
   title: 'Roadmap | LeadIntel',
-  description: 'Product direction and operating principles for LeadIntel.',
+  description: 'Directional product focus: deeper signal context, stronger actionability, and better team operations.',
   openGraph: {
     title: 'Roadmap | LeadIntel',
-    description: 'Product direction and operating principles for LeadIntel.',
+    description: 'Directional product focus: deeper signal context, stronger actionability, and better team operations.',
     url: 'https://dazrael.com/roadmap',
     images: [
       {
-        url: '/api/og?title=Roadmap&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        url: '/api/og?title=Roadmap&subtitle=Directional%20product%20focus',
         width: 1200,
         height: 630,
       },
@@ -24,37 +24,69 @@ export const metadata: Metadata = {
 
 export default function RoadmapPage() {
   return (
-    <MarketingPage title="Roadmap" subtitle="Product direction and what we optimize for.">
-      <PageViewTrack event="trust_page_view" props={{ page: 'roadmap' }} />
+    <MarketingPage title="Where LeadIntel is getting stronger" subtitle="Directional product focus (not committed ship dates).">
+      <PageViewTrack event="roadmap_section_viewed" props={{ page: 'roadmap' }} />
 
       <div className="grid grid-cols-1 gap-6">
         <Card className="border-cyan-500/20 bg-card/60">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Operating principles</CardTitle>
+            <CardTitle className="text-lg">Roadmap framing</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-2">
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Signal quality over volume: fewer alerts, more “why now”.</li>
-              <li>Deterministic workflows: repeatable scoring and templates that teams can operationalize.</li>
-              <li>Fast time-to-value: setup → watchlist → first digest.</li>
-              <li>Security and reliability as defaults (least privilege, safe logging, rate limits).</li>
-            </ul>
+          <CardContent className="text-sm text-muted-foreground space-y-3">
+            <div>
+              LeadIntel already helps teams move from fresh signal to send-ready outreach quickly. The next wave of improvements is focused on deeper signal
+              context, stronger actionability, and better team operations.
+            </div>
+            <div className="text-xs text-muted-foreground">
+              This roadmap is directional product focus—priorities can shift based on buyer needs and operational constraints.
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-cyan-500/20 bg-card/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Focus areas</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-2">
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Better “why now” explanations tied to specific triggers.</li>
-              <li>More consistent templates and team-level governance.</li>
-              <li>Operational visibility (status, versioning, health checks).</li>
-              <li>Clearer trust documentation and buyer enablement.</li>
-            </ul>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">P0 now</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              <ul className="list-disc pl-5 space-y-1">
+                <li>First-party intent + website-visitor layer</li>
+                <li>Contact/persona recommendations inside accounts</li>
+                <li>Signal momentum timeline</li>
+                <li>Stronger action center beyond plain export</li>
+                <li>Compare pages for the modern competitive set</li>
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">P1 next</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Buying-group capture</li>
+                <li>Saved account briefs</li>
+                <li>Workflow recipes for CRM and sequencer handoff</li>
+                <li>Stronger customer proof program</li>
+                <li>Interactive tour that feels real, not simulated</li>
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">P2 later</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Team analytics on what signals convert</li>
+                <li>Deeper enterprise controls</li>
+                <li>Bring-your-own-signal ingestion</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Button asChild className="neon-border hover:glow-effect">

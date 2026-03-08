@@ -22,6 +22,8 @@ const ROUTES: string[] = [
   '/pricing',
   '/templates',
   '/support',
+  '/trust',
+  '/version',
   '/settings/notifications',
   '/use-cases',
   '/use-cases/funding-outreach',

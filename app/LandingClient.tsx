@@ -20,6 +20,9 @@ import { ProofStrip } from "@/components/marketing/ProofStrip"
 import { WorkflowRail } from "@/components/marketing/WorkflowRail"
 import { EvidenceCards } from "@/components/marketing/EvidenceCards"
 import { TrustFacts } from "@/components/marketing/TrustFacts"
+import { WhySwitchCards } from "@/components/marketing/WhySwitchCards"
+import { SignalCoverage } from "@/components/marketing/SignalCoverage"
+import { ProofYouCanInspect } from "@/components/marketing/ProofYouCanInspect"
 import { track } from "@/lib/analytics"
 import { COPY } from "@/lib/copy/leadintel"
 
@@ -343,24 +346,15 @@ export default function LandingClient() {
                     </Button>
                   </CardContent>
                 </Card>
-                <Card className="border-cyan-500/10 bg-card/50">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Signals included</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline">Funding</Badge>
-                      <Badge variant="outline">Product launches</Badge>
-                      <Badge variant="outline">Hiring spikes</Badge>
-                      <Badge variant="outline">Press / partnerships</Badge>
-                      <Badge variant="outline">Other trigger events</Badge>
-                    </div>
-                    <div className="mt-3 text-xs text-muted-foreground">
-                      Signals vary by source availability. LeadIntel stays conservative when sources are thin.
-                    </div>
-                  </CardContent>
-                </Card>
+                <SignalCoverage />
               </div>
+            </section>
+
+            <section className="scroll-mt-24 space-y-6">
+              <div>
+                <h3 className="text-2xl font-bold">Why teams switch to LeadIntel</h3>
+              </div>
+              <WhySwitchCards />
             </section>
 
             {/* How it works */}
@@ -372,11 +366,15 @@ export default function LandingClient() {
               <div>
                 <h3 className="text-2xl font-bold">Evidence, not hype</h3>
                 <p className="mt-2 text-muted-foreground max-w-3xl">
-                  The product is built around real mechanics: deterministic scoring, sources and freshness, team governance, and an action layer.
+                  LeadIntel is built around inspectable mechanics: deterministic scoring, a public sample flow, an action layer, and public trust pages.
                 </p>
               </div>
               <EvidenceCards />
               <TrustFacts />
+            </section>
+
+            <section className="scroll-mt-24">
+              <ProofYouCanInspect />
             </section>
 
             {/* Brand visual */}
