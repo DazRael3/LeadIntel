@@ -16,6 +16,10 @@ import { BrandHero } from "@/components/BrandHero"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
 import { OneMinuteDemo } from "@/components/landing/OneMinuteDemo"
 import { TrySampleDigest } from "@/components/landing/TrySampleDigest"
+import { ProofStrip } from "@/components/marketing/ProofStrip"
+import { WorkflowRail } from "@/components/marketing/WorkflowRail"
+import { EvidenceCards } from "@/components/marketing/EvidenceCards"
+import { TrustFacts } from "@/components/marketing/TrustFacts"
 import { track } from "@/lib/analytics"
 import { COPY } from "@/lib/copy/leadintel"
 
@@ -242,7 +246,7 @@ export default function LandingClient() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">LeadIntel</h1>
-              <p className="text-sm text-muted-foreground">B2B Lead Intelligence Portal</p>
+              <p className="text-sm text-muted-foreground">Why-now intelligence and send-ready outreach for outbound teams</p>
             </div>
             <div className="flex items-center gap-4">
               {!isLoggedIn ? (
@@ -291,12 +295,8 @@ export default function LandingClient() {
                   <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
                     {COPY.home.hero.headline}
                   </h2>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {COPY.positioning.icpLine}
-                  </p>
-                  <p className="text-lg text-muted-foreground mt-4 max-w-3xl">
-                    {COPY.home.hero.support}
-                  </p>
+                  <p className="mt-4 text-lg text-muted-foreground max-w-3xl">{COPY.home.hero.subhead}</p>
+                  <p className="mt-3 text-sm text-muted-foreground max-w-3xl">{COPY.home.hero.support}</p>
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     <Button asChild size="lg" className="neon-border hover:glow-effect">
                       <Link href="#try-sample">{COPY.home.hero.primaryCta}</Link>
@@ -314,50 +314,9 @@ export default function LandingClient() {
                     {COPY.home.hero.microTrust}
                   </div>
 
-                  <div className="mt-6">
-                    <div className="text-sm font-medium text-foreground">{COPY.home.whatYouGet.title}</div>
-                    <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                      {COPY.home.whatYouGet.bullets.map((b) => (
-                        <li key={b}>{b}</li>
-                      ))}
-                    </ul>
+                  <div className="mt-8">
+                    <ProofStrip />
                   </div>
-
-                  <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="border-cyan-500/10 bg-card/50">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-2 font-semibold">
-                        <TrendingUp className="h-4 w-4 text-cyan-400" />
-                        Daily Deal Digest
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Once a day, get a ranked shortlist of accounts and events worth acting on.
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-cyan-500/10 bg-card/50">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-2 font-semibold">
-                        <Zap className="h-4 w-4 text-cyan-400" />
-                        Deeper Lead Scoring
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Deterministic 0–100 scores with reasons so you know where to spend time.
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-cyan-500/10 bg-card/50">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-2 font-semibold">
-                        <Shield className="h-4 w-4 text-cyan-400" />
-                        Pitch Templates
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Pick a template (email, call opener, LinkedIn DM) and generate a pitch you can send.
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
                 </div>
               </div>
             </section>
@@ -397,7 +356,7 @@ export default function LandingClient() {
                       <Badge variant="outline">Other trigger events</Badge>
                     </div>
                     <div className="mt-3 text-xs text-muted-foreground">
-                      Signals are provider-backed and configurable. This list is illustrative, not exhaustive.
+                      Signals vary by source availability. LeadIntel stays conservative when sources are thin.
                     </div>
                   </CardContent>
                 </Card>
@@ -406,131 +365,18 @@ export default function LandingClient() {
 
             {/* How it works */}
             <section id="how-it-works" className="scroll-mt-24">
-              <div className="max-w-5xl">
-                <h3 className="text-2xl font-bold">How LeadIntel works</h3>
-                <p className="text-muted-foreground mt-2 max-w-3xl">
-                  A tight loop that turns signals into action — without the tab chaos.
-                </p>
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="border-cyan-500/10 bg-card/50">
-                    <CardHeader>
-                      <CardTitle className="text-base">1) Connect & choose your ICP</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                      Tell us what you sell and who you sell to. LeadIntel uses it to prioritize the right accounts.
-                    </CardContent>
-                  </Card>
-                  <Card className="border-cyan-500/10 bg-card/50">
-                    <CardHeader>
-                      <CardTitle className="text-base">2) We monitor, score, and summarize</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                      We ingest trigger events, score leads 0–100, and roll it into a Daily Deal Digest.
-                    </CardContent>
-                  </Card>
-                  <Card className="border-cyan-500/10 bg-card/50">
-                    <CardHeader>
-                      <CardTitle className="text-base">3) You send better pitches faster</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                      Pick a template (short email, call opener, LinkedIn DM) and generate a pitch with “why now” context.
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
+              <WorkflowRail />
             </section>
 
-            {/* Sample digest */}
-            <section id="sample-digest" className="scroll-mt-24">
-              <div className="max-w-5xl">
-                <h3 className="text-2xl font-bold">Daily Deal Digest (sample)</h3>
-                <p className="text-muted-foreground mt-2 max-w-3xl">
-                  Turn trigger events into a focused list you can act on today.
+            <section className="scroll-mt-24 space-y-6">
+              <div>
+                <h3 className="text-2xl font-bold">Evidence, not hype</h3>
+                <p className="mt-2 text-muted-foreground max-w-3xl">
+                  The product is built around real mechanics: deterministic scoring, sources and freshness, team governance, and an action layer.
                 </p>
-                <Card className="mt-6 border-cyan-500/20 bg-card/50">
-                  <CardContent className="pt-6">
-                    <pre className="text-xs md:text-sm whitespace-pre-wrap font-mono text-muted-foreground">
-{`LeadIntel Daily Digest (Sample)
-High-priority leads: 2
-Trigger events (7d): 6
-
-- Acme Logistics (acme.com) — score 84/100
-  • 2026-01-22: Raises Series A to expand outbound [funding, score=92]
-  • 2026-01-21: Launches new enterprise product tier [product_launch, score=78]
-
-- Northwind Security (northwind.io) — score 73/100
-  • 2026-01-20: Partners with a major cloud provider [partnership, score=74]
-
-Open LeadIntel to take action.`}
-                    </pre>
-                  </CardContent>
-                </Card>
-                <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                  <Button asChild size="lg">
-                    <Link href="/signup?redirect=/dashboard">Start free</Link>
-                  </Button>
-                  <Button asChild variant="outline" size="lg">
-                    <Link href="/pricing">See pricing</Link>
-                  </Button>
-                </div>
               </div>
-            </section>
-
-            {/* Pricing preview + ROI */}
-            <section className="scroll-mt-24">
-              <div className="max-w-6xl">
-                <h3 className="text-2xl font-bold">Pricing</h3>
-                <p className="text-muted-foreground mt-2 max-w-3xl">
-                  Premium, ROI-focused outbound — built to save hours and create pipeline.
-                </p>
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="border-cyan-500/10 bg-card/50">
-                    <CardHeader>
-                      <CardTitle className="text-xl">Starter (Free)</CardTitle>
-                      <p className="text-3xl font-bold">$0</p>
-                      <p className="text-sm text-muted-foreground">Kick the tires with basic pitches.</p>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-2">
-                      <p>• Basic pitch generation</p>
-                      <p>• Limited scoring and signals</p>
-                      <p>• Upgrade any time</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-cyan-500/30 bg-card/80">
-                    <CardHeader>
-                      <CardTitle className="text-xl">Closer</CardTitle>
-                      <p className="text-3xl font-bold">$79<span className="text-base text-muted-foreground"> / month</span></p>
-                      <p className="text-sm text-muted-foreground">
-                        For solo reps who want a daily deal shortlist and templates that convert.
-                      </p>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-2">
-                      <p>• Daily Deal Digest email with ranked accounts</p>
-                      <p>• Lead scoring (0–100) with reasons</p>
-                      <p>• AI pitch templates (email, call opener, LinkedIn DM)</p>
-                      <p>• Monitor more accounts and trigger events</p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div className="mt-10">
-                  <h4 className="text-xl font-bold">One meeting pays for the month.</h4>
-                  <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                    <p>• Stop spraying sequences at cold lists — focus on accounts with real buying signals.</p>
-                    <p>• Spend mornings in your inbox and on calls, not bouncing between tabs.</p>
-                    <p>• Standardize winning messaging across your org with templates that convert.</p>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex gap-3">
-                  <Button asChild size="lg">
-                    <Link href="/signup?redirect=/dashboard">Start free</Link>
-                  </Button>
-                  <Button asChild variant="outline" size="lg">
-                    <Link href="/pricing">See full pricing</Link>
-                  </Button>
-                </div>
-              </div>
+              <EvidenceCards />
+              <TrustFacts />
             </section>
 
             {/* Brand visual */}

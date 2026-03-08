@@ -11,6 +11,7 @@ export type ComparePage = {
   competitorName: string
   competitorType: string
   bestFor: string
+  bestForSections?: { leadintel: string[]; competitor: string[] }
   title: string
   description: string
   hero: {
@@ -49,6 +50,18 @@ export const COMPARE_PAGES: ComparePage[] = [
     competitorName: 'Apollo',
     competitorType: 'Prospecting + outbound tooling',
     bestFor: 'Best for: contact discovery + list building workflows.',
+    bestForSections: {
+      leadintel: [
+        'Account-based outbound teams who already have targets and care about timing.',
+        'Reps who want a daily shortlist with explainable scoring.',
+        'Teams that want send-ready outreach drafts tied to why-now signals.',
+      ],
+      competitor: [
+        'Teams prioritizing contact discovery and list building.',
+        'Workflows where outbound tooling is the primary decision criterion.',
+        'Motions optimizing for coverage and volume. ' + varies() + '.',
+      ],
+    },
     title: 'LeadIntel vs Apollo — Trigger-based alerts and instant pitch drafts',
     description:
       'A conservative comparison focused on workflow fit: daily trigger-based prioritization vs prospecting and outbound tooling.',
@@ -117,6 +130,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       { dimension: 'Daily prioritization', leadintel: 'Yes (shortlist + score)', competitor: varies() },
       { dimension: '“Why now” signal layer', leadintel: 'Yes (trigger-based context)', competitor: varies() },
       { dimension: 'Pitch draft generation', leadintel: 'Yes (email/DM/call openers)', competitor: varies() },
+      { dimension: 'Action layer (webhooks / exports)', leadintel: 'Yes (webhooks + exports)', competitor: varies() },
+      { dimension: 'Team governance (approvals + audit logs)', leadintel: 'Yes (Team plan)', competitor: varies() },
       { dimension: 'Contact database / enrichment', leadintel: 'Not the core focus', competitor: varies() },
       { dimension: 'Sequencing', leadintel: 'Not the core focus', competitor: varies() },
       { dimension: 'Company intelligence depth', leadintel: 'Focused on triggers + actionability', competitor: varies() },
@@ -148,6 +163,18 @@ export const COMPARE_PAGES: ComparePage[] = [
     competitorName: 'Sales Navigator',
     competitorType: 'LinkedIn-native research',
     bestFor: 'Best for: relationship context and LinkedIn-native research.',
+    bestForSections: {
+      leadintel: [
+        'Teams who want a daily shortlist and why-now execution loop.',
+        'Reps who want explainable scoring and send-ready drafts.',
+        'Workflows that start from “what changed” and ship an action quickly.',
+      ],
+      competitor: [
+        'Relationship-driven teams living inside LinkedIn messaging.',
+        'Org mapping and profile/context research workflows.',
+        'Prospecting and lead research inside LinkedIn. ' + varies() + '.',
+      ],
+    },
     title: 'LeadIntel vs Sales Navigator — Trigger-based alerts and instant pitch drafts',
     description:
       'A conservative comparison: LinkedIn-native research and relationship context vs trigger-based daily prioritization and pitch drafts.',
@@ -216,6 +243,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       { dimension: 'Daily prioritization', leadintel: 'Yes', competitor: varies() },
       { dimension: '“Why now” signal layer', leadintel: 'Yes', competitor: varies() },
       { dimension: 'Pitch draft generation', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Action layer (webhooks / exports)', leadintel: 'Yes (webhooks + exports)', competitor: varies() },
+      { dimension: 'Team governance (approvals + audit logs)', leadintel: 'Yes (Team plan)', competitor: varies() },
       { dimension: 'Contact database / enrichment', leadintel: 'Not the core focus', competitor: varies() },
       { dimension: 'Sequencing', leadintel: 'Not the core focus', competitor: varies() },
       { dimension: 'Company intelligence depth', leadintel: 'Triggers + actionability', competitor: 'LinkedIn profile/company context (' + varies() + ')' },
@@ -247,6 +276,18 @@ export const COMPARE_PAGES: ComparePage[] = [
     competitorName: 'Crunchbase',
     competitorType: 'Company + funding intelligence',
     bestFor: 'Best for: company/funding research and market mapping inputs.',
+    bestForSections: {
+      leadintel: [
+        'Outbound teams who need why-now execution, not just research.',
+        'Daily prioritization and explainable scoring for a defined watchlist.',
+        'Send-ready drafts plus an action layer for downstream workflows.',
+      ],
+      competitor: [
+        'Market mapping and company research (funding/firmographics).',
+        'Building segments and lists from research inputs.',
+        'Upstream intelligence work before execution. ' + varies() + '.',
+      ],
+    },
     title: 'LeadIntel vs Crunchbase — Trigger-based alerts and instant pitch drafts',
     description:
       'A conservative comparison: company intelligence and funding context vs trigger-based daily prioritization and pitch drafts.',
@@ -315,6 +356,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       { dimension: 'Daily prioritization', leadintel: 'Yes', competitor: varies() },
       { dimension: '“Why now” signal layer', leadintel: 'Yes', competitor: varies() },
       { dimension: 'Pitch draft generation', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Action layer (webhooks / exports)', leadintel: 'Yes (webhooks + exports)', competitor: varies() },
+      { dimension: 'Team governance (approvals + audit logs)', leadintel: 'Yes (Team plan)', competitor: varies() },
       { dimension: 'Contact database / enrichment', leadintel: 'Not the core focus', competitor: varies() },
       { dimension: 'Sequencing', leadintel: 'Not the core focus', competitor: varies() },
       { dimension: 'Company intelligence depth', leadintel: 'Action-oriented', competitor: varies() },
@@ -346,6 +389,18 @@ export const COMPARE_PAGES: ComparePage[] = [
     competitorName: 'Google Alerts',
     competitorType: 'Keyword-based web alerts',
     bestFor: 'Best for: broad keyword monitoring and awareness.',
+    bestForSections: {
+      leadintel: [
+        'Teams who want a watchlist-based daily shortlist and explainable scoring.',
+        'Reps who need why-now context and send-ready drafts.',
+        'Workflows that route action via webhooks/exports instead of copying links around.',
+      ],
+      competitor: [
+        'Broad keyword/topic monitoring and awareness.',
+        'Low-structure workflows that start from “read this later”.',
+        'Situations where ranking, scoring, and drafts aren’t required.',
+      ],
+    },
     title: 'LeadIntel vs Google Alerts — Trigger-based alerts and instant pitch drafts',
     description:
       'A conservative comparison: keyword-based web alerts vs watchlist-based daily prioritization and pitch drafts.',
@@ -414,6 +469,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       { dimension: 'Daily prioritization', leadintel: 'Yes', competitor: 'No (alerts are not ranked for sales execution)' },
       { dimension: '“Why now” signal layer', leadintel: 'Yes (summarized)', competitor: 'Partial (depends on article quality)' },
       { dimension: 'Pitch draft generation', leadintel: 'Yes', competitor: 'No' },
+      { dimension: 'Action layer (webhooks / exports)', leadintel: 'Yes (webhooks + exports)', competitor: 'No' },
+      { dimension: 'Team governance (approvals + audit logs)', leadintel: 'Yes (Team plan)', competitor: 'No' },
       { dimension: 'Contact database / enrichment', leadintel: 'Not the core focus', competitor: 'No' },
       { dimension: 'Sequencing', leadintel: 'Not the core focus', competitor: 'No' },
       { dimension: 'Company intelligence depth', leadintel: 'Action-focused', competitor: 'Varies by search results' },
@@ -445,6 +502,18 @@ export const COMPARE_PAGES: ComparePage[] = [
     competitorName: 'Manual research',
     competitorType: 'Tabs + ad hoc notes',
     bestFor: 'Best for: low-volume, bespoke outreach where time is not the bottleneck.',
+    bestForSections: {
+      leadintel: [
+        'Teams who need consistent daily prioritization and repeatable execution.',
+        'Reps who want explainable scoring and send-ready drafts as a baseline.',
+        'Workflows that need an action layer (push/export) rather than manual copy/paste.',
+      ],
+      competitor: [
+        'Very low-volume, bespoke accounts where time is not the bottleneck.',
+        'Research-heavy motions where each account is a project.',
+        'Situations where consistency and scale are not required.',
+      ],
+    },
     title: 'LeadIntel vs manual research — Trigger-based alerts and instant pitch drafts',
     description:
       'A conservative comparison: manual tab-based research vs a repeatable daily shortlist and draft workflow.',
@@ -513,6 +582,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       { dimension: 'Daily prioritization', leadintel: 'Yes', competitor: 'Manual and inconsistent' },
       { dimension: '“Why now” signal layer', leadintel: 'Built-in', competitor: 'Depends on your research' },
       { dimension: 'Pitch draft generation', leadintel: 'Built-in', competitor: 'Manual' },
+      { dimension: 'Action layer (webhooks / exports)', leadintel: 'Yes (webhooks + exports)', competitor: 'Manual routing' },
+      { dimension: 'Team governance (approvals + audit logs)', leadintel: 'Yes (Team plan)', competitor: 'Manual' },
       { dimension: 'Contact database / enrichment', leadintel: 'Not the core focus', competitor: 'Manual sourcing' },
       { dimension: 'Sequencing', leadintel: 'Not the core focus', competitor: 'Manual or separate tools' },
       { dimension: 'Company intelligence depth', leadintel: 'Action-focused', competitor: 'As deep as you have time for' },
@@ -544,6 +615,18 @@ export const COMPARE_PAGES: ComparePage[] = [
     competitorName: 'Spreadsheets',
     competitorType: 'Manual tracking',
     bestFor: 'Best for: small lists and simple tracking when automation isn’t required.',
+    bestForSections: {
+      leadintel: [
+        'Teams who want why-now prioritization rather than manual tracking.',
+        'Reps who want explainable scoring and send-ready drafts built in.',
+        'Workflows that need webhooks/exports to route actions.',
+      ],
+      competitor: [
+        'Tiny lists and simple tracking fields.',
+        'Manual updates where automation is not required.',
+        'Lightweight tracking artifacts with no drafting or scoring.',
+      ],
+    },
     title: 'LeadIntel vs spreadsheets — Trigger-based alerts and instant pitch drafts',
     description:
       'A conservative comparison: spreadsheets for tracking vs a workflow that turns timing signals into daily prioritization and drafts.',
@@ -612,6 +695,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       { dimension: 'Daily prioritization', leadintel: 'Yes (reasons + shortlist)', competitor: 'Manual' },
       { dimension: '“Why now” signal layer', leadintel: 'Yes', competitor: 'No' },
       { dimension: 'Pitch draft generation', leadintel: 'Yes', competitor: 'No' },
+      { dimension: 'Action layer (webhooks / exports)', leadintel: 'Yes (webhooks + exports)', competitor: varies() },
+      { dimension: 'Team governance (approvals + audit logs)', leadintel: 'Yes (Team plan)', competitor: varies() },
       { dimension: 'Sharing + collaboration', leadintel: varies(), competitor: varies() },
       { dimension: 'Setup complexity', leadintel: 'Light: ICP + watchlist', competitor: 'Low, but ongoing manual upkeep' },
       { dimension: 'Best-fit buyer', leadintel: 'Teams who want speed + consistency', competitor: 'Small lists and simple tracking' },

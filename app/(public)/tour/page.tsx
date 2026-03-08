@@ -6,6 +6,7 @@ import { JsonLd } from '@/components/seo/JsonLd'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { TourStepper } from '@/components/marketing/TourStepper'
+import { InteractiveWorkspaceDemo } from '@/components/marketing/InteractiveWorkspaceDemo'
 
 export const metadata: Metadata = {
   title: 'Product tour | LeadIntel',
@@ -40,6 +41,7 @@ export default function TourPage() {
       <PageViewTrack event="tour_page_view" props={{ page: 'tour' }} />
 
       <div className="grid grid-cols-1 gap-6">
+        <InteractiveWorkspaceDemo />
         <TourStepper />
 
         <Card className="border-cyan-500/20 bg-card/60">

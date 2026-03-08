@@ -28,7 +28,7 @@ export default async function Page() {
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       url: 'https://dazrael.com',
-      description: 'Daily “why now” signals, deterministic scoring, and outreach templates for outbound teams.',
+      description: 'Why-now signals for outbound teams with an explainable score and send-ready outreach.',
     },
   ]
 
