@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import type { FirstPartyIntent } from '@/lib/domain/explainability'
 import { formatRelativeDate } from '@/lib/domain/explainability'
 import { track } from '@/lib/analytics'
+import { IntentSummaryBar } from '@/components/account/IntentSummaryBar'
 
 type SourcesStatusEnvelope =
   | { ok: true; data: { company_key: string; sources: Record<string, { status: 'ok' | 'error'; fetched_at: string; expires_at: string; citations_count: number }> } }
@@ -26,6 +27,7 @@ function safeLink(url: string): string | null {
 }
 
 export function FirstPartyIntentCard(props: {
+  accountId?: string
   companyName: string | null
   companyDomain: string | null
   inputUrl: string | null
@@ -40,6 +42,7 @@ export function FirstPartyIntentCard(props: {
 
   const visitor = props.firstPartyIntent.visitorMatches
   const hasVisitors = visitor.count > 0
+  const summary = props.firstPartyIntent.summary
 
   const refreshSourcesStatus = async () => {
     if (!canCheckSources) return
@@ -70,6 +73,7 @@ export function FirstPartyIntentCard(props: {
   }
 
   useEffect(() => {
+    track('first_party_intent_viewed', { accountId: props.accountId ?? null })
     void refreshSourcesStatus()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run on mount only; this card is inside a modal
   }, [])
@@ -85,6 +89,18 @@ export function FirstPartyIntentCard(props: {
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-sm text-muted-foreground">
+        <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Intent summary</div>
+          <div className="mt-2">
+            <IntentSummaryBar
+              summary={summary}
+              visitorCount={visitor.count}
+              lastVisitedAtLabel={visitor.lastVisitedAt ? formatRelativeDate(visitor.lastVisitedAt) : null}
+            />
+          </div>
+          <div className="mt-2 text-xs text-muted-foreground">{summary.summary}</div>
+        </div>
+
         <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">Website visitors (matched)</div>

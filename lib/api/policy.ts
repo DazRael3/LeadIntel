@@ -1013,6 +1013,45 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'GET:/api/accounts/[leadId]/personas': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 120,
+      ipPerMin: 60,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/accounts/[leadId]/intent': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 120,
+      ipPerMin: 60,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/accounts/[leadId]/momentum': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 120,
+      ipPerMin: 60,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'GET:/api/accounts/[leadId]/brief': {
     tier: 'D',
     maxBytes: 0,
@@ -1055,6 +1094,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
   'POST:/api/accounts/[leadId]/push': {
     tier: 'WRITE',
     maxBytes: 8192,
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 10,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/accounts/[leadId]/actions/outreach-variants': {
+    tier: 'WRITE',
+    maxBytes: 4096,
     rateLimit: {
       authPerMin: 30,
       ipPerMin: 10,

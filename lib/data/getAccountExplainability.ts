@@ -3,6 +3,10 @@ import type { FirstPartyIntent, SignalEvent, SignalMomentum, ScoreExplainability
 import { safeExternalLink } from '@/lib/domain/explainability'
 import { classifyAndScoreEvents, type TriggerEvent as EngineEvent } from '@/lib/services/trigger-events/engine'
 import { scoreLeadDetailed } from '@/lib/services/lead-scoring'
+import type { BuyingGroupRecommendation, PersonaRecommendationSummary } from '@/lib/domain/people'
+import { deriveBuyingGroup } from '@/lib/services/buying-group'
+import { derivePersonaRecommendations } from '@/lib/services/persona-recommendations'
+import { deriveFirstPartyIntentSummary } from '@/lib/services/first-party-intent'
 
 type DbLeadRow = {
   id: string
@@ -47,6 +51,10 @@ export type AccountExplainability = {
   scoreExplainability: ScoreExplainability
   momentum: SignalMomentum
   firstPartyIntent: FirstPartyIntent
+  people: {
+    personas: PersonaRecommendationSummary
+    buyingGroup: BuyingGroupRecommendation
+  }
 }
 
 function daysAgoIso(days: number): string {
@@ -343,6 +351,19 @@ export async function getAccountExplainability(args: {
 
   const mostRecentSignalAt = signals.map((s) => s.detectedAt).sort((a, b) => b.localeCompare(a))[0] ?? null
   const highSignalEvents = scoredEventsCurrent.filter((e) => e.score >= 70).length
+  const mostRecentHighImpact = (() => {
+    const high = scoredEventsCurrent.filter((e) => e.score >= 70)
+    if (high.length === 0) return null
+    const byRecency = [...high].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    const top = byRecency[0]
+    return top
+      ? {
+          title: top.title,
+          detectedAt: top.publishedAt,
+          sourceUrl: top.url ?? null,
+        }
+      : null
+  })()
 
   const momentum: SignalMomentum = {
     window,
@@ -353,6 +374,7 @@ export async function getAccountExplainability(args: {
     topSignalTypes,
     highSignalEvents,
     mostRecentSignalAt,
+    mostRecentHighImpactEvent: mostRecentHighImpact,
   }
 
   // First-party intent (domain-matched website visitors), when available.
@@ -395,6 +417,24 @@ export async function getAccountExplainability(args: {
     }
   }
 
+  const firstPartyIntent: FirstPartyIntent = {
+    visitorMatches,
+    summary: deriveFirstPartyIntentSummary({ visitorMatches }),
+  }
+
+  const personas = derivePersonaRecommendations({
+    companyName: (lead.company_name ?? '').trim() || 'Unknown company',
+    signals,
+    momentum,
+    firstPartyVisitorCount14d: visitorMatches.count,
+    userContext: {
+      whatYouSell: userSettings?.what_you_sell ?? null,
+      idealCustomer: userSettings?.ideal_customer ?? null,
+    },
+  })
+
+  const buyingGroup = deriveBuyingGroup(personas)
+
   return {
     account: {
       id: lead.id,
@@ -407,7 +447,11 @@ export async function getAccountExplainability(args: {
     signals,
     scoreExplainability,
     momentum,
-    firstPartyIntent: { visitorMatches },
+    firstPartyIntent,
+    people: {
+      personas,
+      buyingGroup,
+    },
   }
 }
 

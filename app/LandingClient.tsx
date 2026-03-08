@@ -23,6 +23,8 @@ import { TrustFacts } from "@/components/marketing/TrustFacts"
 import { WhySwitchCards } from "@/components/marketing/WhySwitchCards"
 import { SignalCoverage } from "@/components/marketing/SignalCoverage"
 import { ProofYouCanInspect } from "@/components/marketing/ProofYouCanInspect"
+import { ProofLayer } from "@/components/marketing/ProofLayer"
+import { MigrationStories } from "@/components/marketing/MigrationStories"
 import { track } from "@/lib/analytics"
 import { COPY } from "@/lib/copy/leadintel"
 
@@ -371,6 +373,14 @@ export default function LandingClient() {
               </div>
               <EvidenceCards />
               <TrustFacts />
+            </section>
+
+            <section className="scroll-mt-24 space-y-6">
+              <ProofLayer />
+            </section>
+
+            <section className="scroll-mt-24 space-y-6">
+              <MigrationStories />
             </section>
 
             <section className="scroll-mt-24">

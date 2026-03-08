@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
-import { Copy, Download, ExternalLink, Send } from 'lucide-react'
+import { Copy, Download, ExternalLink, Send, Users } from 'lucide-react'
 
 type DemoSignalType = 'hiring' | 'product' | 'partnership' | 'press' | 'web_intent'
 
@@ -29,6 +29,14 @@ type DemoAccount = {
   scoreDelta7d: number
   whyNow: string
   topSignals: DemoSignal[]
+  people: {
+    champion: string
+    economicBuyer: string
+    evaluator: string
+    openerByPersona: Array<{ persona: string; channel: 'email' | 'linkedin_dm' | 'call'; text: string }>
+    limitations: string[]
+  }
+  firstPartyIntent: { label: 'No first-party intent yet' | 'Early intent' | 'Active research' | 'Returning interest'; freshness: string; note: string }
   opener: { channel: 'email' | 'linkedin_dm' | 'call'; subject?: string; body: string }
 }
 
@@ -66,6 +74,11 @@ export function InteractiveWorkspaceDemo() {
         score: 87,
         scoreDelta7d: 11,
         whyNow: 'Multiple operational signals suggest active evaluation. The goal is to contact while timing is fresh—before a vendor is chosen.',
+        firstPartyIntent: {
+          label: 'Active research',
+          freshness: 'visited in last 48 hours',
+          note: 'Example-only: first-party intent requires your tracking context. LeadIntel shows this only when observed.',
+        },
         topSignals: [
           {
             id: 'sig_1',
@@ -84,6 +97,26 @@ export function InteractiveWorkspaceDemo() {
             confidence: 0.64,
           },
         ],
+        people: {
+          champion: 'Director RevOps',
+          economicBuyer: 'VP Sales',
+          evaluator: 'Product Marketing',
+          openerByPersona: [
+            {
+              persona: 'Director RevOps',
+              channel: 'linkedin_dm',
+              text:
+                `Noticed hiring/messaging momentum — quick question for Director RevOps: what’s driving priority at {{company}} right now (pipeline creation vs process standardization)?\n\nWe help outbound teams turn timing signals into a daily shortlist and send-ready outreach.\n\nIf helpful, I can share a short why-now workflow.`,
+            },
+            {
+              persona: 'VP Sales',
+              channel: 'email',
+              text:
+                `Noticed why-now momentum around {{company}}.\n\nQuick question for VP Sales: what’s driving priority right now—pipeline creation, conversion, or standardizing outbound?\n\nWe help outbound teams turn timing signals into a daily shortlist and send-ready outreach.\n\nWorth 10 minutes this week?`,
+            },
+          ],
+          limitations: ['Persona recommendations are heuristic and signal-based (not named contact data).'],
+        },
         opener: {
           channel: 'email',
           subject: 'Quick question on the RevOps push',
@@ -98,6 +131,11 @@ export function InteractiveWorkspaceDemo() {
         score: 78,
         scoreDelta7d: 3,
         whyNow: 'A small cluster of signals suggests active motion, but urgency is moderate. Prioritize after the highest-momentum accounts.',
+        firstPartyIntent: {
+          label: 'Early intent',
+          freshness: 'visited in last 14 days',
+          note: 'Example-only: shown when domain-matched visitor activity exists.',
+        },
         topSignals: [
           {
             id: 'sig_3',
@@ -108,6 +146,20 @@ export function InteractiveWorkspaceDemo() {
             confidence: 0.57,
           },
         ],
+        people: {
+          champion: 'Director RevOps',
+          economicBuyer: 'VP Sales',
+          evaluator: 'Security',
+          openerByPersona: [
+            {
+              persona: 'Security',
+              channel: 'email',
+              text:
+                `Noticed recent momentum around {{company}}. Quick question for Security: what does vendor review require right now?\n\nWe keep trust artifacts inspectable (policies, status) and keep secrets server-side.\n\nIf helpful, I can share a short trust checklist.`,
+            },
+          ],
+          limitations: ['Signal coverage is light in this example — keep outreach claims minimal.'],
+        },
         opener: {
           channel: 'linkedin_dm',
           body:
@@ -121,6 +173,11 @@ export function InteractiveWorkspaceDemo() {
         score: 73,
         scoreDelta7d: -7,
         whyNow: 'Signals are cooling. Keep on the watchlist, but shift outreach time toward rising accounts.',
+        firstPartyIntent: {
+          label: 'No first-party intent yet',
+          freshness: 'no visitor match',
+          note: 'Example-only: LeadIntel shows a premium empty state when no match exists.',
+        },
         topSignals: [
           {
             id: 'sig_4',
@@ -131,6 +188,13 @@ export function InteractiveWorkspaceDemo() {
             confidence: 0.52,
           },
         ],
+        people: {
+          champion: 'Director RevOps',
+          economicBuyer: 'VP Sales',
+          evaluator: 'Partnerships',
+          openerByPersona: [],
+          limitations: ['Timing is cooling. Consider monitoring until a stronger signal arrives.'],
+        },
         opener: {
           channel: 'call',
           body:
@@ -189,7 +253,7 @@ export function InteractiveWorkspaceDemo() {
           <div>
             <CardTitle className="text-lg">Interactive product preview</CardTitle>
             <div className="mt-1 text-sm text-muted-foreground">
-              Preview based on realistic example data: tracked accounts → daily shortlist → score explanation → signal timeline → send-ready action.
+              Preview based on realistic example data: tracked accounts → daily shortlist → score explanation → intent + signals → people recommendations → send-ready action.
             </div>
           </div>
           <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
@@ -260,6 +324,9 @@ export function InteractiveWorkspaceDemo() {
               <TabsTrigger value="signals" onClick={markInteracted}>
                 Signal timeline
               </TabsTrigger>
+              <TabsTrigger value="people" onClick={markInteracted}>
+                People
+              </TabsTrigger>
               <TabsTrigger value="draft" onClick={markInteracted}>
                 Outreach draft
               </TabsTrigger>
@@ -327,6 +394,73 @@ export function InteractiveWorkspaceDemo() {
                     </div>
                   ))}
                 </div>
+                <div className="mt-4 rounded-lg border border-cyan-500/10 bg-black/20 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-medium text-foreground">First-party intent (simulated)</div>
+                    <Badge variant="outline">{active.firstPartyIntent.label}</Badge>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {active.firstPartyIntent.freshness} · {active.firstPartyIntent.note}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="people">
+              <div className="rounded-xl border border-cyan-500/10 bg-background/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-foreground">Recommended people (simulated)</div>
+                  <Badge variant="outline" className="inline-flex items-center gap-1">
+                    <Users className="h-3 w-3" /> heuristic
+                  </Badge>
+                </div>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Persona-level recommendations tied to signals and intent. LeadIntel does not invent named contacts.
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  {[
+                    { label: 'Champion', value: active.people.champion },
+                    { label: 'Economic buyer', value: active.people.economicBuyer },
+                    { label: 'Evaluator', value: active.people.evaluator },
+                  ].map((x) => (
+                    <div key={x.label} className="rounded-lg border border-cyan-500/10 bg-black/20 p-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{x.label}</div>
+                      <div className="mt-1 text-sm font-medium text-foreground">{x.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {active.people.openerByPersona.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Opener directions</div>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      {active.people.openerByPersona.map((o) => (
+                        <div key={`${o.persona}-${o.channel}`} className="rounded-lg border border-cyan-500/10 bg-black/20 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <Badge variant="outline">{o.persona}</Badge>
+                            <Badge variant="outline">{o.channel}</Badge>
+                          </div>
+                          <pre className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">{o.text}</pre>
+                          <Button variant="outline" size="sm" className="mt-3" onClick={() => void copyText(o.text, `persona_opener:${o.persona}`)}>
+                            <Copy className="h-4 w-4 mr-2" />
+                            Copy opener
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {active.people.limitations.length > 0 ? (
+                  <div className="mt-4 text-xs text-muted-foreground">
+                    <div className="font-semibold uppercase tracking-wide text-muted-foreground">Limitations</div>
+                    <ul className="mt-1 list-disc pl-5 space-y-1">
+                      {active.people.limitations.map((x) => (
+                        <li key={x}>{x}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             </TabsContent>
 
