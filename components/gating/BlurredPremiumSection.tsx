@@ -43,6 +43,7 @@ export function BlurredPremiumSection(props: {
             onClick={() => {
               if (props.eventContext) {
                 track('upgrade_cta_clicked_from_blur', props.eventContext)
+                track('upgrade_clicked_from_locked_preview', props.eventContext)
               }
               props.onUpgradeClick?.()
               if (props.upgradeHref) window.location.href = props.upgradeHref

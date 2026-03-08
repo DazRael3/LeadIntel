@@ -17,6 +17,7 @@ import { buildCompetitiveReportNewUrl } from '@/lib/reports/reportLinks'
 import { getPremiumGenerationCapabilities, getPremiumGenerationUsage, redactTextPreview } from '@/lib/billing/premium-generations'
 import { UsageMeter } from '@/components/billing/UsageMeter'
 import { BlurredPremiumSection } from '@/components/gating/BlurredPremiumSection'
+import { RecentPremiumActivityPanel } from '@/components/billing/RecentPremiumActivityPanel'
 
 export const metadata: Metadata = {
   title: 'Competitive Intelligence Report | LeadIntel',
@@ -157,7 +158,15 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
 
         {capabilities.tier === 'starter' ? (
           <div className="mt-6">
-            <UsageMeter used={usage.used} limit={usage.limit} label="Free: premium generations" eventContext={{ surface: 'competitive_report_hub' }} />
+            <UsageMeter
+              used={usage.used}
+              limit={usage.limit}
+              label={capabilities.freeGenerationLabel ?? 'Free plan: 3 preview generations total'}
+              helper={capabilities.freeGenerationHelper ?? 'Generate up to 3 pitch/report previews on Free.'}
+              scopeHelper={capabilities.freeUsageScopeLabel ?? 'Usage is shared across pitches and reports.'}
+              lockedHelper={capabilities.lockedHelper ?? 'Full premium content stays locked until you upgrade.'}
+              eventContext={{ surface: 'competitive_report_hub' }}
+            />
           </div>
         ) : null}
 
@@ -174,6 +183,10 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
             </CardContent>
           </Card>
         ) : null}
+
+        <div className="mt-6">
+          <RecentPremiumActivityPanel surface="competitive_report_hub" />
+        </div>
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="lg:col-span-4 space-y-4">
@@ -209,8 +222,9 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                     <div className="text-sm text-muted-foreground">
                       <div className="font-medium text-foreground">No reports yet</div>
                       <div className="mt-1">
-                        Generate your first sourced competitive report in under 60 seconds. Add a website URL or ticker to ensure the report includes real
-                        citations.
+                        {capabilities.tier === 'starter' && usage.used > 0
+                          ? 'No reports yet. Your current free usage may come from pitch previews or report previews generated elsewhere.'
+                          : 'Generate your first sourced competitive report in under 60 seconds. Add a website URL or ticker to ensure the report includes real citations.'}
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
@@ -307,9 +321,11 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                     />
                     {capabilities.blurPremiumSections ? (
                       <BlurredPremiumSection
-                        title="Competitive report (locked on Free)"
+                  title="Generated report preview (locked on Free)"
                         preview={selectedMarkdownForViewer}
-                        lockedReason="Premium sections stay locked on Free. Upgrade to unlock full report access."
+                  lockedReason={`${capabilities.lockedHelper ?? 'Full premium content stays locked until you upgrade.'} ${
+                    capabilities.freeUsageScopeLabel ?? 'Usage is shared across pitches and reports.'
+                  }`}
                         upgradeHref="/pricing?target=closer"
                         eventContext={{ surface: 'competitive_report_hub', section: 'report' }}
                       />
