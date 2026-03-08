@@ -1,8 +1,8 @@
 "use client"
 
 import type { FormEvent } from 'react'
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,32 +13,40 @@ import { useToast } from '@/components/ui/use-toast'
 
 type GenerateResponse =
   | { ok: true; data: { reportId: string } }
-  | { ok: false; error: { code: string; message: string; requestId?: string } }
-
-function parseOptionalDomainOrUrl(raw: string): { company_domain: string | null; input_url: string | null } {
-  const v = raw.trim()
-  if (!v) return { company_domain: null, input_url: null }
-  if (/^https?:\/\//i.test(v)) return { company_domain: null, input_url: v }
-  // domain-like
-  if (v.includes('.')) return { company_domain: v.replace(/^www\./i, ''), input_url: null }
-  return { company_domain: null, input_url: null }
-}
+  | { ok: false; error: { code: string; message: string; details?: { tips?: string[] } ; requestId?: string } }
 
 export function CompetitiveReportNewClient() {
   const router = useRouter()
+  const sp = useSearchParams()
   const { toast } = useToast()
 
   const [companyName, setCompanyName] = useState('')
-  const [domainOrUrl, setDomainOrUrl] = useState('')
+  const [websiteUrl, setWebsiteUrl] = useState('')
+  const [ticker, setTicker] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [inlineError, setInlineError] = useState<{ title: string; tips: string[] } | null>(null)
 
-  const parsed = useMemo(() => parseOptionalDomainOrUrl(domainOrUrl), [domainOrUrl])
+  useEffect(() => {
+    setCompanyName(sp.get('company') ?? '')
+    setWebsiteUrl(sp.get('url') ?? '')
+    setTicker(sp.get('ticker') ?? '')
+    // Only run on mount; we intentionally do not keep syncing with search params after user edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const canSubmit = useMemo(() => {
+    return companyName.trim().length > 0 || websiteUrl.trim().length > 0 || ticker.trim().length > 0
+  }, [companyName, ticker, websiteUrl])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
+    setInlineError(null)
+
     const name = companyName.trim()
-    if (!name) {
-      toast({ variant: 'destructive', title: 'Company name required', description: 'Enter a company name to generate a report.' })
+    const url = websiteUrl.trim()
+    const t = ticker.trim()
+    if (!canSubmit) {
+      toast({ variant: 'destructive', title: 'Missing input', description: 'Enter a company name, website URL, or ticker.' })
       return
     }
 
@@ -48,9 +56,9 @@ export function CompetitiveReportNewClient() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          company_name: name,
-          company_domain: parsed.company_domain,
-          input_url: parsed.input_url,
+          company_name: name.length > 0 ? name : null,
+          input_url: url.length > 0 ? url : null,
+          ticker: t.length > 0 ? t : null,
         }),
       })
 
@@ -61,6 +69,17 @@ export function CompetitiveReportNewClient() {
       }
 
       if (!json.ok) {
+        if (res.status === 422 && json.error?.code === 'NO_SOURCES_FOUND') {
+          setInlineError({
+            title: json.error.message || 'Not enough sources to build a report.',
+            tips: json.error.details?.tips ?? [
+              'Add a company website URL for best results.',
+              'If the company is public, add the ticker symbol.',
+              'Try again in a minute—sources may be temporarily unavailable.',
+            ],
+          })
+          return
+        }
         toast({
           variant: 'destructive',
           title: 'Report generation failed',
@@ -95,8 +114,7 @@ export function CompetitiveReportNewClient() {
         <div>
           <h1 className="text-3xl font-bold bloomberg-font neon-cyan">New report</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Generates a structured competitive intelligence report. If no verified signals are available, the report is framework-based and includes a
-            verification checklist.
+            Competitive reports require real-world sources. Add a website URL or ticker to ensure the report can be fully sourced.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -112,8 +130,19 @@ export function CompetitiveReportNewClient() {
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
+            {inlineError ? (
+              <div className="rounded border border-cyan-500/10 bg-card/30 p-3 text-sm text-muted-foreground">
+                <div className="font-medium text-foreground">{inlineError.title}</div>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {inlineError.tips.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             <div className="space-y-2">
-              <Label htmlFor="companyName">Company name</Label>
+              <Label htmlFor="companyName">Company name (optional)</Label>
               <Input
                 id="companyName"
                 value={companyName}
@@ -124,20 +153,32 @@ export function CompetitiveReportNewClient() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="domainOrUrl">Company domain or URL (optional)</Label>
+              <Label htmlFor="websiteUrl">Website URL (recommended)</Label>
               <Input
-                id="domainOrUrl"
-                value={domainOrUrl}
-                onChange={(e) => setDomainOrUrl(e.target.value)}
-                placeholder="google.com or https://google.com"
+                id="websiteUrl"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                placeholder="https://google.com (or google.com)"
                 autoComplete="off"
               />
               <div className="text-xs text-muted-foreground">
-                Used only to match verified signals already in your LeadIntel account. If you don’t have signals, it still generates a useful report.
+                Used to fetch first-party sources and hiring signals. We never guess a domain from the company name.
               </div>
             </div>
 
-            <Button type="submit" className="neon-border hover:glow-effect" disabled={isSubmitting}>
+            <div className="space-y-2">
+              <Label htmlFor="ticker">Ticker (public companies)</Label>
+              <Input
+                id="ticker"
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value)}
+                placeholder="GOOG"
+                autoComplete="off"
+              />
+              <div className="text-xs text-muted-foreground">Used to fetch SEC filings as citations when available.</div>
+            </div>
+
+            <Button type="submit" className="neon-border hover:glow-effect" disabled={isSubmitting || !canSubmit}>
               {isSubmitting ? 'Generating…' : 'Generate report'}
             </Button>
           </form>

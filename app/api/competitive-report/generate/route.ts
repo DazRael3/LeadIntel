@@ -2,15 +2,17 @@ import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { createRouteClient } from '@/lib/supabase/route'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
-import { refreshCompanySources } from '@/lib/sources/orchestrate'
+import { refreshCompanySourcesForReport } from '@/lib/sources/orchestrate'
 import { generateCompetitiveIntelligenceReportSourced } from '@/lib/reports/competitive-report-sourced'
-import { normalizeCompanyKey } from '@/lib/sources/normalize'
 import { looksLikeEmail } from '@/lib/reports/reportFormatGuards'
+import { normalizeReportInput } from '@/lib/reports/reportInput'
+import { assertMinCitationsOrThrow, flattenCitations } from '@/lib/reports/sourceRequirements'
 
 const BodySchema = z.object({
-  company_name: z.string().trim().min(1).max(120),
+  company_name: z.string().trim().min(1).max(120).nullable().optional(),
   company_domain: z.string().trim().min(1).max(120).nullable().optional(),
-  input_url: z.string().trim().url().nullable().optional(),
+  input_url: z.string().trim().min(1).max(500).nullable().optional(),
+  ticker: z.string().trim().min(1).max(20).nullable().optional(),
   force_refresh: z.boolean().optional(),
 })
 
@@ -42,11 +44,14 @@ export const POST = withApiGuard(
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
-      const data = body as z.infer<typeof BodySchema>
-      const companyName = data.company_name.trim()
-      const companyDomain = data.company_domain ? data.company_domain.trim() : null
-      const inputUrl = data.input_url ? data.input_url.trim() : null
-      const forceRefresh = Boolean(data.force_refresh)
+      let input: ReturnType<typeof normalizeReportInput>
+      try {
+        input = normalizeReportInput(body)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'validation_error'
+        return fail(ErrorCode.VALIDATION_ERROR, 'Invalid report input', { code: msg }, { status: 400 }, bridge, requestId)
+      }
+      const forceRefresh = Boolean((body as z.infer<typeof BodySchema> | undefined)?.force_refresh)
 
       const supabase = createRouteClient(request, bridge)
 
@@ -57,39 +62,43 @@ export const POST = withApiGuard(
         .maybeSingle()
 
       // Refresh (or use cached) sources for up-to-date, citation-backed reporting.
-      const refreshedAttempt = await refreshCompanySources({
-        companyName,
-        companyDomain,
-        inputUrl,
+      const refreshedAttempt = await refreshCompanySourcesForReport({
+        companyKey: input.companyKey,
+        companyName: input.companyName,
+        companyDomain: input.companyDomain,
+        inputUrl: input.inputUrl,
+        ticker: input.ticker,
         force: forceRefresh,
       })
-      const refreshed = refreshedAttempt.ok
-        ? refreshedAttempt
-        : {
-            ok: true as const,
-            data: { companyKey: normalizeCompanyKey({ companyName, companyDomain, inputUrl }).companyKey, refreshed: [], failed: [], fetchedAt: new Date().toISOString() },
-            bundle: {
-              companyKey: normalizeCompanyKey({ companyName, companyDomain, inputUrl }).companyKey,
-              fetchedAt: new Date().toISOString(),
-              sources: {},
-              allCitations: [],
-            },
-          }
-
-      let q = supabase
-        .from('trigger_events')
-        .select('headline, event_type, detected_at, source_url, event_description')
-        .eq('user_id', userId)
-        .order('detected_at', { ascending: false })
-        .limit(12)
-
-      if (companyDomain) {
-        q = q.eq('company_domain', companyDomain)
-      } else {
-        q = q.eq('company_name', companyName)
+      if (!refreshedAttempt.ok) {
+        return fail(
+          ErrorCode.DATABASE_ERROR,
+          'Failed to refresh sources',
+          { errorCode: refreshedAttempt.errorCode },
+          undefined,
+          bridge,
+          requestId
+        )
       }
+      const refreshed = refreshedAttempt
 
-      const { data: triggerRows } = await q
+      const triggerRows =
+        input.companyDomain || input.companyName
+          ? (
+              await (async () => {
+                let q = supabase
+                  .from('trigger_events')
+                  .select('headline, event_type, detected_at, source_url, event_description')
+                  .eq('user_id', userId)
+                  .order('detected_at', { ascending: false })
+                  .limit(12)
+                if (input.companyDomain) q = q.eq('company_domain', input.companyDomain)
+                else if (input.companyName) q = q.eq('company_name', input.companyName)
+                const { data } = await q
+                return data
+              })()
+            )
+          : null
       const internalSignals = ((triggerRows ?? []) as TriggerEventRow[])
         .filter((r) => !isDemoTriggerEvent(r))
         .slice(0, 8)
@@ -101,10 +110,41 @@ export const POST = withApiGuard(
         }))
         .filter((s) => s.headline.length > 0 && s.sourceUrl.startsWith('http'))
 
+      const citations = flattenCitations({
+        external: refreshed.bundle.allCitations,
+        internalSignalUrls: internalSignals.map((s) => s.sourceUrl),
+      })
+
+      // Hard rule: no framework-only reports. Require >=2 unique citations before calling OpenAI.
+      try {
+        assertMinCitationsOrThrow(citations)
+      } catch (e) {
+        if (e instanceof Error && e.message === 'NO_SOURCES_FOUND') {
+          return fail(
+            'NO_SOURCES_FOUND',
+            'Not enough real-world sources to build a report.',
+            {
+              tips: [
+                'Add a company website URL for best results.',
+                'If the company is public, add the ticker symbol.',
+                'Try again in a minute—sources may be temporarily unavailable.',
+              ],
+            },
+            { status: 422 },
+            bridge,
+            requestId
+          )
+        }
+        throw e
+      }
+
+      const resolvedName = input.companyName ?? refreshedAttempt.resolvedCompanyName ?? (input.ticker ? `Ticker ${input.ticker}` : null)
+      const companyNameForReport = resolvedName ?? 'Unknown company'
+
       const baseGenArgs = {
-        companyName,
-        companyDomain,
-        inputUrl,
+        companyName: companyNameForReport,
+        companyDomain: input.companyDomain,
+        inputUrl: input.inputUrl,
         fetchedAt: refreshed.bundle.fetchedAt,
         sources: refreshed.bundle,
         userContext: {
@@ -124,21 +164,21 @@ export const POST = withApiGuard(
       }
 
       const latencyMs = Date.now() - startedAt
-      const title = `Competitive report: ${companyName}`
+      const title = `Competitive report: ${companyNameForReport}`
 
       const { data: inserted, error: insertError } = await supabase
         .from('user_reports')
         .insert({
           user_id: userId,
           status: 'complete',
-          company_name: companyName,
-          company_domain: companyDomain,
-          input_url: inputUrl,
+          company_name: companyNameForReport,
+          company_domain: input.companyDomain,
+          input_url: input.inputUrl,
           title,
           report_markdown: generated.reportMarkdown,
           report_json: generated.reportJson,
-          sources_used: generated.sourcesUsed,
-          sources_fetched_at: refreshedAttempt.ok ? refreshed.bundle.fetchedAt : null,
+          sources_used: citations,
+          sources_fetched_at: refreshed.bundle.fetchedAt,
           report_kind: 'competitive',
           report_version: 1,
           meta: {
@@ -151,7 +191,12 @@ export const POST = withApiGuard(
             refreshed: refreshed.data.refreshed,
             failed: refreshed.data.failed,
             forceRefresh,
-            sourcesRefreshErrorCode: refreshedAttempt.ok ? null : refreshedAttempt.errorCode,
+            input: { name: input.companyName, url: input.inputUrl, ticker: input.ticker, domain: input.companyDomain },
+            sourceCounts: {
+              citations: citations.length,
+              external: refreshed.bundle.allCitations.length,
+              internalSignals: internalSignals.length,
+            },
           },
         })
         .select('id')

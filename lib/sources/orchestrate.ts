@@ -4,7 +4,7 @@ import { getFreshSnapshot, upsertCompanyProfile, writeSnapshot, DEFAULT_TTL_HOUR
 import { fetchFirstPartySignals } from '@/lib/sources/firstParty'
 import { fetchHiringSignals } from '@/lib/sources/jobs'
 import { fetchGdeltNews } from '@/lib/sources/gdelt'
-import { fetchSecFilings } from '@/lib/sources/sec'
+import { fetchSecFilings, fetchSecFilingsByTicker } from '@/lib/sources/sec'
 
 export type RefreshResult = {
   companyKey: string
@@ -262,6 +262,171 @@ export async function refreshCompanySources(args: {
     ok: true,
     data: { companyKey, refreshed, failed, fetchedAt },
     bundle: { companyKey, fetchedAt, sources, allCitations },
+  }
+}
+
+export async function refreshCompanySourcesForReport(args: {
+  companyKey: string
+  companyName: string | null
+  companyDomain: string | null
+  inputUrl: string | null
+  ticker: string | null
+  force?: boolean
+}): Promise<
+  | { ok: true; data: RefreshResult; bundle: SourcesBundle; resolvedCompanyName: string | null }
+  | { ok: false; errorCode: string; message: string }
+> {
+  const companyKey = args.companyKey
+  const fetchedAt = new Date().toISOString()
+  const force = Boolean(args.force)
+
+  const profile = await upsertCompanyProfile({
+    companyKey,
+    companyName: args.companyName ?? args.ticker ?? 'Unknown',
+    companyDomain: args.companyDomain,
+    inputUrl: args.inputUrl,
+  })
+  if (!profile.ok) return { ok: false, errorCode: profile.errorCode, message: profile.message }
+
+  const refreshed: RefreshResult['refreshed'] = []
+  const failed: RefreshResult['failed'] = []
+  const sources: SourcesBundle['sources'] = {}
+
+  // First-party + jobs only when we have a domain/url base (no guessing).
+  if (args.companyDomain || args.inputUrl) {
+    const sourceType: SourceType = 'first_party'
+    const cached = await maybeUseCache({ companyKey, sourceType, force })
+    if (cached) {
+      const citations = normalizeCitations((cached.citations as NormalizedCitation[]) ?? [])
+      sources[sourceType] = {
+        status: cached.status,
+        fetchedAt: cached.fetched_at,
+        expiresAt: cached.expires_at,
+        payload: cached.payload,
+        citations,
+        meta: (cached.meta as Record<string, unknown>) ?? {},
+      }
+    } else {
+      const res = await fetchFirstPartySignals({ companyDomain: args.companyDomain, inputUrl: args.inputUrl })
+      const expiresAt = computeExpiresAt(sourceType)
+      const write = await writeSnapshot({
+        companyKey,
+        sourceType,
+        fetchedAt,
+        expiresAt,
+        status: res.ok ? 'ok' : 'error',
+        payload: res.payload,
+        citations: res.ok ? res.citations : [],
+        meta: res.meta ?? {},
+      })
+      if (!write.ok) failed.push({ sourceType, errorCode: write.errorCode })
+      refreshed.push({ sourceType, status: res.ok ? 'ok' : 'error', fetchedAt, expiresAt, citationsCount: res.ok ? res.citations.length : 0 })
+      sources[sourceType] = { status: res.ok ? 'ok' : 'error', fetchedAt, expiresAt, payload: res.payload, citations: res.ok ? res.citations : [], meta: res.meta ?? {} }
+    }
+
+    const jobsRes = await fetchHiringSignals({ companyDomain: args.companyDomain, inputUrl: args.inputUrl })
+    if (jobsRes.ok) {
+      const jobsType: SourceType = jobsRes.sourceType
+      const cachedJobs = await maybeUseCache({ companyKey, sourceType: jobsType, force })
+      if (cachedJobs) {
+        const citations = normalizeCitations((cachedJobs.citations as NormalizedCitation[]) ?? [])
+        sources[jobsType] = { status: cachedJobs.status, fetchedAt: cachedJobs.fetched_at, expiresAt: cachedJobs.expires_at, payload: cachedJobs.payload, citations, meta: (cachedJobs.meta as Record<string, unknown>) ?? {} }
+      } else {
+        const expiresAt = computeExpiresAt(jobsType)
+        const write = await writeSnapshot({
+          companyKey,
+          sourceType: jobsType,
+          fetchedAt,
+          expiresAt,
+          status: 'ok',
+          payload: jobsRes.payload,
+          citations: jobsRes.citations,
+          meta: jobsRes.meta ?? {},
+        })
+        if (!write.ok) failed.push({ sourceType: jobsType, errorCode: write.errorCode })
+        refreshed.push({ sourceType: jobsType, status: 'ok', fetchedAt, expiresAt, citationsCount: jobsRes.citations.length })
+        sources[jobsType] = { status: 'ok', fetchedAt, expiresAt, payload: jobsRes.payload, citations: jobsRes.citations, meta: jobsRes.meta ?? {} }
+      }
+    }
+  }
+
+  // GDELT supports name-only (domain optional).
+  if (args.companyName) {
+    const sourceType: SourceType = 'gdelt'
+    const cached = await maybeUseCache({ companyKey, sourceType, force })
+    if (cached) {
+      const citations = normalizeCitations((cached.citations as NormalizedCitation[]) ?? [])
+      sources[sourceType] = {
+        status: cached.status,
+        fetchedAt: cached.fetched_at,
+        expiresAt: cached.expires_at,
+        payload: cached.payload,
+        citations,
+        meta: (cached.meta as Record<string, unknown>) ?? {},
+      }
+    } else {
+      const res = await fetchGdeltNews({ companyName: args.companyName, companyDomain: args.companyDomain })
+      const expiresAt = computeExpiresAt(sourceType)
+      const write = await writeSnapshot({
+        companyKey,
+        sourceType,
+        fetchedAt,
+        expiresAt,
+        status: res.ok ? 'ok' : 'error',
+        payload: res.payload,
+        citations: res.ok ? res.citations : [],
+        meta: res.meta ?? {},
+      })
+      if (!write.ok) failed.push({ sourceType, errorCode: write.errorCode })
+      refreshed.push({ sourceType, status: res.ok ? 'ok' : 'error', fetchedAt, expiresAt, citationsCount: res.ok ? res.citations.length : 0 })
+      sources[sourceType] = { status: res.ok ? 'ok' : 'error', fetchedAt, expiresAt, payload: res.payload, citations: res.ok ? res.citations : [], meta: res.meta ?? {} }
+    }
+  }
+
+  // SEC supports ticker-only; name fallback supported too.
+  let resolvedCompanyName: string | null = args.companyName
+  {
+    const sourceType: SourceType = 'sec'
+    const cached = await maybeUseCache({ companyKey, sourceType, force })
+    if (cached) {
+      const citations = normalizeCitations((cached.citations as NormalizedCitation[]) ?? [])
+      sources[sourceType] = { status: cached.status, fetchedAt: cached.fetched_at, expiresAt: cached.expires_at, payload: cached.payload, citations, meta: (cached.meta as Record<string, unknown>) ?? {} }
+    } else {
+      const res = args.ticker ? await fetchSecFilingsByTicker({ ticker: args.ticker }) : args.companyName ? await fetchSecFilings({ companyName: args.companyName }) : null
+      if (res) {
+        const expiresAt = computeExpiresAt(sourceType)
+        const write = await writeSnapshot({
+          companyKey,
+          sourceType,
+          fetchedAt,
+          expiresAt,
+          status: res.ok ? 'ok' : 'error',
+          payload: res.payload,
+          citations: res.ok ? res.citations : [],
+          meta: res.meta ?? {},
+        })
+        if (!write.ok) failed.push({ sourceType, errorCode: write.errorCode })
+        refreshed.push({ sourceType, status: res.ok ? 'ok' : 'error', fetchedAt, expiresAt, citationsCount: res.ok ? res.citations.length : 0 })
+        sources[sourceType] = { status: res.ok ? 'ok' : 'error', fetchedAt, expiresAt, payload: res.payload, citations: res.ok ? res.citations : [], meta: res.meta ?? {} }
+        if (res.ok) {
+          const title = (res.payload as { matched?: { title?: unknown } }).matched?.title
+          if (!resolvedCompanyName && typeof title === 'string' && title.trim()) resolvedCompanyName = title.trim()
+        }
+      }
+    }
+  }
+
+  const allCitations = normalizeCitations(
+    Object.values(sources)
+      .flatMap((s) => (s?.citations ?? []) as NormalizedCitation[])
+      .filter(Boolean)
+  )
+
+  return {
+    ok: true,
+    data: { companyKey, refreshed, failed, fetchedAt },
+    bundle: { companyKey, fetchedAt, sources, allCitations },
+    resolvedCompanyName,
   }
 }
 
