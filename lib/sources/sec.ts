@@ -65,6 +65,23 @@ function pickTicker(index: SecTickersIndex, companyName: string): { cik: string;
   return null
 }
 
+function pickByTicker(index: SecTickersIndex, ticker: string): { cik: string; ticker: string; title: string; match: 'ticker' } | null {
+  const t = ticker.trim().toUpperCase()
+  if (!t) return null
+  const rows = Object.values(index)
+    .map((r) => {
+      const title = typeof r.title === 'string' ? r.title : ''
+      const rowTicker = typeof r.ticker === 'string' ? r.ticker : ''
+      const cik = typeof r.cik_str === 'number' ? String(r.cik_str) : ''
+      if (!title || !rowTicker || !cik) return null
+      return { cik, ticker: rowTicker.toUpperCase(), title }
+    })
+    .filter((x): x is NonNullable<typeof x> => Boolean(x))
+
+  const found = rows.find((r) => r.ticker === t) ?? null
+  return found ? { ...found, match: 'ticker' } : null
+}
+
 function cik10(cik: string): string {
   const digits = cik.replace(/[^0-9]/g, '')
   return digits.padStart(10, '0')
@@ -141,6 +158,71 @@ export async function fetchSecFilings(args: {
   }
 
   const matched = pickTicker(tickers.index, args.companyName)
+  if (!matched) {
+    return { ok: false, payload: {}, citations: [], meta: { errorCode: 'sec_no_ticker_match' } }
+  }
+
+  await secRateLimit()
+  const submissionsUrl = `https://data.sec.gov/submissions/CIK${cik10(matched.cik)}.json`
+  const res = await fetchJson<SecSubmissions>({
+    url: submissionsUrl,
+    timeoutMs: 9000,
+    headers: { accept: 'application/json' },
+  })
+  if (!res.ok) {
+    return { ok: false, payload: {}, citations: [], meta: { errorCode: res.errorCode, status: res.status, url: res.url } }
+  }
+
+  const recent = res.json.filings?.recent
+  const forms = recent?.form ?? []
+  const dates = recent?.filingDate ?? []
+  const accessions = recent?.accessionNumber ?? []
+  const docs = recent?.primaryDocument ?? []
+
+  const filings: Array<{ form: string; filingDate: string; url: string }> = []
+  for (let i = 0; i < Math.min(forms.length, dates.length, accessions.length, docs.length, 10); i++) {
+    const form = (forms[i] ?? '').toString().trim()
+    const filingDate = (dates[i] ?? '').toString().trim()
+    const accessionNumber = (accessions[i] ?? '').toString().trim()
+    const primaryDocument = (docs[i] ?? '').toString().trim()
+    if (!form || !filingDate || !accessionNumber || !primaryDocument) continue
+    filings.push({
+      form,
+      filingDate,
+      url: secFilingUrl({ cik: matched.cik, accessionNumber, primaryDocument }),
+    })
+  }
+
+  const citations = normalizeCitations([
+    { url: submissionsUrl, source: 'SEC', type: 'submissions' },
+    ...filings.map((f) => ({ url: f.url, title: `${matched.ticker} ${f.form}`, publishedAt: f.filingDate, source: 'SEC', type: 'filing' })),
+  ])
+
+  return {
+    ok: true,
+    payload: { matched, filings },
+    citations,
+    meta: { ticker: matched.ticker, cik: matched.cik, match: matched.match, status: res.status },
+  }
+}
+
+export async function fetchSecFilingsByTicker(args: {
+  ticker: string
+}): Promise<
+  | {
+      ok: true
+      payload: { matched: { cik: string; ticker: string; title: string; match: string }; filings: Array<{ form: string; filingDate: string; url: string }> }
+      citations: NormalizedCitation[]
+      meta: Record<string, unknown>
+    }
+  | { ok: false; payload: {}; citations: []; meta: Record<string, unknown> }
+> {
+  const tickers = await getTickersIndex()
+  if (!tickers.ok || !tickers.index) {
+    return { ok: false, payload: {}, citations: [], meta: { errorCode: 'sec_tickers_unavailable', ...tickers.meta } }
+  }
+
+  const matched = pickByTicker(tickers.index, args.ticker)
   if (!matched) {
     return { ok: false, payload: {}, citations: [], meta: { errorCode: 'sec_no_ticker_match' } }
   }

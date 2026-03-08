@@ -47,7 +47,7 @@ export async function fetchGdeltNews(args: {
   const query = buildQuery(args)
   const base = 'https://api.gdeltproject.org/api/v2/doc/doc'
   const end = new Date()
-  const start = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const start = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
 
   const url =
     `${base}?` +
@@ -55,7 +55,7 @@ export async function fetchGdeltNews(args: {
       query,
       mode: 'ArtList',
       format: 'json',
-      maxrecords: '10',
+      maxrecords: '15',
       sort: 'HybridRel',
       startdatetime: yyyymmddhhmmss(start),
       enddatetime: yyyymmddhhmmss(end),

@@ -22,7 +22,7 @@ export type CompetitiveReportGenerationInput = {
   strictFormat?: boolean
 }
 
-type ModelBullet = { text: string; claimType: 'fact' | 'hypothesis'; citations: string[] }
+type ModelBullet = { text: string; claimType: 'fact' | 'recommendation'; citations: string[] }
 type ModelSection = { heading: string; bullets: ModelBullet[] }
 
 type ModelOutput = {
@@ -187,7 +187,6 @@ function markdownFromModel(args: {
   fetchedAt: string
   executiveSummary: string
   sections: ModelSection[]
-  hypotheses: string[]
   citations: NormalizedCitation[]
   used: NormalizedCitation[]
 }): string {
@@ -202,7 +201,7 @@ function markdownFromModel(args: {
         return `[${label}](${u})`
       })
       .join(' ')
-    const prefix = b.claimType === 'hypothesis' ? 'Hypothesis: ' : ''
+    const prefix = ''
     return `- ${prefix}${withoutSelfLinks(b.text)}${links ? ` ${links}` : ''}`.trim()
   }
 
@@ -244,7 +243,7 @@ function markdownFromModel(args: {
   for (const s of ordered) {
     blocks.push(`## ${s.heading}`)
     if (!s.bullets || s.bullets.length === 0) {
-      blocks.push('- Hypothesis: No sourced items available yet. Use the verification checklist below to confirm specifics.')
+      blocks.push('- No sourced items available yet for this section.')
       blocks.push('')
       continue
     }
@@ -254,29 +253,11 @@ function markdownFromModel(args: {
     blocks.push('')
   }
 
-  blocks.push('## Hypotheses (verify before using as fact)')
-  if (args.hypotheses.length === 0) {
-    blocks.push('- Hypothesis: Validate category, primary buyer, and alternatives using the checklist below.')
-  } else {
-    for (const h of args.hypotheses.slice(0, 12)) {
-      blocks.push(`- Hypothesis: ${withoutSelfLinks(h)}`)
-    }
-  }
-  blocks.push('')
-
-  blocks.push('## Verification checklist')
-  const verification = byHeading.get('Verification checklist (to avoid guessing)')?.bullets ?? []
-  if (verification.length === 0) {
-    blocks.push('- Homepage / product page: category, ICP, key jobs-to-be-done.')
-    blocks.push('- Pricing page: packaging signals and buyer language.')
-    blocks.push('- Careers page: hiring focus areas (team names, keywords).')
-    blocks.push('- Press/blog/changelog: confirmed announcements and dates.')
-    blocks.push('- Review sites (G2/Capterra): recurring pros/cons and alternatives mentioned.')
-    blocks.push('- LinkedIn posts: current initiatives and messaging themes.')
-  } else {
-    for (const b of verification.slice(0, 12)) {
-      blocks.push(`- ${withoutSelfLinks(b.text)}`)
-    }
+  blocks.push('## Sources (links)')
+  for (const c of args.used.slice(0, 50)) {
+    const title = c.title ? ` — ${c.title}` : ''
+    const when = c.publishedAt ? ` (${c.publishedAt})` : ''
+    blocks.push(`- ${c.url}${when}${title}`)
   }
   blocks.push('')
 
@@ -294,29 +275,27 @@ export async function generateCompetitiveIntelligenceReportSourced(
   if (isE2E() || isTestEnv()) {
     const used = availableCitations.slice(0, 5)
     const sections: ModelSection[] = [
-      { heading: 'Market context & positioning', bullets: [{ text: 'Map the company to one primary job-to-be-done and validate on first-party pages.', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Competitor map', bullets: [{ text: 'List 3 direct alternatives mentioned on the company site or review pages (verify).', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Differentiators & vulnerabilities', bullets: [{ text: 'Differentiate on speed-to-value and implementation risk; validate with references.', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Buying triggers & “why now” angles', bullets: [{ text: 'Use verified signals when present; otherwise form hypotheses and verify.', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Recommended outreach angles (5)', bullets: [{ text: 'Lead with a measurable workflow outcome and a narrow pilot.', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Objection handling (5)', bullets: [{ text: '“Already have a tool” → Position as complementary, propose a pilot.', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Suggested 7-touch sequence (email + LinkedIn + call openers)', bullets: [{ text: 'Email: hypothesis + one question (no claims).', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Next steps checklist', bullets: [{ text: 'Verify category, buyer, and alternatives using the checklist.', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Verification checklist (to avoid guessing)', bullets: [{ text: 'Check pricing, careers, press/blog, review sites, and LinkedIn posts.', claimType: 'hypothesis', citations: [] }] },
+      { heading: 'Market context & positioning', bullets: [{ text: 'Use sources below to validate category and ICP.', claimType: 'recommendation', citations: [] }] },
+      { heading: 'Competitor map', bullets: [{ text: 'Extract competitor names from sources and build a short map.', claimType: 'recommendation', citations: [] }] },
+      { heading: 'Differentiators & vulnerabilities', bullets: [{ text: 'Anchor differentiators to what sources explicitly show.', claimType: 'recommendation', citations: [] }] },
+      { heading: 'Buying triggers & “why now” angles', bullets: [{ text: 'Reference only cited events; keep claims minimal.', claimType: 'recommendation', citations: [] }] },
+      { heading: 'Recommended outreach angles (5)', bullets: [{ text: 'Lead with a measurable workflow outcome and a narrow pilot.', claimType: 'recommendation', citations: [] }] },
+      { heading: 'Objection handling (5)', bullets: [{ text: '“Already have a tool” → Position as complementary, propose a pilot.', claimType: 'recommendation', citations: [] }] },
+      { heading: 'Suggested 7-touch sequence (email + LinkedIn + call openers)', bullets: [{ text: 'Email 1: cite one sourced fact and ask one question.', claimType: 'recommendation', citations: [] }] },
+      { heading: 'Next steps checklist', bullets: [{ text: 'Read the sources section; validate buyer, category, and current initiatives.', claimType: 'recommendation', citations: [] }] },
     ]
     const md = markdownFromModel({
       companyName: input.companyName,
       fetchedAt: input.fetchedAt,
       executiveSummary:
-        'Framework-based report (test mode). Any factual claims must be backed by citations; otherwise treat as hypotheses and verify.',
+        'Sourced report (test mode). Factual claims require citations; recommendations do not.',
       sections,
-      hypotheses: ['Validate the primary buyer and the category from first-party pages before writing outreach.'],
       citations: availableCitations,
       used,
     })
     const cleaned = ensureReportHeadings(stripSelfReferentialLinks(md), input.companyName)
     if (looksLikeEmail(cleaned)) throw new Error('REPORT_FORMAT_INVALID')
-    return { reportMarkdown: cleaned, sourcesUsed: used, reportJson: { sections, executiveSummary: 'Framework-based report.' }, model }
+    return { reportMarkdown: cleaned, sourcesUsed: used, reportJson: { sections, executiveSummary: 'Sourced report (test mode).' }, model }
   }
 
   const openai = getOpenAIClient()
@@ -334,16 +313,17 @@ export async function generateCompetitiveIntelligenceReportSourced(
           'You generate competitive intelligence reports for B2B sellers. This is a report, not an email.',
           'Hard rules:',
           '- Do NOT invent factual claims about the company. Any factual claim must cite at least one URL from Allowed citations.',
-          '- If you do not have a citation, mark the claimType as "hypothesis" and phrase it as a hypothesis or "needs verification".',
+          '- If you do not have a citation for a factual claim, do not include that claim as fact.',
           '- Do NOT include any CTA linking to /competitive-report or dazrael.com/competitive-report.',
           '- No bracket placeholders like [COMPANY] or [NAME].',
           '- Do NOT include Subject:, Dear, Best regards, or any email-style closing.',
+          '- Do NOT include a "Hypotheses" section. Framework-only output is disallowed.',
           '',
           'Output JSON format:',
           '{',
           '  "executiveSummary": "string",',
           '  "sections": [',
-          '    { "heading": "Market context & positioning", "bullets": [ { "text":"...", "claimType":"fact|hypothesis", "citations":["https://..."] } ] },',
+          '    { "heading": "Market context & positioning", "bullets": [ { "text":"...", "claimType":"fact|recommendation", "citations":["https://..."] } ] },',
           '    { "heading": "Competitor map", ... },',
           '    { "heading": "Differentiators & vulnerabilities", ... },',
           '    { "heading": "Buying triggers & “why now” angles", ... },',
@@ -351,7 +331,6 @@ export async function generateCompetitiveIntelligenceReportSourced(
           '    { "heading": "Objection handling (5)", ... },',
           '    { "heading": "Suggested 7-touch sequence (email + LinkedIn + call openers)", ... },',
           '    { "heading": "Next steps checklist", ... },',
-          '    { "heading": "Verification checklist (to avoid guessing)", ... }',
           '  ],',
           '  "usedCitations": ["https://..."]',
           '}',
@@ -401,13 +380,13 @@ export async function generateCompetitiveIntelligenceReportSourced(
       const bullets: ModelBullet[] = bulletsRaw
         .map((b) => {
           const text = withoutSelfLinks(safeTrim((b as ModelBullet).text))
-          const claimType: ModelBullet['claimType'] = (b as ModelBullet).claimType === 'fact' ? 'fact' : 'hypothesis'
+          const claimType: ModelBullet['claimType'] = (b as ModelBullet).claimType === 'fact' ? 'fact' : 'recommendation'
           const citations = normalizeUrlList((b as ModelBullet).citations).filter((u) => allowedSet.has(u.toLowerCase()))
-          const effectiveClaimType: ModelBullet['claimType'] =
-            claimType === 'fact' && citations.length === 0 ? 'hypothesis' : claimType
-          return { text, claimType: effectiveClaimType, citations }
+          // Facts must be cited. If not cited, drop the bullet entirely (no framework-only substitutions).
+          if (claimType === 'fact' && citations.length === 0) return null
+          return { text, claimType, citations }
         })
-        .filter((b) => b.text.length > 0)
+        .filter((b): b is ModelBullet => Boolean(b && b.text.length > 0))
       return { heading, bullets }
     })
     .filter((s) => s.heading.length > 0)
@@ -416,18 +395,11 @@ export async function generateCompetitiveIntelligenceReportSourced(
   const used = normalizeCitations(availableCitations.filter((c) => usedUrls.some((u) => u.toLowerCase() === c.url.toLowerCase())))
   const usedNonEmpty = used.length > 0 ? used : availableCitations.slice(0, 15)
 
-  const hypotheses = sanitizedSections
-    .flatMap((s) => s.bullets)
-    .filter((b) => b.claimType === 'hypothesis' && (b.citations?.length ?? 0) === 0)
-    .map((b) => b.text)
-    .slice(0, 20)
-
   const markdown = markdownFromModel({
     companyName: input.companyName,
     fetchedAt: input.fetchedAt,
     executiveSummary,
     sections: sanitizedSections,
-    hypotheses,
     citations: availableCitations,
     used: usedNonEmpty,
   })

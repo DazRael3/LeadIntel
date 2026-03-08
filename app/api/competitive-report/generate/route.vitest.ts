@@ -66,6 +66,23 @@ vi.mock('@/lib/supabase/route', () => ({
   })),
 }))
 
+vi.mock('@/lib/sources/orchestrate', () => ({
+  refreshCompanySourcesForReport: vi.fn(async () => ({
+    ok: true,
+    resolvedCompanyName: 'Google',
+    data: { companyKey: 'ticker:GOOG', refreshed: [], failed: [], fetchedAt: new Date().toISOString() },
+    bundle: {
+      companyKey: 'ticker:GOOG',
+      fetchedAt: new Date().toISOString(),
+      sources: {},
+      allCitations: [
+        { url: 'https://example.org/a', type: 'news', source: 'GDELT' },
+        { url: 'https://example.org/b', type: 'news', source: 'GDELT' },
+      ],
+    },
+  })),
+}))
+
 describe('/api/competitive-report/generate', () => {
   beforeEach(() => {
     vi.resetModules()
