@@ -5,6 +5,7 @@ import { runDigestLiteSend } from '@/lib/jobs/digestLite'
 import { runKpiMonitor } from '@/lib/jobs/kpiMonitor'
 import { runContentAudit } from '@/lib/jobs/contentAudit'
 import { runGrowthCycle } from '@/lib/jobs/growthCycle'
+import { runSourcesRefresh } from '@/lib/jobs/sourcesRefresh'
 
 export async function runJob(
   job: JobName,
@@ -35,6 +36,10 @@ export async function runJob(
       summary = res.summary as Record<string, unknown>
     } else if (job === 'growth_cycle') {
       const res = await runGrowthCycle({ dryRun, limit: opts.limit })
+      status = res.status
+      summary = res.summary as Record<string, unknown>
+    } else if (job === 'sources_refresh') {
+      const res = await runSourcesRefresh({ dryRun, limit: opts.limit })
       status = res.status
       summary = res.summary as Record<string, unknown>
     } else {

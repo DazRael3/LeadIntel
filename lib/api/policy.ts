@@ -84,6 +84,32 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/sources/refresh': {
+    tier: 'WRITE',
+    maxBytes: 32768,
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 10,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'GET:/api/sources/status': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 0,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/generate-sequence': {
     tier: 'AI_GENERATION',
     maxBytes: 65536, // 64KB
