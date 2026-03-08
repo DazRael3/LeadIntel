@@ -12,6 +12,10 @@ The Action Center is the “system of action” layer between signals and rep ex
 ## Where it lives
 - UI: `components/account/AccountActionCenter.tsx`
 - Brief generation: `lib/services/account-brief.ts`
+- Outreach variants generator: `lib/services/outreach-variants.ts`
+- API:
+  - `POST /api/accounts/[accountId]/brief` (paid tiers; saves to `user_reports` as `report_kind='account_brief'`)
+  - `POST /api/accounts/[accountId]/actions/outreach-variants` (paid tiers; returns deterministic, signal-grounded variants)
 
 ## Safety rules
 - Outputs must remain **truthful and signal-grounded**.
