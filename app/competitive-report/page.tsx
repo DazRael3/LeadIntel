@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CopyTextButton } from '@/components/admin/CopyTextButton'
 import { createClient } from '@/lib/supabase/server'
 import { DownloadMarkdownButton } from './ui/DownloadMarkdownButton'
+import { SourcesFreshnessPanelClient } from './ui/SourcesFreshnessPanelClient'
 
 export const metadata: Metadata = {
   title: 'Competitive Intelligence Report | LeadIntel',
@@ -29,6 +30,10 @@ type UserReportRow = {
   input_url: string | null
   title: string
   report_markdown: string
+  sources_used: unknown
+  sources_fetched_at: string | null
+  report_kind: string
+  report_version: number
   meta: unknown
 }
 
@@ -64,8 +69,9 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
 
   let listQuery = supabase
     .from('user_reports')
-    .select('id, created_at, status, company_name, company_domain, title')
+    .select('id, created_at, status, company_name, company_domain, title, report_kind')
     .eq('user_id', user.id)
+    .eq('report_kind', 'competitive')
     .order('created_at', { ascending: false })
     .limit(200)
 
@@ -85,6 +91,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
     company_name: string
     company_domain: string | null
     title: string
+    report_kind?: string
   }>
 
   const selectedId = id ?? list[0]?.id ?? null
@@ -93,8 +100,11 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
   if (selectedId) {
     const { data } = await supabase
       .from('user_reports')
-      .select('id, created_at, updated_at, status, company_name, company_domain, input_url, title, report_markdown, meta')
+      .select(
+        'id, created_at, updated_at, status, company_name, company_domain, input_url, title, report_markdown, sources_used, sources_fetched_at, report_kind, report_version, meta'
+      )
       .eq('id', selectedId)
+      .eq('report_kind', 'competitive')
       .maybeSingle()
     selected = (data ?? null) as UserReportRow | null
   }
@@ -213,7 +223,16 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
               </CardHeader>
               <CardContent>
                 {selected ? (
-                  <pre className="whitespace-pre-wrap break-words text-sm text-foreground/90 leading-relaxed">{selected.report_markdown}</pre>
+                  <div className="space-y-4">
+                    <SourcesFreshnessPanelClient
+                      companyName={selected.company_name}
+                      companyDomain={selected.company_domain}
+                      inputUrl={selected.input_url}
+                      sourcesFetchedAt={selected.sources_fetched_at}
+                      sourcesUsed={selected.sources_used}
+                    />
+                    <pre className="whitespace-pre-wrap break-words text-sm text-foreground/90 leading-relaxed">{selected.report_markdown}</pre>
+                  </div>
                 ) : selectedId ? (
                   <div className="text-sm text-muted-foreground">
                     Report not found, or you don’t have access to it.

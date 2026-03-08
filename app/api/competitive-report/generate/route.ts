@@ -2,12 +2,15 @@ import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { createRouteClient } from '@/lib/supabase/route'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
-import { generateCompetitiveIntelligenceReport } from '@/lib/reports/competitive-report'
+import { refreshCompanySources } from '@/lib/sources/orchestrate'
+import { generateCompetitiveIntelligenceReportSourced } from '@/lib/reports/competitive-report-sourced'
+import { normalizeCompanyKey } from '@/lib/sources/normalize'
 
 const BodySchema = z.object({
   company_name: z.string().trim().min(1).max(120),
   company_domain: z.string().trim().min(1).max(120).nullable().optional(),
   input_url: z.string().trim().url().nullable().optional(),
+  force_refresh: z.boolean().optional(),
 })
 
 type TriggerEventRow = {
@@ -42,6 +45,7 @@ export const POST = withApiGuard(
       const companyName = data.company_name.trim()
       const companyDomain = data.company_domain ? data.company_domain.trim() : null
       const inputUrl = data.input_url ? data.input_url.trim() : null
+      const forceRefresh = Boolean(data.force_refresh)
 
       const supabase = createRouteClient(request, bridge)
 
@@ -50,6 +54,26 @@ export const POST = withApiGuard(
         .select('what_you_sell, ideal_customer')
         .eq('user_id', userId)
         .maybeSingle()
+
+      // Refresh (or use cached) sources for up-to-date, citation-backed reporting.
+      const refreshedAttempt = await refreshCompanySources({
+        companyName,
+        companyDomain,
+        inputUrl,
+        force: forceRefresh,
+      })
+      const refreshed = refreshedAttempt.ok
+        ? refreshedAttempt
+        : {
+            ok: true as const,
+            data: { companyKey: normalizeCompanyKey({ companyName, companyDomain, inputUrl }).companyKey, refreshed: [], failed: [], fetchedAt: new Date().toISOString() },
+            bundle: {
+              companyKey: normalizeCompanyKey({ companyName, companyDomain, inputUrl }).companyKey,
+              fetchedAt: new Date().toISOString(),
+              sources: {},
+              allCitations: [],
+            },
+          }
 
       let q = supabase
         .from('trigger_events')
@@ -65,27 +89,28 @@ export const POST = withApiGuard(
       }
 
       const { data: triggerRows } = await q
-      const verifiedSignals = ((triggerRows ?? []) as TriggerEventRow[])
+      const internalSignals = ((triggerRows ?? []) as TriggerEventRow[])
         .filter((r) => !isDemoTriggerEvent(r))
         .slice(0, 8)
         .map((r) => ({
           headline: (r.headline ?? '').trim(),
-          eventType: r.event_type ?? null,
           detectedAt: r.detected_at ?? null,
-          sourceUrl: r.source_url ?? null,
-          description: r.event_description ?? null,
+          sourceUrl: (r.source_url ?? '').trim(),
+          summary: typeof r.event_description === 'string' ? r.event_description.trim() : null,
         }))
-        .filter((s) => s.headline.length > 0)
+        .filter((s) => s.headline.length > 0 && s.sourceUrl.startsWith('http'))
 
-      const generated = await generateCompetitiveIntelligenceReport({
+      const generated = await generateCompetitiveIntelligenceReportSourced({
         companyName,
         companyDomain,
         inputUrl,
+        fetchedAt: refreshed.bundle.fetchedAt,
+        sources: refreshed.bundle,
         userContext: {
           whatYouSell: typeof userSettings?.what_you_sell === 'string' ? userSettings.what_you_sell : null,
           idealCustomer: typeof userSettings?.ideal_customer === 'string' ? userSettings.ideal_customer : null,
         },
-        verifiedSignals,
+        internalSignals,
       })
 
       const latencyMs = Date.now() - startedAt
@@ -102,12 +127,21 @@ export const POST = withApiGuard(
           title,
           report_markdown: generated.reportMarkdown,
           report_json: generated.reportJson,
+          sources_used: generated.sourcesUsed,
+          sources_fetched_at: refreshedAttempt.ok ? refreshed.bundle.fetchedAt : null,
+          report_kind: 'competitive',
+          report_version: 1,
           meta: {
             source: 'competitive-report',
             generatedAt: new Date().toISOString(),
             model: generated.model,
             latencyMs,
-            verifiedSignalsCount: verifiedSignals.length,
+            internalSignalsCount: internalSignals.length,
+            companyKey: refreshed.bundle.companyKey,
+            refreshed: refreshed.data.refreshed,
+            failed: refreshed.data.failed,
+            forceRefresh,
+            sourcesRefreshErrorCode: refreshedAttempt.ok ? null : refreshedAttempt.errorCode,
           },
         })
         .select('id')
@@ -150,6 +184,10 @@ export const POST = withApiGuard(
           report_markdown:
             '# Competitive Intelligence Report\n\nWe couldn’t complete this report due to a temporary issue.\n\n## What you can do next\n- Try again in a moment.\n- If this repeats, check your OpenAI configuration and server logs.\n\n## Verification checklist (to avoid guessing)\n- Homepage / product page\n- Pricing page\n- Careers page\n- Press / blog\n- Review sites (G2/Capterra)\n- LinkedIn posts\n',
           report_json: null,
+          sources_used: [],
+          sources_fetched_at: null,
+          report_kind: 'competitive',
+          report_version: 1,
           meta: {
             source: 'competitive-report',
             generatedAt: new Date().toISOString(),

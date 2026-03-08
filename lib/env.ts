@@ -233,6 +233,8 @@ const serverEnvSchema = z.object({
   HUNTER_API_KEY: z.string().optional(),
   NEWS_API_KEY: z.string().optional(),
   ZAPIER_WEBHOOK_URL: z.string().url().optional(),
+  // SEC API: explicit user-agent is recommended by SEC.
+  SEC_USER_AGENT: z.string().optional(),
   ADMIN_DIGEST_SECRET: z.string().optional(),
   CRON_SECRET: z.string().min(16, 'CRON_SECRET must be at least 16 characters').optional(),
   EXTERNAL_CRON_SECRET: z.string().min(16, 'EXTERNAL_CRON_SECRET must be at least 16 characters').optional(),
@@ -247,6 +249,16 @@ const serverEnvSchema = z.object({
     z.enum(['none', 'finnhub', 'polygon']).optional()
   ),
   MARKET_DATA_API_KEY: z.string().optional(),
+
+  // Sources refresh automation (optional)
+  SOURCES_REFRESH_LIMIT: z.preprocess(
+    (v) => {
+      if (typeof v !== 'string') return v
+      const n = Number.parseInt(v, 10)
+      return Number.isFinite(n) ? n : undefined
+    },
+    z.number().int().min(1).max(200).optional()
+  ),
   
   // Development
   DEV_SEED_SECRET: z.string().optional(),
@@ -322,6 +334,7 @@ function buildServerEnv(): ServerEnv {
     HUNTER_API_KEY: process.env.HUNTER_API_KEY,
     NEWS_API_KEY: process.env.NEWS_API_KEY,
     ZAPIER_WEBHOOK_URL: process.env.ZAPIER_WEBHOOK_URL,
+    SEC_USER_AGENT: process.env.SEC_USER_AGENT,
     FEATURE_AUTOPILOT_ENABLED: process.env.FEATURE_AUTOPILOT_ENABLED,
     FEATURE_RESEND_WEBHOOK_ENABLED: process.env.FEATURE_RESEND_WEBHOOK_ENABLED,
     FEATURE_STRIPE_WEBHOOK_ENABLED: process.env.FEATURE_STRIPE_WEBHOOK_ENABLED,
@@ -352,6 +365,7 @@ function buildServerEnv(): ServerEnv {
     APP_URL: process.env.APP_URL,
     MARKET_DATA_PROVIDER: process.env.MARKET_DATA_PROVIDER,
     MARKET_DATA_API_KEY: process.env.MARKET_DATA_API_KEY,
+    SOURCES_REFRESH_LIMIT: process.env.SOURCES_REFRESH_LIMIT,
     HEALTH_CHECK_EXTERNAL: process.env.HEALTH_CHECK_EXTERNAL,
     DEV_SEED_SECRET: process.env.DEV_SEED_SECRET,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,

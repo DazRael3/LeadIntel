@@ -9,7 +9,7 @@ import type { JobName } from '@/lib/jobs/types'
 import { releaseJobLock, tryAcquireJobLock } from '@/lib/jobs/lock'
 
 const BodySchema = z.object({
-  job: z.enum(['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit', 'growth_cycle']),
+  job: z.enum(['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit', 'growth_cycle', 'sources_refresh']),
   dryRun: z.boolean().optional(),
   limit: z.number().int().optional(),
 })
@@ -64,6 +64,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         ? clampLimit(parsed.data.limit ?? 200)
         : job === 'growth_cycle'
           ? clampGrowthLimit(parsed.data.limit ?? 3)
+          : job === 'sources_refresh'
+            ? clampLimit(parsed.data.limit ?? 20)
           : undefined
     const startedAt = new Date().toISOString()
 
@@ -112,6 +114,8 @@ export const POST = withApiGuard(
           ? clampLimit(parsed.data.limit ?? 200)
           : job === 'growth_cycle'
             ? clampGrowthLimit(parsed.data.limit ?? 3)
+            : job === 'sources_refresh'
+              ? clampLimit(parsed.data.limit ?? 20)
             : undefined
       const startedAt = new Date().toISOString()
 
