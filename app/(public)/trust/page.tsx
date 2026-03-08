@@ -5,6 +5,8 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { TrustChecklist } from '@/components/marketing/TrustChecklist'
+import { BuyerReadiness } from '@/components/marketing/BuyerReadiness'
 
 export const metadata: Metadata = {
   title: 'Trust Center | LeadIntel',
@@ -63,6 +65,9 @@ export default function TrustCenterPage() {
             <p>Secrets remain server-side.</p>
           </CardContent>
         </Card>
+
+        <TrustChecklist />
+        <BuyerReadiness />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {LINKS.map((l) => (

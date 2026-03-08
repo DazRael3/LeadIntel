@@ -14,6 +14,8 @@ describe('/trust', () => {
 
     expect(screen.getByText(/Trust Center/i)).toBeTruthy()
     expect(screen.getByText(/Trust summary/i)).toBeTruthy()
+    expect(screen.getByText(/What larger teams usually ask about/i)).toBeTruthy()
+    expect(screen.getByText(/Current trust posture/i)).toBeTruthy()
 
     const mustHave = ['Security', 'Privacy', 'Terms', 'Acceptable Use', 'Subprocessors', 'DPA', 'Status', 'Version', 'Changelog', 'Roadmap']
     for (const label of mustHave) {
