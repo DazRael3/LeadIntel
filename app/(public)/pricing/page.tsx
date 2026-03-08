@@ -4,14 +4,14 @@ import PricingClientPage from './PricingClientPage'
 
 export const metadata: Metadata = {
   title: 'Pricing | LeadIntel',
-  description: 'Transparent pricing for daily digests, scoring, and outreach templates.',
+  description: 'Choose the outbound workflow that fits your team.',
   openGraph: {
     title: 'Pricing | LeadIntel',
-    description: 'Transparent pricing for daily digests, scoring, and outreach templates.',
+    description: 'Choose the outbound workflow that fits your team.',
     url: 'https://dazrael.com/pricing',
     images: [
       {
-        url: '/api/og?title=Pricing&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        url: '/api/og?title=Pricing&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20outreach',
         width: 1200,
         height: 630,
       },

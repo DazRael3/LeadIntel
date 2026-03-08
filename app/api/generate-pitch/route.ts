@@ -17,43 +17,21 @@ import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
-import { checkStarterPitchUsage, getStarterLeadCountFromDb, getStarterPitchCapSummary, recordStarterPitchCapUsage } from '@/lib/billing/usage'
-import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 import { makeNameCompanyKey } from '@/lib/company-key'
 import { ensurePersonalWorkspace, getCurrentWorkspace } from '@/lib/team/workspace'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { randomUUID } from 'crypto'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
+import {
+  getPremiumGenerationCapabilities,
+  getPremiumGenerationUsage,
+  reservePremiumGeneration,
+  cancelPremiumGeneration,
+  completePremiumGeneration,
+  redactTextPreview,
+} from '@/lib/billing/premium-generations'
 
 export const dynamic = "force-dynamic";
-
-type Tier = 'starter' | 'closer'
-
-function isActiveStatus(status: string | null | undefined): boolean {
-  return status === 'active' || status === 'trialing'
-}
-
-async function resolveTierForUser(supabase: unknown, userId: string): Promise<Tier> {
-  try {
-    // Use schema('api') when available; fall back to default client otherwise.
-    const client = (supabase as any).schema ? (supabase as any).schema('api') : (supabase as any)
-    const { data: subRow } = await client
-      .from('subscriptions')
-      .select('status, stripe_price_id, price_id, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const status = (subRow as { status?: string | null } | null)?.status ?? null
-    if (!isActiveStatus(status)) return 'starter'
-    // Product spec: only Starter and Closer are exposed.
-    // Legacy note: any historical "team" price IDs are treated as Closer.
-    return 'closer'
-  } catch {
-    // Safe default: treat as Starter for usage cap (cap check itself is fail-open if Redis missing).
-    return 'starter'
-  }
-}
 
 /**
  * Check if a string looks like a URL or domain
@@ -117,6 +95,7 @@ export const POST = withApiGuard(
     const env = getServerEnv()
     const isDev = env.NODE_ENV !== 'production'
     const bridge = createCookieBridge()
+    let reservationId: string | null = null
     
     try {
       if (!userId) {
@@ -147,20 +126,21 @@ export const POST = withApiGuard(
       }
 
       const supabase = createRouteClient(request, bridge)
+      const user = await getUserSafe(supabase)
+      if (!user) {
+        return asHttpError(new Error('Authentication required'), '/api/generate-pitch', undefined, bridge, requestId)
+      }
     
-    let isPro = false
-    try {
-      isPro = await isProPlan(supabase, userId)
-    } catch {
-      // Fail closed to Starter for abuse prevention (cap check still fail-open if Redis isn't configured).
-      isPro = false
-    }
+    const [capabilities, usageBefore] = await Promise.all([
+      getPremiumGenerationCapabilities({ supabase, userId: user.id, sessionEmail: user.email ?? null }),
+      getPremiumGenerationUsage({ supabase, userId: user.id }),
+    ])
 
     // Get user settings for personalization
     const { data: userSettings } = await supabase
       .from('user_settings')
       .select('what_you_sell, ideal_customer')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .maybeSingle()
 
     // Fetch company info based on input type
@@ -204,62 +184,30 @@ export const POST = withApiGuard(
       whyNowBullets = []
     }
 
-    // Tier gating rules (explicit):
-    // - starter: enforce daily usage cap
-    // - paid tiers + House Closer override: no Starter caps
-    //
-    // IMPORTANT: plan detection (`isProPlan`) already includes HOUSE_CLOSER_EMAILS and
-    // `api.users.subscription_tier` overrides. Starter caps must respect that.
-    const tier = isPro ? 'closer' : await resolveTierForUser(supabase, userId)
-    if (tier === 'starter') {
-      // Starter hard cap: 3 total leads/pitches. DB-backed so it remains consistent across restarts.
-      const leadCount = await getStarterLeadCountFromDb(userId)
-      // Fallback: if DB counting is unavailable in local/dev (e.g. schema not exposed),
-      // use the in-memory/Redis cap counter so the Starter cap UX/enforcement still works.
-      const cap = await getStarterPitchCapSummary({ userId })
-      const used = Math.max(leadCount, cap.used)
-      if (used >= STARTER_PITCH_CAP_LIMIT) {
-        logInfo({
-          scope: 'starter_cap',
-          message: 'hard_cap_reached',
-          userId,
-          leadCount,
-          capUsed: cap.used,
-          limit: STARTER_PITCH_CAP_LIMIT,
-        })
+    if (capabilities.tier === 'starter') {
+      if (usageBefore.used >= usageBefore.limit) {
         return fail(
-          'FREE_PLAN_LIMIT_REACHED',
-          `You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches on the Starter plan. Upgrade to Closer to unlock unlimited pitches.`,
-          { limit: STARTER_PITCH_CAP_LIMIT, window: 'lifetime' },
-          {
-            status: 429,
-            headers: {
-              'x-upgrade-plan': 'closer',
-              'x-free-plan-limit': String(STARTER_PITCH_CAP_LIMIT),
-            },
-          },
+          'FREE_TIER_GENERATION_LIMIT_REACHED',
+          'Free accounts can generate up to 3 pitches/reports. Upgrade to continue.',
+          { usage: usageBefore, upgradeRequired: true },
+          { status: 429 },
           bridge,
           requestId
         )
       }
-      const usage = await checkStarterPitchUsage({ userId, planId: 'starter', correlationId })
-      if (!usage.ok) {
-        const res = fail(
-          'FREE_PLAN_LIMIT_REACHED',
-          `You’ve reached today’s free limit for the Starter plan. Upgrade to Closer for higher limits.`,
-          { limit: usage.limit, window: '1 day' },
-          {
-            status: 429,
-            headers: {
-              'x-upgrade-plan': 'closer',
-              'x-free-plan-limit': String(usage.limit),
-            },
-          },
+      const reserved = await reservePremiumGeneration({ supabase, capabilities })
+      if (!reserved.ok || !reserved.reservationId) {
+        const usage = await getPremiumGenerationUsage({ supabase, userId: user.id })
+        return fail(
+          'FREE_TIER_GENERATION_LIMIT_REACHED',
+          'Free accounts can generate up to 3 pitches/reports. Upgrade to continue.',
+          { usage, upgradeRequired: true },
+          { status: 429 },
           bridge,
           requestId
         )
-        return res
       }
+      reservationId = reserved.reservationId
     }
 
     // Generate pitch using AI
@@ -318,7 +266,7 @@ export const POST = withApiGuard(
           .from('leads')
           .upsert(
             {
-              user_id: userId,
+              user_id: user.id,
               company_name: topicName,
               company_domain: leadCompanyDomain,
               company_url: input,
@@ -338,7 +286,7 @@ export const POST = withApiGuard(
       const result = await client
         .from('leads')
         .insert({
-          user_id: userId,
+          user_id: user.id,
           company_name: topicName,
           company_domain: leadCompanyDomain,
           company_url: input,
@@ -353,7 +301,7 @@ export const POST = withApiGuard(
 
     const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
     const triggerInput = {
-      userId,
+      userId: user.id,
       leadId: typeof leadId === 'string' ? leadId : null,
       companyName: topicName || null,
       companyDomain: domain,
@@ -377,52 +325,76 @@ export const POST = withApiGuard(
     const hasTriggerEvent = await hasAnyTriggerEvents(triggerInput)
     const latestTriggerEvent = await getLatestTriggerEvent(triggerInput)
 
-    // Persist pitch history row (best-effort; do not fail the request if this write fails).
+    // Persist pitch history row (required for premium generation counting).
+    // This ensures the server-side cap remains consistent and cannot be bypassed.
     const warnings: string[] = []
-    if (typeof leadId === 'string' && leadId.length > 0) {
-      try {
-        const persisted = await queryWithSchemaFallback(request, bridge, async (client) => {
-          const { error } = await client.from('pitches').insert({
-            user_id: userId,
-            lead_id: leadId,
-            content: pitch,
-          })
-          return { data: null, error }
-        })
-        if (persisted.error) warnings.push('Pitch history write failed (pitches insert).')
-      } catch {
-        warnings.push('Pitch history write failed (pitches insert).')
-      }
-    } else {
-      warnings.push('Pitch history not saved (missing lead id).')
+    const pitchId = randomUUID()
+    if (!(typeof leadId === 'string' && leadId.length > 0)) {
+      throw new Error('missing_lead_id')
     }
-
-    // Record Starter usage for the 3‑pitch lock UX (best-effort; no DB schema required).
-    // We only increment after a lead was successfully created so the counter remains aligned with DB reality.
-    if (tier === 'starter' && savedLead.data && typeof pitch === 'string' && pitch.trim().length > 0) {
-      try {
-        await recordStarterPitchCapUsage({ userId, correlationId })
-      } catch {
-        // best-effort
-      }
+    const persisted = await queryWithSchemaFallback(request, bridge, async (client) => {
+      const { error } = await client.from('pitches').insert({
+        id: pitchId,
+        user_id: user.id,
+        lead_id: leadId,
+        content: pitch,
+      })
+      return { data: null, error }
+    })
+    if (persisted.error) {
+      throw new Error('pitch_persist_failed')
     }
+    await completePremiumGeneration({
+      supabase,
+      reservationId,
+      objectType: 'pitch',
+      objectId: pitchId,
+    })
+    const usageAfter = await getPremiumGenerationUsage({ supabase, userId: user.id })
 
-    const response = {
-      pitch,
-      battleCard,
-      emailSequence,
-      lead: savedLead.data,
+    const leadRow = (savedLead.data ?? null) as { id?: string; company_name?: string | null; company_domain?: string | null; company_url?: string | null } | null
+    const baseResponse = {
+      lead: leadRow
+        ? {
+            id: leadRow.id ?? null,
+            company_name: leadRow.company_name ?? null,
+            company_domain: leadRow.company_domain ?? null,
+            company_url: leadRow.company_url ?? null,
+          }
+        : null,
       triggerEvent: latestTriggerEvent,
       hasTriggerEvent,
       warnings,
+      usage: usageAfter,
+      upgradeRequired: capabilities.tier === 'starter' && usageAfter.used >= usageAfter.limit,
     }
+
+    const response =
+      capabilities.blurPremiumSections
+        ? {
+            ...baseResponse,
+            isBlurred: true,
+            lockedSections: ['pitch', 'battle_card', 'email_sequence'] as const,
+            pitch: null,
+            pitchPreview: typeof pitch === 'string' ? redactTextPreview(pitch, 520) : '',
+            battleCard: null,
+            emailSequence: null,
+          }
+        : {
+            ...baseResponse,
+            isBlurred: false,
+            lockedSections: [] as const,
+            pitch,
+            battleCard,
+            emailSequence,
+          }
 
     // Product analytics (best-effort; behind env flag).
     if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
       try {
         const details = await getPlanDetails(supabase, userId)
         await logProductEvent({
-          userId,
+          userId: user.id,
           eventName: 'pitch_generated',
           eventProps: {
             company_domain: domain,
@@ -450,8 +422,8 @@ export const POST = withApiGuard(
     // Webhooks: emit only when pitch was persisted with a lead id.
     if (typeof leadId === 'string' && leadId.length > 0) {
       try {
-        await ensurePersonalWorkspace({ supabase, userId })
-        const workspace = await getCurrentWorkspace({ supabase, userId })
+        await ensurePersonalWorkspace({ supabase, userId: user.id })
+        const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
         if (workspace) {
           await enqueueWebhookEvent({
             workspaceId: workspace.id,
@@ -474,6 +446,11 @@ export const POST = withApiGuard(
       const successResponse = ok(response, undefined, bridge, requestId)
       return successResponse
     } catch (error) {
+      try {
+        await cancelPremiumGeneration({ supabase: createRouteClient(request, bridge), reservationId })
+      } catch {
+        // best-effort
+      }
       return asHttpError(error, '/api/generate-pitch', userId, bridge, requestId)
     }
   },

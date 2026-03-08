@@ -15,9 +15,10 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { PITCH_TEMPLATES, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { ProGate } from '@/components/ProGate'
 import { usePlan } from '@/components/PlanProvider'
-import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 import { track } from '@/lib/analytics'
 import { formatRelativeDate, formatSignalType } from '@/lib/domain/explainability'
+import { UsageMeter } from '@/components/billing/UsageMeter'
+import { BlurredPremiumSection } from '@/components/gating/BlurredPremiumSection'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -45,6 +46,11 @@ interface EmailSequence {
 
 type GeneratePitchPayload = {
   pitch?: unknown
+  pitchPreview?: unknown
+  isBlurred?: unknown
+  lockedSections?: unknown
+  upgradeRequired?: unknown
+  usage?: unknown
   warnings?: unknown
   isPro?: unknown
   emailSequence?: unknown
@@ -57,7 +63,8 @@ type LatestPitchResponse = ApiEnvelope<{
   pitch: {
     pitchId: string
     createdAt: string
-    content: string
+    content: string | null
+    contentPreview?: string | null
     company: {
       leadId: string
       companyName: string | null
@@ -67,12 +74,17 @@ type LatestPitchResponse = ApiEnvelope<{
       battleCard: unknown | null
     }
   } | null
+  usage?: { used: number; limit: number; remaining: number }
+  isBlurred?: boolean
 }>
 
-type PitchUsageSummary = ApiEnvelope<{
-  tier: 'starter' | 'closer'
-  pitchesUsed: number
-  pitchesLimit: number | null
+type PremiumGenerationsSummary = ApiEnvelope<{
+  capabilities: {
+    tier: 'starter' | 'closer' | 'closer_plus' | 'team'
+    maxPremiumGenerations: number | null
+    blurPremiumSections: boolean
+  }
+  usage: { used: number; limit: number; remaining: number; byType?: { pitch: number; report: number } }
 }>
 
 type ExplainabilityEnvelope =
@@ -137,8 +149,9 @@ export function PitchGenerator({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [templateId, setTemplateId] = useState<PitchTemplateId>(initialTemplateId)
   const [freeLimitError, setFreeLimitError] = useState<string | null>(null)
-  const [pitchUsage, setPitchUsage] = useState<{ pitchesUsed: number; pitchesLimit: number | null } | null>(null)
+  const [premiumUsage, setPremiumUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null)
   const [generatedLeadId, setGeneratedLeadId] = useState<string | null>(null)
+  const [outputBlurred, setOutputBlurred] = useState<boolean>(false)
   const [context, setContext] = useState<{
     loading: boolean
     signalsCount: number
@@ -348,7 +361,18 @@ export function PitchGenerator({
           setSavedCompanyNotice(null)
           selectedSavedCompanyRef.current = null
         }
-        setPitch(typeof latest.content === 'string' ? latest.content : null)
+        const isBlurred = Boolean((json.data as any).isBlurred)
+        setOutputBlurred(isBlurred)
+        const preview = typeof latest.contentPreview === 'string' ? latest.contentPreview : null
+        setPitch(typeof latest.content === 'string' ? latest.content : preview)
+
+        const u = (json.data as any).usage as { used?: unknown; limit?: unknown; remaining?: unknown } | undefined
+        if (u) {
+          const used = typeof u.used === 'number' ? u.used : Number(u.used) || 0
+          const limit = typeof u.limit === 'number' ? u.limit : Number(u.limit) || 3
+          const remaining = typeof u.remaining === 'number' ? u.remaining : Math.max(0, limit - used)
+          setPremiumUsage({ used, limit, remaining })
+        }
 
         const seq = latest.company?.emailSequence
         if (isRecord(seq) && typeof seq.part1 === 'string' && typeof seq.part2 === 'string' && typeof seq.part3 === 'string') {
@@ -399,22 +423,19 @@ export function PitchGenerator({
     if (!currentUserId) return
 
     const loadUsage = async () => {
-      // If the user is paid, never apply Starter cap behavior; clear any stale usage state.
-      if (tier !== 'starter') {
-        setPitchUsage(null)
-        return
-      }
-
       try {
-        const res = await fetch('/api/usage/pitch-summary', { method: 'GET', cache: 'no-store', credentials: 'include' })
+        const res = await fetch('/api/usage/premium-generations', { method: 'GET', cache: 'no-store', credentials: 'include' })
         if (!res.ok) return
-        const json = (await res.json()) as PitchUsageSummary
+        const json = (await res.json()) as PremiumGenerationsSummary
         if (!json || json.ok !== true) return
         if (cancelled) return
-        setPitchUsage({
-          pitchesUsed: typeof json.data.pitchesUsed === 'number' ? json.data.pitchesUsed : Number(json.data.pitchesUsed) || 0,
-          pitchesLimit: typeof json.data.pitchesLimit === 'number' ? json.data.pitchesLimit : null,
-        })
+        const used = typeof json.data.usage.used === 'number' ? json.data.usage.used : Number(json.data.usage.used) || 0
+        const limit = typeof json.data.usage.limit === 'number' ? json.data.usage.limit : Number(json.data.usage.limit) || 3
+        const remaining =
+          typeof json.data.usage.remaining === 'number'
+            ? json.data.usage.remaining
+            : Math.max(0, limit - used)
+        setPremiumUsage({ used, limit, remaining })
       } catch {
         // ignore
       }
@@ -425,15 +446,6 @@ export function PitchGenerator({
       cancelled = true
     }
   }, [currentUserId, tier])
-
-  const isPitchCapReached = (() => {
-    const limit = pitchUsage?.pitchesLimit
-    const used = pitchUsage?.pitchesUsed ?? 0
-    return isStarter && typeof limit === 'number' && used >= limit
-  })()
-
-  const visibleSavedCompanies =
-    isPitchCapReached ? savedCompanies.slice(0, pitchUsage?.pitchesLimit ?? STARTER_PITCH_CAP_LIMIT) : savedCompanies
 
   // Hydrate latest saved pitch content whenever company input changes (debounced).
   useEffect(() => {
@@ -556,22 +568,17 @@ export function PitchGenerator({
           (errorData as any)?.code ??
           (errorData as any)?.error?.code ??
           null
-        if (response.status === 429 && code === 'FREE_PLAN_LIMIT_REACHED') {
-          const headerLimit = Number(response.headers.get('x-free-plan-limit') || '')
-          const limit =
-            (errorData as any)?.meta?.limit ??
-            (errorData as any)?.error?.details?.limit ??
-            (Number.isFinite(headerLimit) ? headerLimit : undefined)
-
+        if (response.status === 429 && code === 'FREE_TIER_GENERATION_LIMIT_REACHED') {
+          const used = Number((errorData as any)?.error?.details?.usage?.used ?? (errorData as any)?.usage?.used ?? 3) || 3
+          const limit = Number((errorData as any)?.error?.details?.usage?.limit ?? (errorData as any)?.usage?.limit ?? 3) || 3
           const msg =
-            (errorData as any)?.message ??
             (errorData as any)?.error?.message ??
-            (typeof limit === 'number'
-              ? `You’ve reached today’s free limit (${limit} pitches) on the Starter plan. Upgrade to Closer for higher limits.`
-              : `You’ve reached today’s free limit on the Starter plan. Upgrade to Closer for higher limits.`)
-
+            (errorData as any)?.message ??
+            `You’ve used all ${limit} free generations. Upgrade to continue.`
+          setPremiumUsage({ used, limit, remaining: 0 })
           setFreeLimitError(msg)
           setAuthError(msg)
+          track('premium_generation_blocked_free_limit', { surface: 'pitch_generator', used, limit })
           return
         }
 
@@ -592,11 +599,17 @@ export function PitchGenerator({
       const raw = (await response.json()) as unknown
       const data = unwrapGeneratePitchPayload(raw)
       
-      // ALWAYS set pitch - this is the primary output (does NOT depend on lead/triggerEvent)
-      const pitchText = typeof data.pitch === 'string' ? data.pitch.trim() : ''
+      const blurred = Boolean((data as any).isBlurred)
+      setOutputBlurred(blurred)
+
+      const pitchTextRaw = typeof data.pitch === 'string' ? data.pitch : null
+      const pitchPreviewRaw = typeof (data as any).pitchPreview === 'string' ? String((data as any).pitchPreview) : null
+      const pitchText = (pitchTextRaw ?? pitchPreviewRaw ?? '').trim()
       if (pitchText) {
         setPitch(pitchText)
-        track('pitch_generated', {
+        track('premium_generation_completed', {
+          type: 'pitch',
+          blurred,
           templateId,
           hasDomain: Boolean(extractDomainFromInput(companyUrl)),
         })
@@ -608,6 +621,15 @@ export function PitchGenerator({
       } else {
         // Only show this fallback when the request succeeded but the canonical pitch field is empty.
         setPitch('Pitch generation completed, but no pitch text was returned.')
+      }
+
+      // Usage meter update (best-effort)
+      if (isRecord((data as any).usage)) {
+        const u = (data as any).usage as { used?: unknown; limit?: unknown; remaining?: unknown }
+        const used = typeof u.used === 'number' ? u.used : Number(u.used) || 0
+        const limit = typeof u.limit === 'number' ? u.limit : Number(u.limit) || 3
+        const remaining = typeof u.remaining === 'number' ? u.remaining : Math.max(0, limit - used)
+        setPremiumUsage({ used, limit, remaining })
       }
 
       // Capture lead id for explainability context (best-effort).
@@ -769,6 +791,8 @@ export function PitchGenerator({
     setTimeout(() => setCopied(null), 2000)
   }
 
+  const isFreeLimitReached = isStarter && (premiumUsage?.remaining ?? 1) <= 0
+
   return (
     <div className="space-y-6">
       {/* Main Pitch Generator Card */}
@@ -789,22 +813,28 @@ export function PitchGenerator({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isPitchCapReached ? (
+          {isStarter && premiumUsage ? (
+            <UsageMeter used={premiumUsage.used} limit={premiumUsage.limit} label="Free: premium generations" eventContext={{ surface: 'pitch_generator' }} />
+          ) : null}
+          {isFreeLimitReached ? (
             <div className="rounded-lg border border-cyan-500/20 bg-background/40 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-cyan-200">
-                    You’ve used your {STARTER_PITCH_CAP_LIMIT} free pitches on the Starter plan.
+                    You’ve used all {premiumUsage?.limit ?? 3} free generations.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upgrade to Closer to unlock unlimited pitches.
+                    Upgrade to unlock unlimited generation and full pitch/report access.
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => router.push('/pricing?target=closer')}
+                    onClick={() => {
+                      track('upgrade_cta_clicked_from_limit', { surface: 'pitch_generator' })
+                      router.push('/pricing?target=closer')
+                    }}
                     className="neon-border hover:glow-effect whitespace-nowrap"
                   >
                     <DollarSign className="h-4 w-4 mr-2" />
@@ -833,7 +863,7 @@ export function PitchGenerator({
             </div>
           )}
           <div className="relative">
-            <div className={isPitchCapReached ? 'pointer-events-none opacity-50' : ''}>
+            <div className={isFreeLimitReached ? 'pointer-events-none opacity-50' : ''}>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
                   <label className="text-sm font-semibold mb-2 block" htmlFor="pitch_template">
@@ -844,7 +874,7 @@ export function PitchGenerator({
                     value={templateId}
                     onChange={(e) => setTemplateId(e.target.value as PitchTemplateId)}
                     className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm bloomberg-font"
-                    disabled={isPitchCapReached}
+                    disabled={isFreeLimitReached}
                   >
                     {PITCH_TEMPLATES.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -872,11 +902,11 @@ export function PitchGenerator({
                   onKeyDown={(e) => e.key === 'Enter' && handleGenerateOrNavigate()}
                   className="flex-1"
                   data-testid="pitch-input"
-                  disabled={isPitchCapReached}
+                  disabled={isFreeLimitReached}
                 />
                 <Button
                   onClick={handleGenerateOrNavigate}
-                  disabled={isPitchCapReached || loading || !companyUrl.trim()}
+                  disabled={isFreeLimitReached || loading || !companyUrl.trim()}
                   data-testid="pitch-generate"
                   data-tour="tour-generate-pitch"
                 >
@@ -895,18 +925,21 @@ export function PitchGenerator({
               </div>
             </div>
 
-            {isPitchCapReached ? (
+            {isFreeLimitReached ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="rounded-lg border border-cyan-500/20 bg-background/80 px-4 py-3 text-center backdrop-blur-sm">
                   <p className="text-sm font-semibold text-cyan-200">
-                    You’ve used your {STARTER_PITCH_CAP_LIMIT} free pitches.
+                    You’ve used all {premiumUsage?.limit ?? 3} free generations.
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">Upgrade to unlock unlimited pitches.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Upgrade to continue generating and unlock full content.</p>
                   <div className="mt-3 flex items-center justify-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => router.push('/pricing?target=closer')}
+                      onClick={() => {
+                        track('upgrade_cta_clicked_from_limit', { surface: 'pitch_generator' })
+                        router.push('/pricing?target=closer')
+                      }}
                       className="neon-border hover:glow-effect"
                     >
                       <DollarSign className="h-4 w-4 mr-2" />
@@ -934,10 +967,10 @@ export function PitchGenerator({
               {savedCompanyNotice}
             </div>
           ) : null}
-        {visibleSavedCompanies.length > 0 && (
+        {savedCompanies.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Saved companies:</span>
-            {visibleSavedCompanies.map((u) => (
+            {savedCompanies.map((u) => (
               <div key={u} className="inline-flex items-center rounded-md border bg-background">
                 <Button
                   size="sm"
@@ -966,109 +999,112 @@ export function PitchGenerator({
 
       {/* Generated Pitch Display */}
       {pitch && (
-        <Card className="border-cyan-500/20 bg-card/50">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-cyan-400" />
-                <CardTitle className="text-lg">Generated Pitch</CardTitle>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleCopy(pitch, 0)}
-                className="h-7 text-xs"
-              >
+        outputBlurred ? (
+          <div className="space-y-3">
+            <BlurredPremiumSection
+              title="Generated pitch (locked on Free)"
+              preview={pitch}
+              lockedReason="Free includes up to 3 generated pitches/reports. Full pitch content stays locked until you upgrade."
+              upgradeHref="/pricing?target=closer"
+              eventContext={{ surface: 'pitch_generator', section: 'pitch' }}
+            />
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => handleCopy(pitch, 0)}>
                 {copied === 0 ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
-                Copy Pitch
+                Copy preview
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="p-4 rounded-lg border border-cyan-500/10 bg-background/30">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                {pitch}
-              </p>
-            </div>
-            <div className="mt-4 rounded-lg border border-cyan-500/10 bg-background/30 p-4">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Context used</div>
-              {context.loading ? (
-                <div className="mt-2 text-xs text-muted-foreground">Loading context…</div>
-              ) : (
-                <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                  <div>
-                    <span className="font-medium text-foreground">Signals considered:</span> {context.signalsCount}
-                  </div>
-                  {context.latestSignal ? (
-                    <div>
-                      <span className="font-medium text-foreground">Latest signal:</span> {formatSignalType(context.latestSignal.type)} ·{' '}
-                      <span title={new Date(context.latestSignal.detectedAt).toLocaleString()}>
-                        {formatRelativeDate(context.latestSignal.detectedAt)}
-                      </span>
-                    </div>
-                  ) : null}
-                  {context.scoreReasons.length > 0 ? (
-                    <div>
-                      <div className="font-medium text-foreground">Score reasons</div>
-                      <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                        {context.scoreReasons.map((r) => (
-                          <li key={r}>{r}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
+          </div>
+        ) : (
+          <Card className="border-cyan-500/20 bg-card/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-cyan-400" />
+                  <CardTitle className="text-lg">Generated Pitch</CardTitle>
                 </div>
-              )}
-            </div>
-
-            {tier === 'team' ? (
-              <div className="mt-4 rounded-lg border border-cyan-500/10 bg-background/30 p-4" data-testid="team-templates-block">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Team templates</div>
-                {teamTemplates.loading ? (
-                  <div className="mt-2 text-xs text-muted-foreground">Loading templates…</div>
-                ) : teamTemplates.templates.length === 0 ? (
-                  <div className="mt-2 text-xs text-muted-foreground">No approved templates in your default set.</div>
+                <Button size="sm" variant="ghost" onClick={() => handleCopy(pitch, 0)} className="h-7 text-xs">
+                  {copied === 0 ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
+                  Copy Pitch
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="p-4 rounded-lg border border-cyan-500/10 bg-background/30">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{pitch}</p>
+              </div>
+              <div className="mt-4 rounded-lg border border-cyan-500/10 bg-background/30 p-4">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Context used</div>
+                {context.loading ? (
+                  <div className="mt-2 text-xs text-muted-foreground">Loading context…</div>
                 ) : (
-                  <div className="mt-3 space-y-3">
-                    {teamTemplates.templates.map((t) => {
-                      const company =
-                        (companyUrl || '')
-                          .replace(/^https?:\/\//i, '')
-                          .replace(/\/.*$/, '')
-                          .trim() || 'your company'
-                      const trigger = context.latestSignal ? formatSignalType(context.latestSignal.type) : 'recent activity'
-                      const fill = (text: string) =>
-                        text
-                          .replace(/\{\{company\}\}/gi, company)
-                          .replace(/\{\{trigger\}\}/gi, trigger)
-                      const subject = t.subject ? fill(t.subject) : null
-                      const body = fill(t.body)
-                      const both = subject ? `Subject: ${subject}\n\n${body}` : body
-                      return (
-                        <div key={t.id} className="rounded-md border border-cyan-500/10 bg-card/30 p-3" data-testid={`team-template-${t.id}`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-foreground truncate">{t.title}</div>
-                              <div className="text-xs text-muted-foreground">{t.channel}</div>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => void navigator.clipboard.writeText(both)}
-                              data-testid={`team-template-copy-${t.id}`}
-                            >
-                              Copy
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                    <div>
+                      <span className="font-medium text-foreground">Signals considered:</span> {context.signalsCount}
+                    </div>
+                    {context.latestSignal ? (
+                      <div>
+                        <span className="font-medium text-foreground">Latest signal:</span> {formatSignalType(context.latestSignal.type)} ·{' '}
+                        <span title={new Date(context.latestSignal.detectedAt).toLocaleString()}>
+                          {formatRelativeDate(context.latestSignal.detectedAt)}
+                        </span>
+                      </div>
+                    ) : null}
+                    {context.scoreReasons.length > 0 ? (
+                      <div>
+                        <div className="font-medium text-foreground">Score reasons</div>
+                        <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                          {context.scoreReasons.map((r) => (
+                            <li key={r}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
-            ) : null}
-          </CardContent>
-        </Card>
+
+              {tier === 'team' ? (
+                <div className="mt-4 rounded-lg border border-cyan-500/10 bg-background/30 p-4" data-testid="team-templates-block">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Team templates</div>
+                  {teamTemplates.loading ? (
+                    <div className="mt-2 text-xs text-muted-foreground">Loading templates…</div>
+                  ) : teamTemplates.templates.length === 0 ? (
+                    <div className="mt-2 text-xs text-muted-foreground">No approved templates in your default set.</div>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      {teamTemplates.templates.map((t) => {
+                        const company =
+                          (companyUrl || '')
+                            .replace(/^https?:\/\//i, '')
+                            .replace(/\/.*$/, '')
+                            .trim() || 'your company'
+                        const trigger = context.latestSignal ? formatSignalType(context.latestSignal.type) : 'recent activity'
+                        const fill = (text: string) => text.replace(/\{\{company\}\}/gi, company).replace(/\{\{trigger\}\}/gi, trigger)
+                        const subject = t.subject ? fill(t.subject) : null
+                        const body = fill(t.body)
+                        const both = subject ? `Subject: ${subject}\n\n${body}` : body
+                        return (
+                          <div key={t.id} className="rounded-md border border-cyan-500/10 bg-card/30 p-3" data-testid={`team-template-${t.id}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-foreground truncate">{t.title}</div>
+                                <div className="text-xs text-muted-foreground">{t.channel}</div>
+                              </div>
+                              <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(both)} data-testid={`team-template-copy-${t.id}`}>
+                                Copy
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        )
       )}
 
       {/* Email Sequence - 3-Part Sequencer */}

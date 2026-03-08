@@ -7,6 +7,16 @@ import { generateCompetitiveIntelligenceReportSourced } from '@/lib/reports/comp
 import { looksLikeEmail } from '@/lib/reports/reportFormatGuards'
 import { normalizeReportInput } from '@/lib/reports/reportInput'
 import { assertMinCitationsOrThrow, flattenCitations } from '@/lib/reports/sourceRequirements'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
+import {
+  cancelPremiumGeneration,
+  completePremiumGeneration,
+  getPremiumGenerationCapabilities,
+  getPremiumGenerationUsage,
+  redactTextPreview,
+  reservePremiumGeneration,
+} from '@/lib/billing/premium-generations'
+import { randomUUID } from 'crypto'
 
 const BodySchema = z.object({
   company_name: z.string().trim().min(1).max(120).nullable().optional(),
@@ -38,6 +48,7 @@ export const POST = withApiGuard(
   async (request, { body, userId, requestId }) => {
     const bridge = createCookieBridge()
     const startedAt = Date.now()
+    let reservationId: string | null = null
 
     try {
       if (!userId) {
@@ -54,11 +65,44 @@ export const POST = withApiGuard(
       const forceRefresh = Boolean((body as z.infer<typeof BodySchema> | undefined)?.force_refresh)
 
       const supabase = createRouteClient(request, bridge)
+      const user = await getUserSafe(supabase)
+      if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+
+      const [capabilities, usageBefore] = await Promise.all([
+        getPremiumGenerationCapabilities({ supabase, userId: user.id, sessionEmail: user.email ?? null }),
+        getPremiumGenerationUsage({ supabase, userId: user.id }),
+      ])
+
+      if (capabilities.tier === 'starter') {
+        if (usageBefore.used >= usageBefore.limit) {
+          return fail(
+            'FREE_TIER_GENERATION_LIMIT_REACHED',
+            'Free accounts can generate up to 3 pitches/reports. Upgrade to continue.',
+            { usage: usageBefore, upgradeRequired: true },
+            { status: 429 },
+            bridge,
+            requestId
+          )
+        }
+        const reserved = await reservePremiumGeneration({ supabase, capabilities })
+        if (!reserved.ok || !reserved.reservationId) {
+          const usage = await getPremiumGenerationUsage({ supabase, userId: user.id })
+          return fail(
+            'FREE_TIER_GENERATION_LIMIT_REACHED',
+            'Free accounts can generate up to 3 pitches/reports. Upgrade to continue.',
+            { usage, upgradeRequired: true },
+            { status: 429 },
+            bridge,
+            requestId
+          )
+        }
+        reservationId = reserved.reservationId
+      }
 
       const { data: userSettings } = await supabase
         .from('user_settings')
         .select('what_you_sell, ideal_customer')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .maybeSingle()
 
       // Refresh (or use cached) sources for up-to-date, citation-backed reporting.
@@ -89,7 +133,7 @@ export const POST = withApiGuard(
                 let q = supabase
                   .from('trigger_events')
                   .select('headline, event_type, detected_at, source_url, event_description')
-                  .eq('user_id', userId)
+                  .eq('user_id', user.id)
                   .order('detected_at', { ascending: false })
                   .limit(12)
                 if (input.companyDomain) q = q.eq('company_domain', input.companyDomain)
@@ -165,11 +209,13 @@ export const POST = withApiGuard(
 
       const latencyMs = Date.now() - startedAt
       const title = `Competitive report: ${companyNameForReport}`
+      const reportId = randomUUID()
 
       const { data: inserted, error: insertError } = await supabase
         .from('user_reports')
         .insert({
-          user_id: userId,
+          id: reportId,
+          user_id: user.id,
           status: 'complete',
           company_name: companyNameForReport,
           company_domain: input.companyDomain,
@@ -213,13 +259,46 @@ export const POST = withApiGuard(
         )
       }
 
+      await completePremiumGeneration({
+        supabase,
+        reservationId,
+        objectType: 'report',
+        objectId: inserted.id,
+      })
+      const usageAfter = await getPremiumGenerationUsage({ supabase, userId: user.id })
+
       return ok(
-        { reportId: inserted.id, report_markdown: generated.reportMarkdown, report_json: generated.reportJson },
+        capabilities.blurPremiumSections
+          ? {
+              reportId: inserted.id,
+              report_markdown: null,
+              report_json: null,
+              reportPreviewMarkdown: redactTextPreview(generated.reportMarkdown, 1600),
+              isBlurred: true,
+              lockedSections: ['report_markdown'] as const,
+              usage: usageAfter,
+              upgradeRequired: true,
+            }
+          : {
+              reportId: inserted.id,
+              report_markdown: generated.reportMarkdown,
+              report_json: generated.reportJson,
+              isBlurred: false,
+              lockedSections: [] as const,
+              usage: usageAfter,
+              upgradeRequired: false,
+            },
         undefined,
         bridge,
         requestId
       )
     } catch (error) {
+      try {
+        const supabase = createRouteClient(request, bridge)
+        await cancelPremiumGeneration({ supabase, reservationId })
+      } catch {
+        // best-effort
+      }
       // Persist a failed report record (best-effort, user-scoped via RLS). Never block the response.
       try {
         const data = body as Partial<z.infer<typeof BodySchema>> | undefined

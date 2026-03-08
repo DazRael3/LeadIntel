@@ -6,21 +6,32 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import type { ScoreExplainability } from '@/lib/domain/explainability'
+import type { ScoreExplainability, SignalMomentum } from '@/lib/domain/explainability'
+import { formatRelativeDate } from '@/lib/domain/explainability'
 
-export function ScoreExplainer(props: { explainability: ScoreExplainability | null; loading?: boolean }) {
+export function ScoreExplainer(props: { explainability: ScoreExplainability | null; momentum?: SignalMomentum | null; loading?: boolean }) {
   const { toast } = useToast()
 
   const score = props.explainability?.score
   const reasons = props.explainability?.reasons ?? []
   const breakdown = props.explainability?.breakdown
+  const updatedAt = props.explainability?.updatedAt
+  const delta = props.momentum?.delta ?? null
 
   return (
     <Card className="border-cyan-500/20 bg-card/50">
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">Score, explained</CardTitle>
-          {typeof score === 'number' ? <Badge variant="outline">{score}</Badge> : null}
+          <div className="flex items-center gap-2">
+            {typeof score === 'number' ? <Badge variant="outline">{score}</Badge> : null}
+            {typeof delta === 'number' ? (
+              <Badge variant="outline">
+                {delta >= 0 ? '+' : ''}
+                {delta}
+              </Badge>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="text-sm text-muted-foreground space-y-4">
@@ -30,6 +41,11 @@ export function ScoreExplainer(props: { explainability: ScoreExplainability | nu
           <div className="text-xs text-muted-foreground">Score details aren’t available.</div>
         ) : (
           <>
+            {updatedAt ? (
+              <div className="text-xs text-muted-foreground">
+                Updated: <span className="text-foreground">{formatRelativeDate(updatedAt)}</span>
+              </div>
+            ) : null}
             <div>
               <div className="text-xs uppercase tracking-wider text-muted-foreground">Why this score</div>
               {reasons.length > 0 ? (

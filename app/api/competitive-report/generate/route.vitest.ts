@@ -8,6 +8,10 @@ let insertedRow: InsertRow | null = { id: 'rep_1' }
 
 type TableName = 'user_settings' | 'trigger_events' | 'user_reports'
 
+let mockTier: 'starter' | 'closer' = 'closer'
+let mockUsed = 0
+let mockReservedOk = true
+
 class MockQuery {
   private table: TableName
   constructor(table: TableName) {
@@ -57,6 +61,26 @@ class MockQuery {
   }
 }
 
+vi.mock('@/lib/billing/premium-generations', () => ({
+  getPremiumGenerationCapabilities: vi.fn(async () => ({
+    tier: mockTier,
+    maxPremiumGenerations: mockTier === 'starter' ? 3 : null,
+    blurPremiumSections: mockTier === 'starter',
+    allowPremiumExport: false,
+    allowFullCopy: mockTier !== 'starter',
+  })),
+  getPremiumGenerationUsage: vi.fn(async () => ({
+    used: mockUsed,
+    limit: 3,
+    remaining: Math.max(0, 3 - mockUsed),
+    byType: { pitch: 0, report: mockUsed },
+  })),
+  reservePremiumGeneration: vi.fn(async () => (mockReservedOk ? { ok: true, reservationId: 'res_1' } : { ok: false })),
+  completePremiumGeneration: vi.fn(async () => {}),
+  cancelPremiumGeneration: vi.fn(async () => {}),
+  redactTextPreview: (t: string) => t,
+}))
+
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
     auth: {
@@ -89,6 +113,9 @@ describe('/api/competitive-report/generate', () => {
     vi.clearAllMocks()
     mockAuthedUser = { id: 'user_1' }
     insertedRow = { id: 'rep_1' }
+    mockTier = 'closer'
+    mockUsed = 0
+    mockReservedOk = true
     process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000'
   })
 
@@ -105,6 +132,7 @@ describe('/api/competitive-report/generate', () => {
   })
 
   it('authenticated -> saves report and returns id', async () => {
+    mockTier = 'starter'
     const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/competitive-report/generate', {
       method: 'POST',
@@ -116,6 +144,24 @@ describe('/api/competitive-report/generate', () => {
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(typeof json.data?.reportId).toBe('string')
+    // Starter gets redacted payload (no full markdown).
+    expect(json.data?.report_markdown ?? null).toBe(null)
+  })
+
+  it('free plan with 3 reports -> 429', async () => {
+    mockTier = 'starter'
+    mockUsed = 3
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/competitive-report/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ company_name: 'Google', company_domain: 'google.com' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(429)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('FREE_TIER_GENERATION_LIMIT_REACHED')
   })
 })
 

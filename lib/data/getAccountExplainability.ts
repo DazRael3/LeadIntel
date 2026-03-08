@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { SignalEvent, ScoreExplainability } from '@/lib/domain/explainability'
+import type { FirstPartyIntent, SignalEvent, SignalMomentum, ScoreExplainability } from '@/lib/domain/explainability'
 import { safeExternalLink } from '@/lib/domain/explainability'
 import { classifyAndScoreEvents, type TriggerEvent as EngineEvent } from '@/lib/services/trigger-events/engine'
 import { scoreLeadDetailed } from '@/lib/services/lead-scoring'
@@ -29,6 +29,7 @@ type DbPitchRow = { created_at: string | null }
 type DbEmailLogRow = { created_at: string | null; status: string | null }
 type DbWatchlistRow = { id: string }
 type DbUserSettingsRow = { what_you_sell: string | null; ideal_customer: string | null }
+type DbWebsiteVisitorRow = { visited_at: string | null; referer: string | null }
 
 export type ExplainabilityWindow = '7d' | '30d' | '90d' | 'all'
 export type ExplainabilitySort = 'recent' | 'confidence'
@@ -44,10 +45,24 @@ export type AccountExplainability = {
   }
   signals: SignalEvent[]
   scoreExplainability: ScoreExplainability
+  momentum: SignalMomentum
+  firstPartyIntent: FirstPartyIntent
 }
 
 function daysAgoIso(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+}
+
+function windowDays(window: ExplainabilityWindow): number {
+  if (window === '7d') return 7
+  if (window === '90d') return 90
+  return 30
+}
+
+function momentumLabel(delta: number): 'rising' | 'steady' | 'cooling' {
+  if (delta >= 6) return 'rising'
+  if (delta <= -6) return 'cooling'
+  return 'steady'
 }
 
 function isIsoString(value: unknown): value is string {
@@ -131,8 +146,7 @@ export async function getAccountExplainability(args: {
     .eq('lead_id', args.accountId)
 
   if (window !== 'all') {
-    const days = window === '7d' ? 7 : window === '90d' ? 90 : 30
-    triggerQ = triggerQ.gte('detected_at', daysAgoIso(days))
+    triggerQ = triggerQ.gte('detected_at', daysAgoIso(windowDays(window)))
   }
 
   if (args.type && args.type.trim()) {
@@ -165,6 +179,36 @@ export async function getAccountExplainability(args: {
       return ev
     })
     .filter((x): x is SignalEvent => x !== null)
+
+  // Compute momentum by comparing this window vs the prior period, using the same scoring model.
+  const momentumWindowDays = window === 'all' ? 30 : windowDays(window)
+  let momentumRowsQ = args.supabase
+    .from('trigger_events')
+    .select('id, lead_id, event_type, headline, event_description, source_url, detected_at, created_at')
+    .eq('user_id', args.userId)
+    .eq('lead_id', args.accountId)
+    .gte('detected_at', daysAgoIso(momentumWindowDays * 2))
+    .order('detected_at', { ascending: false })
+    .limit(500)
+  if (args.type && args.type.trim()) {
+    momentumRowsQ = momentumRowsQ.eq('event_type', args.type.trim())
+  }
+  const momentumRowsRes = await momentumRowsQ
+  const momentumRows = (momentumRowsRes.data ?? []) as unknown as DbTriggerRow[]
+
+  const nowMs = Date.now()
+  const currentStartMs = nowMs - momentumWindowDays * 24 * 60 * 60 * 1000
+  const priorStartMs = nowMs - momentumWindowDays * 2 * 24 * 60 * 60 * 1000
+
+  const engineEventsAll = toEngineEvents(momentumRows, lead.id)
+  const currentEngineEvents = engineEventsAll.filter((e) => {
+    const ms = Date.parse(e.publishedAt)
+    return Number.isFinite(ms) && ms >= currentStartMs
+  })
+  const priorEngineEvents = engineEventsAll.filter((e) => {
+    const ms = Date.parse(e.publishedAt)
+    return Number.isFinite(ms) && ms >= priorStartMs && ms < currentStartMs
+  })
 
   // Score explainability (deterministic; computed from stored signals + user activity).
   const [watchlistRes, pitchesRes, emailLogsRes, userSettingsRes] = await Promise.all([
@@ -207,6 +251,8 @@ export async function getAccountExplainability(args: {
 
   const engineEvents = toEngineEvents(triggerRows, lead.id)
   const scoredEvents = classifyAndScoreEvents(engineEvents)
+  const scoredEventsCurrent = classifyAndScoreEvents(currentEngineEvents)
+  const scoredEventsPrior = classifyAndScoreEvents(priorEngineEvents)
 
   const scored = scoreLeadDetailed({
     lead: {
@@ -216,6 +262,48 @@ export async function getAccountExplainability(args: {
       company_url: lead.company_url,
     },
     events: scoredEvents,
+    userSignals: {
+      isWatchlisted,
+      unlockedCount: 0,
+      pitchesGenerated: pitchDates.length,
+      emailsSent: emailDates.length,
+      lastInteractionAt,
+    },
+    userSettings: {
+      whatYouSell: userSettings?.what_you_sell ?? undefined,
+      idealCustomer: userSettings?.ideal_customer ?? undefined,
+    },
+  })
+
+  const scoredCurrent = scoreLeadDetailed({
+    lead: {
+      id: lead.id,
+      company_name: lead.company_name,
+      company_domain: lead.company_domain,
+      company_url: lead.company_url,
+    },
+    events: scoredEventsCurrent,
+    userSignals: {
+      isWatchlisted,
+      unlockedCount: 0,
+      pitchesGenerated: pitchDates.length,
+      emailsSent: emailDates.length,
+      lastInteractionAt,
+    },
+    userSettings: {
+      whatYouSell: userSettings?.what_you_sell ?? undefined,
+      idealCustomer: userSettings?.ideal_customer ?? undefined,
+    },
+  })
+
+  const scoredPrior = scoreLeadDetailed({
+    lead: {
+      id: lead.id,
+      company_name: lead.company_name,
+      company_domain: lead.company_domain,
+      company_url: lead.company_url,
+    },
+    events: scoredEventsPrior,
     userSignals: {
       isWatchlisted,
       unlockedCount: 0,
@@ -242,6 +330,71 @@ export async function getAccountExplainability(args: {
     ...(isIsoString(lead.updated_at) ? { updatedAt: lead.updated_at } : {}),
   }
 
+  const typeCounts = new Map<string, number>()
+  for (const s of signals) {
+    const t = s.type.trim()
+    if (!t) continue
+    typeCounts.set(t, (typeCounts.get(t) ?? 0) + 1)
+  }
+  const topSignalTypes = Array.from(typeCounts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 4)
+    .map(([type, count]) => ({ type, count }))
+
+  const mostRecentSignalAt = signals.map((s) => s.detectedAt).sort((a, b) => b.localeCompare(a))[0] ?? null
+  const highSignalEvents = scoredEventsCurrent.filter((e) => e.score >= 70).length
+
+  const momentum: SignalMomentum = {
+    window,
+    currentScore: scoredCurrent.score,
+    priorScore: scoredPrior.score,
+    delta: scoredCurrent.score - scoredPrior.score,
+    label: momentumLabel(scoredCurrent.score - scoredPrior.score),
+    topSignalTypes,
+    highSignalEvents,
+    mostRecentSignalAt,
+  }
+
+  // First-party intent (domain-matched website visitors), when available.
+  let visitorMatches: FirstPartyIntent['visitorMatches'] = { count: 0, lastVisitedAt: null, sampleReferrers: [] }
+  if (lead.company_domain && lead.company_domain.trim().length > 0) {
+    try {
+      const visitorsRes = await args.supabase
+        .from('website_visitors')
+        .select('visited_at, referer')
+        .eq('company_domain', lead.company_domain)
+        .gte('visited_at', daysAgoIso(14))
+        .order('visited_at', { ascending: false })
+        .limit(10)
+
+      const rows = (visitorsRes.data ?? []) as unknown as DbWebsiteVisitorRow[]
+      const lastVisitedAt =
+        rows.map((r) => r.visited_at).find((x): x is string => typeof x === 'string' && x.trim().length > 0) ?? null
+
+      const refSet = new Set<string>()
+      for (const r of rows) {
+        const raw = (r.referer ?? '').trim()
+        if (!raw) continue
+        try {
+          const u = new URL(raw)
+          const cleaned = `${u.origin}${u.pathname}`
+          refSet.add(cleaned)
+          if (refSet.size >= 3) break
+        } catch {
+          // ignore malformed referrer
+        }
+      }
+
+      visitorMatches = {
+        count: rows.length,
+        lastVisitedAt,
+        sampleReferrers: Array.from(refSet),
+      }
+    } catch {
+      visitorMatches = { count: 0, lastVisitedAt: null, sampleReferrers: [] }
+    }
+  }
+
   return {
     account: {
       id: lead.id,
@@ -253,6 +406,8 @@ export async function getAccountExplainability(args: {
     },
     signals,
     scoreExplainability,
+    momentum,
+    firstPartyIntent: { visitorMatches },
   }
 }
 

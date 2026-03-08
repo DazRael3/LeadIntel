@@ -68,12 +68,42 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground">{page.hero.summary}</div>
+            <div className="text-sm text-muted-foreground">{page.bestFor}</div>
             <CompareCtas slug={page.slug} />
             <div className="text-xs text-muted-foreground">
               Conservative comparison. If a detail varies by plan or setup, we label it as such.
             </div>
           </CardContent>
         </Card>
+
+        {page.bestForSections ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="border-cyan-500/20 bg-card/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Best for (LeadIntel)</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                <ul className="list-disc pl-5 space-y-1">
+                  {page.bestForSections.leadintel.map((x) => (
+                    <li key={x}>{x}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+            <Card className="border-cyan-500/20 bg-card/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Best for ({page.competitorName})</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                <ul className="list-disc pl-5 space-y-1">
+                  {page.bestForSections.competitor.map((x) => (
+                    <li key={x}>{x}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="border-cyan-500/20 bg-card/60">

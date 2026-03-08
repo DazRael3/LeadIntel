@@ -118,6 +118,17 @@ This app uses **Next.js 14 + Supabase + Stripe + Sentry**. Environment variables
 | --- | --- | --- | --- |
 | `DEV_SEED_SECRET` | server-only | Secret used for dev-only tooling (guard x-dev-key / dev endpoints). | Don’t set in production unless you know why. |
 | `NEXT_PUBLIC_ENABLE_DEBUG_UI` | client-safe | Enables debug panel UI. | Recommended `false` in prod; code also hard-disables it in production. |
+
+---
+
+## Operational checks (post-deploy)
+
+- Verify `/api/health` returns `ok: true` and DB/Auth checks pass.
+- Verify `/status` shows Operational when critical dependencies are healthy.
+- Verify **Free-tier premium generation enforcement**:
+  - A Free (Starter) user can successfully complete up to **3 total** premium generations across **pitches + reports**.
+  - The 4th attempt is blocked server-side with `FREE_TIER_GENERATION_LIMIT_REACHED` (429).
+  - Free responses do **not** include full premium pitch/report text (preview-only + locked UI).
 | `NEXT_PUBLIC_ENABLE_AUTOPILOT_UI` | client-safe | Shows autopilot UI. | Recommended `false` in prod unless using autopilot. |
 
 ---

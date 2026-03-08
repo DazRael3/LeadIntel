@@ -13,6 +13,7 @@ import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { COPY } from '@/lib/copy/leadintel'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { OutcomePricingIntro } from '@/components/marketing/OutcomePricingIntro'
 
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
@@ -324,6 +325,10 @@ export function Pricing() {
           </div>
         </div>
 
+        <div className="max-w-6xl mx-auto mb-8">
+          <OutcomePricingIntro />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
           <div id="plan-starter">
           <Card className="border-cyan-500/10 bg-card/50">
@@ -339,11 +344,15 @@ export function Pricing() {
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Basic pitch generation
+                  Validate the workflow with a sample digest
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Limited scoring and signals
+                  Create up to 3 competitive reports
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
+                  Browse the templates library
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
@@ -386,8 +395,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Daily Deal Digest email with ranked accounts</p>
-                    <p className="text-sm text-muted-foreground">Wake up to the shortlist you can act on</p>
+                    <p className="font-medium">Daily shortlist for your watchlist</p>
+                    <p className="text-sm text-muted-foreground">A ranked list of accounts to action today</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -404,8 +413,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">AI pitch templates (email, call opener, LinkedIn DM)</p>
-                    <p className="text-sm text-muted-foreground">Pick a format and send faster</p>
+                    <p className="font-medium">Send-ready drafts (email, DM, call opener)</p>
+                    <p className="text-sm text-muted-foreground">Generate first touches without a blank page</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -413,8 +422,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">More accounts and trigger events</p>
-                    <p className="text-sm text-muted-foreground">Higher limits and priority processing</p>
+                    <p className="font-medium">Unlimited competitive reports</p>
+                    <p className="text-sm text-muted-foreground">Save and reuse sourced reports in one hub</p>
                   </div>
                 </li>
               </ul>
@@ -474,7 +483,7 @@ export function Pricing() {
                   </div>
                 )}
                 <CardDescription>
-                  For operators who want deeper competitive coverage, automation, and higher throughput.
+                  Deeper source-backed context and premium report workflow for operators.
                 </CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 space-y-6">
@@ -485,7 +494,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Everything in Closer</p>
-                      <p className="text-sm text-muted-foreground">Plus expanded competitive analysis</p>
+                      <p className="text-sm text-muted-foreground">Plus deeper competitive report workflow</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -493,8 +502,8 @@ export function Pricing() {
                       <Check className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <p className="font-medium">More signals + deeper sources</p>
-                      <p className="text-sm text-muted-foreground">Better trigger coverage and history</p>
+                      <p className="font-medium">Sources &amp; freshness visibility</p>
+                      <p className="text-sm text-muted-foreground">See what was fetched and when, with citations</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -502,8 +511,8 @@ export function Pricing() {
                       <Check className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <p className="font-medium">Priority processing</p>
-                      <p className="text-sm text-muted-foreground">Faster report generation</p>
+                      <p className="font-medium">Refresh sources + regenerate</p>
+                      <p className="text-sm text-muted-foreground">Pull current citations and rebuild the report</p>
                     </div>
                   </li>
                 </ul>
@@ -583,7 +592,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Everything in Closer+</p>
-                      <p className="text-sm text-muted-foreground">Plus shared workflows</p>
+                      <p className="text-sm text-muted-foreground">Plus shared playbooks and governance</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -591,8 +600,8 @@ export function Pricing() {
                       <Check className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <p className="font-medium">Team-wide standards</p>
-                      <p className="text-sm text-muted-foreground">Templates and reports are consistent</p>
+                      <p className="font-medium">Shared templates with approvals</p>
+                      <p className="text-sm text-muted-foreground">Draft → approve → reuse across reps</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -600,8 +609,17 @@ export function Pricing() {
                       <Check className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <p className="font-medium">Admin visibility</p>
-                      <p className="text-sm text-muted-foreground">Better oversight across reps</p>
+                      <p className="font-medium">Audit logs</p>
+                      <p className="text-sm text-muted-foreground">Admin visibility on member and template actions</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="p-1 rounded-full bg-green-500/20 border border-green-500/30 mt-0.5">
+                      <Check className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Webhooks + exports</p>
+                      <p className="text-sm text-muted-foreground">A real action layer for outbound teams</p>
                     </div>
                   </li>
                 </ul>
@@ -634,11 +652,11 @@ export function Pricing() {
         <div className="mt-12 max-w-4xl mx-auto">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardContent className="pt-6">
-              <h2 className="text-xl font-bold">One meeting pays for the month.</h2>
+              <h2 className="text-xl font-bold">The ROI is speed-to-action.</h2>
               <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <p>• Stop spraying sequences at cold lists — focus on accounts with real buying signals.</p>
-                <p>• Spend mornings in your inbox and on calls, not bouncing between tabs.</p>
-                <p>• Standardize winning messaging across your org with templates that convert.</p>
+                <p>• Spend less time deciding who to contact today.</p>
+                <p>• Move from “signal” to “send-ready” without blank-page writing.</p>
+                <p>• Keep the daily loop consistent: shortlist → explain → draft → action.</p>
               </div>
             </CardContent>
           </Card>
@@ -747,20 +765,45 @@ export function Pricing() {
           </Card>
         </div>
 
+        <div className="mt-10 max-w-6xl mx-auto">
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Enterprise needs (contact)</CardTitle>
+              <CardDescription>We don’t sell a separate enterprise SKU in checkout. If you need more, contact support.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <ul className="list-disc pl-5 space-y-1">
+                <li>SSO later</li>
+                <li>Deeper audit workflows</li>
+                <li>Custom playbooks / workflows</li>
+                <li>Higher-volume webhook + export needs</li>
+              </ul>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button asChild className="neon-border hover:glow-effect">
+                  <a href="/support">Contact support</a>
+                </Button>
+                <Button asChild variant="outline">
+                  <a href={`mailto:${SUPPORT_EMAIL}`}>Email {SUPPORT_EMAIL}</a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">
               <Shield className="h-8 w-8 mx-auto mb-3 text-cyan-400" />
               <h3 className="font-bold mb-2">Secure Payment</h3>
               <p className="text-sm text-muted-foreground">
-                Powered by Stripe. Your data is encrypted and secure.
+                Powered by Stripe. Payment details stay in Stripe.
               </p>
             </CardContent>
           </Card>
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">
               <TrendingUp className="h-8 w-8 mx-auto mb-3 text-green-400" />
-              <h3 className="font-bold mb-2">Proven Results</h3>
+              <h3 className="font-bold mb-2">Built for daily execution</h3>
               <p className="text-sm text-muted-foreground">
                 {COPY.pricing.plans.replacementClaim}
               </p>

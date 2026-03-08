@@ -7,7 +7,7 @@
 - `npm run build`
 
 ### Supabase
-- **Apply migrations** through `0021_product_analytics_and_onboarding_fields.sql`.
+- **Apply migrations** (latest), including `0048_premium_generation_usage.sql` for free-tier generation enforcement.
 - Verify schema is aligned (`api.*` tables exist, RLS enabled).
 - Verify `api.user_watchlists` exists and RLS policies restrict to `auth.uid()`.
 - Verify `api.trigger_events` has expected columns (`company_domain`, `headline`, `source_url`, `detected_at`, etc.).
@@ -69,6 +69,10 @@
 - **First pitch**: generate for a company and confirm:
   - Saved companies updates
   - Trigger Events shows events (real providers or demo fallback)
+- **Free-tier enforcement**:
+  - Free (Starter) user can complete up to **3 total** pitch/report generations.
+  - The 4th attempt is blocked with `FREE_TIER_GENERATION_LIMIT_REACHED`.
+  - Premium sections remain locked/blurred (no full premium text in network responses).
 - **Account isolation**: sign out, sign in as a different user, confirm saved companies do not bleed.
 - **Markets**: star symbols (Pro/trial), reload, confirm ticker/Your Watchlist reflect starred list.
 

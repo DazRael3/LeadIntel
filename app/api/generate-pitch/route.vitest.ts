@@ -1,18 +1,35 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
-import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 
-let mockIsPro = false
-
-vi.mock('@/lib/billing/plan', () => ({
-  isPro: vi.fn(async () => mockIsPro),
-}))
+let mockTier: 'starter' | 'closer' = 'starter'
+let mockUsed = 0
+let mockReservedOk = true
 
 vi.mock('@/lib/services/triggerEvents', () => ({
   ingestRealTriggerEvents: vi.fn(async () => ({ created: 0 })),
   seedDemoTriggerEventsIfEmpty: vi.fn(async () => ({ created: 2 })),
   hasAnyTriggerEvents: vi.fn(async () => true),
   getLatestTriggerEvent: vi.fn(async () => ({ id: 'event_1' })),
+}))
+
+vi.mock('@/lib/billing/premium-generations', () => ({
+  getPremiumGenerationCapabilities: vi.fn(async () => ({
+    tier: mockTier,
+    maxPremiumGenerations: mockTier === 'starter' ? 3 : null,
+    blurPremiumSections: mockTier === 'starter',
+    allowPremiumExport: false,
+    allowFullCopy: mockTier !== 'starter',
+  })),
+  getPremiumGenerationUsage: vi.fn(async () => ({
+    used: mockUsed,
+    limit: 3,
+    remaining: Math.max(0, 3 - mockUsed),
+    byType: { pitch: mockUsed, report: 0 },
+  })),
+  reservePremiumGeneration: vi.fn(async () => (mockReservedOk ? { ok: true, reservationId: 'res_1' } : { ok: false })),
+  completePremiumGeneration: vi.fn(async () => {}),
+  cancelPremiumGeneration: vi.fn(async () => {}),
+  redactTextPreview: (t: string) => t,
 }))
 
 class FakeQuery {
@@ -100,24 +117,18 @@ vi.mock('@/lib/ai-logic', () => ({
   generateEmailSequence: vi.fn(async () => ({ part1: 'P1', part2: 'P2', part3: 'P3' })),
 }))
 
-vi.mock('@/lib/billing/usage', () => ({
-  checkStarterPitchUsage: vi.fn(async () => ({ ok: true, remaining: 999, limit: 20 })),
-  getStarterLeadCountFromDb: vi.fn(async () => 0),
-  getStarterPitchCapSummary: vi.fn(async () => ({ used: 0, limit: STARTER_PITCH_CAP_LIMIT })),
-  recordStarterPitchCapUsage: vi.fn(async () => ({ used: 1, limit: 3 })),
-}))
-
 describe('/api/generate-pitch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.ENABLE_DEMO_TRIGGER_EVENTS = 'true'
     mockSubscriptionRow = null
-    mockIsPro = false
+    mockTier = 'starter'
+    mockUsed = 0
+    mockReservedOk = true
   })
 
   it('starter user under limit can generate pitch', async () => {
     const { POST } = await import('./route')
-    const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
 
     const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
       method: 'POST',
@@ -130,9 +141,9 @@ describe('/api/generate-pitch', () => {
 
     const json = await res.json()
     expect(json.ok).toBe(true)
-    expect(typeof json.data?.pitch).toBe('string')
-    expect(json.data.pitch).toBe('Mock pitch text')
-    expect(checkStarterPitchUsage).toHaveBeenCalledTimes(1)
+    expect(json.data?.isBlurred).toBe(true)
+    expect(json.data?.pitch).toBe(null)
+    expect(typeof json.data?.pitchPreview).toBe('string')
   })
 
   it('name-only input persists lead + pitch (no missing lead id warning)', async () => {
@@ -182,10 +193,8 @@ describe('/api/generate-pitch', () => {
 
   it('starter user over limit gets 429 and FREE_PLAN_LIMIT_REACHED (with header)', async () => {
     const { POST } = await import('./route')
-    const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
     const { generatePitch } = await import('@/lib/ai-logic')
-
-    ;(checkStarterPitchUsage as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: false, limit: 20 })
+    mockUsed = 3
 
     const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
       method: 'POST',
@@ -195,41 +204,15 @@ describe('/api/generate-pitch', () => {
 
     const res = await POST(req)
     expect(res.status).toBe(429)
-    expect(res.headers.get('x-free-plan-limit')).toBe('20')
     const json = await res.json()
     expect(json.ok).toBe(false)
-    expect(json.error?.code).toBe('FREE_PLAN_LIMIT_REACHED')
+    expect(json.error?.code).toBe('FREE_TIER_GENERATION_LIMIT_REACHED')
     expect(generatePitch).not.toHaveBeenCalled()
-  })
-
-  it('starter user over 3-pitch cap gets 429 before generating', async () => {
-    const { POST } = await import('./route')
-    const { getStarterLeadCountFromDb, checkStarterPitchUsage } = await import('@/lib/billing/usage')
-    const { generatePitch } = await import('@/lib/ai-logic')
-
-    ;(getStarterLeadCountFromDb as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(3)
-
-    const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
-      method: 'POST',
-      body: JSON.stringify({ companyUrl: 'crypto.com' }),
-      headers: { 'Content-Type': 'application/json' },
-    })
-
-    const res = await POST(req)
-    expect(res.status).toBe(429)
-    expect(res.headers.get('x-free-plan-limit')).toBe(String(STARTER_PITCH_CAP_LIMIT))
-    const json = await res.json()
-    expect(json.ok).toBe(false)
-    expect(json.error?.code).toBe('FREE_PLAN_LIMIT_REACHED')
-    expect(generatePitch).not.toHaveBeenCalled()
-    expect(checkStarterPitchUsage).not.toHaveBeenCalled()
   })
 
   it('closer user ignores starter cap and can generate pitch', async () => {
-    mockSubscriptionRow = { status: 'active', stripe_price_id: process.env.STRIPE_PRICE_ID_PRO ?? 'price_test_pro' }
-    mockIsPro = true
+    mockTier = 'closer'
     const { POST } = await import('./route')
-    const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
 
     const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
       method: 'POST',
@@ -239,7 +222,10 @@ describe('/api/generate-pitch', () => {
 
     const res = await POST(req)
     expect(res.status).toBe(200)
-    expect(checkStarterPitchUsage).not.toHaveBeenCalled()
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.isBlurred).toBe(false)
+    expect(typeof json.data?.pitch).toBe('string')
   })
 
   it('paid subscription with non-closer price is treated as closer and ignores starter cap', async () => {
@@ -247,9 +233,8 @@ describe('/api/generate-pitch', () => {
     process.env.STRIPE_PRICE_ID_PRO = 'price_test_pro_123'
     process.env.STRIPE_PRICE_ID = 'price_test_pro_123'
     process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
-    mockIsPro = true
+    mockTier = 'closer'
     const { POST } = await import('./route')
-    const { checkStarterPitchUsage } = await import('@/lib/billing/usage')
 
     const req = new NextRequest('http://localhost:3000/api/generate-pitch', {
       method: 'POST',
@@ -259,7 +244,8 @@ describe('/api/generate-pitch', () => {
 
     const res = await POST(req)
     expect(res.status).toBe(200)
-    expect(checkStarterPitchUsage).not.toHaveBeenCalled()
+    const json = await res.json()
+    expect(json.ok).toBe(true)
   })
 })
 

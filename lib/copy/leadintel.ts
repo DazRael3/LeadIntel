@@ -3,14 +3,14 @@ export const COPY = {
     name: 'LeadIntel',
   },
   positioning: {
-    icpLine: 'For outbound B2B SDRs/AEs who want trigger-based account alerts and instant pitch drafts.',
+    icpLine: 'Signal-based outbound platform for teams who need why-now intelligence and send-ready outreach.',
   },
   home: {
     hero: {
-      headline: 'Trigger-based account alerts. Instant pitch drafts.',
-      subhead: 'For outbound B2B SDRs/AEs who want trigger-based account alerts and instant pitch drafts.',
-      support:
-        'Turn “why now” signals into daily priorities, a 0–100 lead score, and outreach you can send in minutes.',
+      headline: 'Why-now signals for outbound teams. Send-ready outreach in minutes.',
+      subhead:
+        'LeadIntel turns fresh buying signals into a daily shortlist, an explainable 0–100 score, and outreach SDRs and AEs can send without starting from a blank page.',
+      support: 'Track target accounts, see why now, and take action from one workspace.',
       primaryCta: 'Generate a sample digest',
       secondaryCta: 'See pricing',
       microTrust: 'No signup required for the sample.',
@@ -39,22 +39,21 @@ export const COPY = {
   },
   pricing: {
     hero: {
-      headline: 'Choose the plan that fits your outbound motion.',
-      subhead: 'Trigger-based account alerts and instant pitch drafts—built for outbound B2B SDRs/AEs.',
+      headline: 'Choose the outbound workflow that fits your team.',
+      subhead: 'From signal detection to send-ready messaging, LeadIntel helps reps act while timing is fresh.',
       bullets: [
-        'Daily Deal Digest + lead score (0–100)',
-        '“Why now” context you can act on fast',
-        'Outreach drafts you can send immediately',
+        'Daily shortlist for your target accounts',
+        'Explainable 0–100 score with reasons',
+        'Send-ready drafts and an action layer (webhooks + exports)',
       ],
       trustStrip: (supportEmail: string) => `Transparent pricing. Cancel anytime. Support: ${supportEmail}.`,
       primaryCta: 'Start free',
       secondaryCta: 'Compare plans',
     },
     plans: {
-      starterDescription:
-        'For individuals validating the workflow: sample-level usage and core features to get started.',
-      closerDescription: 'For daily outbound: full digests, deeper scoring context, and faster execution.',
-      replacementClaim: 'Built for fast daily action: digest → score → pitch.',
+      starterDescription: 'Validate the workflow: generate a sample digest and see the action loop end-to-end.',
+      closerDescription: 'Daily prioritization and faster execution: shortlist, explainable scoring, and send-ready drafts.',
+      replacementClaim: 'Built for the daily loop: detect → prioritize → explain → draft → push/export.',
     },
   },
   onboarding: {

@@ -18,6 +18,27 @@ export type ScoreExplainability = {
   updatedAt?: string
 }
 
+export type SignalMomentumLabel = 'rising' | 'steady' | 'cooling'
+
+export type SignalMomentum = {
+  window: '7d' | '30d' | '90d' | 'all'
+  currentScore: number
+  priorScore: number
+  delta: number
+  label: SignalMomentumLabel
+  topSignalTypes: Array<{ type: string; count: number }>
+  highSignalEvents: number
+  mostRecentSignalAt: string | null
+}
+
+export type FirstPartyIntent = {
+  visitorMatches: {
+    count: number
+    lastVisitedAt: string | null
+    sampleReferrers: string[]
+  }
+}
+
 export function formatSignalType(type: string): string {
   const v = type.trim().toLowerCase()
   if (v === 'new_hires' || v === 'leadership_change') return 'Hiring spike'
