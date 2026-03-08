@@ -83,6 +83,10 @@ type PremiumGenerationsSummary = ApiEnvelope<{
     tier: 'starter' | 'closer' | 'closer_plus' | 'team'
     maxPremiumGenerations: number | null
     blurPremiumSections: boolean
+    freeGenerationLabel?: string | null
+    freeGenerationHelper?: string | null
+    freeUsageScopeLabel?: string | null
+    lockedHelper?: string | null
   }
   usage: { used: number; limit: number; remaining: number; byType?: { pitch: number; report: number } }
 }>
@@ -150,6 +154,12 @@ export function PitchGenerator({
   const [templateId, setTemplateId] = useState<PitchTemplateId>(initialTemplateId)
   const [freeLimitError, setFreeLimitError] = useState<string | null>(null)
   const [premiumUsage, setPremiumUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null)
+  const [freeCopy, setFreeCopy] = useState<{
+    label: string
+    helper: string
+    scope: string
+    locked: string
+  } | null>(null)
   const [generatedLeadId, setGeneratedLeadId] = useState<string | null>(null)
   const [outputBlurred, setOutputBlurred] = useState<boolean>(false)
   const [context, setContext] = useState<{
@@ -436,6 +446,28 @@ export function PitchGenerator({
             ? json.data.usage.remaining
             : Math.max(0, limit - used)
         setPremiumUsage({ used, limit, remaining })
+        const cap = json.data.capabilities
+        if (cap?.tier === 'starter') {
+          const label =
+            typeof cap.freeGenerationLabel === 'string' && cap.freeGenerationLabel.trim().length > 0
+              ? cap.freeGenerationLabel
+              : 'Free plan: 3 preview generations total'
+          const helper =
+            typeof cap.freeGenerationHelper === 'string' && cap.freeGenerationHelper.trim().length > 0
+              ? cap.freeGenerationHelper
+              : 'Generate up to 3 pitch/report previews on Free.'
+          const scope =
+            typeof cap.freeUsageScopeLabel === 'string' && cap.freeUsageScopeLabel.trim().length > 0
+              ? cap.freeUsageScopeLabel
+              : 'Usage is shared across pitches and reports.'
+          const locked =
+            typeof cap.lockedHelper === 'string' && cap.lockedHelper.trim().length > 0
+              ? cap.lockedHelper
+              : 'Full premium content stays locked until you upgrade.'
+          setFreeCopy({ label, helper, scope, locked })
+        } else {
+          setFreeCopy(null)
+        }
       } catch {
         // ignore
       }
@@ -574,7 +606,7 @@ export function PitchGenerator({
           const msg =
             (errorData as any)?.error?.message ??
             (errorData as any)?.message ??
-            `You’ve used all ${limit} free generations. Upgrade to continue.`
+            `You’ve used all ${limit} preview generations. Upgrade to continue.`
           setPremiumUsage({ used, limit, remaining: 0 })
           setFreeLimitError(msg)
           setAuthError(msg)
@@ -613,6 +645,9 @@ export function PitchGenerator({
           templateId,
           hasDomain: Boolean(extractDomainFromInput(companyUrl)),
         })
+        if (blurred) {
+          track('pitch_preview_generated', { surface: 'pitch_generator', templateId })
+        }
         await persistSaved(companyUrl)
         onCompanyContextChange?.({
           companyInput: companyUrl,
@@ -814,14 +849,22 @@ export function PitchGenerator({
         </CardHeader>
         <CardContent className="space-y-4">
           {isStarter && premiumUsage ? (
-            <UsageMeter used={premiumUsage.used} limit={premiumUsage.limit} label="Free: premium generations" eventContext={{ surface: 'pitch_generator' }} />
+            <UsageMeter
+              used={premiumUsage.used}
+              limit={premiumUsage.limit}
+              label={freeCopy?.label ?? 'Free plan: 3 preview generations total'}
+              helper={freeCopy?.helper ?? 'Generate up to 3 pitch/report previews on Free.'}
+              scopeHelper={freeCopy?.scope ?? 'Usage is shared across pitches and reports.'}
+              lockedHelper={freeCopy?.locked ?? 'Full premium content stays locked until you upgrade.'}
+              eventContext={{ surface: 'pitch_generator' }}
+            />
           ) : null}
           {isFreeLimitReached ? (
             <div className="rounded-lg border border-cyan-500/20 bg-background/40 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-cyan-200">
-                    You’ve used all {premiumUsage?.limit ?? 3} free generations.
+                    You’ve used all {premiumUsage?.limit ?? 3} preview generations.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Upgrade to unlock unlimited generation and full pitch/report access.
@@ -929,7 +972,7 @@ export function PitchGenerator({
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="rounded-lg border border-cyan-500/20 bg-background/80 px-4 py-3 text-center backdrop-blur-sm">
                   <p className="text-sm font-semibold text-cyan-200">
-                    You’ve used all {premiumUsage?.limit ?? 3} free generations.
+                    You’ve used all {premiumUsage?.limit ?? 3} preview generations.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">Upgrade to continue generating and unlock full content.</p>
                   <div className="mt-3 flex items-center justify-center gap-2">
@@ -1002,16 +1045,16 @@ export function PitchGenerator({
         outputBlurred ? (
           <div className="space-y-3">
             <BlurredPremiumSection
-              title="Generated pitch (locked on Free)"
+              title="Generated pitch preview (locked on Free)"
               preview={pitch}
-              lockedReason="Free includes up to 3 generated pitches/reports. Full pitch content stays locked until you upgrade."
+              lockedReason={`${freeCopy?.locked ?? 'Full premium content stays locked until you upgrade.'} ${freeCopy?.scope ?? 'Usage is shared across pitches and reports.'}`}
               upgradeHref="/pricing?target=closer"
               eventContext={{ surface: 'pitch_generator', section: 'pitch' }}
             />
             <div className="flex justify-end">
               <Button size="sm" variant="outline" onClick={() => handleCopy(pitch, 0)}>
                 {copied === 0 ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
-                Copy preview
+                Copy free preview
               </Button>
             </div>
           </div>

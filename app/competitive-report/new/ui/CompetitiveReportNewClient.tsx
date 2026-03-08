@@ -45,6 +45,7 @@ export function CompetitiveReportNewClient() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inlineError, setInlineError] = useState<{ title: string; tips: string[] } | null>(null)
   const [usage, setUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null)
+  const [freeCopy, setFreeCopy] = useState<{ label: string; helper: string; scope: string; locked: string } | null>(null)
 
   const websiteRef = useRef<HTMLInputElement | null>(null)
   const didAutoSubmit = useRef(false)
@@ -55,11 +56,34 @@ export function CompetitiveReportNewClient() {
       try {
         const res = await fetch('/api/usage/premium-generations', { method: 'GET', cache: 'no-store', credentials: 'include' })
         if (!res.ok) return
-        const json = (await res.json()) as { ok?: boolean; data?: { usage?: { used: number; limit: number; remaining: number } } }
+        const json = (await res.json()) as {
+          ok?: boolean
+          data?: {
+            capabilities?: {
+              tier?: string
+              freeGenerationLabel?: string | null
+              freeGenerationHelper?: string | null
+              freeUsageScopeLabel?: string | null
+              lockedHelper?: string | null
+            }
+            usage?: { used: number; limit: number; remaining: number }
+          }
+        }
         if (!json?.ok) return
         if (cancelled) return
         const u = json.data?.usage
         if (u) setUsage(u)
+        const cap = json.data?.capabilities
+        if (cap?.tier === 'starter') {
+          setFreeCopy({
+            label: cap.freeGenerationLabel ?? 'Free plan: 3 preview generations total',
+            helper: cap.freeGenerationHelper ?? 'Generate up to 3 pitch/report previews on Free.',
+            scope: cap.freeUsageScopeLabel ?? 'Usage is shared across pitches and reports.',
+            locked: cap.lockedHelper ?? 'Full premium content stays locked until you upgrade.',
+          })
+        } else {
+          setFreeCopy(null)
+        }
       } catch {
         // ignore
       }
@@ -101,7 +125,7 @@ export function CompetitiveReportNewClient() {
     try {
       if (usage && usage.remaining <= 0) {
         setInlineError({
-          title: 'You’ve used all 3 free generations.',
+          title: 'You’ve used all 3 preview generations.',
           tips: ['Upgrade to unlock unlimited generation and full report access.'],
         })
         track('premium_generation_blocked_free_limit', { surface: 'competitive_report_new', used: usage.used, limit: usage.limit })
@@ -163,7 +187,11 @@ export function CompetitiveReportNewClient() {
       const reportId = json.data.reportId
       const href = `/competitive-report?id=${encodeURIComponent(reportId)}`
       if (json.data.usage) setUsage(json.data.usage)
-      track('premium_generation_completed', { type: 'report', blurred: Boolean(json.data.isBlurred), surface: 'competitive_report_new' })
+      const blurred = Boolean(json.data.isBlurred)
+      track('premium_generation_completed', { type: 'report', blurred, surface: 'competitive_report_new' })
+      if (blurred) {
+        track('report_preview_generated', { surface: 'competitive_report_new' })
+      }
       toast({
         variant: 'success',
         title: 'Report saved',
@@ -218,7 +246,19 @@ export function CompetitiveReportNewClient() {
           <CardTitle className="text-lg">Report input</CardTitle>
         </CardHeader>
         <CardContent>
-          {usage ? <div className="mb-4"><UsageMeter used={usage.used} limit={usage.limit} label="Free: premium generations" eventContext={{ surface: 'competitive_report_new' }} /></div> : null}
+          {usage ? (
+            <div className="mb-4">
+              <UsageMeter
+                used={usage.used}
+                limit={usage.limit}
+                label={freeCopy?.label ?? 'Free plan: 3 preview generations total'}
+                helper={freeCopy?.helper ?? 'Generate up to 3 pitch/report previews on Free.'}
+                scopeHelper={freeCopy?.scope ?? 'Usage is shared across pitches and reports.'}
+                lockedHelper={freeCopy?.locked ?? 'Full premium content stays locked until you upgrade.'}
+                eventContext={{ surface: 'competitive_report_new' }}
+              />
+            </div>
+          ) : null}
           <form className="space-y-4" onSubmit={onSubmit}>
             {inlineError ? (
               <div className="rounded border border-cyan-500/10 bg-card/30 p-3 text-sm text-muted-foreground">

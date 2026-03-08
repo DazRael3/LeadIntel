@@ -1,13 +1,13 @@
-# Free tier limits (premium generations)
+# Free tier preview limits (premium generations)
 
 ## Rule (production)
 
-**Free (Starter) users can complete a maximum of 3 total premium generations** across:
+**Free (Starter) users can complete a maximum of 3 total preview generations** across:
 
 - **Generated pitches**
 - **Generated reports** (competitive reports; other report kinds may also count when marked as premium generation)
 
-This is a **combined cap** (not 3 each).
+This is a **combined cap** shared across pitches and reports (not 3 each).
 
 After the 3rd successful generation is recorded, additional generation requests are blocked until upgrade.
 
@@ -35,13 +35,19 @@ All generation routes enforce the cap server-side. When the free cap is reached,
 - `error.details.usage = { used, limit, remaining }`
 - `error.details.upgradeRequired = true`
 
-## Blur / leakage prevention
+## Preview-only + blur / leakage prevention
 
-Free users may still use the free experience, but **premium sections remain locked**:
+Free users can generate previews, but **full premium content stays locked**:
 
 - Generation endpoints return **redacted** payloads for Free (no full premium text in JSON).
 - Viewer endpoints/pages use **preview-safe excerpts**.
 - Copy/download actions operate on **preview-safe text only** for Free.
+
+## Why pitch previews do not appear in the reports list
+
+- The **Reports** list contains **reports only** (e.g., competitive reports).
+- Pitch previews consume shared preview usage, but they are not reports and should not be surfaced as saved reports.
+- The Reports page includes a separate **Recent premium activity** panel to explain cross-surface usage.
 
 ## How to verify
 

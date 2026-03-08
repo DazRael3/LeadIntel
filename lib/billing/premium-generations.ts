@@ -4,6 +4,8 @@ import type { Tier } from '@/lib/billing/resolve-tier'
 
 export const FREE_MAX_PREMIUM_GENERATIONS = 3 as const
 
+export type PremiumGenerationUsageScope = 'shared_across_pitches_and_reports'
+
 export type PremiumGenerationUsage = {
   used: number
   limit: number
@@ -14,9 +16,17 @@ export type PremiumGenerationUsage = {
 export type PremiumGenerationCapabilities = {
   tier: Tier
   maxPremiumGenerations: number | null
+  usageScope: PremiumGenerationUsageScope
+  previewOnlyOnFree: boolean
   blurPremiumSections: boolean
   allowPremiumExport: boolean
   allowFullCopy: boolean
+  allowFullPitchAccessOnFree: boolean
+  allowFullReportAccessOnFree: boolean
+  freeGenerationLabel: string | null
+  freeGenerationHelper: string | null
+  freeUsageScopeLabel: string | null
+  lockedHelper: string | null
 }
 
 export function isFreeTier(tier: Tier): boolean {
@@ -38,18 +48,34 @@ export async function getPremiumGenerationCapabilities(args: {
     return {
       tier,
       maxPremiumGenerations: FREE_MAX_PREMIUM_GENERATIONS,
+      usageScope: 'shared_across_pitches_and_reports',
+      previewOnlyOnFree: true,
       blurPremiumSections: true,
       allowPremiumExport: false,
       allowFullCopy: false,
+      allowFullPitchAccessOnFree: false,
+      allowFullReportAccessOnFree: false,
+      freeGenerationLabel: 'Free plan: 3 preview generations total',
+      freeGenerationHelper: 'Generate up to 3 pitch/report previews on Free.',
+      freeUsageScopeLabel: 'Usage is shared across pitches and reports.',
+      lockedHelper: 'Full premium content stays locked until you upgrade.',
     }
   }
 
   return {
     tier,
     maxPremiumGenerations: null,
+    usageScope: 'shared_across_pitches_and_reports',
+    previewOnlyOnFree: false,
     blurPremiumSections: false,
     allowPremiumExport: tier === 'team',
     allowFullCopy: true,
+    allowFullPitchAccessOnFree: true,
+    allowFullReportAccessOnFree: true,
+    freeGenerationLabel: null,
+    freeGenerationHelper: null,
+    freeUsageScopeLabel: null,
+    lockedHelper: null,
   }
 }
 
