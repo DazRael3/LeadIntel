@@ -35,6 +35,9 @@ type DeliveryRow = {
 const EVENT_CHOICES = [
   'account.created',
   'account.updated',
+  'account.brief.generated',
+  'account.exported',
+  'account.pushed',
   'signal.detected',
   'pitch.generated',
   'digest.sent',

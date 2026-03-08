@@ -31,6 +31,7 @@ export function AccountBriefCard(props: {
   inputUrl: string | null
   signalWindow: '7d' | '30d' | '90d' | 'all'
   isPro: boolean
+  refreshKey?: number
 }) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -63,7 +64,7 @@ export function AccountBriefCard(props: {
 
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, props.refreshKey])
 
   const onGenerate = useCallback(async () => {
     if (!canGenerate) {

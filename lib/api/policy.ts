@@ -1039,6 +1039,32 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/accounts/[leadId]/export': {
+    tier: 'WRITE',
+    maxBytes: 8192,
+    rateLimit: {
+      authPerMin: 20,
+      ipPerMin: 5,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/accounts/[leadId]/push': {
+    tier: 'WRITE',
+    maxBytes: 8192,
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 10,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
 }
 
 /**

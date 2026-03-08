@@ -21,6 +21,7 @@ import { ScoreExplainer } from "@/components/account/ScoreExplainer"
 import { SignalMomentumCard } from "@/components/account/SignalMomentumCard"
 import { FirstPartyIntentCard } from "@/components/account/FirstPartyIntentCard"
 import { AccountBriefCard } from "@/components/account/AccountBriefCard"
+import { AccountActionCenter } from "@/components/account/AccountActionCenter"
 import type { FirstPartyIntent, SignalEvent, SignalMomentum, ScoreExplainability } from "@/lib/domain/explainability"
 
 interface LeadDetailViewProps {
@@ -54,6 +55,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
   const [signalsWindow, setSignalsWindow] = useState<SignalsPanelWindow>('30d')
   const [signalsSort, setSignalsSort] = useState<SignalsPanelSort>('recent')
   const [signalsType, setSignalsType] = useState<string | null>(null)
+  const [briefRefreshKey, setBriefRefreshKey] = useState(0)
   const [explainability, setExplainability] = useState<{
     loading: boolean
     error: string | null
@@ -282,7 +284,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                     onClick={() => (window.location.href = '/pricing')}
                     className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs px-3 py-2 max-w-full whitespace-normal"
                   >
-                    <span className="text-center">Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.</span>
+                    <span className="text-center">Upgrade to unlock the full signal workspace and action layer.</span>
                   </Button>
                 </div>
               ) : null}
@@ -375,6 +377,21 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             firstPartyIntent={explainability.firstPartyIntent}
           />
 
+          <AccountActionCenter
+            accountId={lead.id}
+            companyName={lead.company_name ?? 'Unknown company'}
+            window={signalsWindow}
+            whyNowSummary={[
+              `Account: ${lead.company_name ?? 'Unknown company'}`,
+              explainability.momentum
+                ? `Momentum: ${explainability.momentum.label} (${explainability.momentum.delta >= 0 ? '+' : ''}${explainability.momentum.delta})`
+                : 'Momentum: —',
+              ...explainability.signals.slice(0, 3).map((s) => `Signal: ${s.title}`),
+            ].join('\n')}
+            opener={typeof lead.ai_personalized_pitch === 'string' ? lead.ai_personalized_pitch : null}
+            onBriefGenerated={() => setBriefRefreshKey((x) => x + 1)}
+          />
+
           <AccountBriefCard
             accountId={lead.id}
             companyName={lead.company_name ?? 'Unknown company'}
@@ -382,6 +399,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             inputUrl={lead.company_url ?? null}
             signalWindow={signalsWindow}
             isPro={isPro}
+            refreshKey={briefRefreshKey}
           />
 
           <SignalsPanel
@@ -507,20 +525,22 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                     <Lock className="h-8 w-8 mx-auto mb-3 text-cyan-400" />
                     <p className="text-sm font-bold mb-2 text-cyan-400">AI Pitch Locked</p>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Join LeadIntel Pro to access Enterprise Intelligence and Automated Sales Agent.
+                      Upgrade to unlock why-now context, send-ready drafts, and action-layer features.
                     </p>
                     <Button
                       size="sm"
                       onClick={() => (window.location.href = '/pricing')}
                       className="neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
                     >
-                      Upgrade to Pro
+                      See pricing
                     </Button>
                   </div>
                 </div>
               )}
               <p className={`text-sm leading-relaxed whitespace-pre-wrap font-mono text-muted-foreground ${!isPro && !unlocked ? 'blur-sm select-none' : ''}`}>
-                {isPro || unlocked ? lead.ai_personalized_pitch : 'AI Pitch content is locked. Upgrade to Pro to view personalized pitches and access Enterprise Intelligence features.'}
+                {isPro || unlocked
+                  ? lead.ai_personalized_pitch
+                  : 'Pitch content is locked. Upgrade to unlock why-now context, send-ready drafts, and action layer features.'}
               </p>
             </div>
           </div>

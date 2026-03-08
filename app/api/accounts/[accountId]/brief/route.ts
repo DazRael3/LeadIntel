@@ -8,6 +8,12 @@ import { normalizeCompanyKey } from '@/lib/sources/normalize'
 import { refreshCompanySourcesForReport } from '@/lib/sources/orchestrate'
 import { getAccountExplainability } from '@/lib/data/getAccountExplainability'
 import { buildAccountBriefMarkdown } from '@/lib/services/account-brief'
+import { getUserTierForGating } from '@/lib/team/gating'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
+import crypto from 'crypto'
+import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
+import { logAudit } from '@/lib/audit/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,6 +109,12 @@ export const POST = withApiGuard(
       const forceRefreshSources = Boolean(parsed.data.force_refresh_sources)
 
       const supabase = createRouteClient(request, bridge)
+      // Premium feature: briefs require a paid tier (Closer or above).
+      const user = await getUserSafe(supabase)
+      const tier = await getUserTierForGating({ userId, sessionEmail: user?.email ?? null, supabase })
+      if (tier === 'starter') {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+      }
       const { data: lead, error: leadError } = await supabase
         .from('leads')
         .select('id, company_name, company_domain, company_url')
@@ -226,6 +238,47 @@ export const POST = withApiGuard(
 
       if (insertError || !inserted?.id) {
         return fail(ErrorCode.DATABASE_ERROR, 'Failed to save brief', { message: insertError?.message }, undefined, bridge, requestId)
+      }
+
+      // Best-effort: record as an action in the workspace action layer when Team webhooks exist.
+      try {
+        await ensurePersonalWorkspace({ supabase, userId })
+        const ws = await getCurrentWorkspace({ supabase, userId })
+        if (ws) {
+          const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId })
+          if (membership) {
+            await logAudit({
+              supabase,
+              workspaceId: ws.id,
+              actorUserId: userId,
+              action: 'account.brief.generated',
+              targetType: 'lead',
+              targetId: accountId,
+              meta: { reportId: inserted.id, window },
+              request,
+            })
+
+            await enqueueWebhookEvent({
+              workspaceId: ws.id,
+              eventType: 'account.brief.generated',
+              eventId: crypto.randomUUID(),
+              payload: {
+                account: {
+                  id: accountId,
+                  companyName,
+                  companyDomain: key.companyDomain,
+                  companyUrl: key.inputUrl,
+                  score: explainability.scoreExplainability.score,
+                  momentum: explainability.momentum ? { label: explainability.momentum.label, delta: explainability.momentum.delta } : null,
+                },
+                brief: { reportId: inserted.id, window },
+                generatedAt: new Date().toISOString(),
+              },
+            })
+          }
+        }
+      } catch {
+        // best-effort
       }
 
       return ok({ reportId: inserted.id, brief_markdown: briefMarkdown }, undefined, bridge, requestId)
