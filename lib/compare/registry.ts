@@ -6,6 +6,16 @@ export type CompareTableRow = {
 
 export type CompareFaq = { q: string; a: string }
 
+export type CompetitorMatrixEntry = {
+  key: 'usergems' | 'common_room' | 'zoominfo_copilot' | 'apollo' | 'leadintel'
+  name: string
+  threatScore: number
+  threatSummary: string
+  leadIntelWins: string
+  theyDoBetter: string
+  compareSlug?: string
+}
+
 export type ComparePage = {
   slug: string
   competitorName: string
@@ -14,12 +24,16 @@ export type ComparePage = {
   bestForSections?: { leadintel: string[]; competitor: string[] }
   title: string
   description: string
+  quickVerdict?: string
   hero: {
     summary: string
     atAGlance: { leadintelFocus: string; competitorFocus: string }
   }
   useTogether: string[]
   whoWins: { leadintel: string[]; competitor: string[] }
+  whereLeadIntelBetter?: string[]
+  whereCompetitorStronger?: string[]
+  finalRecommendation?: string
   whenLeadIntel: string[]
   whenCompetitor: string[]
   checklist: string[]
@@ -44,12 +58,179 @@ function varies(): string {
   return 'Varies by plan / configuration'
 }
 
+export const COMPETITOR_MATRIX: CompetitorMatrixEntry[] = [
+  {
+    key: 'usergems',
+    name: 'UserGems',
+    threatScore: 9.3,
+    threatSummary: 'Strongest direct signal-to-action rival with deeper scoring, buying-group context, workflows, and proof.',
+    leadIntelWins: 'Cleaner message, easier first trial, lower-friction understanding.',
+    theyDoBetter: 'Signal breadth, account + contact depth, workflow automation, visible proof, trust maturity.',
+    compareSlug: 'leadintel-vs-usergems',
+  },
+  {
+    key: 'common_room',
+    name: 'Common Room',
+    threatScore: 9.1,
+    threatSummary: 'Broader and more mature signal/integration platform with strong identity and workflow depth.',
+    leadIntelWins: 'Sharper story for pure outbound teams and simpler value communication.',
+    theyDoBetter: 'Integration breadth, identity resolution, enterprise trust, signal capture depth, workflow sophistication.',
+    compareSlug: 'leadintel-vs-common-room',
+  },
+  {
+    key: 'zoominfo_copilot',
+    name: 'ZoomInfo Copilot',
+    threatScore: 8.8,
+    threatSummary: 'Enterprise-grade GTM intelligence with data scale, buyer intent, and procurement confidence.',
+    leadIntelWins: 'Lighter, clearer, easier to grasp, less bloated public story.',
+    theyDoBetter: 'Contact depth, buying groups, CRM depth, intent breadth, trust maturity.',
+    compareSlug: 'leadintel-vs-zoominfo-copilot',
+  },
+  {
+    key: 'apollo',
+    name: 'Apollo',
+    threatScore: 8.2,
+    threatSummary: 'Bundled prospecting and engagement platform with strong breadth and adoption.',
+    leadIntelWins: 'Better why-now focus and clearer public explainability.',
+    theyDoBetter: 'Bundled prospecting, contacts, engagement tooling, integration breadth, broad workflow coverage.',
+    compareSlug: 'leadintel-vs-apollo',
+  },
+  {
+    key: 'leadintel',
+    name: 'LeadIntel',
+    threatScore: 7.3,
+    threatSummary: 'Best on clarity, explainability, and speed-to-value, but not yet deepest in the category.',
+    leadIntelWins: 'Message clarity, no-signup evaluation, transparent pricing, explainable scoring.',
+    theyDoBetter: 'Signal breadth, buyer/contact depth, proof, workflow depth, trust maturity.',
+  },
+] as const
+
 export const COMPARE_PAGES: ComparePage[] = [
+  {
+    slug: 'leadintel-vs-usergems',
+    competitorName: 'UserGems',
+    competitorType: 'Signal-to-action outbound platform',
+    bestFor: 'Best for: teams who want deeper signal coverage and strong signal-to-action workflows.',
+    bestForSections: {
+      leadintel: [
+        'Outbound teams who want a daily shortlist and explainable scoring.',
+        'Reps who need send-ready outreach without a heavy platform rollout.',
+        'Buyers who value low-friction evaluation and clear positioning.',
+      ],
+      competitor: [
+        'Teams prioritizing deeper signal breadth and automation.',
+        'Motions needing account + contact/buying-group context in the same system.',
+        'Organizations that prefer mature proof and enterprise trust signals.',
+      ],
+    },
+    title: 'LeadIntel vs UserGems — why-now signals and send-ready outreach',
+    description:
+      'LeadIntel is easier to understand and faster to evaluate. UserGems is stronger today on signal depth, account + contact workflows, and workflow automation.',
+    quickVerdict:
+      'LeadIntel is easier to understand and faster to evaluate. UserGems is stronger today on signal depth, account + contact workflows, and workflow automation.',
+    hero: {
+      summary:
+        'LeadIntel is easier to understand and faster to evaluate. UserGems is stronger today on signal depth, account + contact workflows, and workflow automation.',
+      atAGlance: {
+        leadintelFocus: 'Why-now signals → daily shortlist → explainable score → send-ready outreach.',
+        competitorFocus: 'Deeper signal coverage and mature signal-to-action workflows.',
+      },
+    },
+    useTogether: [
+      'Use UserGems when you need deeper signal breadth and workflow automation.',
+      'Use LeadIntel when you want a clean daily shortlist and explainable reasons that reps can act on fast.',
+      'If you run both, standardize messaging in one place (templates) and measure execution discipline.',
+    ],
+    whoWins: {
+      leadintel: [
+        'You need a workflow that reps understand on day one.',
+        'You want explainable 0–100 scoring with visible reasons.',
+        'You want a no-signup sample path to validate the loop.',
+      ],
+      competitor: [
+        'You want deeper signal coverage and automation.',
+        'You need richer account + contact/buying-group context.',
+        'You want mature proof and enterprise trust signals.',
+      ],
+    },
+    whereLeadIntelBetter: [
+      'Cleaner message and easier first trial.',
+      'Lower-friction understanding of the workflow and value.',
+      'Explainable prioritization surfaced as a daily shortlist.',
+    ],
+    whereCompetitorStronger: [
+      'Signal breadth and depth.',
+      'Account + contact/buying-group workflows.',
+      'Workflow automation and proof/trust maturity.',
+    ],
+    finalRecommendation:
+      'Choose LeadIntel when you want fast time-to-value, explainability, and a rep-friendly daily loop. Choose UserGems when you need deeper signal coverage and mature signal-to-action automation.',
+    whenLeadIntel: [
+      'You want a daily shortlist that is easy to run operationally.',
+      'You prefer explainability over black-box prioritization.',
+      'You want to validate quickly without a long sales cycle.',
+    ],
+    whenCompetitor: [
+      'You need deeper signal coverage and automation.',
+      'You need buying-group context and richer workflow depth.',
+      'You want a platform with mature proof and enterprise readiness.',
+    ],
+    checklist: [
+      'Is time-to-value more important than maximum coverage?',
+      'Do reps need explainability to trust prioritization?',
+      'Do you need buying-group depth today?',
+      'Do you want a no-signup evaluation path?',
+      'Do you need automation beyond push/export?',
+      'Are you optimizing for rep execution or platform breadth?',
+      'Do you want a daily shortlist as the primary surface?',
+      'Is enterprise trust maturity a procurement requirement right now?',
+      'Do you already have strong templates/playbooks, or do you need the system to provide them?',
+      'What does success in week 1 look like for your team?',
+    ],
+    migrationSteps: [
+      'Define your ICP (who you want, who you don’t).',
+      'Add a watchlist of 10–25 target accounts.',
+      'Run the daily loop: shortlist → explain → draft → action.',
+      'Standardize messaging using templates; refine based on outcomes.',
+      'Expand signal coverage and automation depth as your workflow matures.',
+    ],
+    table: [
+      { dimension: 'Why-now prioritization', leadintel: 'Yes (shortlist + reasons)', competitor: varies() },
+      { dimension: 'Explainable scoring', leadintel: 'Yes (deterministic reasons)', competitor: varies() },
+      { dimension: 'Daily shortlist workflow', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Send-ready outreach', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Account watchlists', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Contact/buying-group depth', leadintel: 'Not the core focus', competitor: varies() },
+      { dimension: 'Workflow/action depth', leadintel: 'Webhooks + exports + action surfaces', competitor: varies() },
+      { dimension: 'Public pricing clarity', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Trust-center maturity', leadintel: 'Public trust pages', competitor: varies() },
+      { dimension: 'Best-fit motion', leadintel: 'Account-based outbound timing + messaging', competitor: varies() },
+    ],
+    faqs: [
+      { q: 'Is this an apples-to-apples replacement?', a: 'Not always. If you need maximum signal breadth and automation depth, UserGems may be a stronger fit. If you want a clean daily loop that reps can run, LeadIntel is designed for that.' },
+      { q: 'Can I validate LeadIntel without a sales cycle?', a: 'Yes. You can generate a sample digest without signup and see the workflow before you buy.' },
+      { q: 'How does LeadIntel avoid black-box scoring?', a: 'LeadIntel uses deterministic scoring with visible reasons so reps can understand and trust prioritization.' },
+      { q: 'Does LeadIntel do contact enrichment?', a: 'Not as a core product surface. LeadIntel is designed for timing, prioritization, and message execution on your targets.' },
+      { q: 'What’s the fastest path to value?', a: 'Set ICP, add a watchlist, then run the daily shortlist + send-ready outreach loop.' },
+    ],
+    ctas: {
+      primaryHref: '/#try-sample',
+      primaryLabel: 'Generate a sample digest',
+      secondaryHref: '/pricing',
+      secondaryLabel: 'See pricing',
+      bottomTitle: 'Evaluate the workflow quickly',
+      bottomBody: 'Try the no-signup sample digest, then decide if the daily shortlist + explainability loop fits your motion.',
+      bottomPrimaryHref: '/#try-sample',
+      bottomPrimaryLabel: 'Generate a sample digest',
+      bottomSecondaryHref: '/how-scoring-works',
+      bottomSecondaryLabel: 'Review scoring methodology',
+    },
+  },
   {
     slug: 'leadintel-vs-apollo',
     competitorName: 'Apollo',
     competitorType: 'Prospecting + outbound tooling',
-    bestFor: 'Best for: contact discovery + list building workflows.',
+    bestFor: 'Best for: bundled prospecting + engagement workflows.',
     bestForSections: {
       leadintel: [
         'Account-based outbound teams who already have targets and care about timing.',
@@ -62,12 +243,14 @@ export const COMPARE_PAGES: ComparePage[] = [
         'Motions optimizing for coverage and volume. ' + varies() + '.',
       ],
     },
-    title: 'LeadIntel vs Apollo — Trigger-based alerts and instant pitch drafts',
+    title: 'LeadIntel vs Apollo — why-now prioritization vs database breadth',
     description:
-      'A conservative comparison focused on workflow fit: daily trigger-based prioritization vs prospecting and outbound tooling.',
+      'LeadIntel is better when timing and prioritization matter more than raw database breadth. Apollo is stronger when buyers want bundled prospecting and engagement in one system.',
+    quickVerdict:
+      'LeadIntel is better when timing and prioritization matter more than raw database breadth. Apollo is stronger when buyers want bundled prospecting and engagement in one system.',
     hero: {
       summary:
-        'Apollo is commonly evaluated for prospecting and outbound tooling. LeadIntel is built for trigger-based account alerts, a daily shortlist, and instant pitch drafts.',
+        'LeadIntel is better when timing and prioritization matter more than raw database breadth. Apollo is stronger when buyers want bundled prospecting and engagement in one system.',
       atAGlance: {
         leadintelFocus: 'Daily “why now” shortlist for your watchlist + send-ready drafts.',
         competitorFocus: 'Prospecting workflow (contacts/accounts) and outbound tooling. ' + varies() + '.',
@@ -94,6 +277,18 @@ export const COMPARE_PAGES: ComparePage[] = [
         'You have a process for timing and messaging already.',
       ],
     },
+    whereLeadIntelBetter: [
+      'Better why-now focus and clearer public explainability.',
+      'Daily shortlist loop for account-based motions.',
+      'Send-ready drafts tied to timing.',
+    ],
+    whereCompetitorStronger: [
+      'Bundled prospecting and engagement tooling.',
+      'Contact discovery and list building.',
+      'Broad workflow coverage and adoption.',
+    ],
+    finalRecommendation:
+      'Choose LeadIntel when you care about timing, prioritization, and explainable reasons. Choose Apollo when you want a bundled prospecting + engagement system as the backbone.',
     whenLeadIntel: [
       'You run account-based outbound and need daily prioritization.',
       'Timing and recency of signals matter for your replies.',
@@ -122,21 +317,20 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Define your ICP (who you want, who you don’t).',
       'Build a watchlist of 10–25 target accounts (use your existing lists as inputs).',
       'Set a cadence: review the daily shortlist and run one outreach block per day.',
-      'Use the templates and pitch drafts for first-touch and follow-ups; paste into your sequencer if you use one.',
+      'Use templates and pitch drafts for first-touch and follow-ups; paste into your sequencer if you use one.',
       'Review outcomes weekly and refine the angles/tokens for your ICP.',
     ],
     table: [
-      { dimension: 'Primary workflow', leadintel: 'Account watchlist → daily shortlist → draft outreach', competitor: 'Prospecting + outbound workflow (' + varies() + ')' },
-      { dimension: 'Daily prioritization', leadintel: 'Yes (shortlist + score)', competitor: varies() },
-      { dimension: '“Why now” signal layer', leadintel: 'Yes (trigger-based context)', competitor: varies() },
-      { dimension: 'Pitch draft generation', leadintel: 'Yes (email/DM/call openers)', competitor: varies() },
-      { dimension: 'Action layer (webhooks / exports)', leadintel: 'Yes (webhooks + exports)', competitor: varies() },
-      { dimension: 'Team governance (approvals + audit logs)', leadintel: 'Yes (Team plan)', competitor: varies() },
-      { dimension: 'Contact database / enrichment', leadintel: 'Not the core focus', competitor: varies() },
-      { dimension: 'Sequencing', leadintel: 'Not the core focus', competitor: varies() },
-      { dimension: 'Company intelligence depth', leadintel: 'Focused on triggers + actionability', competitor: varies() },
-      { dimension: 'Setup complexity', leadintel: 'Light: ICP + watchlist', competitor: varies() },
-      { dimension: 'Best-fit buyer', leadintel: 'Outbound SDRs/AEs running account-based plays', competitor: 'Teams optimizing prospecting + outbound tooling (' + varies() + ')' },
+      { dimension: 'Why-now prioritization', leadintel: 'Yes (shortlist + reasons)', competitor: varies() },
+      { dimension: 'Explainable scoring', leadintel: 'Yes (deterministic reasons)', competitor: varies() },
+      { dimension: 'Daily shortlist workflow', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Send-ready outreach', leadintel: 'Yes (drafts)', competitor: varies() },
+      { dimension: 'Account watchlists', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Contact/buying-group depth', leadintel: 'Not the core focus', competitor: varies() },
+      { dimension: 'Workflow/action depth', leadintel: 'Webhooks + exports + action surfaces', competitor: varies() },
+      { dimension: 'Public pricing clarity', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Trust-center maturity', leadintel: 'Public trust pages', competitor: varies() },
+      { dimension: 'Best-fit motion', leadintel: 'Account-based outbound timing + messaging', competitor: 'Bundled prospecting + engagement (' + varies() + ')' },
     ],
     faqs: [
       { q: 'Can I use both together?', a: 'Yes. Many teams split responsibilities: one tool for prospecting, another for daily timing and “why now” outreach. LeadIntel can sit downstream of your list-building workflow.' },
@@ -156,6 +350,246 @@ export const COMPARE_PAGES: ComparePage[] = [
       bottomPrimaryLabel: 'Generate a sample digest',
       bottomSecondaryHref: '/templates',
       bottomSecondaryLabel: 'Browse templates',
+    },
+  },
+  {
+    slug: 'leadintel-vs-common-room',
+    competitorName: 'Common Room',
+    competitorType: 'Signal + integration platform',
+    bestFor: 'Best for: broader community/GTMs signals and integration-heavy orchestration.',
+    bestForSections: {
+      leadintel: [
+        'Rep-level outbound timing with a simple daily loop.',
+        'Teams who want a daily shortlist and explainable reasons.',
+        'Buyers who prefer a focused workflow over broad orchestration.',
+      ],
+      competitor: [
+        'Teams with deep integration requirements and identity resolution needs.',
+        'Organizations building signal pipelines across many sources.',
+        'Broader GTM orchestration across teams. ' + varies() + '.',
+      ],
+    },
+    title: 'LeadIntel vs Common Room — why-now outbound vs broad signal orchestration',
+    description:
+      'LeadIntel is more focused for rep-level outbound timing. Common Room is broader and stronger on integration depth, identity resolution, and enterprise GTM orchestration.',
+    quickVerdict:
+      'LeadIntel is more focused for rep-level outbound timing. Common Room is broader and stronger on integration depth, identity resolution, and enterprise GTM orchestration.',
+    hero: {
+      summary:
+        'LeadIntel is more focused for rep-level outbound timing. Common Room is broader and stronger on integration depth, identity resolution, and enterprise GTM orchestration.',
+      atAGlance: {
+        leadintelFocus: 'Daily shortlist + explainable scoring + send-ready outreach.',
+        competitorFocus: 'Broader signal capture + integration depth + identity resolution.',
+      },
+    },
+    useTogether: [
+      'Use Common Room when you need a broad signal pipeline and deep integrations.',
+      'Use LeadIntel when you want a rep-friendly daily shortlist and send-ready outreach loop.',
+      'If you run both, route signals into a shortlist and standardize first touches via templates.',
+    ],
+    whoWins: {
+      leadintel: [
+        'Your motion is outbound and you want a daily shortlist surface.',
+        'You want explainable scoring and reasons reps can act on.',
+        'You want a clear product story and transparent evaluation.',
+      ],
+      competitor: [
+        'You need integration breadth and identity resolution.',
+        'You’re orchestrating signals across multiple teams and systems.',
+        'You want deeper workflow sophistication and enterprise trust signals.',
+      ],
+    },
+    whereLeadIntelBetter: [
+      'Sharper story for pure outbound teams and simpler value communication.',
+      'Lower-friction evaluation and faster time-to-value.',
+      'Explainable prioritization built into the daily loop.',
+    ],
+    whereCompetitorStronger: [
+      'Integration breadth and identity resolution.',
+      'Signal capture depth across sources.',
+      'Enterprise trust maturity and workflow sophistication.',
+    ],
+    finalRecommendation:
+      'Choose LeadIntel when you want a focused why-now outbound workflow reps can run daily. Choose Common Room when you need broad signal orchestration, deep integrations, and identity resolution.',
+    whenLeadIntel: [
+      'You want rep-level daily prioritization from why-now signals.',
+      'You prefer a focused workflow over broad platform scope.',
+      'You want send-ready outreach tied to prioritization.',
+    ],
+    whenCompetitor: [
+      'You need integration breadth and identity resolution.',
+      'You want broader signal capture and orchestration.',
+      'You’re prioritizing enterprise GTM platform requirements.',
+    ],
+    checklist: [
+      'Do you need identity resolution across many sources?',
+      'Is your core workflow rep-level outbound timing?',
+      'Do you want a daily shortlist as the primary interface?',
+      'How many integrations do you need on day one?',
+      'Do you need orchestration across teams beyond outbound?',
+      'Is explainable scoring required for rep trust?',
+      'Is enterprise procurement a hard constraint right now?',
+      'Do you want to start focused and expand, or start broad?',
+      'Do you need workflow automation beyond push/export?',
+      'What is the simplest path to measurable execution?',
+    ],
+    migrationSteps: [
+      'Define ICP and your target account list.',
+      'Choose signal sources that actually drive replies for your motion.',
+      'Run a daily loop: shortlist → explain → draft → action.',
+      'Add integration/workflow depth as needed (webhooks/exports first).',
+      'Standardize messaging via templates and iterate.',
+    ],
+    table: [
+      { dimension: 'Why-now prioritization', leadintel: 'Yes (shortlist + reasons)', competitor: varies() },
+      { dimension: 'Explainable scoring', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Daily shortlist workflow', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Send-ready outreach', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Account watchlists', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Contact/buying-group depth', leadintel: 'Not the core focus', competitor: varies() },
+      { dimension: 'Workflow/action depth', leadintel: 'Webhooks + exports + action surfaces', competitor: varies() },
+      { dimension: 'Public pricing clarity', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Trust-center maturity', leadintel: 'Public trust pages', competitor: varies() },
+      { dimension: 'Best-fit motion', leadintel: 'Outbound timing and execution', competitor: varies() },
+    ],
+    faqs: [
+      { q: 'Is Common Room “better” than LeadIntel?', a: 'They optimize for different scopes. Common Room is broader and more integration-heavy. LeadIntel is built for a focused why-now outbound loop with a daily shortlist and send-ready outreach.' },
+      { q: 'Can I start with LeadIntel and add integrations later?', a: 'Yes. Many teams start with ICP + watchlist + daily shortlist, then add webhooks/exports as they operationalize.' },
+      { q: 'Does LeadIntel do identity resolution?', a: 'Not as a core product surface today. LeadIntel focuses on account timing, prioritization, and rep execution.' },
+      { q: 'Where do signals come from?', a: 'LeadIntel is explicit about sources and freshness when available and avoids making claims without sources.' },
+      { q: 'What should I evaluate first?', a: 'Whether a daily shortlist + explainable scoring improves rep execution speed and consistency.' },
+    ],
+    ctas: {
+      primaryHref: '/#try-sample',
+      primaryLabel: 'Generate a sample digest',
+      secondaryHref: '/pricing',
+      secondaryLabel: 'See pricing',
+      bottomTitle: 'See the daily loop',
+      bottomBody: 'Try the sample digest, then decide whether focused rep execution is the outcome you want.',
+      bottomPrimaryHref: '/#try-sample',
+      bottomPrimaryLabel: 'Generate a sample digest',
+      bottomSecondaryHref: '/tour',
+      bottomSecondaryLabel: 'Product tour',
+    },
+  },
+  {
+    slug: 'leadintel-vs-zoominfo-copilot',
+    competitorName: 'ZoomInfo Copilot',
+    competitorType: 'Enterprise GTM intelligence',
+    bestFor: 'Best for: enterprise data breadth and procurement-ready GTM intelligence.',
+    bestForSections: {
+      leadintel: [
+        'Teams who want why-now prioritization and send-ready outreach.',
+        'Buyers who prefer clarity and low-friction evaluation.',
+        'Outbound motions where timing matters more than database breadth.',
+      ],
+      competitor: [
+        'Enterprises prioritizing data breadth and buying-group depth.',
+        'Teams with deep CRM/process requirements.',
+        'Procurement-heavy deployments. ' + varies() + '.',
+      ],
+    },
+    title: 'LeadIntel vs ZoomInfo Copilot — focused why-now outbound vs enterprise depth',
+    description:
+      'LeadIntel is clearer and lighter for focused why-now outbound workflows. ZoomInfo Copilot is stronger on data breadth, contact depth, and enterprise readiness.',
+    quickVerdict:
+      'LeadIntel is clearer and lighter for focused why-now outbound workflows. ZoomInfo Copilot is stronger on data breadth, contact depth, and enterprise readiness.',
+    hero: {
+      summary:
+        'LeadIntel is clearer and lighter for focused why-now outbound workflows. ZoomInfo Copilot is stronger on data breadth, contact depth, and enterprise readiness.',
+      atAGlance: {
+        leadintelFocus: 'Daily shortlist + explainable scoring + send-ready outreach.',
+        competitorFocus: 'Enterprise-grade data breadth, contacts, intent, and depth.',
+      },
+    },
+    useTogether: [
+      'Use ZoomInfo for contact depth and enterprise-grade data needs.',
+      'Use LeadIntel for daily prioritization and send-ready messaging tied to timing.',
+      'If you run both, keep LeadIntel as the execution loop and standardize outreach outputs.',
+    ],
+    whoWins: {
+      leadintel: [
+        'You want a clear why-now workflow for reps.',
+        'You want explainable scoring and a daily shortlist.',
+        'You want a product that is easy to evaluate publicly.',
+      ],
+      competitor: [
+        'You need contact depth and buying-group views.',
+        'You want broad intent and enterprise GTM intelligence depth.',
+        'You need enterprise trust maturity as a procurement requirement.',
+      ],
+    },
+    whereLeadIntelBetter: [
+      'Lighter, clearer, easier to grasp, less bloated public story.',
+      'Fast time-to-value via watchlist + shortlist loop.',
+      'Explainability and send-ready execution surfaces.',
+    ],
+    whereCompetitorStronger: [
+      'Contact depth and buying groups.',
+      'Intent breadth and data scale.',
+      'Enterprise trust maturity and procurement confidence.',
+    ],
+    finalRecommendation:
+      'Choose LeadIntel when you want a focused why-now outbound workflow that drives daily execution. Choose ZoomInfo Copilot when enterprise data breadth and buying-group depth are the primary requirement.',
+    whenLeadIntel: [
+      'You want a daily shortlist and send-ready outreach loop.',
+      'You want explainability and a rep-friendly workflow.',
+      'You want a clear public evaluation path.',
+    ],
+    whenCompetitor: [
+      'You need large-scale contact and intent depth.',
+      'You need buying-group and CRM depth.',
+      'You have enterprise procurement requirements.',
+    ],
+    checklist: [
+      'Do you need buying-group depth today?',
+      'Is your bottleneck timing/prioritization or data access?',
+      'Do reps need explainability to execute daily?',
+      'Do you need enterprise trust maturity as a hard requirement?',
+      'Do you already have a target account list?',
+      'Do you want a daily shortlist as the primary surface?',
+      'Do you need workflow depth beyond push/export?',
+      'Do you want to evaluate without a long sales cycle?',
+      'Is database breadth a core buying criterion?',
+      'What does week-1 success look like?',
+    ],
+    migrationSteps: [
+      'Start with ICP and a target account list.',
+      'Run daily loop: shortlist → explain → draft → action.',
+      'Add deeper data sources and buying-group context as needed.',
+      'Standardize messaging via templates and keep outputs consistent.',
+      'Review outcomes and adjust signal weighting over time.',
+    ],
+    table: [
+      { dimension: 'Why-now prioritization', leadintel: 'Yes (shortlist + reasons)', competitor: varies() },
+      { dimension: 'Explainable scoring', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Daily shortlist workflow', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Send-ready outreach', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Account watchlists', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Contact/buying-group depth', leadintel: 'Not the core focus', competitor: varies() },
+      { dimension: 'Workflow/action depth', leadintel: 'Webhooks + exports + action surfaces', competitor: varies() },
+      { dimension: 'Public pricing clarity', leadintel: 'Yes', competitor: varies() },
+      { dimension: 'Trust-center maturity', leadintel: 'Public trust pages', competitor: varies() },
+      { dimension: 'Best-fit motion', leadintel: 'Outbound timing + execution', competitor: varies() },
+    ],
+    faqs: [
+      { q: 'Is LeadIntel a data provider replacement?', a: 'No. LeadIntel is a signal-to-action workflow for outbound execution. If you need large-scale contact depth and buying groups, you may still use an enterprise data platform alongside it.' },
+      { q: 'What does LeadIntel optimize for?', a: 'A daily shortlist, explainable scoring, and send-ready outreach tied to why-now signals.' },
+      { q: 'Does LeadIntel have SSO/SAML?', a: 'Not as a generally available feature today. Use the Trust Center for what is implemented publicly.' },
+      { q: 'How do I evaluate quickly?', a: 'Generate a sample digest without signup and review the workflow end-to-end.' },
+      { q: 'Can I use both together?', a: 'Yes. Many teams use enterprise data for depth and LeadIntel for daily prioritization and messaging execution.' },
+    ],
+    ctas: {
+      primaryHref: '/#try-sample',
+      primaryLabel: 'Generate a sample digest',
+      secondaryHref: '/pricing',
+      secondaryLabel: 'See pricing',
+      bottomTitle: 'Evaluate the why-now loop',
+      bottomBody: 'Try the no-signup sample digest and see whether daily prioritization improves rep execution.',
+      bottomPrimaryHref: '/#try-sample',
+      bottomPrimaryLabel: 'Generate a sample digest',
+      bottomSecondaryHref: '/trust',
+      bottomSecondaryLabel: 'Trust Center',
     },
   },
   {

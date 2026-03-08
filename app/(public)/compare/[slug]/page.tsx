@@ -17,10 +17,10 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const page = COMPARE_PAGES.find((p) => p.slug === slug)
   if (!page) return {}
 
-  const title = `LeadIntel vs ${page.competitorName} — Trigger-based alerts and instant pitch drafts`
+  const title = `LeadIntel vs ${page.competitorName} | Why-now outbound comparison`
   const url = `https://dazrael.com/compare/${page.slug}`
   const og = `/api/og?title=${encodeURIComponent(`LeadIntel vs ${page.competitorName}`)}&subtitle=${encodeURIComponent(
-    'Trigger-based alerts → instant pitches'
+    'Why-now signals → send-ready outreach'
   )}`
 
   return {
@@ -56,9 +56,25 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
   return (
     <MarketingPage title={`LeadIntel vs ${page.competitorName}`} subtitle={page.hero.summary}>
       <JsonLd data={jsonLd} />
-      <PageViewTrack event="compare_page_view" props={{ slug: page.slug, competitor: page.competitorName }} />
+      <PageViewTrack event="competitor_compare_page_viewed" props={{ slug: page.slug, competitor: page.competitorName }} />
 
       <div className="grid grid-cols-1 gap-6">
+        <Card className="border-cyan-500/20 bg-card/60">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-lg">Quick verdict</CardTitle>
+              <Badge variant="outline">{page.competitorType}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-3">
+            <div>{page.quickVerdict ?? page.hero.summary}</div>
+            <CompareCtas slug={page.slug} />
+            <div className="text-xs text-muted-foreground">
+              Conservative comparison. If a detail varies by plan or setup, we label it as such.
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="border-cyan-500/20 bg-card/60">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -69,7 +85,6 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground">{page.hero.summary}</div>
             <div className="text-sm text-muted-foreground">{page.bestFor}</div>
-            <CompareCtas slug={page.slug} />
             <div className="text-xs text-muted-foreground">
               Conservative comparison. If a detail varies by plan or setup, we label it as such.
             </div>
@@ -143,6 +158,33 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
                   ))}
                 </ul>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Where LeadIntel is better</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              <ul className="list-disc pl-5 space-y-1">
+                {(page.whereLeadIntelBetter ?? page.whoWins.leadintel).map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Where {page.competitorName} is stronger</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              <ul className="list-disc pl-5 space-y-1">
+                {(page.whereCompetitorStronger ?? page.whoWins.competitor).map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
         </div>
@@ -267,10 +309,14 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
 
         <Card className="border-cyan-500/20 bg-card/60">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">{page.ctas.bottomTitle}</CardTitle>
+            <CardTitle className="text-lg">{page.finalRecommendation ? 'Final recommendation' : page.ctas.bottomTitle}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="text-sm text-muted-foreground">{page.ctas.bottomBody}</div>
+            {page.finalRecommendation ? (
+              <div className="text-sm text-muted-foreground">{page.finalRecommendation}</div>
+            ) : (
+              <div className="text-sm text-muted-foreground">{page.ctas.bottomBody}</div>
+            )}
             <CompareBottomCtas slug={page.slug} />
             <div className="flex flex-wrap gap-3 text-xs">
               <Link className="text-cyan-400 hover:underline" href="/compare">
