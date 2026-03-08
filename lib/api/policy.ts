@@ -1013,6 +1013,32 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'GET:/api/accounts/[leadId]/brief': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+  'POST:/api/accounts/[leadId]/brief': {
+    tier: 'WRITE',
+    maxBytes: 16384,
+    rateLimit: {
+      authPerMin: 10,
+      ipPerMin: 5,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
 }
 
 /**

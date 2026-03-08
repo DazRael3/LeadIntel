@@ -20,6 +20,7 @@ import { SignalsPanel, type SignalsPanelSort, type SignalsPanelWindow } from "@/
 import { ScoreExplainer } from "@/components/account/ScoreExplainer"
 import { SignalMomentumCard } from "@/components/account/SignalMomentumCard"
 import { FirstPartyIntentCard } from "@/components/account/FirstPartyIntentCard"
+import { AccountBriefCard } from "@/components/account/AccountBriefCard"
 import type { FirstPartyIntent, SignalEvent, SignalMomentum, ScoreExplainability } from "@/lib/domain/explainability"
 
 interface LeadDetailViewProps {
@@ -46,7 +47,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
   const [copied, setCopied] = useState(false)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
-  const [userSettings, setUserSettings] = useState<any>(null)
+  const [userSettings, setUserSettings] = useState<{ whatYouSell?: string; idealCustomer?: string } | null>(null)
   const [unlocked, setUnlocked] = useState(isPro) // Pro users are always unlocked
   const [unlocking, setUnlocking] = useState(false)
   const [unlockError, setUnlockError] = useState<string | null>(null)
@@ -106,15 +107,19 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
         if (user) {
           const { data } = await supabase
             .from('user_settings')
-            .select('*')
+            .select('what_you_sell, ideal_customer')
             .eq('user_id', user.id)
             .single()
           if (data) {
-            setUserSettings(data)
+            setUserSettings({
+              whatYouSell: typeof (data as { what_you_sell?: unknown }).what_you_sell === 'string' ? (data as { what_you_sell: string }).what_you_sell : undefined,
+              idealCustomer:
+                typeof (data as { ideal_customer?: unknown }).ideal_customer === 'string' ? (data as { ideal_customer: string }).ideal_customer : undefined,
+            })
           }
         }
       } catch (error) {
-        console.error('Error loading user settings:', error)
+        console.error('[LeadDetailView] Error loading user settings', { message: formatErrorMessage(error) })
       }
     }
     loadUserSettings()
@@ -370,6 +375,15 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             firstPartyIntent={explainability.firstPartyIntent}
           />
 
+          <AccountBriefCard
+            accountId={lead.id}
+            companyName={lead.company_name ?? 'Unknown company'}
+            companyDomain={lead.company_domain ?? null}
+            inputUrl={lead.company_url ?? null}
+            signalWindow={signalsWindow}
+            isPro={isPro}
+          />
+
           <SignalsPanel
             signals={explainability.signals}
             loading={explainability.loading}
@@ -397,7 +411,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
               companyName={lead.company_name}
               triggerEvent={lead.trigger_event}
               linkedinProfile={lead.prospect_linkedin}
-              userSettings={userSettings}
+              userSettings={userSettings ?? undefined}
             />
           )}
 
@@ -415,7 +429,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             triggerEvent={lead.trigger_event}
             ceoName={null}
             companyInfo={null}
-            userSettings={userSettings}
+            userSettings={userSettings ?? undefined}
             isPro={isPro}
             recipientEmail={lead.prospect_email}
           />
