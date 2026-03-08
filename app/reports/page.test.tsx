@@ -20,7 +20,7 @@ describe('/reports hub content', () => {
     )
 
     expect(screen.getByRole('heading', { name: /saved reports/i })).toBeInTheDocument()
-    expect(screen.getByText(/you’re on the starter plan/i)).toBeInTheDocument()
+    expect(screen.getByText(/starter plan visibility/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /view pricing & plans/i })).toHaveAttribute('href', '/pricing')
     expect(screen.getAllByTestId('saved-report-row')).toHaveLength(3)
     expect(screen.queryByText(/closer perk/i)).not.toBeInTheDocument()
@@ -41,7 +41,7 @@ describe('/reports hub content', () => {
     )
 
     expect(screen.getAllByTestId('saved-report-row')).toHaveLength(4)
-    expect(screen.queryByText(/you’re on the starter plan/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/starter plan visibility/i)).not.toBeInTheDocument()
     expect(screen.getAllByText(/closer perk/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/use this brief in your next outreach sequence/i).length).toBeGreaterThan(0)
   })
