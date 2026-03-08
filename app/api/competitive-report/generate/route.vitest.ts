@@ -57,12 +57,6 @@ class MockQuery {
         error: null,
       })
     }
-    if (this.table === 'user_reports') {
-      return resolve({
-        data: Array.from({ length: mockExistingCompleteReports }).map((_, i) => ({ id: `rep_${i}` })),
-        error: null,
-      })
-    }
     return resolve({ data: null, error: null })
   }
 }
