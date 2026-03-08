@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -124,6 +124,7 @@ export function Pricing() {
   const { isPro, isHouseCloserOverride } = usePlan()
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [teamSeats, setTeamSeats] = useState<number>(5)
+  const upgradeRef = useRef<HTMLDivElement | null>(null)
 
   const closerPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.closerMonthly) : PRICING.closerMonthly
   const closerPlusPrice =
@@ -168,6 +169,23 @@ export function Pricing() {
     }, 50)
     return () => clearTimeout(t)
   }, [target])
+
+  useEffect(() => {
+    const el = upgradeRef.current
+    if (!el) return
+    let fired = false
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return
+        if (fired) return
+        fired = true
+        track('pricing_upgrade_section_viewed', { section: 'why_teams_upgrade' })
+      },
+      { threshold: 0.35 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   const handleCheckout = async (planId: PaidPlanId) => {
     setIsCheckoutLoading(true)
@@ -334,6 +352,7 @@ export function Pricing() {
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
               <CardTitle className="text-2xl bloomberg-font">Starter</CardTitle>
+              <div className="mt-1 text-xs font-semibold text-muted-foreground">Validate the workflow</div>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">$0</span>
                 <span className="text-muted-foreground">/month</span>
@@ -348,11 +367,15 @@ export function Pricing() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Create up to 3 competitive reports
+                  Up to 3 generated pitches/reports
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
                   Browse the templates library
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
+                  Premium sections remain locked on free
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
@@ -376,6 +399,7 @@ export function Pricing() {
                 <CardTitle className="text-2xl bloomberg-font">Closer</CardTitle>
                 <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Most Popular</Badge>
               </div>
+              <div className="text-xs font-semibold text-muted-foreground">Daily prioritization and faster execution</div>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">{formatCurrency(closerPrice)}</span>
                 <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -473,6 +497,7 @@ export function Pricing() {
                   <CardTitle className="text-2xl bloomberg-font">Closer+</CardTitle>
                   <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/25">Power user</Badge>
                 </div>
+                <div className="text-xs font-semibold text-muted-foreground">Deeper context for operators</div>
                 <div className="flex items-baseline gap-2 mt-4">
                   <span className="text-5xl font-bold text-purple-200">{formatCurrency(closerPlusPrice)}</span>
                   <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -547,6 +572,7 @@ export function Pricing() {
                   <CardTitle className="text-2xl bloomberg-font">Team</CardTitle>
                   <Badge className="bg-slate-500/10 text-slate-200 border-slate-500/20">Seats</Badge>
                 </div>
+                <div className="text-xs font-semibold text-muted-foreground">Governance and rollout</div>
                 <div className="mt-4 flex flex-col gap-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-5xl font-bold text-slate-100">{formatCurrency(teamBasePrice)}</span>
@@ -591,8 +617,8 @@ export function Pricing() {
                       <Check className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <p className="font-medium">Everything in Closer+</p>
-                      <p className="text-sm text-muted-foreground">Plus shared playbooks and governance</p>
+                      <p className="font-medium">Standardized team workflow</p>
+                      <p className="text-sm text-muted-foreground">Governance and rollout across reps</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -647,6 +673,40 @@ export function Pricing() {
             </Card>
           </div>
 
+        </div>
+
+        <div ref={upgradeRef} className="mt-12 max-w-6xl mx-auto">
+          <Card className="border-cyan-500/10 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Why teams upgrade</CardTitle>
+              <CardDescription>Outcome differences that change rep execution speed and team operations.</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-cyan-500/10 text-xs text-muted-foreground">
+                    <th className="text-left py-2 pr-3">Reason</th>
+                    <th className="text-left py-2 pr-3">What changes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['More tracked accounts', 'Move from a sample workflow to daily execution across your watchlist.'],
+                    ['Full pitch/report access', 'Unlock full content and reuse outputs without locked sections.'],
+                    ['Saved workflow outputs', 'Keep briefs, reports, and drafts available for reopening and iteration.'],
+                    ['Team standardization', 'Shared templates and approvals keep messaging consistent across reps.'],
+                    ['Webhook/export operations', 'Push or export outputs to fit your operating system.'],
+                    ['Audit visibility', 'Admin visibility for governance and rollout workflows.'],
+                  ].map(([reason, detail]) => (
+                    <tr key={reason} className="border-b border-cyan-500/10">
+                      <td className="py-2 pr-3 font-medium text-foreground">{reason}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{detail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="mt-12 max-w-4xl mx-auto">
@@ -768,15 +828,18 @@ export function Pricing() {
         <div className="mt-10 max-w-6xl mx-auto">
           <Card className="border-cyan-500/20 bg-card/60">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Enterprise needs (contact)</CardTitle>
-              <CardDescription>We don’t sell a separate enterprise SKU in checkout. If you need more, contact support.</CardDescription>
+              <CardTitle className="text-lg">Need deeper controls or rollout support?</CardTitle>
+              <CardDescription>
+                LeadIntel already supports serious team workflows. For buyers evaluating larger deployments, contact us about roadmap alignment, workflow
+                design, and operational requirements.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <ul className="list-disc pl-5 space-y-1">
-                <li>SSO later</li>
-                <li>Deeper audit workflows</li>
-                <li>Custom playbooks / workflows</li>
-                <li>Higher-volume webhook + export needs</li>
+                <li>Higher-volume workflow needs</li>
+                <li>Custom rollout guidance</li>
+                <li>Deeper audit expectations</li>
+                <li>Future enterprise controls</li>
               </ul>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button asChild className="neon-border hover:glow-effect">

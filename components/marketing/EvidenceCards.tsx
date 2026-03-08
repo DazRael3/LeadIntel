@@ -4,7 +4,7 @@ import type { ComponentType } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowRight, FileCheck2, ShieldCheck, Webhook } from 'lucide-react'
+import { ArrowRight, FileCheck2, ShieldCheck, Sparkles } from 'lucide-react'
 
 type Evidence = {
   title: string
@@ -16,7 +16,7 @@ type Evidence = {
 
 const EVIDENCE: Evidence[] = [
   {
-    title: 'Deterministic 0–100 scoring with reasons',
+    title: 'Deterministic 0–100 scoring with visible reasons',
     badge: 'Explainable score',
     body:
       'LeadIntel prioritizes accounts with a deterministic scoring model and visible reasons so reps can trust what rises, and why.',
@@ -27,18 +27,17 @@ const EVIDENCE: Evidence[] = [
     icon: FileCheck2,
   },
   {
-    title: 'First-party + external signal coverage (when available)',
-    badge: 'Why-now intelligence',
-    body:
-      'LeadIntel can combine first-party sources (your targets’ public pages) and external signals. When sources are thin, the product is explicit and conservative.',
+    title: 'Public sample flow without signup',
+    badge: 'Low-friction evaluation',
+    body: 'Generate a sample digest and understand the workflow before you buy. No demo-first gates required to see value.',
     links: [
-      { href: '/security', label: 'Security overview' },
-      { href: '/status', label: 'Status & automation' },
+      { href: '/#try-sample', label: 'Generate a sample digest' },
+      { href: '/pricing', label: 'See pricing' },
     ],
-    icon: Webhook,
+    icon: Sparkles,
   },
   {
-    title: 'Webhook delivery + export support',
+    title: 'Webhook delivery and export support',
     badge: 'Action layer',
     body:
       'Turn intel into action: deliver signed webhooks to downstream systems or export data for your workflow. This is built-in—no fake CRM OAuth required.',
@@ -49,13 +48,12 @@ const EVIDENCE: Evidence[] = [
     icon: ArrowRight,
   },
   {
-    title: 'Team playbooks + governance',
-    badge: 'Team workflow',
-    body:
-      'Team includes shared templates, approval flows, and audit logs to standardize messaging and visibility across reps—without losing speed.',
+    title: 'Public trust and policy pages buyers can inspect',
+    badge: 'Trust Center',
+    body: 'Security, privacy, and operational transparency are public so buyers can verify what exists today.',
     links: [
-      { href: '/templates', label: 'Templates library' },
-      { href: '/settings/templates', label: 'Governed templates (Team)' },
+      { href: '/trust', label: 'Trust Center' },
+      { href: '/status', label: 'Status' },
     ],
     icon: ShieldCheck,
   },

@@ -10,15 +10,15 @@ import { InteractiveWorkspaceDemo } from '@/components/marketing/InteractiveWork
 
 export const metadata: Metadata = {
   title: 'Product tour | LeadIntel',
-  description: 'From signals to send-ready outreach in minutes.',
+  description: 'Interactive product preview: why-now signals, daily shortlist, explainable scoring, and send-ready outreach.',
   alternates: { canonical: 'https://dazrael.com/tour' },
   openGraph: {
     title: 'Product tour | LeadIntel',
-    description: 'From signals to send-ready outreach in minutes.',
+    description: 'Interactive product preview: why-now signals, daily shortlist, explainable scoring, and send-ready outreach.',
     url: 'https://dazrael.com/tour',
     images: [
       {
-        url: '/api/og?title=Product%20tour&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        url: '/api/og?title=Product%20tour&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20outreach',
         width: 1200,
         height: 630,
       },
@@ -36,7 +36,7 @@ export default function TourPage() {
   }
 
   return (
-    <MarketingPage title="Product tour" subtitle="From signals to send-ready outreach in minutes.">
+    <MarketingPage title="Product tour" subtitle="Interactive product preview: signal → shortlist → explain → draft → action.">
       <JsonLd data={jsonLd} />
       <PageViewTrack event="tour_page_view" props={{ page: 'tour' }} />
 
