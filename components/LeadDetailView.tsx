@@ -18,7 +18,9 @@ import { formatErrorMessage } from "@/lib/utils/format-error"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
 import { SignalsPanel, type SignalsPanelSort, type SignalsPanelWindow } from "@/components/account/SignalsPanel"
 import { ScoreExplainer } from "@/components/account/ScoreExplainer"
-import type { SignalEvent, ScoreExplainability } from "@/lib/domain/explainability"
+import { SignalMomentumCard } from "@/components/account/SignalMomentumCard"
+import { FirstPartyIntentCard } from "@/components/account/FirstPartyIntentCard"
+import type { FirstPartyIntent, SignalEvent, SignalMomentum, ScoreExplainability } from "@/lib/domain/explainability"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -32,6 +34,8 @@ type ExplainabilityEnvelope =
       data: {
         signals: SignalEvent[]
         scoreExplainability: ScoreExplainability
+        momentum: SignalMomentum
+        firstPartyIntent: FirstPartyIntent
       }
     }
   | { ok: false; error?: { message?: string } }
@@ -54,7 +58,9 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     error: string | null
     signals: SignalEvent[]
     scoreExplainability: ScoreExplainability | null
-  }>({ loading: true, error: null, signals: [], scoreExplainability: null })
+    momentum: SignalMomentum | null
+    firstPartyIntent: FirstPartyIntent
+  }>({ loading: true, error: null, signals: [], scoreExplainability: null, momentum: null, firstPartyIntent: { visitorMatches: { count: 0, lastVisitedAt: null, sampleReferrers: [] } } })
 
   const handleUnlockLead = async () => {
     if (isPro || unlocked) return // Pro users or already unlocked
@@ -141,7 +147,14 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
         const json = (await res.json().catch(() => null)) as ExplainabilityEnvelope | null
         if (cancelled) return
         if (!res.ok || !json || json.ok !== true) {
-          setExplainability({ loading: false, error: 'Unable to load explainability.', signals: [], scoreExplainability: null })
+          setExplainability({
+            loading: false,
+            error: 'Unable to load explainability.',
+            signals: [],
+            scoreExplainability: null,
+            momentum: null,
+            firstPartyIntent: { visitorMatches: { count: 0, lastVisitedAt: null, sampleReferrers: [] } },
+          })
           return
         }
         setExplainability({
@@ -149,10 +162,20 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           error: null,
           signals: Array.isArray(json.data.signals) ? json.data.signals : [],
           scoreExplainability: json.data.scoreExplainability ?? null,
+          momentum: json.data.momentum ?? null,
+          firstPartyIntent:
+            json.data.firstPartyIntent ?? { visitorMatches: { count: 0, lastVisitedAt: null, sampleReferrers: [] } },
         })
       } catch (_err) {
         if (cancelled) return
-        setExplainability({ loading: false, error: 'Unable to load explainability.', signals: [], scoreExplainability: null })
+        setExplainability({
+          loading: false,
+          error: 'Unable to load explainability.',
+          signals: [],
+          scoreExplainability: null,
+          momentum: null,
+          firstPartyIntent: { visitorMatches: { count: 0, lastVisitedAt: null, sampleReferrers: [] } },
+        })
       }
     }
 
@@ -332,7 +355,20 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             </div>
           )}
 
-          <ScoreExplainer explainability={explainability.scoreExplainability} loading={explainability.loading} />
+          <SignalMomentumCard momentum={explainability.momentum} currentScore={explainability.scoreExplainability?.score ?? null} />
+
+          <ScoreExplainer
+            explainability={explainability.scoreExplainability}
+            momentum={explainability.momentum}
+            loading={explainability.loading}
+          />
+
+          <FirstPartyIntentCard
+            companyName={lead.company_name ?? null}
+            companyDomain={lead.company_domain ?? null}
+            inputUrl={lead.company_url ?? null}
+            firstPartyIntent={explainability.firstPartyIntent}
+          />
 
           <SignalsPanel
             signals={explainability.signals}

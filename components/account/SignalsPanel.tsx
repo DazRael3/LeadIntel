@@ -39,6 +39,24 @@ export function SignalsPanel(props: {
 
   const hasConfidence = useMemo(() => props.signals.some((s) => typeof s.confidence === 'number'), [props.signals])
 
+  const groupedCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const s of props.signals) {
+      const t = s.type.trim()
+      if (!t) continue
+      counts.set(t, (counts.get(t) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 4)
+      .map(([type, count]) => ({ type, count }))
+  }, [props.signals])
+
+  const freshest = useMemo(() => {
+    const iso = props.signals.map((s) => s.occurredAt ?? s.detectedAt).sort((a, b) => b.localeCompare(a))[0]
+    return typeof iso === 'string' && iso.trim().length > 0 ? iso : null
+  }, [props.signals])
+
   const windows: Array<{ key: SignalsPanelWindow; label: string }> = [
     { key: '7d', label: '7d' },
     { key: '30d', label: '30d' },
@@ -75,6 +93,24 @@ export function SignalsPanel(props: {
               {hasConfidence ? <option value="confidence">Highest confidence</option> : null}
             </select>
           </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">{props.signals.length} total</Badge>
+            {freshest ? (
+              <span title={new Date(freshest).toLocaleString()}>Freshest: {formatRelativeDate(freshest)}</span>
+            ) : null}
+          </div>
+          {groupedCounts.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {groupedCounts.map((g) => (
+                <Badge key={g.type} variant="outline" className="text-xs">
+                  {formatSignalType(g.type)} · {g.count}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -167,6 +203,16 @@ export function SignalsPanel(props: {
                         <span className="text-xs text-muted-foreground" title={new Date(date).toLocaleString()}>
                           {dateLabel}: {formatRelativeDate(date)}
                         </span>
+                        {typeof s.confidence === 'number' ? (
+                          <Badge variant="outline" className="text-xs">
+                            {(s.confidence * 100).toFixed(0)}%
+                          </Badge>
+                        ) : null}
+                        {s.sourceName ? (
+                          <Badge variant="outline" className="text-xs">
+                            {s.sourceName}
+                          </Badge>
+                        ) : null}
                       </div>
                       <div className="text-sm font-medium text-foreground leading-snug">{s.title}</div>
                       {s.summary ? (
