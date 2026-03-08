@@ -4,6 +4,7 @@ import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
 import type { NormalizedCitation } from '@/lib/sources/normalize'
 import type { SourcesBundle } from '@/lib/sources/orchestrate'
 import { normalizeCitations } from '@/lib/sources/normalize'
+import { ensureReportHeadings, looksLikeEmail, stripSelfReferentialLinks } from '@/lib/reports/reportFormatGuards'
 
 export type CompetitiveReportUserContext = {
   whatYouSell: string | null
@@ -18,6 +19,7 @@ export type CompetitiveReportGenerationInput = {
   sources: SourcesBundle
   userContext: CompetitiveReportUserContext
   internalSignals: Array<{ headline: string; detectedAt: string | null; sourceUrl: string; summary: string | null }>
+  strictFormat?: boolean
 }
 
 type ModelBullet = { text: string; claimType: 'fact' | 'hypothesis'; citations: string[] }
@@ -185,35 +187,45 @@ function markdownFromModel(args: {
   fetchedAt: string
   executiveSummary: string
   sections: ModelSection[]
+  hypotheses: string[]
   citations: NormalizedCitation[]
   used: NormalizedCitation[]
 }): string {
   const idx = citationIndex(args.citations)
 
   const formatBullet = (b: ModelBullet): string => {
-    const urls = b.citations ?? []
-    const nums = urls
-      .map((u) => idx.get(u.toLowerCase()))
-      .filter((n): n is number => typeof n === 'number')
-      .slice(0, 3)
-    const citeSuffix = nums.length > 0 ? ` [${nums.map((n) => `[${n}]`).join(' ')}]` : ''
+    const urls = (b.citations ?? []).slice(0, 3)
+    const links = urls
+      .map((u) => {
+        const n = idx.get(u.toLowerCase())
+        const label = typeof n === 'number' ? `source ${n}` : 'source'
+        return `[${label}](${u})`
+      })
+      .join(' ')
     const prefix = b.claimType === 'hypothesis' ? 'Hypothesis: ' : ''
-    return `- ${prefix}${withoutSelfLinks(b.text)}${citeSuffix}`.trim()
+    return `- ${prefix}${withoutSelfLinks(b.text)}${links ? ` ${links}` : ''}`.trim()
   }
 
-  const requiredHeadings = new Set([
+  const requiredHeadings: string[] = [
     'Market context & positioning',
     'Competitor map',
     'Differentiators & vulnerabilities',
     'Buying triggers & “why now” angles',
     'Recommended outreach angles (5)',
     'Objection handling (5)',
-    'Suggested 7-touch sequence (email + linkedin + call openers)',
+    'Suggested 7-touch sequence (email + LinkedIn + call openers)',
     'Next steps checklist',
-    'Verification checklist (to avoid guessing)',
-  ])
+  ]
 
-  const byHeading = new Map(args.sections.map((s) => [s.heading, s]))
+  function normalizeHeading(raw: string): string {
+    const h = raw.trim().toLowerCase()
+    if (h === 'suggested 7-touch sequence (email + linkedin + call openers)') {
+      return 'Suggested 7-touch sequence (email + LinkedIn + call openers)'
+    }
+    return raw.trim()
+  }
+
+  const byHeading = new Map(args.sections.map((s) => [normalizeHeading(s.heading), s]))
   const ordered: Array<{ heading: string; bullets: ModelBullet[] }> = []
   for (const h of requiredHeadings) {
     const sec = byHeading.get(h)
@@ -242,18 +254,32 @@ function markdownFromModel(args: {
     blocks.push('')
   }
 
-  // References list for traceability
-  blocks.push('## References')
-  const usedIdx = citationIndex(args.used)
-  const usedSorted = [...args.used].sort((a, b) => (usedIdx.get(a.url.toLowerCase()) ?? 0) - (usedIdx.get(b.url.toLowerCase()) ?? 0))
-  for (const c of usedSorted) {
-    const n = usedIdx.get(c.url.toLowerCase())
-    if (!n) continue
-    const title = c.title ? ` — ${c.title}` : ''
-    const when = c.publishedAt ? ` (${c.publishedAt})` : ''
-    blocks.push(`[${n}] ${c.url}${when}${title}`)
+  blocks.push('## Hypotheses (verify before using as fact)')
+  if (args.hypotheses.length === 0) {
+    blocks.push('- Hypothesis: Validate category, primary buyer, and alternatives using the checklist below.')
+  } else {
+    for (const h of args.hypotheses.slice(0, 12)) {
+      blocks.push(`- Hypothesis: ${withoutSelfLinks(h)}`)
+    }
   }
   blocks.push('')
+
+  blocks.push('## Verification checklist')
+  const verification = byHeading.get('Verification checklist (to avoid guessing)')?.bullets ?? []
+  if (verification.length === 0) {
+    blocks.push('- Homepage / product page: category, ICP, key jobs-to-be-done.')
+    blocks.push('- Pricing page: packaging signals and buyer language.')
+    blocks.push('- Careers page: hiring focus areas (team names, keywords).')
+    blocks.push('- Press/blog/changelog: confirmed announcements and dates.')
+    blocks.push('- Review sites (G2/Capterra): recurring pros/cons and alternatives mentioned.')
+    blocks.push('- LinkedIn posts: current initiatives and messaging themes.')
+  } else {
+    for (const b of verification.slice(0, 12)) {
+      blocks.push(`- ${withoutSelfLinks(b.text)}`)
+    }
+  }
+  blocks.push('')
+
   return blocks.join('\n').replace(/https?:\/\/dazrael\.com\/competitive-report\S*/gi, '').trim() + '\n'
 }
 
@@ -263,6 +289,7 @@ export async function generateCompetitiveIntelligenceReportSourced(
   const model = 'gpt-4o'
   const availableCitations = compileAvailableCitations(input)
   const facts = buildVerifiableFacts(input)
+  const strictFormat = Boolean(input.strictFormat)
 
   if (isE2E() || isTestEnv()) {
     const used = availableCitations.slice(0, 5)
@@ -273,7 +300,7 @@ export async function generateCompetitiveIntelligenceReportSourced(
       { heading: 'Buying triggers & “why now” angles', bullets: [{ text: 'Use verified signals when present; otherwise form hypotheses and verify.', claimType: 'hypothesis', citations: [] }] },
       { heading: 'Recommended outreach angles (5)', bullets: [{ text: 'Lead with a measurable workflow outcome and a narrow pilot.', claimType: 'hypothesis', citations: [] }] },
       { heading: 'Objection handling (5)', bullets: [{ text: '“Already have a tool” → Position as complementary, propose a pilot.', claimType: 'hypothesis', citations: [] }] },
-      { heading: 'Suggested 7-touch sequence (email + linkedin + call openers)', bullets: [{ text: 'Email 1: hypothesis + one question (no claims).', claimType: 'hypothesis', citations: [] }] },
+      { heading: 'Suggested 7-touch sequence (email + LinkedIn + call openers)', bullets: [{ text: 'Email: hypothesis + one question (no claims).', claimType: 'hypothesis', citations: [] }] },
       { heading: 'Next steps checklist', bullets: [{ text: 'Verify category, buyer, and alternatives using the checklist.', claimType: 'hypothesis', citations: [] }] },
       { heading: 'Verification checklist (to avoid guessing)', bullets: [{ text: 'Check pricing, careers, press/blog, review sites, and LinkedIn posts.', claimType: 'hypothesis', citations: [] }] },
     ]
@@ -283,10 +310,13 @@ export async function generateCompetitiveIntelligenceReportSourced(
       executiveSummary:
         'Framework-based report (test mode). Any factual claims must be backed by citations; otherwise treat as hypotheses and verify.',
       sections,
+      hypotheses: ['Validate the primary buyer and the category from first-party pages before writing outreach.'],
       citations: availableCitations,
       used,
     })
-    return { reportMarkdown: md, sourcesUsed: used, reportJson: { sections, executiveSummary: 'Framework-based report.' }, model }
+    const cleaned = ensureReportHeadings(stripSelfReferentialLinks(md), input.companyName)
+    if (looksLikeEmail(cleaned)) throw new Error('REPORT_FORMAT_INVALID')
+    return { reportMarkdown: cleaned, sourcesUsed: used, reportJson: { sections, executiveSummary: 'Framework-based report.' }, model }
   }
 
   const openai = getOpenAIClient()
@@ -294,19 +324,20 @@ export async function generateCompetitiveIntelligenceReportSourced(
   const allowedUrls = availableCitations.map((c) => c.url)
   const response = await openai.chat.completions.create({
     model,
-    temperature: 0.35,
+    temperature: strictFormat ? 0.2 : 0.35,
     max_tokens: 1800,
     response_format: { type: 'json_object' },
     messages: [
       {
         role: 'system',
         content: [
-          'You generate competitive intelligence reports for B2B sellers.',
+          'You generate competitive intelligence reports for B2B sellers. This is a report, not an email.',
           'Hard rules:',
           '- Do NOT invent factual claims about the company. Any factual claim must cite at least one URL from Allowed citations.',
           '- If you do not have a citation, mark the claimType as "hypothesis" and phrase it as a hypothesis or "needs verification".',
           '- Do NOT include any CTA linking to /competitive-report or dazrael.com/competitive-report.',
           '- No bracket placeholders like [COMPANY] or [NAME].',
+          '- Do NOT include Subject:, Dear, Best regards, or any email-style closing.',
           '',
           'Output JSON format:',
           '{',
@@ -318,7 +349,7 @@ export async function generateCompetitiveIntelligenceReportSourced(
           '    { "heading": "Buying triggers & “why now” angles", ... },',
           '    { "heading": "Recommended outreach angles (5)", ... },',
           '    { "heading": "Objection handling (5)", ... },',
-          '    { "heading": "Suggested 7-touch sequence (email + linkedin + call openers)", ... },',
+          '    { "heading": "Suggested 7-touch sequence (email + LinkedIn + call openers)", ... },',
           '    { "heading": "Next steps checklist", ... },',
           '    { "heading": "Verification checklist (to avoid guessing)", ... }',
           '  ],',
@@ -385,17 +416,29 @@ export async function generateCompetitiveIntelligenceReportSourced(
   const used = normalizeCitations(availableCitations.filter((c) => usedUrls.some((u) => u.toLowerCase() === c.url.toLowerCase())))
   const usedNonEmpty = used.length > 0 ? used : availableCitations.slice(0, 15)
 
+  const hypotheses = sanitizedSections
+    .flatMap((s) => s.bullets)
+    .filter((b) => b.claimType === 'hypothesis' && (b.citations?.length ?? 0) === 0)
+    .map((b) => b.text)
+    .slice(0, 20)
+
   const markdown = markdownFromModel({
     companyName: input.companyName,
     fetchedAt: input.fetchedAt,
     executiveSummary,
     sections: sanitizedSections,
+    hypotheses,
     citations: availableCitations,
     used: usedNonEmpty,
   })
 
+  const cleaned = ensureReportHeadings(stripSelfReferentialLinks(markdown), input.companyName)
+  if (looksLikeEmail(cleaned)) {
+    throw new Error('REPORT_FORMAT_INVALID')
+  }
+
   return {
-    reportMarkdown: markdown,
+    reportMarkdown: cleaned,
     sourcesUsed: usedNonEmpty,
     reportJson: { sections: sanitizedSections, executiveSummary },
     model,

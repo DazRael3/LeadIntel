@@ -9,6 +9,8 @@ import { CopyTextButton } from '@/components/admin/CopyTextButton'
 import { createClient } from '@/lib/supabase/server'
 import { DownloadMarkdownButton } from './ui/DownloadMarkdownButton'
 import { SourcesFreshnessPanelClient } from './ui/SourcesFreshnessPanelClient'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 export const metadata: Metadata = {
   title: 'Competitive Intelligence Report | LeadIntel',
@@ -231,7 +233,9 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                       sourcesFetchedAt={selected.sources_fetched_at}
                       sourcesUsed={selected.sources_used}
                     />
-                    <pre className="whitespace-pre-wrap break-words text-sm text-foreground/90 leading-relaxed">{selected.report_markdown}</pre>
+                    <div className="prose prose-invert max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{selected.report_markdown}</ReactMarkdown>
+                    </div>
                   </div>
                 ) : selectedId ? (
                   <div className="text-sm text-muted-foreground">
