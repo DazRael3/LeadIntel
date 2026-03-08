@@ -9,6 +9,7 @@ import { CopyTextButton } from '@/components/admin/CopyTextButton'
 import { createClient } from '@/lib/supabase/server'
 import { DownloadMarkdownButton } from './ui/DownloadMarkdownButton'
 import { SourcesFreshnessPanelClient } from './ui/SourcesFreshnessPanelClient'
+import { ReportQualityBadge } from './ui/ReportQualityBadge'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -226,6 +227,11 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
               <CardContent>
                 {selected ? (
                   <div className="space-y-4">
+                    <ReportQualityBadge
+                      reportMarkdown={selected.report_markdown}
+                      sourcesUsed={selected.sources_used}
+                      sourcesFetchedAt={selected.sources_fetched_at}
+                    />
                     <SourcesFreshnessPanelClient
                       companyName={selected.company_name}
                       companyDomain={selected.company_domain}
