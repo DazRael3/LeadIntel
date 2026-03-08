@@ -1,7 +1,7 @@
 "use client"
 
 import type { FormEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +15,20 @@ type GenerateResponse =
   | { ok: true; data: { reportId: string } }
   | { ok: false; error: { code: string; message: string; details?: { tips?: string[] } ; requestId?: string } }
 
+function pickFirstNonEmpty(sp: URLSearchParams, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = sp.get(k)
+    if (typeof v === 'string' && v.trim().length > 0) return v.trim()
+  }
+  return null
+}
+
+function parseAuto(raw: string | null): boolean {
+  if (!raw) return false
+  const v = raw.trim().toLowerCase()
+  return v === '1' || v === 'true' || v === 'yes'
+}
+
 export function CompetitiveReportNewClient() {
   const router = useRouter()
   const sp = useSearchParams()
@@ -26,10 +40,17 @@ export function CompetitiveReportNewClient() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inlineError, setInlineError] = useState<{ title: string; tips: string[] } | null>(null)
 
+  const websiteRef = useRef<HTMLInputElement | null>(null)
+  const didAutoSubmit = useRef(false)
+
   useEffect(() => {
-    setCompanyName(sp.get('company') ?? '')
-    setWebsiteUrl(sp.get('url') ?? '')
-    setTicker(sp.get('ticker') ?? '')
+    const company = pickFirstNonEmpty(sp, ['company', 'name', 'company_name'])
+    const url = pickFirstNonEmpty(sp, ['url', 'input_url', 'website', 'domain'])
+    const symbol = pickFirstNonEmpty(sp, ['ticker', 'symbol'])
+
+    setCompanyName(company ?? '')
+    setWebsiteUrl(url ?? '')
+    setTicker(symbol ?? '')
     // Only run on mount; we intentionally do not keep syncing with search params after user edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -38,8 +59,7 @@ export function CompetitiveReportNewClient() {
     return companyName.trim().length > 0 || websiteUrl.trim().length > 0 || ticker.trim().length > 0
   }, [companyName, ticker, websiteUrl])
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault()
+  async function submit() {
     setInlineError(null)
 
     const name = companyName.trim()
@@ -78,6 +98,7 @@ export function CompetitiveReportNewClient() {
               'Try again in a minute—sources may be temporarily unavailable.',
             ],
           })
+          websiteRef.current?.focus()
           return
         }
         toast({
@@ -107,6 +128,21 @@ export function CompetitiveReportNewClient() {
       setIsSubmitting(false)
     }
   }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    await submit()
+  }
+
+  useEffect(() => {
+    const auto = parseAuto(sp.get('auto'))
+    if (!auto) return
+    if (didAutoSubmit.current) return
+    if (!canSubmit) return
+    didAutoSubmit.current = true
+    void submit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSubmit])
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -156,6 +192,9 @@ export function CompetitiveReportNewClient() {
               <Label htmlFor="websiteUrl">Website URL (recommended)</Label>
               <Input
                 id="websiteUrl"
+                ref={(el) => {
+                  websiteRef.current = el
+                }}
                 value={websiteUrl}
                 onChange={(e) => setWebsiteUrl(e.target.value)}
                 placeholder="https://google.com (or google.com)"

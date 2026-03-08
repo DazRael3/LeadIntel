@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { computeReportQuality } from './quality'
 
 describe('computeReportQuality', () => {
-  it('framework-only when citations are zero', () => {
+  it('needs_attention when citations are below minimum', () => {
     const q = computeReportQuality({
       reportMarkdown: '# Competitive Intelligence Report: Google\n\n## Hypotheses (verify before using as fact)\n- Hypothesis: test\n',
       sourcesUsed: [],
       sourcesFetchedAt: null,
     })
     expect(q.citations).toBe(0)
-    expect(q.grade).toBe('framework_only')
+    expect(q.grade).toBe('needs_attention')
     expect(q.score).toBeLessThan(50)
   })
 

@@ -13,6 +13,7 @@ import { ReportQualityBadge } from './ui/ReportQualityBadge'
 import { LegacyCitationBannerClient } from './ui/LegacyCitationBannerClient'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { buildCompetitiveReportNewUrl } from '@/lib/reports/reportLinks'
 
 export const metadata: Metadata = {
   title: 'Competitive Intelligence Report | LeadIntel',
@@ -70,6 +71,12 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
   const q = qRaw ? safeQueryLike(qRaw) : null
   const status = pickString(sp, 'status')
   const id = pickString(sp, 'id')
+
+  const qpCompany = pickString(sp, 'company') ?? pickString(sp, 'name') ?? pickString(sp, 'company_name')
+  const qpUrl = pickString(sp, 'url') ?? pickString(sp, 'input_url') ?? pickString(sp, 'website') ?? pickString(sp, 'domain')
+  const qpTicker = pickString(sp, 'ticker') ?? pickString(sp, 'symbol')
+  const queryCtaHref = buildCompetitiveReportNewUrl({ company: qpCompany, url: qpUrl, ticker: qpTicker, auto: true })
+  const hasQueryCta = Boolean(qpCompany || qpUrl || qpTicker)
 
   let listQuery = supabase
     .from('user_reports')
@@ -136,6 +143,20 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
           </div>
         </div>
 
+        {hasQueryCta ? (
+          <Card className="mt-6 border-cyan-500/20 bg-card/60">
+            <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm text-muted-foreground">
+                Create a sourced report for{' '}
+                <span className="text-foreground font-medium">{qpCompany ?? qpTicker ?? 'this company'}</span>.
+              </div>
+              <Button asChild size="sm" className="neon-border hover:glow-effect">
+                <Link href={queryCtaHref}>Create report</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="lg:col-span-4 space-y-4">
             <Card className="border-cyan-500/20 bg-card/60">
@@ -166,12 +187,24 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                 </form>
 
                 {list.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">
-                    No saved reports yet. Generate one from{' '}
-                    <Link className="text-cyan-400 hover:underline" href="/competitive-report/new">
-                      New report
-                    </Link>
-                    .
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">
+                      <div className="font-medium text-foreground">No reports yet</div>
+                      <div className="mt-1">
+                        Generate your first sourced competitive report in under 60 seconds. Add a website URL or ticker to ensure the report includes real
+                        citations.
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button asChild size="sm" className="neon-border hover:glow-effect">
+                        <Link href="/competitive-report/new">New report</Link>
+                      </Button>
+                      {hasQueryCta ? (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={queryCtaHref}>Create report for {qpCompany ?? qpTicker ?? 'this company'}</Link>
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -239,6 +272,8 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                       reportMarkdown={selected.report_markdown}
                       sourcesUsed={selected.sources_used}
                       sourcesFetchedAt={selected.sources_fetched_at}
+                      companyName={selected.company_name}
+                      inputUrl={selected.input_url}
                     />
                     <SourcesFreshnessPanelClient
                       companyName={selected.company_name}
@@ -256,12 +291,11 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                     Report not found, or you don’t have access to it.
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground">
-                    Choose a report from the list, or generate a new one from{' '}
-                    <Link className="text-cyan-400 hover:underline" href="/competitive-report/new">
-                      New report
-                    </Link>
-                    .
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">Choose a report from the list, or generate a new one.</div>
+                    <Button asChild size="sm" className="neon-border hover:glow-effect w-fit">
+                      <Link href="/competitive-report/new">New report</Link>
+                    </Button>
                   </div>
                 )}
               </CardContent>

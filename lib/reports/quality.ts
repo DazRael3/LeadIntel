@@ -1,11 +1,12 @@
 import { formatDistanceToNowStrict } from 'date-fns'
+import { MIN_CITATIONS } from '@/lib/reports/reportInput'
 
 export type ReportQuality = {
   citations: number
   hypotheses: number
   lastRefreshedLabel: string | null
   score: number
-  grade: 'excellent' | 'good' | 'needs_attention' | 'framework_only'
+  grade: 'excellent' | 'good' | 'needs_attention'
   breakdown: {
     citationsPoints: number
     freshnessPoints: number
@@ -125,7 +126,7 @@ export function computeReportQuality(args: {
   // citationsPoints (0–60), diminishing returns
   const c = citations
   const citationsPoints = Math.min(60, Math.round(20 * Math.log2(1 + c)))
-  if (citations === 0) reasons.push('No citations detected')
+  if (citations < MIN_CITATIONS) reasons.push('Not enough citations')
 
   // freshnessPoints (0–25)
   let freshnessPoints = 0
@@ -145,14 +146,17 @@ export function computeReportQuality(args: {
   const hypothesesPenalty = Math.min(15, hypotheses * 3)
   if (hypotheses > 0) reasons.push('Contains hypotheses that require verification')
 
-  const score = clamp(citationsPoints + freshnessPoints - hypothesesPenalty, 0, 100)
+  let score = clamp(citationsPoints + freshnessPoints - hypothesesPenalty, 0, 100)
+  if (citations < MIN_CITATIONS) {
+    score = Math.min(score, 49)
+  }
 
-  let grade: ReportQuality['grade'] = 'framework_only'
-  if (citations === 0) grade = 'framework_only'
-  else if (score >= 85) grade = 'excellent'
+  let grade: ReportQuality['grade'] = 'needs_attention'
+  if (citations < MIN_CITATIONS) {
+    grade = 'needs_attention'
+  } else if (score >= 85) grade = 'excellent'
   else if (score >= 70) grade = 'good'
-  else if (score >= 50) grade = 'needs_attention'
-  else grade = 'framework_only'
+  else grade = 'needs_attention'
 
   return {
     citations,
