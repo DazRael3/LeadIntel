@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import { formatRelativeDate } from '@/lib/domain/explainability'
+import { Badge } from '@/components/ui/badge'
+import { badgeClassForTone, webhookDeliveryStatusLabel } from '@/lib/ui/status-labels'
 
 type Role = 'owner' | 'admin' | 'member'
 
@@ -97,6 +99,17 @@ export function IntegrationsSettingsClient() {
     } catch {
       setDeliveries([])
     }
+  }
+
+  function deliveryStatusBadge(d: DeliveryRow) {
+    const stRaw = d.status
+    const st = stRaw === 'pending' || stRaw === 'sent' || stRaw === 'failed' ? stRaw : 'pending'
+    const label = webhookDeliveryStatusLabel(st, d.attempts ?? 0)
+    return (
+      <Badge variant="outline" className={badgeClassForTone(label.tone)}>
+        {label.label}
+      </Badge>
+    )
   }
 
   useEffect(() => {
@@ -329,8 +342,10 @@ export function IntegrationsSettingsClient() {
                           ) : (
                             deliveries.map((d) => (
                               <div key={d.id} className="text-xs rounded border border-cyan-500/10 p-2">
-                                <div className="text-foreground">
-                                  {d.event_type} · {d.status} · attempts {d.attempts}
+                                <div className="flex flex-wrap items-center gap-2 text-foreground">
+                                  <span className="font-medium">{d.event_type}</span>
+                                  {deliveryStatusBadge(d)}
+                                  <span className="text-muted-foreground">attempts {d.attempts}</span>
                                 </div>
                                 <div className="text-muted-foreground">
                                   {d.last_status ? `HTTP ${d.last_status}` : d.last_error ? d.last_error : '—'}

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
+import { badgeClassForTone, exportJobStatusLabel } from '@/lib/ui/status-labels'
 
 type ExportJob = {
   id: string
@@ -133,24 +135,31 @@ export function ExportsSettingsClient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {jobs.map((j) => (
-                      <tr key={j.id} className="border-t border-cyan-500/10">
-                        <td className="py-2 pr-4 text-foreground">{j.type}</td>
-                        <td className="py-2 pr-4">{j.status}</td>
-                        <td className="py-2 pr-4">{new Date(j.created_at).toLocaleString()}</td>
-                        <td className="py-2 pr-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void download(j.id)}
-                            disabled={j.status !== 'ready'}
-                            data-testid={`export-download-${j.id}`}
-                          >
-                            Download
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {jobs.map((j) => {
+                      const st = exportJobStatusLabel(j.status)
+                      return (
+                        <tr key={j.id} className="border-t border-cyan-500/10">
+                          <td className="py-2 pr-4 text-foreground">{j.type}</td>
+                          <td className="py-2 pr-4">
+                            <Badge variant="outline" className={badgeClassForTone(st.tone)}>
+                              {st.label}
+                            </Badge>
+                          </td>
+                          <td className="py-2 pr-4">{new Date(j.created_at).toLocaleString()}</td>
+                          <td className="py-2 pr-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void download(j.id)}
+                              disabled={j.status !== 'ready'}
+                              data-testid={`export-download-${j.id}`}
+                            >
+                              Download
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
