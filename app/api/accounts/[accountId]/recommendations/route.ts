@@ -8,6 +8,7 @@ import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } 
 import { buildAccountRecommendationBundle, RECOMMENDATION_ENGINE_VERSION } from '@/lib/recommendations/engine'
 import { getLearningContextForWorkspace } from '@/lib/services/ranking-intelligence'
 import { logProductEvent } from '@/lib/services/analytics'
+import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+
+    const { policies } = await getWorkspacePolicies({ supabase, workspaceId: workspace.id })
 
     const explainability = await getAccountExplainability({
       supabase,
@@ -66,12 +69,14 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         } as const)
       : null
 
-    const learning = await getLearningContextForWorkspace({
-      supabase,
-      workspaceId: workspace.id,
-      windowDays: 30,
-      recommendationType: 'account_priority',
-    })
+    const learning = policies.intelligence.adaptiveRecommendationsEnabled
+      ? await getLearningContextForWorkspace({
+          supabase,
+          workspaceId: workspace.id,
+          windowDays: 30,
+          recommendationType: 'account_priority',
+        })
+      : { feedback: null, outcomes: null }
 
     const { bundle, snapshot } = buildAccountRecommendationBundle({
       inputs: {
@@ -84,7 +89,13 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         people: explainability.people.personas,
         account: { id: explainability.account.id, name: explainability.account.name, domain: explainability.account.domain },
       },
-      learning,
+      learning:
+        policies.intelligence.outcomeLearningEnabled || policies.intelligence.feedbackAggregationEnabled
+          ? {
+              feedback: policies.intelligence.feedbackAggregationEnabled ? learning.feedback : null,
+              outcomes: policies.intelligence.outcomeLearningEnabled ? learning.outcomes : null,
+            }
+          : { feedback: null, outcomes: null },
       previousSnapshot,
     })
 

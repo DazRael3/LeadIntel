@@ -15,6 +15,12 @@ export type WorkspacePolicies = {
     integrationsManageRoles: WorkspaceRole[]
     workflowAdminRoles: WorkspaceRole[]
   }
+  intelligence: {
+    adaptiveRecommendationsEnabled: boolean
+    outcomeLearningEnabled: boolean
+    feedbackAggregationEnabled: boolean
+    outcomeSubmitRoles: WorkspaceRole[]
+  }
 }
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'manager', 'rep', 'viewer'])
@@ -54,6 +60,19 @@ export const WorkspacePoliciesSchema = z.object({
       workflowAdminRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
     })
     .default({ integrationsManageRoles: ['owner', 'admin', 'manager'], workflowAdminRoles: ['owner', 'admin', 'manager'] }),
+  intelligence: z
+    .object({
+      adaptiveRecommendationsEnabled: z.boolean().default(true),
+      outcomeLearningEnabled: z.boolean().default(true),
+      feedbackAggregationEnabled: z.boolean().default(true),
+      outcomeSubmitRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager', 'rep']),
+    })
+    .default({
+      adaptiveRecommendationsEnabled: true,
+      outcomeLearningEnabled: true,
+      feedbackAggregationEnabled: true,
+      outcomeSubmitRoles: ['owner', 'admin', 'manager', 'rep'],
+    }),
 })
 
 export type WorkspacePoliciesPatch = z.infer<typeof WorkspacePoliciesPatchSchema>
@@ -69,6 +88,7 @@ export function mergeWorkspacePolicies(args: { current: WorkspacePolicies; patch
     exports: { ...args.current.exports, ...(args.patch.exports ?? {}) },
     handoffs: { ...args.current.handoffs, ...(args.patch.handoffs ?? {}) },
     governance: { ...args.current.governance, ...(args.patch.governance ?? {}) },
+    intelligence: { ...args.current.intelligence, ...(args.patch.intelligence ?? {}) },
   }
   return WorkspacePoliciesSchema.parse(merged)
 }
