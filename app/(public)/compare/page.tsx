@@ -64,10 +64,13 @@ export default function CompareHubPage() {
           title="How LeadIntel fits the category"
           rows={[
             { category: 'Clarity', leadintel: 'Strong: simple daily loop and explainable scoring.', competitorSet: 'Often broad and multi-module; can be harder to evaluate quickly.' },
-            { category: 'Explainability', leadintel: 'Strong: visible reasons behind the 0–100 score.', competitorSet: 'Often deeper but can be less transparent or more complex.' },
+            { category: 'Explainability', leadintel: 'Strong: visible reasons behind the 0–100 score + momentum context.', competitorSet: 'Often deeper but can be less transparent or more complex.' },
             { category: 'Speed-to-value', leadintel: 'Strong: no-signup sample + quick workflow understanding.', competitorSet: 'Frequently requires deeper setup and longer evaluation.' },
+            { category: 'People depth', leadintel: 'Focused: persona-level recommendations tied to signals (not a contact database).', competitorSet: 'Often stronger named-contact depth and enrichment.' },
+            { category: 'First-party intent', leadintel: 'When observed: domain-matched visitor + intent freshness; empty states are explicit.', competitorSet: 'Often broader tracking/integrations; varies widely.' },
+            { category: 'Momentum visibility', leadintel: 'Yes: score movement and recent contributing signals.', competitorSet: 'Varies by product; often deeper, sometimes less explainable.' },
             { category: 'Signal breadth', leadintel: 'Focused: best when timing is the priority.', competitorSet: 'Typically stronger breadth and identity capture.' },
-            { category: 'Workflow depth', leadintel: 'Growing: action layer via webhooks/exports + team governance.', competitorSet: 'Often stronger automation and enterprise depth.' },
+            { category: 'Workflow depth', leadintel: 'Action packaging: variants + briefs + webhooks/exports + team governance.', competitorSet: 'Often stronger automation and enterprise depth.' },
           ]}
         />
 

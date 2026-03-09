@@ -12,9 +12,9 @@ const STEPS: Step[] = [
   { id: 'icp', title: 'Define your ICP' },
   { id: 'accounts', title: 'Add target accounts' },
   { id: 'shortlist', title: 'Get a daily shortlist' },
-  { id: 'score', title: 'Understand the score' },
-  { id: 'pitch', title: 'Generate a pitch draft' },
-  { id: 'saved', title: 'Save and reuse outputs' },
+  { id: 'score', title: 'Score + momentum' },
+  { id: 'pitch', title: 'Persona-aware outreach' },
+  { id: 'saved', title: 'Briefs + operational handoff' },
 ]
 
 export function TourStepper() {

@@ -96,7 +96,7 @@ function ScorePreview() {
     <Card className="border-cyan-500/20 bg-card/60">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base">Score, explained</CardTitle>
+          <CardTitle className="text-base">Score + momentum, explained</CardTitle>
           <Badge variant="outline">0–100</Badge>
         </div>
       </CardHeader>
@@ -104,13 +104,31 @@ function ScorePreview() {
         <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="font-medium text-foreground">Northwind Systems</div>
-            <Badge variant="outline">87</Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">87</Badge>
+              <Badge variant="outline">Rising (+11 / 7d)</Badge>
+            </div>
           </div>
           <ul className="mt-2 list-disc pl-5 space-y-1 text-sm text-muted-foreground">
             <li>Hiring spike in RevOps suggests process standardization.</li>
             <li>Multiple roles imply scale-up and tooling evaluation.</li>
             <li>Trigger recency is high (last 7 days).</li>
           </ul>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">First-party intent</div>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <div className="text-sm font-medium text-foreground">Active research</div>
+              <Badge variant="outline">fresh</Badge>
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">Shown when domain-matched visitor activity exists.</div>
+          </div>
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">People recommendations</div>
+            <div className="mt-1 text-sm text-muted-foreground">Champion: Director RevOps · Buyer: VP Sales</div>
+            <div className="mt-1 text-xs text-muted-foreground">Persona-level recommendations tied to signals (not named contact data).</div>
+          </div>
         </div>
         <div className="text-xs text-muted-foreground">Deterministic score with reasons. No black box.</div>
       </CardContent>
@@ -145,9 +163,9 @@ Worth 10 minutes this week?`}
 
 function SavedPreview() {
   const saved = [
-    { label: 'Funding outreach template', detail: 'Saved from a high-scoring account' },
-    { label: 'RevOps hiring spike angle', detail: 'Reusable message block' },
-    { label: 'Competitive displacement checklist', detail: 'Decision points + questions' },
+    { label: 'Saved account brief', detail: 'Compact brief you can regenerate and reuse' },
+    { label: 'Persona opener directions', detail: 'Champion / buyer openers tied to why-now signals' },
+    { label: 'Export / webhook handoff', detail: 'Operator-safe summary routed into your system' },
   ]
   return (
     <Card className="border-cyan-500/20 bg-card/60">
@@ -164,7 +182,7 @@ function SavedPreview() {
             <div className="mt-1 text-xs text-muted-foreground">{s.detail}</div>
           </div>
         ))}
-        <div className="text-xs text-muted-foreground">Save drafts and angles so you don’t start from scratch.</div>
+        <div className="text-xs text-muted-foreground">Save briefs, drafts, and angles so you don’t start from scratch.</div>
       </CardContent>
     </Card>
   )

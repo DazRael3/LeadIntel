@@ -20,11 +20,13 @@ export function BuyerReadiness() {
             <div>What’s in place today:</div>
             <ul className="list-disc pl-5 space-y-1">
               <li>Workspace (tenant) isolation and access-controlled data boundaries.</li>
+              <li>Row-level security policies for user/workspace-scoped access.</li>
               <li>Server-side secret handling (no client exposure of private keys).</li>
               <li>Rate limiting on public and authenticated routes.</li>
               <li>Structured logging and request IDs for debuggability.</li>
               <li>Stripe for billing; Supabase for authentication and database.</li>
               <li>Webhook + export actions designed for operational handoff.</li>
+              <li>Audit visibility for key team-governed actions (templates/approvals and operational handoff surfaces).</li>
             </ul>
           </div>
           <div className="space-y-2">
@@ -45,6 +47,7 @@ export function BuyerReadiness() {
           <ul className="list-disc pl-5 space-y-1">
             <li>LeadIntel is not a general-purpose contact database.</li>
             <li>People and buying-group surfaces are persona-level recommendations (heuristic, signal-based).</li>
+            <li>First-party intent appears only when a match exists; when it doesn’t, the product shows a premium empty state.</li>
             <li>When source coverage is thin, the product says so directly in the UI.</li>
             <li>Support and deletion requests route through the published support contact path.</li>
           </ul>

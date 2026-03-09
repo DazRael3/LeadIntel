@@ -16,24 +16,34 @@ const ITEMS: ProofItem[] = [
     body: 'Every score is grounded in visible inputs and reasons. Reps can sanity-check the “why” before acting.',
   },
   {
-    title: 'Account timing + outreach in one flow',
-    tag: 'Workflow',
-    body: 'Signals don’t end as alerts. You can move from “why now” to a send-ready first touch without switching tools.',
+    title: 'Momentum over time (not a single static score)',
+    tag: 'Momentum',
+    body: 'Accounts rise, cool, or stay steady based on recent signals. LeadIntel makes movement visible so reps act while timing is fresh.',
   },
   {
-    title: 'Shared team workflow (not just solo output)',
+    title: 'First-party intent when it exists (clearly labeled)',
+    tag: 'First-party',
+    body: 'When visitor or first-party signals match an account, LeadIntel shows freshness and an intent label. When it doesn’t, the UI says so.',
+  },
+  {
+    title: 'People + buying-group recommendations (persona-level)',
+    tag: 'People',
+    body: 'Who to contact is presented as heuristic persona recommendations tied to observed signals—without inventing named contacts.',
+  },
+  {
+    title: 'Action packaging (copy → variants → brief → handoff)',
+    tag: 'Action layer',
+    body: 'Move from why-now signals to operator-safe outputs: copyable summaries/openers, outreach variants, saved briefs, and webhook/export delivery.',
+  },
+  {
+    title: 'Shared team workflow (approvals + audit visibility)',
     tag: 'Team',
-    body: 'Teams can standardize templates with approvals and audit visibility so execution stays consistent across reps.',
+    body: 'Standardize templates with approval gates and audit visibility so execution stays consistent across reps.',
   },
   {
     title: 'Inspectable trust and pricing before sales contact',
     tag: 'Trust',
     body: 'Public trust pages and transparent pricing make evaluation straightforward for buyers who verify.',
-  },
-  {
-    title: 'Webhook/export actions for operational handoff',
-    tag: 'Action layer',
-    body: 'Move outputs into your operating system via webhooks and exports—without exposing secrets client-side.',
   },
 ]
 
