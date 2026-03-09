@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 
-type Role = 'owner' | 'admin' | 'member'
+type Role = 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
 type Channel = 'email' | 'linkedin_dm' | 'call_opener'
 type Status = 'draft' | 'approved'
 
@@ -41,7 +41,7 @@ type TemplatesEnvelope = { ok: true; data: { role: Role; templates: TemplateRow[
 export function TemplatesSettingsClient() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [role, setRole] = useState<Role>('member')
+  const [role, setRole] = useState<Role>('viewer')
   const [sets, setSets] = useState<TemplateSet[]>([])
   const [templates, setTemplates] = useState<TemplateRow[]>([])
   const [defaultSetId, setDefaultSetId] = useState<string | null>(null)
@@ -65,7 +65,7 @@ export function TemplatesSettingsClient() {
   })
   const [savingTemplate, setSavingTemplate] = useState(false)
 
-  const isAdmin = role === 'owner' || role === 'admin'
+  const isAdmin = role === 'owner' || role === 'admin' || role === 'manager'
 
   const filteredTemplates = useMemo(() => {
     if (!activeSetId) return templates

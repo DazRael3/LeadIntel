@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 
-type Role = 'owner' | 'admin' | 'member'
+type Role = 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
 
 type MembersPayload = {
   workspace: { id: string; name: string; owner_user_id: string }
@@ -30,7 +30,7 @@ export function TeamSettingsClient() {
   const [loading, setLoading] = useState(true)
   const [payload, setPayload] = useState<MembersPayload | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member')
+  const [inviteRole, setInviteRole] = useState<'admin' | 'manager' | 'rep' | 'viewer'>('rep')
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
 
@@ -170,7 +170,7 @@ export function TeamSettingsClient() {
       <div className="container mx-auto px-6 py-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold bloomberg-font neon-cyan">Team</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Members and roles for your workspace.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Members, roles, and governance for your workspace.</p>
         </div>
 
         <Card className="border-cyan-500/20 bg-card/50">
@@ -188,10 +188,15 @@ export function TeamSettingsClient() {
               <select
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                 value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value === 'admin' ? 'admin' : 'member')}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === 'admin' || v === 'manager' || v === 'rep' || v === 'viewer') setInviteRole(v)
+                }}
                 data-testid="team-invite-role"
               >
-                <option value="member">Member</option>
+                <option value="viewer">Viewer</option>
+                <option value="rep">Rep</option>
+                <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
               </select>
               <Button
@@ -254,7 +259,9 @@ export function TeamSettingsClient() {
                           >
                           {payload?.viewer.role === 'owner' && <option value="owner">Owner</option>}
                             <option value="admin">Admin</option>
-                            <option value="member">Member</option>
+                            <option value="manager">Manager</option>
+                            <option value="rep">Rep</option>
+                            <option value="viewer">Viewer</option>
                           </select>
                         </td>
                         <td className="py-2 pr-2">

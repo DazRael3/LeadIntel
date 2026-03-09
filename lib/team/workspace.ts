@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type WorkspaceRole = 'owner' | 'admin' | 'member'
+export type WorkspaceRole = 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
 
 export type WorkspaceRow = {
   id: string
@@ -79,7 +79,9 @@ export async function getWorkspaceMembership(args: {
     .maybeSingle()
 
   const role = (data as { role?: unknown } | null)?.role
-  if (role === 'owner' || role === 'admin' || role === 'member') return { role }
+  // Back-compat: older schema uses 'member' which maps to 'rep'.
+  if (role === 'member') return { role: 'rep' }
+  if (role === 'owner' || role === 'admin' || role === 'manager' || role === 'rep' || role === 'viewer') return { role }
   return null
 }
 

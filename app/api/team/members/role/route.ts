@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 
 const BodySchema = z.object({
   userId: z.string().uuid(),
-  role: z.enum(['owner', 'admin', 'member']),
+  role: z.enum(['owner', 'admin', 'manager', 'rep', 'viewer']),
 })
 
 export const POST = withApiGuard(

@@ -6,7 +6,7 @@ import { status } from '@/lib/integrations/connection-state'
 export async function getWorkspaceIntegrationSummary(args: {
   supabase: SupabaseClient
   workspaceId: string
-  role: 'owner' | 'admin' | 'member'
+  role: 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
 }): Promise<WorkspaceIntegrationSummary> {
   const { data: ws } = await args.supabase
     .schema('api')

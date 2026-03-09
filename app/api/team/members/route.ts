@@ -13,7 +13,7 @@ type MemberRow = {
   userId: string
   email: string | null
   displayName: string | null
-  role: 'owner' | 'admin' | 'member'
+  role: 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
   createdAt: string
 }
 
@@ -41,7 +41,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-    if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+    if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {
       return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
     }
 
@@ -82,7 +82,12 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const members: MemberRow[] = (memberRows ?? []).map((r: { user_id: string; role: string; created_at: string }) => {
       const email = usersById.get(r.user_id)?.email ?? null
       const displayName = namesById.get(r.user_id)?.displayName ?? null
-      const role = r.role === 'owner' || r.role === 'admin' || r.role === 'member' ? r.role : 'member'
+      const role =
+        r.role === 'member'
+          ? 'rep'
+          : r.role === 'owner' || r.role === 'admin' || r.role === 'manager' || r.role === 'rep' || r.role === 'viewer'
+            ? r.role
+            : 'viewer'
       return { userId: r.user_id, email, displayName, role, createdAt: r.created_at }
     })
 

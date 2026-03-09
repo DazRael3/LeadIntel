@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 
 const InviteBodySchema = z.object({
   email: z.string().email().min(3),
-  role: z.enum(['admin', 'member']),
+  role: z.enum(['admin', 'manager', 'rep', 'viewer']),
 })
 
 function sha256Hex(input: string): string {
@@ -50,8 +50,8 @@ export const POST = withApiGuard(
         return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
       }
 
-      const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+    const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
+    if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
 

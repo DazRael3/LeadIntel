@@ -43,7 +43,7 @@ export type WorkspaceIntegrationStatus = {
 
 export type WorkspaceIntegrationSummary = {
   workspaceId: string
-  role: 'owner' | 'admin' | 'member'
+  role: 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
   integrations: Array<IntegrationDescriptor & { status: WorkspaceIntegrationStatus }>
   defaults: {
     handoffWebhookEndpointId: string | null

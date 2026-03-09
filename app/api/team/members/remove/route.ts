@@ -7,6 +7,7 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { ensurePersonalWorkspace, getCurrentWorkspace } from '@/lib/team/workspace'
 import { logAudit } from '@/lib/audit/log'
 import { requireTeamPlan } from '@/lib/team/gating'
+import { getWorkspaceMembership } from '@/lib/team/workspace'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,11 @@ export const POST = withApiGuard(
       const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
       if (!workspace) {
         return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+      }
+
+      const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
+      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
 
       const { error } = await supabase.rpc('remove_workspace_member', {

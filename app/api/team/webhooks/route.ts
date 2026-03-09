@@ -79,8 +79,8 @@ export const POST = withApiGuard(
       const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
       if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
 
-      const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+    const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
+    if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
 
