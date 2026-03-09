@@ -51,6 +51,18 @@ This wave adds a bounded developer surface without weakening security or entitle
 
 ---
 
+## Platform wave: mobile workflows + executive reporting + command center
+
+This wave improves small-screen usability and adds bounded summary surfaces without turning LeadIntel into BI:
+
+- **Mobile-first summaries** are responsive web views (no native app claims).
+- **Executive dashboard** (`/dashboard/executive`) is **metadata-first** and role-gated (default: owner/admin/manager).
+- **Executive snapshots** (`POST /api/executive/snapshot`) produce **copy/print** summaries (no premium body content).
+- **Command Center** (`/dashboard/command-center`) is a daily operating console built from observed queue + approvals.
+- **Reporting governance** is configurable under `/settings/reporting` and enforced server-side for all reporting endpoints.
+
+---
+
 ## Required env vars (production)
 
 ### App URL / Origin
