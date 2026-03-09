@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -8,11 +9,14 @@ import { LogOut, LayoutDashboard, DollarSign, ListChecks, BarChart3, Users, Pack
 import { useInAppTour } from '@/components/tour/InAppTourProvider'
 import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
 import { MobileNavMenu } from '@/components/navigation/MobileNavMenu'
+import { AssistantLauncher } from '@/components/assistant/AssistantLauncher'
+import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 
 export function DashboardHeader() {
   const router = useRouter()
   const supabase = createClient()
   const { startTour } = useInAppTour()
+  const [assistantOpen, setAssistantOpen] = useState(false)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -38,6 +42,9 @@ export function DashboardHeader() {
           {/* Right: Navigation Links */}
           <div className="flex items-center space-x-2 md:space-x-3">
             <MobileNavMenu />
+            <div className="hidden md:block">
+              <AssistantLauncher source="dashboard_header" onOpen={() => setAssistantOpen(true)} />
+            </div>
             <Button
               onClick={() => startTour({ source: 'in_app', location: 'dashboard_header' })}
               variant="ghost"
@@ -143,6 +150,13 @@ export function DashboardHeader() {
           </div>
         </div>
       </div>
+
+      <AssistantPanel
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        scope={{ type: 'workspace', id: null }}
+        title="Assistant"
+      />
     </nav>
   )
 }
