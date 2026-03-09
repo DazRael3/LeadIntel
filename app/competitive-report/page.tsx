@@ -11,6 +11,7 @@ import { DownloadMarkdownButton } from './ui/DownloadMarkdownButton'
 import { SourcesFreshnessPanelClient } from './ui/SourcesFreshnessPanelClient'
 import { ReportQualityBadge } from './ui/ReportQualityBadge'
 import { LegacyCitationBannerClient } from './ui/LegacyCitationBannerClient'
+import { SourceQualitySummary } from '@/components/report/SourceQualitySummary'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { buildCompetitiveReportNewUrl } from '@/lib/reports/reportLinks'
@@ -312,6 +313,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                       companyName={selected.company_name}
                       inputUrl={selected.input_url}
                     />
+                    <SourceQualitySummary sourcesUsed={selected.sources_used} sourcesFetchedAt={selected.sources_fetched_at} meta={selected.meta} />
                     <SourcesFreshnessPanelClient
                       companyName={selected.company_name}
                       companyDomain={selected.company_domain}

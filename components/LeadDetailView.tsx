@@ -28,6 +28,10 @@ import { deriveFirstPartyIntentSummary } from "@/lib/services/first-party-intent
 import { RecommendedPeopleCard } from "@/components/account/RecommendedPeopleCard"
 import { BuyingGroupCard } from "@/components/account/BuyingGroupCard"
 import { SignalMomentumTimeline } from "@/components/account/SignalMomentumTimeline"
+import { DataQualityCard } from "@/components/account/DataQualityCard"
+import { SourceFreshnessCard } from "@/components/account/SourceFreshnessCard"
+import type { DataQualitySummary } from "@/lib/domain/data-quality"
+import type { SourceHealthSummary } from "@/lib/domain/source-health"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -43,6 +47,8 @@ type ExplainabilityEnvelope =
         scoreExplainability: ScoreExplainability
         momentum: SignalMomentum
         firstPartyIntent: FirstPartyIntent
+        dataQuality: DataQualitySummary
+        sourceHealth: SourceHealthSummary
         people: { personas: PersonaRecommendationSummary; buyingGroup: BuyingGroupRecommendation }
       }
     }
@@ -71,6 +77,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     scoreExplainability: ScoreExplainability | null
     momentum: SignalMomentum | null
     firstPartyIntent: FirstPartyIntent
+    dataQuality: DataQualitySummary | null
+    sourceHealth: SourceHealthSummary | null
     people: { personas: PersonaRecommendationSummary; buyingGroup: BuyingGroupRecommendation } | null
   }>({
     loading: true,
@@ -79,6 +87,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     scoreExplainability: null,
     momentum: null,
     firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+    dataQuality: null,
+    sourceHealth: null,
     people: null,
   })
 
@@ -178,6 +188,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             scoreExplainability: null,
             momentum: null,
             firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+            dataQuality: null,
+            sourceHealth: null,
             people: null,
           })
           return
@@ -190,6 +202,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           momentum: json.data.momentum ?? null,
           firstPartyIntent:
             json.data.firstPartyIntent ?? { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+          dataQuality: json.data.dataQuality ?? null,
+          sourceHealth: json.data.sourceHealth ?? null,
           people: json.data.people ?? null,
         })
       } catch (_err) {
@@ -201,6 +215,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           scoreExplainability: null,
           momentum: null,
           firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+          dataQuality: null,
+          sourceHealth: null,
           people: null,
         })
       }
@@ -383,6 +399,9 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           )}
 
           <SignalMomentumCard momentum={explainability.momentum} currentScore={explainability.scoreExplainability?.score ?? null} />
+
+          {explainability.dataQuality ? <DataQualityCard quality={explainability.dataQuality} /> : null}
+          {explainability.sourceHealth ? <SourceFreshnessCard health={explainability.sourceHealth} /> : null}
 
           <ScoreExplainer
             explainability={explainability.scoreExplainability}
