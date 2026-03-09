@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Menu, X, LayoutDashboard, ListChecks, BarChart3, Users, Package, Activity, Settings2 } from 'lucide-react'
+import { Menu, X, LayoutDashboard, ListChecks, BarChart3, Users, Package, Activity, Settings2, ShieldCheck } from 'lucide-react'
 import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
 
 export function MobileNavMenu() {
@@ -49,6 +49,7 @@ export function MobileNavMenu() {
                 <nav className="grid grid-cols-2 gap-2">
                   <MenuLink href="/dashboard" label="Dashboard" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/actions" label="Actions" icon={<ListChecks className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/dashboard/approvals" label="Approvals" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/benchmarks" label="Benchmarks" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/partner" label="Partner" icon={<Users className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/rollouts" label="Rollouts" icon={<Package className="h-4 w-4" />} onClick={() => setOpen(false)} />

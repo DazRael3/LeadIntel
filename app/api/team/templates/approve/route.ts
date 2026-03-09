@@ -53,6 +53,28 @@ export const POST = withApiGuard(
 
       if (error || !template) return fail(ErrorCode.DATABASE_ERROR, 'Approve failed', undefined, undefined, bridge, requestId)
 
+      // Keep the separate approval_requests table in sync when used for review workflows.
+      await supabase
+        .schema('api')
+        .from('approval_requests')
+        .upsert(
+          {
+            workspace_id: workspace.id,
+            target_type: 'template',
+            target_id: template.id,
+            status: 'approved',
+            submitted_by: user.id,
+            submitted_at: nowIso,
+            reviewed_by: user.id,
+            reviewed_at: nowIso,
+            note: null,
+            meta: {},
+          },
+          { onConflict: 'workspace_id,target_type,target_id' }
+        )
+        .select('id')
+        .maybeSingle()
+
       await logAudit({
         supabase,
         workspaceId: workspace.id,
