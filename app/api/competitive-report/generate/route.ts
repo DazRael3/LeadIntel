@@ -382,7 +382,7 @@ export const POST = withApiGuard(
       if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
         try {
           await logProductEvent({
-            userId,
+            userId: userId ?? null,
             eventName: 'generation_failed',
             eventProps: { kind: 'report', reportKind: 'competitive', errorCode: error instanceof Error ? (error.message || error.name) : 'unknown_error' },
           })
