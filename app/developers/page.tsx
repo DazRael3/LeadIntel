@@ -24,6 +24,9 @@ export default function DevelopersPage() {
             <div>
               - Create a workspace API key in <Link className="underline" href="/settings/api">Settings → API</Link> (Team plan).
             </div>
+            <div>
+              - Enable/disable API, embeds, and extensions in <Link className="underline" href="/settings/platform">Settings → Platform</Link>.
+            </div>
             <div>- Keys are shown once at creation and stored hashed. Do not put keys in client-side code.</div>
             <div>- All endpoints are workspace-scoped. No cross-workspace access.</div>
             <div className="pt-2">
@@ -72,6 +75,18 @@ export default function DevelopersPage() {
   -H "Authorization: Bearer li_sk_***" \\
   -H "Accept: application/json" \\
   https://YOUR_APP_HOST/api/v1/workspace`}</pre>
+          </CardContent>
+        </Card>
+
+        <Card className="border-cyan-500/20 bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Webhooks + events</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <div>Webhook endpoints are configured per workspace in settings and receive signed event payloads.</div>
+            <div>
+              See <span className="font-mono text-xs">WebhookEventType</span> in <span className="font-mono text-xs">lib/integrations/webhooks.ts</span> for the supported event types.
+            </div>
           </CardContent>
         </Card>
       </div>

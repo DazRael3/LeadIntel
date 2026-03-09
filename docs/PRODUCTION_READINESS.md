@@ -38,6 +38,19 @@ This wave adds multi-workspace support without weakening isolation:
 
 ---
 
+## Platform wave: API platform + embeds + extensibility
+
+This wave adds a bounded developer surface without weakening security or entitlement enforcement:
+
+- **Workspace-scoped API keys** (hashed storage, shown once, revocable, scoped).
+- **Versioned platform API** (`/api/v1/*`) with typed envelopes and stable platform objects.
+- **Platform governance controls** (`/settings/platform`) to enable/disable API access, embeds, and extensions per workspace.
+- **Embed mode (bounded)** with signed, short-lived tokens and embed-safe widgets under `/embed/*`.
+- **Extensions (custom actions)**: validated payload templates delivered via existing webhook infrastructure.
+- **API usage visibility** via sanitized request logs (`/settings/api/usage`).
+
+---
+
 ## Required env vars (production)
 
 ### App URL / Origin
@@ -95,6 +108,12 @@ This wave adds multi-workspace support without weakening isolation:
 | `UPSTASH_REDIS_REST_TOKEN` | server-only | Upstash REST token for rate limiting / usage caps. | Same as above. |
 
 ---
+
+### Platform API / embeds (optional)
+| Name | Scope | Purpose | TEST vs LIVE |
+| --- | --- | --- | --- |
+| `PLATFORM_API_KEY_PEPPER` | server-only | Pepper used when hashing workspace API keys. Required if platform API access is enabled. | Keep stable per environment; rotate only with a key rotation plan. |
+| `EMBED_SIGNING_SECRET` | server-only | Secret used to sign short-lived embed tokens. Required if embed mode is enabled. | Keep stable per environment. |
 
 ## Optional integrations / feature config (set only if used)
 
