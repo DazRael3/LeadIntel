@@ -56,6 +56,11 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     if (!intel) return fail(ErrorCode.NOT_FOUND, 'Account not found', undefined, { status: 404 }, bridge, requestId)
 
     await logProductEvent({ userId: user.id, eventName: 'account_plan_viewed', eventProps: { workspaceId: ws.id, accountId, window: parsed.data.window } })
+    await logProductEvent({
+      userId: user.id,
+      eventName: 'follow_through_viewed',
+      eventProps: { workspaceId: ws.id, accountId, window: parsed.data.window },
+    })
 
     return ok(
       {

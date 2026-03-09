@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { ObservedVsInferredCallout } from '@/components/revenue/ObservedVsInferredCallout'
+import { track } from '@/lib/analytics'
 
 type Plan = {
   confidence: 'limited' | 'usable' | 'strong'
@@ -42,6 +43,7 @@ export function AccountPlanCard(props: { accountId: string; window: '7d' | '30d'
       }
       setPlan(json.data.plan)
       setFollow(json.data.followThrough)
+      track('observed_vs_inferred_viewed', { surface: 'account_plan', accountId: props.accountId })
     } catch {
       setPlan(null)
       setFollow(null)

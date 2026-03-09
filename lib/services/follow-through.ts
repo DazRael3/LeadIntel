@@ -17,7 +17,7 @@ function windowToDays(window: '7d' | '30d' | '90d' | 'all'): number {
 
 type QueueRow = { status: string; action_type: string; created_at: string; error: string | null }
 
-function deriveFollowThroughLabel(args: {
+export function deriveFollowThroughLabel(args: {
   momentumLabel: 'rising' | 'steady' | 'cooling'
   freshness: 'unknown' | 'stale' | 'recent' | 'fresh'
   hasReadyPrepared: boolean

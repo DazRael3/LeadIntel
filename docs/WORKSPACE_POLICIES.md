@@ -47,6 +47,15 @@ The canonical shape is defined in:
   - `/api/accounts/:id/recommendations` respects adaptive/feedback/outcome toggles
   - `/settings/intelligence` is Team-gated and updates workspace policy state
 
+### Planning intelligence controls
+
+- **Key**: `planning.*`
+- **Meaning**: gates account planning, influence, and forecast-support surfaces.
+- **Enforcement**:
+  - `/api/accounts/:id/plan`, `/api/accounts/:id/touch-plan`, `/api/accounts/:id/pipeline-influence`
+  - `/api/team/planning`, `/api/team/forecast-support`
+  - `/settings/planning-intelligence`
+
 ## Audit
 
 Policy updates are audited as:

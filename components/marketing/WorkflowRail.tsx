@@ -80,6 +80,7 @@ export function WorkflowRail() {
             <Badge variant="outline">Daily shortlist</Badge>
             <Badge variant="outline">Explainable score</Badge>
             <Badge variant="outline">Why-now intelligence</Badge>
+            <Badge variant="outline">Account planning</Badge>
             <Badge variant="outline">Send-ready outreach</Badge>
             <Badge variant="outline">Action layer</Badge>
           </div>

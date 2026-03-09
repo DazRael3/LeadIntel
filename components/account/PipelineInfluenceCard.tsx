@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { ObservedVsInferredCallout } from '@/components/revenue/ObservedVsInferredCallout'
+import { track } from '@/lib/analytics'
 
 type Influence = {
   influence: 'unknown' | 'early_influence' | 'building' | 'high_attention' | 'confirmed_progression'
@@ -44,6 +45,7 @@ export function PipelineInfluenceCard(props: { accountId: string; window: '7d' |
         return
       }
       setInf(json.data.influence)
+      track('observed_vs_inferred_viewed', { surface: 'pipeline_influence', accountId: props.accountId })
     } catch {
       setInf(null)
       toast({ variant: 'destructive', title: 'Influence unavailable', description: 'Please try again.' })

@@ -42,7 +42,7 @@ export function PlanningIntelligenceSettingsClient() {
   }, [toast])
 
   useEffect(() => {
-    track('planning_policy_changed', { surface: 'settings_planning_intelligence_view' })
+    track('intelligence_settings_viewed', { surface: 'settings_planning_intelligence' })
     void load()
   }, [load])
 
