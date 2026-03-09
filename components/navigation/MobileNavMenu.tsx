@@ -54,12 +54,14 @@ export function MobileNavMenu() {
                   <MenuLink href="/dashboard/growth" label="Growth" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/verification" label="Verify" icon={<CheckSquare className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/revenue-workflows" label="Revenue" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/dashboard/success" label="Success" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/partner" label="Partner" icon={<Users className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/rollouts" label="Rollouts" icon={<Package className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/operations" label="Ops" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/platform" label="Platform" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/revenue-intelligence" label="Revenue" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/sources" label="Sources" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/learn" label="Learn" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/experiments" label="Experiments" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/notifications" label="Prefs" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                 </nav>
