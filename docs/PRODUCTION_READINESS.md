@@ -184,6 +184,12 @@ This wave adds a **grounded assistant layer** without introducing fake autonomy:
 | `FEATURE_CLEARBIT_ENABLED` | server-only | Global kill switch for Clearbit. | Same as above. |
 | `FEATURE_ZAPIER_PUSH_ENABLED` | server-only | Global kill switch for Zapier. | Same as above. |
 
+### Experimentation (growth ops)
+| Name | Scope | Purpose | TEST vs LIVE |
+| --- | --- | --- | --- |
+| `EXPERIMENT_ASSIGNMENT_SEED` | server-only | Stable seed for deterministic experiment assignment. | Keep stable per environment for consistent bucketing. |
+| `NEXT_PUBLIC_EXPERIMENTS_ENABLED` | client-safe | Enables experiment evaluation calls from eligible UI surfaces. | Recommended `false` until governance is configured; gate via workspace policies. |
+
 ### Dev/test helpers (should be OFF in production)
 | Name | Scope | Purpose | TEST vs LIVE |
 | --- | --- | --- | --- |
