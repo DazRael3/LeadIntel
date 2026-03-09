@@ -304,12 +304,20 @@ export default function LandingClient() {
                   <p className="mt-3 text-sm text-muted-foreground max-w-3xl">{COPY.home.hero.support}</p>
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     <Button asChild size="lg" className="neon-border hover:glow-effect">
-                      <Link href="#try-sample">{COPY.home.hero.primaryCta}</Link>
+                      <Link
+                        href="#try-sample"
+                        onClick={() => track('homepage_cta_sample_clicked', { source: 'landing_hero' })}
+                      >
+                        {COPY.home.hero.primaryCta}
+                      </Link>
                     </Button>
                     <Button asChild variant="outline" size="lg">
                       <Link
                         href="/pricing"
-                        onClick={() => track('pricing_cta_clicked', { source: 'landing_hero' })}
+                        onClick={() => {
+                          track('pricing_cta_clicked', { source: 'landing_hero' })
+                          track('homepage_cta_pricing_clicked', { source: 'landing_hero' })
+                        }}
                       >
                         {COPY.home.hero.secondaryCta}
                       </Link>
