@@ -8,6 +8,7 @@ import { requireTeamPlan } from '@/lib/team/gating'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { buildExecutiveSummary } from '@/lib/executive/engine'
 import { logProductEvent } from '@/lib/services/analytics'
+import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +65,11 @@ export const POST = withApiGuard(
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
       if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
-      const canView = membership.role === 'owner' || membership.role === 'admin' || membership.role === 'manager'
+      const { policies } = await getWorkspacePolicies({ supabase, workspaceId: ws.id })
+      if (!policies.reporting.executiveEnabled || !policies.reporting.snapshotsEnabled) {
+        return fail(ErrorCode.FORBIDDEN, 'Executive snapshots are disabled for this workspace', undefined, undefined, bridge, requestId)
+      }
+      const canView = policies.reporting.executiveViewerRoles.includes(membership.role)
       if (!canView) return fail(ErrorCode.FORBIDDEN, 'Manager access required', undefined, undefined, bridge, requestId)
 
       const summary = await buildExecutiveSummary({ supabase, workspaceId: ws.id })

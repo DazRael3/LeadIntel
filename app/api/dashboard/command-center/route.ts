@@ -8,6 +8,7 @@ import { requireTeamPlan } from '@/lib/team/gating'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { buildCommandCenter } from '@/lib/services/command-center'
 import { logProductEvent } from '@/lib/services/analytics'
+import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,12 @@ export const GET = withApiGuard(
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
       if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+
+      const { policies } = await getWorkspacePolicies({ supabase, workspaceId: ws.id })
+      if (!policies.reporting.commandCenterEnabled) return fail(ErrorCode.FORBIDDEN, 'Command Center is disabled for this workspace', undefined, undefined, bridge, requestId)
+      if (!policies.reporting.commandViewerRoles.includes(membership.role)) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+      }
 
       const summary = await buildCommandCenter({ supabase, workspaceId: ws.id, limit: parsed.data.limit })
       await logProductEvent({ userId: user.id, eventName: 'command_center_viewed', eventProps: { workspaceId: ws.id } })

@@ -39,6 +39,14 @@ export type WorkspacePolicies = {
     apiKeyManageRoles: WorkspaceRole[]
     allowedKeyScopes: string[]
   }
+  reporting: {
+    executiveEnabled: boolean
+    commandCenterEnabled: boolean
+    snapshotsEnabled: boolean
+    executiveViewerRoles: WorkspaceRole[]
+    commandViewerRoles: WorkspaceRole[]
+    mobileQuickActionsEnabled: boolean
+  }
 }
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'manager', 'rep', 'viewer'])
@@ -138,6 +146,23 @@ export const WorkspacePoliciesSchema = z.object({
       apiKeyManageRoles: ['owner', 'admin', 'manager'],
       allowedKeyScopes: ['workspace.read', 'accounts.read', 'action_queue.read', 'delivery.read', 'benchmarks.read', 'embed.token.create'],
     }),
+  reporting: z
+    .object({
+      executiveEnabled: z.boolean().default(true),
+      commandCenterEnabled: z.boolean().default(true),
+      snapshotsEnabled: z.boolean().default(true),
+      executiveViewerRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
+      commandViewerRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
+      mobileQuickActionsEnabled: z.boolean().default(true),
+    })
+    .default({
+      executiveEnabled: true,
+      commandCenterEnabled: true,
+      snapshotsEnabled: true,
+      executiveViewerRoles: ['owner', 'admin', 'manager'],
+      commandViewerRoles: ['owner', 'admin', 'manager'],
+      mobileQuickActionsEnabled: true,
+    }),
 })
 
 export type WorkspacePoliciesPatch = z.infer<typeof WorkspacePoliciesPatchSchema>
@@ -157,6 +182,7 @@ export function mergeWorkspacePolicies(args: { current: WorkspacePolicies; patch
     planning: { ...args.current.planning, ...(args.patch.planning ?? {}) },
     benchmarks: { ...args.current.benchmarks, ...(args.patch.benchmarks ?? {}) },
     platform: { ...args.current.platform, ...(args.patch.platform ?? {}) },
+    reporting: { ...args.current.reporting, ...(args.patch.reporting ?? {}) },
   }
   return WorkspacePoliciesSchema.parse(merged)
 }
