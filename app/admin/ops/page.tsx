@@ -111,6 +111,9 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
             <Link href={`/admin/webhooks?token=${encodeURIComponent(token ?? '')}`}>Webhooks</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/support?token=${encodeURIComponent(token ?? '')}`}>Support</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link href="/status">Status</Link>
           </Button>
         </div>
