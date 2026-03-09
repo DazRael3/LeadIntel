@@ -32,6 +32,13 @@ export type WorkspacePolicies = {
     priorPeriodEnabled: boolean
     viewerRoles: WorkspaceRole[]
   }
+  platform: {
+    apiAccessEnabled: boolean
+    embedEnabled: boolean
+    extensionsEnabled: boolean
+    apiKeyManageRoles: WorkspaceRole[]
+    allowedKeyScopes: string[]
+  }
 }
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'manager', 'rep', 'viewer'])
@@ -108,6 +115,29 @@ export const WorkspacePoliciesSchema = z.object({
       priorPeriodEnabled: true,
       viewerRoles: ['owner', 'admin', 'manager'],
     }),
+  platform: z
+    .object({
+      apiAccessEnabled: z.boolean().default(false),
+      embedEnabled: z.boolean().default(false),
+      extensionsEnabled: z.boolean().default(false),
+      apiKeyManageRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
+      // Stored as strings to avoid tight coupling in policy schema; platform code validates against its allowlist.
+      allowedKeyScopes: z.array(z.string()).default([
+        'workspace.read',
+        'accounts.read',
+        'action_queue.read',
+        'delivery.read',
+        'benchmarks.read',
+        'embed.token.create',
+      ]),
+    })
+    .default({
+      apiAccessEnabled: false,
+      embedEnabled: false,
+      extensionsEnabled: false,
+      apiKeyManageRoles: ['owner', 'admin', 'manager'],
+      allowedKeyScopes: ['workspace.read', 'accounts.read', 'action_queue.read', 'delivery.read', 'benchmarks.read', 'embed.token.create'],
+    }),
 })
 
 export type WorkspacePoliciesPatch = z.infer<typeof WorkspacePoliciesPatchSchema>
@@ -126,6 +156,7 @@ export function mergeWorkspacePolicies(args: { current: WorkspacePolicies; patch
     intelligence: { ...args.current.intelligence, ...(args.patch.intelligence ?? {}) },
     planning: { ...args.current.planning, ...(args.patch.planning ?? {}) },
     benchmarks: { ...args.current.benchmarks, ...(args.patch.benchmarks ?? {}) },
+    platform: { ...args.current.platform, ...(args.patch.platform ?? {}) },
   }
   return WorkspacePoliciesSchema.parse(merged)
 }
