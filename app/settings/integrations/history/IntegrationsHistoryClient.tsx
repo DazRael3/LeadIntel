@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,7 +18,7 @@ export function IntegrationsHistoryClient() {
   const [history, setHistory] = useState<DeliveryHistoryRow[]>([])
   const [loading, setLoading] = useState(true)
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch('/api/workspace/actions/delivery-history?limit=100', { cache: 'no-store' })
@@ -32,11 +32,11 @@ export function IntegrationsHistoryClient() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [load])
 
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="integrations-history-page">

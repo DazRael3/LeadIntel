@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,7 +38,7 @@ export function ActionsClient() {
 
   const readyCount = useMemo(() => items.filter((i) => i.status === 'ready').length, [items])
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch('/api/workspace/actions/queue?status=all&limit=50', { cache: 'no-store' })
@@ -52,11 +52,11 @@ export function ActionsClient() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [load])
 
   async function deliver(queueItemId: string) {
     setDeliveringId(queueItemId)
