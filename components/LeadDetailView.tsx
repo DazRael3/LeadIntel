@@ -35,6 +35,7 @@ import type { SourceHealthSummary } from "@/lib/domain/source-health"
 import { RecommendationSummaryCard } from "@/components/account/RecommendationSummaryCard"
 import { RecommendationFeedbackBar } from "@/components/feedback/RecommendationFeedbackBar"
 import { OutcomeTracker } from "@/components/feedback/OutcomeTracker"
+import { NextBestActionCard } from "@/components/account/NextBestActionCard"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -404,6 +405,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           <SignalMomentumCard momentum={explainability.momentum} currentScore={explainability.scoreExplainability?.score ?? null} />
 
           <RecommendationSummaryCard accountId={lead.id} window={signalsWindow} />
+          <NextBestActionCard accountId={lead.id} window={signalsWindow} />
           <div className="rounded border border-cyan-500/10 bg-background/30 p-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">Recommendation feedback</div>
             <div className="mt-2">

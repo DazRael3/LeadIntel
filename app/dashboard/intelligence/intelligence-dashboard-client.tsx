@@ -35,7 +35,7 @@ export function IntelligenceDashboardClient() {
         return
       }
       setPayload(json.data)
-      track('next_best_action_viewed', { surface: 'dashboard_intelligence' })
+      track('adaptive_playbook_insights_viewed', { surface: 'dashboard_intelligence' })
     } finally {
       setLoading(false)
     }
