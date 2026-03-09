@@ -5,30 +5,17 @@ import type { FirstPartyIntent, SignalEvent, SignalMomentum, ScoreExplainability
 function base(args?: Partial<{ signals: SignalEvent[]; lastVisitedAt: string | null; momentum: SignalMomentum | null }>) {
   const signals: SignalEvent[] =
     args?.signals ??
-    [
-      {
-        id: 's1',
-        type: 'funding',
-        title: 'Funding round',
-        summary: null,
-        occurredAt: null,
-        detectedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-        sourceName: null,
-        sourceUrl: 'https://example.com',
-        confidence: null,
-      },
-      {
-        id: 's2',
-        type: 'new_hires',
-        title: 'Hiring spike',
-        summary: null,
-        occurredAt: null,
-        detectedAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
-        sourceName: null,
-        sourceUrl: 'https://example.com/2',
-        confidence: null,
-      },
-    ]
+    Array.from({ length: 6 }).map((_, idx) => ({
+      id: `s${idx + 1}`,
+      type: idx % 2 === 0 ? 'funding' : 'new_hires',
+      title: idx % 2 === 0 ? 'Funding round' : 'Hiring spike',
+      summary: null,
+      occurredAt: null,
+      detectedAt: new Date(Date.now() - (idx + 1) * 24 * 3600 * 1000).toISOString(),
+      sourceName: null,
+      sourceUrl: `https://example.com/${idx + 1}`,
+      confidence: null,
+    }))
 
   const scoreExplainability: ScoreExplainability = { score: 80, reasons: ['Recent funding signal.'] }
   const momentum: SignalMomentum | null =
