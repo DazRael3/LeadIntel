@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     url: 'https://dazrael.com/status',
     images: [
       {
-        url: '/api/og?title=Status&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
+        url: '/api/og?title=Status&subtitle=Lightweight%20health%20checks%20(without%20secrets)',
         width: 1200,
         height: 630,
       },
@@ -129,10 +129,13 @@ export default async function StatusPage() {
               </Link>
             </div>
             <div>
-              <span className="font-medium text-foreground">Version endpoint:</span>{' '}
-              <Link className="text-cyan-400 hover:underline" href="/api/version">
-                /api/version
-              </Link>
+              <span className="font-medium text-foreground">Version:</span>{' '}
+              <Link className="text-cyan-400 hover:underline" href="/version">
+                /version
+              </Link>{' '}
+              <span className="text-xs text-muted-foreground">
+                (raw: <Link className="text-cyan-400 hover:underline" href="/api/version">/api/version</Link>)
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -207,9 +210,14 @@ export default async function StatusPage() {
               ) : (
                 <div>Unable to load version info.</div>
               )}
-              <Button asChild variant="outline" size="sm" className="mt-2">
-                <Link href="/api/version">View raw version</Link>
-              </Button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/version">View version</Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/api/version">View raw version</Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

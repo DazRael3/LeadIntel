@@ -90,7 +90,7 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link className="hover:text-foreground" href="/api/version">
+                <Link className="hover:text-foreground" href="/version">
                   Version
                 </Link>
               </li>

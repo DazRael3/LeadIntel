@@ -367,7 +367,7 @@ export function Pricing() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Up to 3 generated pitches/reports
+                  Free plan: 3 preview generations total
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
@@ -375,7 +375,11 @@ export function Pricing() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Premium sections remain locked on free
+                  Full premium content stays locked until you upgrade
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
+                  Usage is shared across pitches and reports
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
@@ -817,7 +821,7 @@ export function Pricing() {
                   </li>
                   <li>
                     Service status and deploy info: <a className="text-cyan-400 hover:underline" href="/status">/status</a> and{' '}
-                    <a className="text-cyan-400 hover:underline" href="/api/version">/api/version</a>.
+                    <a className="text-cyan-400 hover:underline" href="/version">/version</a>.
                   </li>
                 </ul>
               </div>
