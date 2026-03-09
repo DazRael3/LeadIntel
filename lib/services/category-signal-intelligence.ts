@@ -49,7 +49,7 @@ export async function getCategorySignalInsights(args: {
     .sort((a, b) => b.rate - a.rate)
     .slice(0, 4)
 
-  const bySlug = new Map(USE_CASE_PLAYBOOKS.map((p) => [p.slug, p.title] as const))
+  const bySlug = new Map<string, string>(USE_CASE_PLAYBOOKS.map((p) => [p.slug, p.title]))
 
   const insights: CategorySignalInsight[] = scored.map((s) => {
     const title = bySlug.get(s.slug) ?? s.slug

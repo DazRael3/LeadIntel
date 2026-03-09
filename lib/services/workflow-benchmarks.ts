@@ -128,7 +128,11 @@ export async function getWorkflowBenchmarks(args: {
     const comparisonSource = norms.ok && crossEligibility.eligible ? 'cross_workspace_anonymous' : args.enablePriorPeriod ? 'prior_period' : 'workspace_only'
 
     const comparisonRange =
-      comparisonSource === 'cross_workspace_anonymous' && cross ? { low: cross.low, high: cross.high, unit: 'ratio' as const } : comparisonSource === 'prior_period' && args2.priorRatio !== null ? { low: Math.max(0, args2.priorRatio - 0.05), high: Math.min(1, args2.priorRatio + 0.05), unit: 'ratio' } : null
+      comparisonSource === 'cross_workspace_anonymous' && cross
+        ? { low: cross.low, high: cross.high, unit: 'ratio' as const }
+        : comparisonSource === 'prior_period' && args2.priorRatio !== null
+          ? { low: Math.max(0, args2.priorRatio - 0.05), high: Math.min(1, args2.priorRatio + 0.05), unit: 'ratio' as const }
+          : null
 
     const band =
       comparisonSource === 'cross_workspace_anonymous' && cross
@@ -149,7 +153,7 @@ export async function getWorkflowBenchmarks(args: {
       area: args2.area,
       band: band === 'insufficient_evidence' && comparisonSource !== 'cross_workspace_anonymous' ? 'mixed_pattern' : band,
       summary: args2.title,
-      current: { low: Math.max(0, args2.currentRatio - 0.05), high: Math.min(1, args2.currentRatio + 0.05), unit: 'ratio' },
+      current: { low: Math.max(0, args2.currentRatio - 0.05), high: Math.min(1, args2.currentRatio + 0.05), unit: 'ratio' as const },
       comparison: { source: comparisonSource, range: comparisonRange, note: comparisonSource === 'prior_period' ? args2.priorNote : comparisonSource === 'cross_workspace_anonymous' ? 'Compared to anonymized, thresholded norms.' : 'Workspace-only.' },
       confidence,
       limitationsNote,

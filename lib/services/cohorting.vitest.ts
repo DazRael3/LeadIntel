@@ -27,7 +27,27 @@ function makeExplainability(args: { momentum: 'rising' | 'steady' | 'cooling'; i
       operatorNotes: [],
     },
     sourceHealth: { window: '30d', lastSignalAt: null, lastFirstPartyAt: null, freshness: 'unknown', notes: [] },
-    people: { personas: { confidence: 'limited', topPersonas: [], champion: null, items: [] }, buyingGroup: { confidence: 'limited', summary: '', recommendedPersonas: [], gaps: [] } },
+    people: {
+      personas: {
+        confidence: 'limited',
+        topPersonas: [],
+        champion: null,
+        economicBuyer: null,
+        evaluator: null,
+        items: [],
+        evidence: { topSignalTypes: [], mostRecentSignalAt: null, momentum: null, firstPartyVisitorCount14d: 0 },
+      },
+      buyingGroup: {
+        champion: null,
+        economicBuyer: null,
+        evaluator: null,
+        influencers: [],
+        priorityOrder: [],
+        rationale: {},
+        confidence: 'limited',
+        limitations: [],
+      },
+    },
   }
 }
 
