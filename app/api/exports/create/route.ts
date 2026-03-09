@@ -16,6 +16,15 @@ const BodySchema = z.object({
   type: z.enum(['accounts', 'signals', 'templates', 'pitches']),
 })
 
+function isoMinutesAgo(m: number): string {
+  return new Date(Date.now() - m * 60 * 1000).toISOString()
+}
+
+function safeErr(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  return msg.length > 160 ? msg.slice(0, 157) + '...' : msg
+}
+
 export const POST = withApiGuard(
   async (request: NextRequest, { requestId, userId, body }) => {
     const bridge = createCookieBridge()
@@ -38,6 +47,26 @@ export const POST = withApiGuard(
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
       if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+      }
+
+      // Idempotency (best-effort): reuse a recently-created pending job for the same export type.
+      // This prevents double-creation under retries or rapid repeated clicks.
+      const since = isoMinutesAgo(2)
+      const { data: existingPending } = await supabase
+        .schema('api')
+        .from('export_jobs')
+        .select('id, created_at')
+        .eq('workspace_id', workspace.id)
+        .eq('created_by', user.id)
+        .eq('type', parsed.data.type)
+        .eq('status', 'pending')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existingPending?.id) {
+        return ok({ jobId: existingPending.id, reused: true }, { status: 202 }, bridge, requestId)
       }
 
       // Create job row first (RLS allows admin insert).
@@ -149,6 +178,17 @@ export const POST = withApiGuard(
           .update({ status: 'failed', error: err instanceof Error ? err.message : 'Export failed' })
           .eq('id', job.id)
           .eq('workspace_id', workspace.id)
+
+        await logAudit({
+          supabase,
+          workspaceId: workspace.id,
+          actorUserId: user.id,
+          action: 'export.failed',
+          targetType: 'export_job',
+          targetId: job.id,
+          meta: { type: parsed.data.type, error: safeErr(err) },
+          request,
+        })
 
         return fail(ErrorCode.INTERNAL_ERROR, 'Export failed', undefined, undefined, bridge, requestId)
       }

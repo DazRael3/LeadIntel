@@ -73,6 +73,53 @@ export const POST = withApiGuard(
         getPremiumGenerationUsage({ supabase, userId: user.id }),
       ])
 
+      // Idempotency (best-effort): if a report was just generated for the same company key,
+      // return it rather than generating and counting again.
+      const sinceIso = new Date(Date.now() - 60 * 1000).toISOString()
+      const { data: recent } = await supabase
+        .from('user_reports')
+        .select('id, report_markdown, report_json')
+        .eq('user_id', user.id)
+        .eq('report_kind', 'competitive')
+        .eq('status', 'complete')
+        .eq('meta->>companyKey', input.companyKey)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (recent?.id && typeof (recent as { report_markdown?: unknown }).report_markdown === 'string') {
+        const usageAfter = usageBefore
+        const full = (recent as { report_markdown: string; report_json?: unknown }).report_markdown
+        return ok(
+          capabilities.blurPremiumSections
+            ? {
+                reportId: recent.id,
+                report_markdown: null,
+                report_json: null,
+                reportPreviewMarkdown: redactTextPreview(full, 1600),
+                isBlurred: true,
+                lockedSections: ['report_markdown'] as const,
+                usage: usageAfter,
+                upgradeRequired: capabilities.tier === 'starter' && usageAfter.used >= usageAfter.limit,
+                reused: true,
+              }
+            : {
+                reportId: recent.id,
+                report_markdown: full,
+                report_json: (recent as { report_json?: unknown }).report_json ?? null,
+                isBlurred: false,
+                lockedSections: [] as const,
+                usage: usageAfter,
+                upgradeRequired: false,
+                reused: true,
+              },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
+
       if (capabilities.tier === 'starter') {
         if (usageBefore.used >= usageBefore.limit) {
           return fail(

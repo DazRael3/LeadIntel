@@ -59,8 +59,24 @@ export async function enqueueWebhookEvent(args: {
 
   if (targets.length === 0) return
 
+  // Idempotency (best-effort): if the same event id/type was already enqueued for an endpoint,
+  // avoid creating a duplicate delivery row on retries.
+  const endpointIds = targets.map((t: any) => String(t.id)).filter(Boolean)
+  const { data: existing } = await admin
+    .from('webhook_deliveries')
+    .select('id, endpoint_id')
+    .eq('event_type', args.eventType)
+    .eq('event_id', args.eventId)
+    .in('endpoint_id', endpointIds)
+    .limit(200)
+
+  const already = new Set<string>((existing ?? []).map((r: any) => String(r.endpoint_id)))
+  const toInsert = targets.filter((t: any) => !already.has(String(t.id)))
+
+  if (toInsert.length === 0) return
+
   await admin.from('webhook_deliveries').insert(
-    targets.map((e: any) => ({
+    toInsert.map((e: any) => ({
       endpoint_id: e.id,
       event_type: args.eventType,
       event_id: args.eventId,

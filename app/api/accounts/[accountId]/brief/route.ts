@@ -115,6 +115,31 @@ export const POST = withApiGuard(
       if (tier === 'starter') {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
+
+      // Idempotency (best-effort): if a brief was just generated for the same window, reuse it.
+      const sinceIso = new Date(Date.now() - 60 * 1000).toISOString()
+      const { data: recentBrief } = await supabase
+        .from('user_reports')
+        .select('id, created_at, report_markdown')
+        .eq('user_id', userId)
+        .eq('report_kind', 'account_brief')
+        .eq('meta->>leadId', accountId)
+        .eq('meta->>signalWindow', window)
+        .eq('status', 'complete')
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (recentBrief?.id && typeof (recentBrief as { report_markdown?: unknown }).report_markdown === 'string') {
+        return ok(
+          { reportId: recentBrief.id, brief_markdown: (recentBrief as { report_markdown: string }).report_markdown, reused: true },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
+
       const { data: lead, error: leadError } = await supabase
         .from('leads')
         .select('id, company_name, company_domain, company_url')
@@ -261,7 +286,7 @@ export const POST = withApiGuard(
             await enqueueWebhookEvent({
               workspaceId: ws.id,
               eventType: 'account.brief.generated',
-              eventId: crypto.randomUUID(),
+              eventId: inserted.id,
               payload: {
                 account: {
                   id: accountId,

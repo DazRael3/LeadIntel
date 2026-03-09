@@ -428,7 +428,7 @@ export const POST = withApiGuard(
           await enqueueWebhookEvent({
             workspaceId: workspace.id,
             eventType: 'pitch.generated',
-            eventId: randomUUID(),
+            eventId: pitchId,
             payload: {
               workspaceId: workspace.id,
               leadId,

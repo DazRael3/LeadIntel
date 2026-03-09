@@ -148,7 +148,7 @@ export const POST = withApiGuard(
       await enqueueWebhookEvent({
         workspaceId: workspace.id,
         eventType: 'account.exported',
-        eventId: crypto.randomUUID(),
+        eventId: job.id,
         payload: {
           account: {
             id: accountId,
