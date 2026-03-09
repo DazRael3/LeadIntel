@@ -9,13 +9,13 @@ test.describe('developers + platform surfaces', () => {
   })
 
   test('platform settings page renders for authed team user', async ({ page, baseURL }) => {
-    await setE2ECookies({ page, baseURL: baseURL!, authed: true })
+    await setE2ECookies({ page, baseURL: baseURL!, authed: true, plan: 'team' })
     await page.goto(`${baseURL}/settings/platform`)
     await expect(page.getByTestId('platform-settings-page')).toBeVisible({ timeout: 15000 })
   })
 
   test('api settings page renders for authed team user', async ({ page, baseURL }) => {
-    await setE2ECookies({ page, baseURL: baseURL!, authed: true })
+    await setE2ECookies({ page, baseURL: baseURL!, authed: true, plan: 'team' })
     await page.goto(`${baseURL}/settings/api`)
     await expect(page.getByTestId('api-settings-page')).toBeVisible({ timeout: 15000 })
   })
