@@ -59,6 +59,7 @@ export function MobileNavMenu() {
                   <MenuLink href="/dashboard/operations" label="Ops" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/platform" label="Platform" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/revenue-intelligence" label="Revenue" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/settings/sources" label="Sources" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/experiments" label="Experiments" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/notifications" label="Prefs" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                 </nav>
