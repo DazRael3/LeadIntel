@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAccountExplainability, type ExplainabilityWindow } from '@/lib/data/getAccountExplainability'
 import { buildCrmHandoffPayload, type CrmHandoffPayload } from '@/lib/services/destination-payloads'
+import { derivePatternBucket } from '@/lib/services/cohorting'
+import { suggestUseCasePlaybookSlug } from '@/lib/services/benchmarking-metadata'
 
 type DbLeadRow = {
   id: string
@@ -19,6 +21,7 @@ export async function prepareCrmHandoff(args: {
   companyName: string
   payload: CrmHandoffPayload
   briefReportId: string | null
+  benchmarkMeta: { patternBucket: string; playbookSlug: string | null }
 }> {
   const { data: lead, error: leadError } = await args.supabase
     .schema('api')
@@ -61,6 +64,11 @@ export async function prepareCrmHandoff(args: {
     briefReportId: typeof briefReportId === 'string' ? briefReportId : null,
   })
 
-  return { companyName, payload, briefReportId: typeof briefReportId === 'string' ? briefReportId : null }
+  return {
+    companyName,
+    payload,
+    briefReportId: typeof briefReportId === 'string' ? briefReportId : null,
+    benchmarkMeta: { patternBucket: derivePatternBucket(explainability), playbookSlug: suggestUseCasePlaybookSlug(explainability) },
+  }
 }
 

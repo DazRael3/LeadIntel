@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAccountExplainability, type ExplainabilityWindow } from '@/lib/data/getAccountExplainability'
 import { buildSequencerHandoffPayload, type SequencerHandoffPayload } from '@/lib/services/destination-payloads'
+import { derivePatternBucket } from '@/lib/services/cohorting'
+import { suggestUseCasePlaybookSlug } from '@/lib/services/benchmarking-metadata'
 
 type DbLeadRow = {
   id: string
@@ -24,6 +26,7 @@ export async function prepareSequencerHandoff(args: {
 }): Promise<{
   companyName: string
   payload: SequencerHandoffPayload
+  benchmarkMeta: { patternBucket: string; playbookSlug: string | null }
 }> {
   const { data: lead, error: leadError } = await args.supabase
     .schema('api')
@@ -68,6 +71,6 @@ export async function prepareSequencerHandoff(args: {
     targetPersona: typeof targetPersona === 'string' ? targetPersona : null,
   })
 
-  return { companyName, payload }
+  return { companyName, payload, benchmarkMeta: { patternBucket: derivePatternBucket(explainability), playbookSlug: suggestUseCasePlaybookSlug(explainability) } }
 }
 

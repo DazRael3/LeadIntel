@@ -55,7 +55,7 @@ export const POST = withApiGuard(
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
       if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-      const { payload, companyName } = await prepareSequencerHandoff({
+      const { payload, companyName, benchmarkMeta } = await prepareSequencerHandoff({
         supabase,
         userId: user.id,
         accountId,
@@ -92,6 +92,8 @@ export const POST = withApiGuard(
           internalNote: payload.sequencer.internalNote,
           limitationsNote: payload.sequencer.limitationsNote,
           quality: payload.quality.dataQuality,
+          patternBucket: benchmarkMeta.patternBucket,
+          playbookSlug: benchmarkMeta.playbookSlug,
         },
       })
 

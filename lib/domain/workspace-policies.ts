@@ -26,6 +26,12 @@ export type WorkspacePolicies = {
     teamInfluenceSummariesEnabled: boolean
     outcomeInformedPlanningEnabled: boolean
   }
+  benchmarks: {
+    benchmarksEnabled: boolean
+    crossWorkspaceInsightsEnabled: boolean
+    priorPeriodEnabled: boolean
+    viewerRoles: WorkspaceRole[]
+  }
 }
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'manager', 'rep', 'viewer'])
@@ -89,6 +95,19 @@ export const WorkspacePoliciesSchema = z.object({
       teamInfluenceSummariesEnabled: true,
       outcomeInformedPlanningEnabled: true,
     }),
+  benchmarks: z
+    .object({
+      benchmarksEnabled: z.boolean().default(true),
+      crossWorkspaceInsightsEnabled: z.boolean().default(false),
+      priorPeriodEnabled: z.boolean().default(true),
+      viewerRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
+    })
+    .default({
+      benchmarksEnabled: true,
+      crossWorkspaceInsightsEnabled: false,
+      priorPeriodEnabled: true,
+      viewerRoles: ['owner', 'admin', 'manager'],
+    }),
 })
 
 export type WorkspacePoliciesPatch = z.infer<typeof WorkspacePoliciesPatchSchema>
@@ -106,6 +125,7 @@ export function mergeWorkspacePolicies(args: { current: WorkspacePolicies; patch
     governance: { ...args.current.governance, ...(args.patch.governance ?? {}) },
     intelligence: { ...args.current.intelligence, ...(args.patch.intelligence ?? {}) },
     planning: { ...args.current.planning, ...(args.patch.planning ?? {}) },
+    benchmarks: { ...args.current.benchmarks, ...(args.patch.benchmarks ?? {}) },
   }
   return WorkspacePoliciesSchema.parse(merged)
 }

@@ -56,7 +56,7 @@ export const POST = withApiGuard(
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
       if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-      const { payload, companyName, briefReportId } = await prepareCrmHandoff({
+      const { payload, companyName, briefReportId, benchmarkMeta } = await prepareCrmHandoff({
         supabase,
         userId: user.id,
         accountId,
@@ -93,6 +93,8 @@ export const POST = withApiGuard(
           bodyPreview: truncateText(payload.crm.body, 900),
           briefReportId,
           quality: payload.quality.dataQuality,
+          patternBucket: benchmarkMeta.patternBucket,
+          playbookSlug: benchmarkMeta.playbookSlug,
         },
       })
 
