@@ -20,6 +20,9 @@ This wave adds operational trust primitives (inspectability, predictable retries
   - no raw provider payloads
 - **Freshness and quality** are surfaced as coarse labels (“limited / usable / strong”, “stale / recent / fresh”) instead of over-precise confidence.
 - **Retry-safe endpoints** avoid duplicate job/report/brief creation under retries and repeated clicks.
+- **Integrations + actions** are Team-gated and destination-based:
+  - handoffs are prepared/queued first, then delivered via configured webhooks/exports
+  - delivery history is sanitized (status + correlation IDs, no secrets)
 
 ---
 
