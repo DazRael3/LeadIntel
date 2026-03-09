@@ -10,6 +10,8 @@ import { assertMinCitationsOrThrow, flattenCitations } from '@/lib/reports/sourc
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { logAudit } from '@/lib/audit/log'
+import { serverEnv } from '@/lib/env'
+import { logProductEvent } from '@/lib/services/analytics'
 import {
   cancelPremiumGeneration,
   completePremiumGeneration,
@@ -339,6 +341,18 @@ export const POST = withApiGuard(
         // best-effort
       }
 
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        try {
+          await logProductEvent({
+            userId: user.id,
+            eventName: 'generation_succeeded',
+            eventProps: { kind: 'report', reportKind: 'competitive', objectId: inserted.id, companyKey: input.companyKey, citations: citations.length },
+          })
+        } catch {
+          // best-effort
+        }
+      }
+
       return ok(
         capabilities.blurPremiumSections
           ? {
@@ -365,6 +379,17 @@ export const POST = withApiGuard(
         requestId
       )
     } catch (error) {
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        try {
+          await logProductEvent({
+            userId,
+            eventName: 'generation_failed',
+            eventProps: { kind: 'report', reportKind: 'competitive', errorCode: error instanceof Error ? (error.message || error.name) : 'unknown_error' },
+          })
+        } catch {
+          // best-effort
+        }
+      }
       try {
         const supabase = createRouteClient(request, bridge)
         await cancelPremiumGeneration({ supabase, reservationId })

@@ -9,6 +9,8 @@ import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } 
 import { toCsv } from '@/lib/exports/csv'
 import { uploadExportCsv } from '@/lib/exports/storage'
 import { logAudit } from '@/lib/audit/log'
+import { serverEnv } from '@/lib/env'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -170,6 +172,18 @@ export const POST = withApiGuard(
           request,
         })
 
+        if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+          try {
+            await logProductEvent({
+              userId: user.id,
+              eventName: 'export_succeeded',
+              eventProps: { jobId: job.id, type: parsed.data.type },
+            })
+          } catch {
+            // best-effort
+          }
+        }
+
         return ok({ jobId: job.id }, { status: 201 }, bridge, requestId)
       } catch (err) {
         await supabase
@@ -189,6 +203,18 @@ export const POST = withApiGuard(
           meta: { type: parsed.data.type, error: safeErr(err) },
           request,
         })
+
+        if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+          try {
+            await logProductEvent({
+              userId: user.id,
+              eventName: 'export_failed',
+              eventProps: { jobId: job.id, type: parsed.data.type, error: safeErr(err) },
+            })
+          } catch {
+            // best-effort
+          }
+        }
 
         return fail(ErrorCode.INTERNAL_ERROR, 'Export failed', undefined, undefined, bridge, requestId)
       }

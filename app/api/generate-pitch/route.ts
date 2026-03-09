@@ -405,6 +405,17 @@ export const POST = withApiGuard(
             isAppTrial: Boolean(details.isAppTrial),
           },
         })
+        await logProductEvent({
+          userId: user.id,
+          eventName: 'generation_succeeded',
+          eventProps: {
+            kind: 'pitch',
+            objectId: pitchId,
+            templateId: template.id,
+            hasDomain: Boolean(domain),
+            plan: details.plan,
+          },
+        })
       } catch {
         // best-effort
       }
@@ -460,6 +471,21 @@ export const POST = withApiGuard(
       const successResponse = ok(response, undefined, bridge, requestId)
       return successResponse
     } catch (error) {
+      // Operational analytics: failure events should not include sensitive text.
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        try {
+          await logProductEvent({
+            userId,
+            eventName: 'generation_failed',
+            eventProps: {
+              kind: 'pitch',
+              errorCode: error instanceof Error ? (error.message || error.name) : 'unknown_error',
+            },
+          })
+        } catch {
+          // best-effort
+        }
+      }
       try {
         await cancelPremiumGeneration({ supabase: createRouteClient(request, bridge), reservationId })
       } catch {

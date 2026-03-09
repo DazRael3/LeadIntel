@@ -14,6 +14,8 @@ import crypto from 'crypto'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { logAudit } from '@/lib/audit/log'
+import { serverEnv } from '@/lib/env'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -263,6 +265,18 @@ export const POST = withApiGuard(
 
       if (insertError || !inserted?.id) {
         return fail(ErrorCode.DATABASE_ERROR, 'Failed to save brief', { message: insertError?.message }, undefined, bridge, requestId)
+      }
+
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        try {
+          await logProductEvent({
+            userId,
+            eventName: 'account_brief_saved',
+            eventProps: { leadId: accountId, reportId: inserted.id, window },
+          })
+        } catch {
+          // best-effort
+        }
       }
 
       // Best-effort: record as an action in the workspace action layer when Team webhooks exist.
