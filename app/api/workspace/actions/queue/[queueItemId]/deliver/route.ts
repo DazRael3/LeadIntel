@@ -9,6 +9,7 @@ import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } 
 import { enqueueWebhookEventToEndpoint, type WebhookEventType } from '@/lib/integrations/webhooks'
 import { prepareCrmHandoff } from '@/lib/services/crm-handoff'
 import { prepareSequencerHandoff } from '@/lib/services/sequencer-handoff'
+import { buildWebhookDeliveryPayload, isSupportedWebhookDeliveryEventType } from '@/lib/services/integration-actions'
 import { logAudit } from '@/lib/audit/log'
 import { logProductEvent } from '@/lib/services/analytics'
 
@@ -130,23 +131,14 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
       actionTypeForHistory = 'sequencer_handoff'
     } else if (row.action_type === 'webhook_delivery') {
       const ev = getMetaString(meta, 'eventType')
-      const allowed = ev === 'account.brief.generated' || ev === 'report.generated' || ev === 'account.pushed'
-      if (!allowed) {
+      if (!isSupportedWebhookDeliveryEventType(ev)) {
         return fail(ErrorCode.VALIDATION_ERROR, 'Unsupported webhook event', undefined, { status: 400 }, bridge, requestId)
       }
-      eventType = ev as WebhookEventType
+      const built = buildWebhookDeliveryPayload({ eventType: ev, leadId: row.lead_id, meta })
+      eventType = built.eventType
       actionTypeForHistory = 'webhook_delivery'
-      const reportId = getMetaString(meta, 'reportId')
-      if (reportId) auditTarget = { targetType: 'report', targetId: reportId }
-      payload = {
-        kind: 'webhook_delivery',
-        eventType: ev,
-        leadId: row.lead_id,
-        reportId,
-        companyKey: getMetaString(meta, 'companyKey'),
-        reportKind: getMetaString(meta, 'reportKind'),
-        queuedAt: new Date().toISOString(),
-      }
+      auditTarget = built.auditTarget
+      payload = built.payload
     } else {
       return fail(ErrorCode.VALIDATION_ERROR, 'Unsupported action type', undefined, { status: 400 }, bridge, requestId)
     }

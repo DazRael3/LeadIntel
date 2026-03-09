@@ -11,10 +11,12 @@ import { badgeClassForTone, webhookDeliveryStatusLabel } from '@/lib/ui/status-l
 import { track } from '@/lib/analytics'
 import type { WorkspaceIntegrationSummary } from '@/lib/integrations/types'
 import { IntegrationCatalog } from '@/components/settings/IntegrationCatalog'
-import { DefaultDestinationCard, type DefaultDestinationEndpoint } from '@/components/settings/DefaultDestinationCard'
+import { type DefaultDestinationEndpoint } from '@/components/settings/DefaultDestinationCard'
+import { IntegrationConnectionPanel } from '@/components/settings/IntegrationConnectionPanel'
 import { ActionRecipeTable } from '@/components/settings/ActionRecipeTable'
 import { DeliveryHistoryTable } from '@/components/settings/DeliveryHistoryTable'
 import { RecipeBuilder } from '@/components/settings/RecipeBuilder'
+import { RecipeDetailCard } from '@/components/settings/RecipeDetailCard'
 import type { ActionRecipeRow } from '@/lib/domain/action-recipes'
 import type { DeliveryHistoryRow } from '@/lib/services/delivery-history'
 
@@ -336,15 +338,17 @@ export function IntegrationsSettingsClient() {
           </Card>
         ) : null}
 
-        <DefaultDestinationCard
+        <IntegrationConnectionPanel
           role={role}
           endpoints={defaultEndpoints}
           saving={defaultsSaving}
           selectedEndpointId={integrationSummary?.defaults.handoffWebhookEndpointId ?? null}
-          onSelect={(id) => void saveDefault(id)}
+          onSelectDefault={(id) => void saveDefault(id)}
         />
 
         <DeliveryHistoryTable history={history} />
+
+        <RecipeDetailCard />
 
         <ActionRecipeTable role={role} recipes={recipes} onToggleEnabled={(id, next) => void toggleRecipe(id, next)} disabled={recipesSaving} />
 

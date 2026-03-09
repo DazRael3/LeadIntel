@@ -38,6 +38,7 @@ import { GettingStartedRail } from '@/components/dashboard/GettingStartedRail'
 import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed'
 import { ValueMomentsCard } from '@/components/dashboard/ValueMomentsCard'
 import { UpgradeReasonsCard } from '@/components/dashboard/UpgradeReasonsCard'
+import { ActionQueueCard } from '@/components/dashboard/ActionQueueCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -224,6 +225,8 @@ export function DashboardClient({
                   lastUpdatedAt={lastUpdatedAt}
                   debugEnabled={debugEnabled}
                 />
+
+                <ActionQueueCard />
 
                 <MarketSidebar />
               </div>
