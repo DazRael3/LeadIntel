@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
+import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 
 type Role = 'owner' | 'admin' | 'member'
 type Channel = 'email' | 'linkedin_dm' | 'call_opener'
@@ -229,6 +230,7 @@ export function TemplatesSettingsClient() {
 
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="templates-settings-page">
+      <AuthedSettingsStamp payload={{ templates_viewed_at: new Date().toISOString() }} sessionKey="templates_viewed" />
       <div className="container mx-auto px-6 py-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold bloomberg-font neon-cyan">Templates</h1>

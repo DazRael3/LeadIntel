@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 
 export const metadata: Metadata = {
   title: 'How scoring works | LeadIntel',
@@ -30,6 +31,7 @@ export default function HowScoringWorksPage() {
       subtitle="LeadIntel uses a deterministic, reasons-based 0–100 score to help you prioritize daily outreach."
     >
       <PageViewTrack event="trust_page_view" props={{ page: 'how_scoring_works' }} />
+      <AuthedSettingsStamp payload={{ scoring_viewed_at: new Date().toISOString() }} sessionKey="scoring_viewed" />
 
       <div className="grid grid-cols-1 gap-6">
         <Card className="border-cyan-500/20 bg-card/60">

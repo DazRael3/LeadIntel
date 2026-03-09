@@ -35,7 +35,11 @@ import { ActivationGoalCard } from './components/ActivationGoalCard'
 import { InAppTourProvider } from '@/components/tour/InAppTourProvider'
 import { QuickTourActionsCard } from './components/QuickTourActionsCard'
 import { ScoreExplainerCard } from './components/ScoreExplainerCard'
-import { ActivationChecklistCard } from '@/components/ActivationChecklistCard'
+import { ActivationChecklist } from '@/components/dashboard/ActivationChecklist'
+import { GettingStartedRail } from '@/components/dashboard/GettingStartedRail'
+import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed'
+import { ValueMomentsCard } from '@/components/dashboard/ValueMomentsCard'
+import { UpgradeReasonsCard } from '@/components/dashboard/UpgradeReasonsCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -220,24 +224,13 @@ export function DashboardClient({
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
-                <ActivationChecklistCard
-                  isStarter={tier === 'starter'}
-                  onOpenIcp={() => {
-                    setManualOnboardingStep(2)
-                    setManualOnboardingOpen(true)
-                  }}
-                  onOpenAccounts={() => {
-                    setManualOnboardingStep(3)
-                    setManualOnboardingOpen(true)
-                  }}
-                  onOpenDigestCadence={() => {
-                    setManualOnboardingStep(4)
-                    setManualOnboardingOpen(true)
-                  }}
-                  onOpenPitch={() => {
-                    router.push('/pitch')
-                  }}
-                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <GettingStartedRail />
+                  <ValueMomentsCard />
+                </div>
+                <UpgradeReasonsCard />
+                <ActivationChecklist />
+                <RecentActivityFeed />
                 <QuickTourActionsCard
                   onOpenOnboarding={(step) => {
                     setManualOnboardingStep(step)
