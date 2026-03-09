@@ -60,6 +60,14 @@ export function OnboardingClient(props: {
     return { from, text: out.length > 0 ? out.join('\n') : null }
   }, [sp])
 
+  const stepOverride = useMemo(() => {
+    const raw = sp.get('step')
+    if (!raw) return null
+    const n = Number.parseInt(raw, 10)
+    if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5) return n
+    return null
+  }, [sp])
+
   useEffect(() => {
     // Ensure lifecycle/settings rows exist; this endpoint is idempotent.
     void fetch('/api/lifecycle/ensure', { method: 'POST' }).catch(() => {})
@@ -129,7 +137,7 @@ export function OnboardingClient(props: {
         </Card>
       ) : (
         <OnboardingFlow
-          initialState={state}
+          initialState={{ ...state, step: stepOverride ?? state.step }}
           prefillTargetsText={prefillTargets.text}
           sampleTarget={props.initial.sampleTarget}
           signals={signals}
