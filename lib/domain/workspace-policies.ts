@@ -47,6 +47,14 @@ export type WorkspacePolicies = {
     commandViewerRoles: WorkspaceRole[]
     mobileQuickActionsEnabled: boolean
   }
+  assistant: {
+    assistantEnabled: boolean
+    proactiveNudgesEnabled: boolean
+    assistantActionsEnabled: boolean
+    assistantThreadsEnabled: boolean
+    assistantActionRoles: WorkspaceRole[]
+    assistantViewerRoles: WorkspaceRole[]
+  }
 }
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'manager', 'rep', 'viewer'])
@@ -163,6 +171,23 @@ export const WorkspacePoliciesSchema = z.object({
       commandViewerRoles: ['owner', 'admin', 'manager'],
       mobileQuickActionsEnabled: true,
     }),
+  assistant: z
+    .object({
+      assistantEnabled: z.boolean().default(false),
+      proactiveNudgesEnabled: z.boolean().default(false),
+      assistantActionsEnabled: z.boolean().default(false),
+      assistantThreadsEnabled: z.boolean().default(true),
+      assistantActionRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
+      assistantViewerRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager', 'rep']),
+    })
+    .default({
+      assistantEnabled: false,
+      proactiveNudgesEnabled: false,
+      assistantActionsEnabled: false,
+      assistantThreadsEnabled: true,
+      assistantActionRoles: ['owner', 'admin', 'manager'],
+      assistantViewerRoles: ['owner', 'admin', 'manager', 'rep'],
+    }),
 })
 
 export type WorkspacePoliciesPatch = z.infer<typeof WorkspacePoliciesPatchSchema>
@@ -183,6 +208,7 @@ export function mergeWorkspacePolicies(args: { current: WorkspacePolicies; patch
     benchmarks: { ...args.current.benchmarks, ...(args.patch.benchmarks ?? {}) },
     platform: { ...args.current.platform, ...(args.patch.platform ?? {}) },
     reporting: { ...args.current.reporting, ...(args.patch.reporting ?? {}) },
+    assistant: { ...args.current.assistant, ...(args.patch.assistant ?? {}) },
   }
   return WorkspacePoliciesSchema.parse(merged)
 }
