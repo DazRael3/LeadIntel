@@ -22,6 +22,12 @@ test.describe('Public pages', () => {
         await expect(page.getByText(/Usage is shared across pitches and reports/i)).toBeVisible()
       }
 
+      if (path === '/use-cases') {
+        await expect(page.getByText(/Best-fit motions/i)).toBeVisible()
+        await expect(page.getByText(/Workflow types/i)).toBeVisible()
+        await expect(page.getByText(/Team rollout/i)).toBeVisible()
+      }
+
       // Footer should link to the human-readable version page (not raw JSON).
       const versionLink = page.getByRole('link', { name: /^Version$/ })
       if ((await versionLink.count()) > 0) {

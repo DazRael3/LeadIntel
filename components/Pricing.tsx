@@ -371,6 +371,10 @@ export function Pricing() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
+                  Generate up to 3 pitch/report previews on Free
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
                   Browse the templates library
                 </li>
                 <li className="flex items-start gap-2">
