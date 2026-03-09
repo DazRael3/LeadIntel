@@ -26,6 +26,18 @@ This wave adds operational trust primitives (inspectability, predictable retries
 
 ---
 
+## Platform wave: partner + multi-workspace operations
+
+This wave adds multi-workspace support without weakening isolation:
+
+- **Current workspace selection** is persisted per user (`api.users.current_workspace_id`) and validated against membership.
+- **Workspace switching** is explicit and audited (`workspace.switched`).
+- **Partner/agency overview** surfaces are **summary-safe** and never show cross-workspace account lists or payload bodies.
+- **Delegated access** is explicit, revocable, and auditable; it is implemented as a delegated membership row for workspace-scoped RLS.
+- **Rollouts** distribute templates via copy semantics (draft in target workspace; origin metadata retained).
+
+---
+
 ## Required env vars (production)
 
 ### App URL / Origin
