@@ -303,7 +303,7 @@ export function Pricing() {
             <div className="mt-4 text-xs text-muted-foreground">{COPY.pricing.hero.trustStrip(SUPPORT_EMAIL)}</div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
               <Button asChild size="lg" className="neon-border hover:glow-effect">
-                <a href="/signup?redirect=/dashboard">{COPY.pricing.hero.primaryCta}</a>
+                <a href="/signup?redirect=/onboarding">{COPY.pricing.hero.primaryCta}</a>
               </Button>
               <Button asChild variant="outline" size="lg">
                 <a href="#plan-closer">{COPY.pricing.hero.secondaryCta}</a>
@@ -391,7 +391,7 @@ export function Pricing() {
                 </li>
               </ul>
               <Button asChild variant="outline" className="w-full h-11">
-                <a href="/signup?redirect=/dashboard">{COPY.pricing.hero.primaryCta}</a>
+                <a href="/signup?redirect=/onboarding">{COPY.pricing.hero.primaryCta}</a>
               </Button>
             </CardContent>
           </Card>

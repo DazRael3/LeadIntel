@@ -261,7 +261,7 @@ export default function LandingClient() {
                     <Link href="/login?mode=signin&redirect=/dashboard">Log in</Link>
                   </Button>
                   <Button asChild size="sm">
-                    <Link href="/signup?redirect=/dashboard">Sign up</Link>
+                    <Link href="/signup?redirect=/onboarding">Sign up</Link>
                   </Button>
                 </>
               ) : (

@@ -223,7 +223,7 @@ export function TrySampleDigest() {
                 {COPY.home.trySample.upsellLine}
               </div>
               <Button asChild size="sm" className="neon-border hover:glow-effect">
-                <Link href="/signup?redirect=/dashboard" onClick={() => track('cta_signup_clicked', { source: 'sample_upsell' })}>
+                <Link href="/signup?redirect=/onboarding" onClick={() => track('cta_signup_clicked', { source: 'sample_upsell' })}>
                   {COPY.home.trySample.upsellCta}
                 </Link>
               </Button>

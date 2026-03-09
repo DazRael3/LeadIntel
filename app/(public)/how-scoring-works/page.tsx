@@ -111,7 +111,7 @@ export default function HowScoringWorksPage() {
             <Link href="/#try-sample">Try a sample digest</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/signup?redirect=/dashboard">Sign up</Link>
+            <Link href="/signup?redirect=/onboarding">Sign up</Link>
           </Button>
         </div>
       </div>

@@ -90,7 +90,7 @@ export function TourStepper() {
                 <Link href="/#try-sample">Generate a sample digest</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/signup?redirect=/dashboard">Create your account</Link>
+                <Link href="/signup?redirect=/onboarding">Create your account</Link>
               </Button>
             </div>
             <div className="mt-3 flex flex-wrap gap-3 text-xs">
