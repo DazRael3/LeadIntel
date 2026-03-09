@@ -19,6 +19,11 @@ const ITEMS: Item[] = [
     tag: 'Auditability',
     body: 'Workspace-governed actions like exports, webhooks, templates, briefs, and key generations are recorded as metadata-first audit events (no sensitive bodies).',
   },
+  {
+    title: 'Integrations are honest and destination-based',
+    tag: 'Handoffs',
+    body: 'LeadIntel prepares CRM and sequencer-ready handoff packages and delivers them via workspace-configured webhooks/exports. Delivery history is sanitized and inspectable.',
+  },
 ]
 
 export function OperationalReadiness() {

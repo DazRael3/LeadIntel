@@ -318,7 +318,7 @@ export const POST = withApiGuard(
 
             // Guided workflow: allow Team recipes to create queue items from this trigger.
             try {
-              await runRecipesForTrigger({
+              const ran = await runRecipesForTrigger({
                 supabase,
                 workspaceId: ws.id,
                 userId,
@@ -328,6 +328,13 @@ export const POST = withApiGuard(
                 triggerMeta: { reportId: inserted.id, window },
                 reason: 'Brief saved',
               })
+              if ((ran.createdQueueItemIds ?? []).length > 0) {
+                await logProductEvent({
+                  userId,
+                  eventName: 'action_recipe_run',
+                  eventProps: { trigger: 'brief_saved', created: ran.createdQueueItemIds.length, reportId: inserted.id, leadId: accountId },
+                })
+              }
             } catch {
               // best-effort
             }

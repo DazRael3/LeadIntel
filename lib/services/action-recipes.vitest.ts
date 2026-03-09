@@ -4,18 +4,28 @@ import type { ActionRecipeRow } from '@/lib/domain/action-recipes'
 import type { AccountExplainability } from '@/lib/data/getAccountExplainability'
 
 function explainability(score: number, momentum: 'rising' | 'steady' | 'cooling', firstPartyCount: number, quality: 'limited' | 'usable' | 'strong'): AccountExplainability {
+  const now = new Date().toISOString()
   return {
     account: { id: 'lead_1', name: 'Acme', domain: 'acme.com', url: 'https://acme.com', createdAt: null, updatedAt: null },
     signals: [],
-    scoreExplainability: { score, summary: '', breakdown: { momentum: 0, intent: 0, fit: 0, timing: 0, volume: 0, diversity: 0, recency: 0, firstParty: 0 }, limitations: [] },
-    momentum: { label: momentum, delta: momentum === 'rising' ? 10 : momentum === 'cooling' ? -10 : 0, recentEvents: 0, highSignalEvents: 0, mostRecentSignalAt: null },
+    scoreExplainability: { score, reasons: ['reason'], breakdown: [{ label: 'Recency', points: 0 }], updatedAt: now },
+    momentum: {
+      window: '30d',
+      currentScore: score,
+      priorScore: Math.max(0, score - 10),
+      delta: momentum === 'rising' ? 10 : momentum === 'cooling' ? -10 : 0,
+      label: momentum,
+      topSignalTypes: [],
+      highSignalEvents: 0,
+      mostRecentSignalAt: null,
+    },
     firstPartyIntent: { visitorMatches: { count: firstPartyCount, lastVisitedAt: null, sampleReferrers: [] }, summary: { label: 'none', labelText: 'No first-party intent yet', summary: '', freshnessDays: null } },
     dataQuality: {
       quality,
       freshness: 'unknown',
       lastObservedAt: null,
-      coverage: { sourcesPresent: [], sourcesMissing: [], sourceCount: 0 },
-      completeness: { hasSignals: false, hasScoreExplainability: true, hasMomentum: true, hasFirstPartyIntent: true, hasPeople: false },
+      coverage: { signalEventsCount: 0, uniqueSignalTypesCount: 0, hasFirstPartyMatch: firstPartyCount > 0, firstPartyVisitorCount14d: firstPartyCount },
+      completeness: { hasScoreReasons: true, hasMomentum: true, hasPeopleRecommendations: false },
       limitations: [],
       operatorNotes: [],
     },

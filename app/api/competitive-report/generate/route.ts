@@ -355,7 +355,7 @@ export const POST = withApiGuard(
             // Guided workflow: allow recipes to create action queue items from this trigger.
             try {
               const { runRecipesForTrigger } = await import('@/lib/services/action-recipes')
-              await runRecipesForTrigger({
+              const ran = await runRecipesForTrigger({
                 supabase,
                 workspaceId: ws.id,
                 userId: user.id,
@@ -365,6 +365,13 @@ export const POST = withApiGuard(
                 triggerMeta: { reportId: inserted.id, reportKind: 'competitive', companyKey: input.companyKey },
                 reason: 'Report generated',
               })
+              if ((ran.createdQueueItemIds ?? []).length > 0) {
+                await logProductEvent({
+                  userId: user.id,
+                  eventName: 'action_recipe_run',
+                  eventProps: { trigger: 'report_generated', created: ran.createdQueueItemIds.length, reportId: inserted.id, companyKey: input.companyKey },
+                })
+              }
             } catch {
               // best-effort
             }

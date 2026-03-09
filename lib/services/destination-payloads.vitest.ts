@@ -3,43 +3,65 @@ import { buildCrmHandoffPayload, buildSequencerHandoffPayload } from '@/lib/serv
 import type { AccountExplainability } from '@/lib/data/getAccountExplainability'
 
 function baseExplainability(): AccountExplainability {
+  const now = new Date().toISOString()
   return {
     account: {
       id: 'lead_123',
       name: 'Acme',
       domain: 'acme.com',
       url: 'https://acme.com',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     },
     signals: [
       {
+        id: 'sig_1',
         type: 'funding',
         title: 'Funding round announced',
-        detectedAt: new Date().toISOString(),
-        occurredAt: new Date().toISOString(),
+        summary: null,
+        detectedAt: now,
+        occurredAt: now,
+        sourceName: 'news',
         sourceUrl: 'https://news.example/funding',
-        confidence: 'high',
+        confidence: 0.85,
       },
     ],
     scoreExplainability: {
       score: 78,
-      summary: 'Strong signals recently detected.',
-      breakdown: { momentum: 10, intent: 10, fit: 10, timing: 10, volume: 10, diversity: 10, recency: 10, firstParty: 8 },
-      limitations: [],
+      reasons: ['Strong recent signals'],
+      breakdown: [{ label: 'Recency', points: 10 }],
+      updatedAt: now,
     },
-    momentum: { label: 'rising', delta: 8, recentEvents: 4, highSignalEvents: 2, mostRecentSignalAt: new Date().toISOString() },
-    firstPartyIntent: { visitorMatches: { count: 2, lastVisitedAt: new Date().toISOString(), sampleReferrers: ['google.com'] }, summary: { label: 'active_research', labelText: 'Active research', summary: 'Returning visitors', freshnessDays: 2 } },
+    momentum: {
+      window: '30d',
+      currentScore: 78,
+      priorScore: 70,
+      delta: 8,
+      label: 'rising',
+      topSignalTypes: [{ type: 'funding', count: 1 }],
+      highSignalEvents: 2,
+      mostRecentSignalAt: now,
+      mostRecentHighImpactEvent: { title: 'Funding round announced', detectedAt: now, sourceUrl: 'https://news.example/funding' },
+    },
+    firstPartyIntent: {
+      visitorMatches: { count: 2, lastVisitedAt: now, sampleReferrers: ['google.com'] },
+      summary: { label: 'active_research', labelText: 'Active research', summary: 'Returning visitors', freshnessDays: 2 },
+    },
     dataQuality: {
       quality: 'usable',
       freshness: 'recent',
-      lastObservedAt: new Date().toISOString(),
-      coverage: { sourcesPresent: ['first_party', 'signals'], sourcesMissing: [], sourceCount: 2 },
-      completeness: { hasSignals: true, hasScoreExplainability: true, hasMomentum: true, hasFirstPartyIntent: true, hasPeople: true },
+      lastObservedAt: now,
+      coverage: {
+        signalEventsCount: 1,
+        uniqueSignalTypesCount: 1,
+        hasFirstPartyMatch: true,
+        firstPartyVisitorCount14d: 2,
+      },
+      completeness: { hasScoreReasons: true, hasMomentum: true, hasPeopleRecommendations: true },
       limitations: [],
       operatorNotes: [],
     },
-    sourceHealth: { window: '30d', lastSignalAt: new Date().toISOString(), lastFirstPartyAt: new Date().toISOString(), freshness: 'recent', notes: [] },
+    sourceHealth: { window: '30d', lastSignalAt: now, lastFirstPartyAt: now, freshness: 'recent', notes: [] },
     people: {
       personas: {
         items: [
@@ -61,7 +83,7 @@ function baseExplainability(): AccountExplainability {
         evaluator: null,
         evidence: {
           topSignalTypes: [{ type: 'funding', count: 1 }],
-          mostRecentSignalAt: new Date().toISOString(),
+          mostRecentSignalAt: now,
           momentum: { label: 'rising', delta: 8 },
           firstPartyVisitorCount14d: 2,
         },

@@ -32,6 +32,8 @@ export function CrmHandoffCard(props: { accountId: string; window: '7d' | '30d' 
       const json = (await res.json().catch(() => null)) as Envelope | null
       if (!res.ok || !json || json.ok !== true) {
         if (res.status === 403) {
+          track('unavailable_action_clicked', { action: 'crm_handoff', reason: 'team_plan_required' })
+          track('upgrade_clicked_from_action_gating', { source: 'account_action_center', action: 'crm_handoff' })
           toast({ variant: 'destructive', title: 'Team feature', description: 'CRM handoff requires the Team plan.' })
           window.location.href = '/pricing?target=team'
           return
@@ -57,6 +59,7 @@ export function CrmHandoffCard(props: { accountId: string; window: '7d' | '30d' 
       const res = await fetch(`/api/workspace/actions/queue/${encodeURIComponent(queueItemId)}/deliver`, { method: 'POST' })
       const json = (await res.json().catch(() => null)) as Envelope | null
       if (!res.ok) {
+        track('crm_handoff_failed', { accountId: props.accountId, queueItemId })
         toast({ variant: 'destructive', title: 'Delivery failed', description: json && 'error' in json ? json.error?.message : 'Please try again.' })
         return
       }

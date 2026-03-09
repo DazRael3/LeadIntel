@@ -61,6 +61,7 @@ export function ActionsClient() {
   async function deliver(queueItemId: string) {
     setDeliveringId(queueItemId)
     try {
+      track('action_queue_item_opened', { queueItemId })
       const res = await fetch(`/api/workspace/actions/queue/${encodeURIComponent(queueItemId)}/deliver`, { method: 'POST' })
       const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: { message?: string } } | null
       if (!res.ok) {
