@@ -63,6 +63,17 @@ This wave improves small-screen usability and adds bounded summary surfaces with
 
 ---
 
+## Platform wave: assistants + conversational workflows
+
+This wave adds a **grounded assistant layer** without introducing fake autonomy:
+
+- **Assistant governance** is configurable under `/settings/assistant` and enforced server-side for all assistant endpoints.
+- **Assistant conversations** are workspace-scoped and (optionally) stored as object-attached threads.
+- **Assistant actions** are preview-first and require explicit confirmation to execute.
+- **No** automatic outreach sending, and no cross-workspace access.
+
+---
+
 ## Required env vars (production)
 
 ### App URL / Origin
