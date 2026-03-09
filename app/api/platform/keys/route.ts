@@ -32,16 +32,13 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const { policies } = await getWorkspacePolicies({ supabase, workspaceId: ws.id })
-    if (!policies.platform.apiAccessEnabled) {
-      return fail(ErrorCode.FORBIDDEN, 'API access is disabled for this workspace', undefined, undefined, bridge, requestId)
-    }
     if (!policies.platform.apiKeyManageRoles.includes(membership.role)) {
       return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
     }
 
-    const keys = await listWorkspaceApiKeys({ supabase, workspaceId: ws.id })
+    const keys = policies.platform.apiAccessEnabled ? await listWorkspaceApiKeys({ supabase, workspaceId: ws.id }) : []
     await logProductEvent({ userId: user.id, eventName: 'api_settings_viewed', eventProps: { workspaceId: ws.id } })
-    return ok({ workspaceId: ws.id, keys }, undefined, bridge, requestId)
+    return ok({ workspaceId: ws.id, apiAccessEnabled: policies.platform.apiAccessEnabled, keys }, undefined, bridge, requestId)
   } catch (e) {
     return asHttpError(e, '/api/platform/keys', userId, bridge, requestId)
   }

@@ -19,7 +19,7 @@ type KeyRow = {
 }
 
 type Envelope =
-  | { ok: true; data: { workspaceId: string; keys: KeyRow[] } }
+  | { ok: true; data: { workspaceId: string; apiAccessEnabled: boolean; keys: KeyRow[] } }
   | { ok: false; error?: { message?: string } }
 
 export function ApiSettingsClient() {
@@ -27,6 +27,7 @@ export function ApiSettingsClient() {
   const [loading, setLoading] = useState(true)
   const [keys, setKeys] = useState<KeyRow[]>([])
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const [apiEnabled, setApiEnabled] = useState<boolean>(false)
   const [name, setName] = useState('Automation key')
   const [scopes, setScopes] = useState<Record<string, boolean>>({
     'workspace.read': true,
@@ -43,11 +44,13 @@ export function ApiSettingsClient() {
       if (!res.ok || !json || json.ok !== true) throw new Error('Access restricted.')
       setKeys(json.data.keys ?? [])
       setWorkspaceId(json.data.workspaceId ?? null)
+      setApiEnabled(Boolean(json.data.apiAccessEnabled))
       track('api_settings_viewed', { workspaceId: json.data.workspaceId ?? null })
     } catch (e) {
       toast({ title: 'API access unavailable', description: e instanceof Error ? e.message : 'Failed to load', variant: 'destructive' })
       setKeys([])
       setWorkspaceId(null)
+      setApiEnabled(false)
     } finally {
       setLoading(false)
     }
@@ -106,6 +109,11 @@ export function ApiSettingsClient() {
             API keys are workspace-scoped and permissioned. Keys are shown once at creation and stored hashed. Avoid embedding keys in client-side code.
           </div>
           {workspaceId ? <Badge variant="outline">Workspace: {workspaceId}</Badge> : null}
+          {!apiEnabled ? (
+            <div className="text-sm text-muted-foreground">
+              API access is currently disabled for this workspace. Enable it in <a className="underline" href="/settings/platform">Platform settings</a>.
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -137,7 +145,7 @@ export function ApiSettingsClient() {
             </div>
           </div>
 
-          <Button onClick={() => void createKey()} disabled={loading || !name.trim() || selectedScopes.length === 0}>
+          <Button onClick={() => void createKey()} disabled={!apiEnabled || loading || !name.trim() || selectedScopes.length === 0}>
             Create key
           </Button>
 
