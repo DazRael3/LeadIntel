@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Copy, ListChecks } from 'lucide-react'
@@ -9,6 +9,7 @@ import type { DataQualitySummary } from '@/lib/domain/data-quality'
 import type { SourceHealthSummary } from '@/lib/domain/source-health'
 import { MobileSignalsSummary } from '@/components/mobile/MobileSignalsSummary'
 import { MobileActionSheet } from '@/components/mobile/MobileActionSheet'
+import { track } from '@/lib/analytics'
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -50,6 +51,10 @@ export function MobileAccountTriage(props: {
     topSignal,
   ])
 
+  useEffect(() => {
+    track('mobile_triage_viewed', { companyName: props.companyName })
+  }, [props.companyName])
+
   return (
     <div className="md:hidden rounded border border-cyan-500/20 bg-card/50 p-3 space-y-3" data-testid="mobile-account-triage">
       <div className="flex items-start justify-between gap-2">
@@ -70,6 +75,7 @@ export function MobileAccountTriage(props: {
           variant="outline"
           className="h-8 text-xs"
           onClick={async () => {
+            track('quick_copy_action_used', { kind: 'triage_summary' })
             const ok = await copyToClipboard(whyNow)
             // lightweight feedback only; avoids toast dependency in a modal
             if (!ok) setSheetOpen(true)
@@ -94,6 +100,7 @@ export function MobileAccountTriage(props: {
                 variant="outline"
                 className="h-8 text-xs"
                 onClick={async () => {
+                  track('quick_copy_action_used', { kind: 'triage_summary' })
                   await copyToClipboard(whyNow)
                   setSheetOpen(false)
                 }}
@@ -106,6 +113,7 @@ export function MobileAccountTriage(props: {
                 variant="outline"
                 className="h-8 text-xs"
                 onClick={async () => {
+                  track('quick_copy_action_used', { kind: 'pitch_draft' })
                   await copyToClipboard(props.pitchText ?? '')
                   setSheetOpen(false)
                 }}
