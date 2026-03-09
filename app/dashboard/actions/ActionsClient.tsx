@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
+import { CommentThreadPanel } from '@/components/collab/CommentThreadPanel'
 
 type ActionQueueItem = {
   id: string
@@ -35,6 +36,7 @@ export function ActionsClient() {
   const [items, setItems] = useState<ActionQueueItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deliveringId, setDeliveringId] = useState<string | null>(null)
+  const [openCommentsForId, setOpenCommentsForId] = useState<string | null>(null)
 
   const readyCount = useMemo(() => items.filter((i) => i.status === 'ready').length, [items])
 
@@ -129,17 +131,26 @@ export function ActionsClient() {
                           <td className="px-3 py-2">{i.reason ?? '—'}</td>
                           <td className="px-3 py-2">
                             {i.status === 'ready' && canDeliver ? (
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs neon-border hover:glow-effect"
-                                disabled={deliveringId === i.id}
-                                onClick={() => void deliver(i.id)}
-                              >
-                                {deliveringId === i.id ? 'Queuing…' : 'Deliver'}
-                              </Button>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs neon-border hover:glow-effect"
+                                  disabled={deliveringId === i.id}
+                                  onClick={() => void deliver(i.id)}
+                                >
+                                  {deliveringId === i.id ? 'Queuing…' : 'Deliver'}
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                                  Comments
+                                </Button>
+                              </div>
                             ) : i.status === 'ready' && i.action_type === 'export_delivery' ? (
                               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => (window.location.href = '/settings/exports')}>
                                 Open exports
+                              </Button>
+                            ) : i.status === 'ready' ? (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                                Comments
                               </Button>
                             ) : i.error ? (
                               <span className="text-muted-foreground">{i.error}</span>
@@ -157,6 +168,19 @@ export function ActionsClient() {
           </CardContent>
         </Card>
       </div>
+
+      {openCommentsForId ? (
+        <div className="container mx-auto px-6 pb-10">
+          <div className="mt-6">
+            <CommentThreadPanel targetType="action_queue_item" targetId={openCommentsForId} />
+            <div className="mt-3 flex justify-end">
+              <Button variant="outline" onClick={() => setOpenCommentsForId(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
