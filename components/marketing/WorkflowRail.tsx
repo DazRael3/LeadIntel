@@ -83,6 +83,7 @@ export function WorkflowRail() {
             <Badge variant="outline">Account planning</Badge>
             <Badge variant="outline">Send-ready outreach</Badge>
             <Badge variant="outline">Action layer</Badge>
+            <Badge variant="outline">Privacy-safe benchmarks</Badge>
           </div>
           <div className="mt-4 flex items-center gap-2">
             <Button
