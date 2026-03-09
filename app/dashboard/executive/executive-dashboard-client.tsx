@@ -10,6 +10,7 @@ import { ExecutiveMetricsBar } from '@/components/executive/ExecutiveMetricsBar'
 import { ExecutiveHighlightsBoard } from '@/components/executive/ExecutiveHighlightsBoard'
 import { ExecutiveRisksBoard } from '@/components/executive/ExecutiveRisksBoard'
 import { ExecutiveMethodNote } from '@/components/executive/ExecutiveMethodNote'
+import { MobileActionSheet } from '@/components/mobile/MobileActionSheet'
 
 type Envelope =
   | { ok: true; data: { workspace: { id: string; name: string }; role: string; summary: ExecutiveSummary } }
@@ -21,6 +22,9 @@ export function ExecutiveDashboardClient() {
   const [workspaceName, setWorkspaceName] = useState('Workspace')
   const [role, setRole] = useState('viewer')
   const [summary, setSummary] = useState<ExecutiveSummary | null>(null)
+  const [snapshotOpen, setSnapshotOpen] = useState(false)
+  const [snapshotLoading, setSnapshotLoading] = useState(false)
+  const [snapshotMarkdown, setSnapshotMarkdown] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -55,6 +59,33 @@ export function ExecutiveDashboardClient() {
           <div className="flex items-center gap-2">
             <Badge variant="outline">{workspaceName}</Badge>
             <Badge variant="outline">role {role}</Badge>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                setSnapshotOpen(true)
+                if (snapshotMarkdown) return
+                setSnapshotLoading(true)
+                try {
+                  const res = await fetch('/api/executive/snapshot', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ format: 'markdown' }),
+                  })
+                  const json = (await res.json().catch(() => null)) as { ok?: boolean; data?: { snapshot?: { markdown?: string } }; error?: { message?: string } } | null
+                  if (!res.ok || !json || json.ok !== true) {
+                    toast({ variant: 'destructive', title: 'Snapshot unavailable', description: json?.error?.message ?? 'Please try again.' })
+                    return
+                  }
+                  setSnapshotMarkdown(typeof json.data?.snapshot?.markdown === 'string' ? json.data.snapshot.markdown : null)
+                } finally {
+                  setSnapshotLoading(false)
+                }
+              }}
+              disabled={loading}
+            >
+              Snapshot
+            </Button>
             <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
               Refresh
             </Button>
@@ -80,6 +111,44 @@ export function ExecutiveDashboardClient() {
           </>
         )}
       </div>
+
+      <MobileActionSheet open={snapshotOpen} title="Executive snapshot" onClose={() => setSnapshotOpen(false)}>
+        <div className="space-y-3 text-sm text-muted-foreground">
+          {snapshotLoading ? <div>Generating…</div> : null}
+          {!snapshotLoading && snapshotMarkdown ? (
+            <>
+              <div className="rounded border border-cyan-500/10 bg-background/30 p-3">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Markdown (safe summary)</div>
+                <pre className="mt-2 max-h-[45vh] overflow-auto whitespace-pre-wrap text-xs text-foreground">{snapshotMarkdown}</pre>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="neon-border hover:glow-effect"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(snapshotMarkdown)
+                      toast({ variant: 'success', title: 'Copied', description: 'Snapshot copied.' })
+                    } catch {
+                      toast({ variant: 'destructive', title: 'Copy failed', description: 'Your browser blocked clipboard access.' })
+                    }
+                  }}
+                >
+                  Copy
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => window.print()}>
+                  Print
+                </Button>
+              </div>
+            </>
+          ) : !snapshotLoading ? (
+            <div className="text-xs text-muted-foreground">No snapshot available.</div>
+          ) : null}
+          <div className="text-xs text-muted-foreground">
+            Snapshot output is metadata-first and does not include protected message bodies.
+          </div>
+        </div>
+      </MobileActionSheet>
     </div>
   )
 }
