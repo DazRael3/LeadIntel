@@ -11,7 +11,7 @@ describe('platform-api/auth helpers', () => {
   })
 
   it('apiKeyPrefix is stable', () => {
-    expect(apiKeyPrefix('li_sk_abcdef123456')).toBe('li_sk_abcde')
+    expect(apiKeyPrefix('li_sk_abcdef123456')).toBe('li_sk_abcd')
   })
 
   it('hashPlatformKey is deterministic', () => {

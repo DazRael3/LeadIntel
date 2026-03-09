@@ -1,5 +1,4 @@
 import crypto from 'crypto'
-import { serverEnv } from '@/lib/env'
 
 export type EmbedTokenPayload = {
   v: 1
@@ -14,7 +13,8 @@ function hmac(secret: string, input: string): string {
 }
 
 export function signEmbedToken(payload: EmbedTokenPayload): string {
-  const secret = (serverEnv.EMBED_SIGNING_SECRET ?? '').trim()
+  // Read directly from process.env so tests can set without module caching issues.
+  const secret = (process.env.EMBED_SIGNING_SECRET ?? '').trim()
   if (!secret) throw new Error('embed_signing_secret_missing')
   const body = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
   const sig = hmac(secret, body)
@@ -22,7 +22,8 @@ export function signEmbedToken(payload: EmbedTokenPayload): string {
 }
 
 export function verifyEmbedToken(token: string): EmbedTokenPayload | null {
-  const secret = (serverEnv.EMBED_SIGNING_SECRET ?? '').trim()
+  // Read directly from process.env so tests can set without module caching issues.
+  const secret = (process.env.EMBED_SIGNING_SECRET ?? '').trim()
   if (!secret) return null
   const [body, sig] = token.split('.')
   if (!body || !sig) return null
