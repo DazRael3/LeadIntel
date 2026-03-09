@@ -79,7 +79,7 @@ export function ActionsClient() {
 
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="actions-page">
-      <div className="container mx-auto px-6 py-8 space-y-6">
+      <div className="container mx-auto px-4 sm:px-6 py-8 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-2xl font-bold bloomberg-font neon-cyan">Actions</h1>
@@ -105,65 +105,113 @@ export function ActionsClient() {
                 No actions yet. Prepare a CRM or Sequencer handoff from an account to populate your queue.
               </div>
             ) : (
-              <div className="overflow-hidden rounded border border-cyan-500/10">
-                <table className="w-full text-xs">
-                  <thead className="bg-background/60 text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Type</th>
-                      <th className="px-3 py-2 text-left">Status</th>
-                      <th className="px-3 py-2 text-left">Reason</th>
-                      <th className="px-3 py-2 text-left">Next</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.slice(0, 50).map((i) => {
-                      const b = badgeForStatus(i.status)
-                      const canDeliver =
-                        i.action_type === 'crm_handoff_prepared' || i.action_type === 'sequencer_handoff_prepared' || i.action_type === 'webhook_delivery'
-                      return (
-                        <tr key={i.id} className="border-t border-cyan-500/10">
-                          <td className="px-3 py-2 text-foreground">{i.action_type}</td>
-                          <td className="px-3 py-2">
-                            <Badge variant="outline" className={b.className}>
-                              {b.label}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2">{i.reason ?? '—'}</td>
-                          <td className="px-3 py-2">
-                            {i.status === 'ready' && canDeliver ? (
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  size="sm"
-                                  className="h-7 text-xs neon-border hover:glow-effect"
-                                  disabled={deliveringId === i.id}
-                                  onClick={() => void deliver(i.id)}
-                                >
-                                  {deliveringId === i.id ? 'Queuing…' : 'Deliver'}
+              <>
+                {/* Mobile cards */}
+                <div className="space-y-2 md:hidden">
+                  {items.slice(0, 50).map((i) => {
+                    const b = badgeForStatus(i.status)
+                    const canDeliver =
+                      i.action_type === 'crm_handoff_prepared' || i.action_type === 'sequencer_handoff_prepared' || i.action_type === 'webhook_delivery'
+                    return (
+                      <div key={i.id} className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-foreground font-medium text-sm">{i.action_type}</div>
+                          <Badge variant="outline" className={b.className}>
+                            {b.label}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">{i.reason ?? '—'}</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {i.status === 'ready' && canDeliver ? (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs neon-border hover:glow-effect"
+                                disabled={deliveringId === i.id}
+                                onClick={() => void deliver(i.id)}
+                              >
+                                {deliveringId === i.id ? 'Queuing…' : 'Deliver'}
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                                Comments
+                              </Button>
+                            </>
+                          ) : i.status === 'ready' ? (
+                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                              Comments
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                              View
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-hidden rounded border border-cyan-500/10">
+                  <table className="w-full text-xs">
+                    <thead className="bg-background/60 text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Reason</th>
+                        <th className="px-3 py-2 text-left">Next</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.slice(0, 50).map((i) => {
+                        const b = badgeForStatus(i.status)
+                        const canDeliver =
+                          i.action_type === 'crm_handoff_prepared' || i.action_type === 'sequencer_handoff_prepared' || i.action_type === 'webhook_delivery'
+                        return (
+                          <tr key={i.id} className="border-t border-cyan-500/10">
+                            <td className="px-3 py-2 text-foreground">{i.action_type}</td>
+                            <td className="px-3 py-2">
+                              <Badge variant="outline" className={b.className}>
+                                {b.label}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2">{i.reason ?? '—'}</td>
+                            <td className="px-3 py-2">
+                              {i.status === 'ready' && canDeliver ? (
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="h-7 text-xs neon-border hover:glow-effect"
+                                    disabled={deliveringId === i.id}
+                                    onClick={() => void deliver(i.id)}
+                                  >
+                                    {deliveringId === i.id ? 'Queuing…' : 'Deliver'}
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                                    Comments
+                                  </Button>
+                                </div>
+                              ) : i.status === 'ready' && i.action_type === 'export_delivery' ? (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => (window.location.href = '/settings/exports')}>
+                                  Open exports
                                 </Button>
+                              ) : i.status === 'ready' ? (
                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
                                   Comments
                                 </Button>
-                              </div>
-                            ) : i.status === 'ready' && i.action_type === 'export_delivery' ? (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => (window.location.href = '/settings/exports')}>
-                                Open exports
-                              </Button>
-                            ) : i.status === 'ready' ? (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
-                                Comments
-                              </Button>
-                            ) : i.error ? (
-                              <span className="text-muted-foreground">{i.error}</span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                              ) : i.error ? (
+                                <span className="text-muted-foreground">{i.error}</span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
