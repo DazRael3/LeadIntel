@@ -14,6 +14,9 @@ export type ActionQueueItem = {
   workspace_id: string
   created_by: string
   lead_id: string | null
+  assigned_to_user_id?: string | null
+  assigned_by_user_id?: string | null
+  assigned_at?: string | null
   action_type: ActionQueueType
   status: ActionQueueStatus
   destination_type: ActionDestinationType | null

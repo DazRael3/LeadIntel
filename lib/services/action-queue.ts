@@ -6,6 +6,9 @@ type DbRow = {
   workspace_id: string
   created_by: string
   lead_id: string | null
+  assigned_to_user_id?: string | null
+  assigned_by_user_id?: string | null
+  assigned_at?: string | null
   action_type: string
   status: string
   destination_type: string | null
@@ -45,6 +48,9 @@ function normalize(row: DbRow): ActionQueueItem {
     workspace_id: row.workspace_id,
     created_by: row.created_by,
     lead_id: row.lead_id,
+    assigned_to_user_id: typeof row.assigned_to_user_id === 'string' ? row.assigned_to_user_id : null,
+    assigned_by_user_id: typeof row.assigned_by_user_id === 'string' ? row.assigned_by_user_id : null,
+    assigned_at: typeof row.assigned_at === 'string' ? row.assigned_at : null,
     action_type: type,
     status,
     destination_type: destType,
@@ -68,6 +74,8 @@ export async function createActionQueueItem(args: {
   destinationId?: string | null
   reason?: string | null
   payloadMeta?: Record<string, unknown>
+  assignedToUserId?: string | null
+  assignedByUserId?: string | null
 }): Promise<ActionQueueItem> {
   const { data, error } = await args.supabase
     .schema('api')
@@ -82,6 +90,9 @@ export async function createActionQueueItem(args: {
       destination_id: args.destinationId ?? null,
       reason: args.reason ?? null,
       payload_meta: args.payloadMeta ?? {},
+      assigned_to_user_id: args.assignedToUserId ?? null,
+      assigned_by_user_id: args.assignedByUserId ?? null,
+      assigned_at: args.assignedToUserId ? new Date().toISOString() : null,
     })
     .select('*')
     .single()
