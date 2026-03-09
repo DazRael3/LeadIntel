@@ -39,6 +39,7 @@ import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed'
 import { ValueMomentsCard } from '@/components/dashboard/ValueMomentsCard'
 import { UpgradeReasonsCard } from '@/components/dashboard/UpgradeReasonsCard'
 import { ActionQueueCard } from '@/components/dashboard/ActionQueueCard'
+import { MobileShortlistView } from '@/components/mobile/MobileShortlistView'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -194,6 +195,7 @@ export function DashboardClient({
           </div>
 
           <TabsContent value="command" className="space-y-6">
+            <MobileShortlistView />
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
