@@ -42,6 +42,7 @@ import { MultiTouchPlanCard } from "@/components/account/MultiTouchPlanCard"
 import { CoverageSummaryCard } from "@/components/account/CoverageSummaryCard"
 import { OwnershipRoutingCard } from "@/components/account/OwnershipRoutingCard"
 import { PeerPatternInsightsCard } from "@/components/account/PeerPatternInsightsCard"
+import { MobileAccountTriage } from "@/components/mobile/MobileAccountTriage"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -314,6 +315,18 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
         </CardHeader>
 
         <CardContent className="space-y-6 pt-6">
+          <MobileAccountTriage
+            companyName={(lead.company_name ?? 'Account').toString()}
+            triggerEvent={typeof lead.trigger_event === 'string' ? lead.trigger_event : null}
+            pitchText={typeof lead.ai_personalized_pitch === 'string' ? lead.ai_personalized_pitch : ''}
+            scoreExplainability={explainability.scoreExplainability}
+            momentum={explainability.momentum}
+            dataQuality={explainability.dataQuality}
+            sourceHealth={explainability.sourceHealth}
+            signals={explainability.signals}
+            onOpenQueue={() => (window.location.href = '/dashboard/actions')}
+          />
+
           {/* Unlock Status for Free Users */}
           {!isPro && !unlocked && (
             <div className="p-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5">
