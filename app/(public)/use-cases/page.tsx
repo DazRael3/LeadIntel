@@ -80,6 +80,25 @@ export default function UseCasesPage() {
             })}
           </div>
 
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="font-medium text-foreground">Team rollout &amp; governance-led teams</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Standardize templates, approvals, audit visibility, and operational handoffs (Team plan).
+                </div>
+              </div>
+              <Badge variant="outline" className="text-[11px]">
+                Team
+              </Badge>
+            </div>
+            <ul className="mt-3 list-disc pl-5 space-y-1 text-xs text-muted-foreground">
+              <li>Shared templates with approvals (draft → approve → reuse)</li>
+              <li>Audit logs for admin visibility</li>
+              <li>Webhook + export actions for handoff</li>
+            </ul>
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-3">
             <Button asChild className="neon-border hover:glow-effect">
               <Link href="/#try-sample">Generate a sample digest</Link>
