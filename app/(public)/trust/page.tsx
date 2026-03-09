@@ -37,6 +37,7 @@ const LINKS: TrustLink[] = [
   { href: '/acceptable-use', label: 'Acceptable Use' },
   { href: '/subprocessors', label: 'Subprocessors' },
   { href: '/dpa', label: 'DPA' },
+  { href: '/trust/buyer-readiness', label: 'Buyer readiness', note: 'Controls today, and what we do not claim.' },
   { href: '/status', label: 'Status' },
   { href: '/version', label: 'Version' },
   { href: '/changelog', label: 'Changelog' },
