@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { LogOut, LayoutDashboard, DollarSign, ListChecks, BarChart3, Users, Package } from 'lucide-react'
+import { LogOut, LayoutDashboard, DollarSign, ListChecks, BarChart3, Users, Package, Activity } from 'lucide-react'
 import { useInAppTour } from '@/components/tour/InAppTourProvider'
 import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
 
@@ -98,6 +98,16 @@ export function DashboardHeader() {
               <Link href="/dashboard/rollouts">
                 <Package className="h-4 w-4 mr-2" />
                 Rollouts
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            >
+              <Link href="/dashboard/operations">
+                <Activity className="h-4 w-4 mr-2" />
+                Operations
               </Link>
             </Button>
             <Button
