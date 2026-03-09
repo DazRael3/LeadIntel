@@ -168,9 +168,9 @@ export function CompetitiveReportNewClient() {
           setInlineError({
             title: json.error.message || 'Report limit reached.',
             tips: [
-              'Free includes up to 3 total pitches/reports.',
+              'Free plan: 3 preview generations total.',
               'Upgrade to create unlimited assets and unlock full content.',
-              'You can still view your existing reports in the Reports hub.',
+              'Usage is shared across pitches and reports.',
             ],
           })
           track('premium_generation_blocked_free_limit', { surface: 'competitive_report_new', used, limit })

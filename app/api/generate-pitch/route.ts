@@ -188,7 +188,7 @@ export const POST = withApiGuard(
       if (usageBefore.used >= usageBefore.limit) {
         return fail(
           'FREE_TIER_GENERATION_LIMIT_REACHED',
-          'Free accounts can generate up to 3 pitches/reports. Upgrade to continue.',
+          'Free plan: 3 preview generations total. Upgrade to continue.',
           { usage: usageBefore, upgradeRequired: true },
           { status: 429 },
           bridge,
@@ -200,7 +200,7 @@ export const POST = withApiGuard(
         const usage = await getPremiumGenerationUsage({ supabase, userId: user.id })
         return fail(
           'FREE_TIER_GENERATION_LIMIT_REACHED',
-          'Free accounts can generate up to 3 pitches/reports. Upgrade to continue.',
+          'Free plan: 3 preview generations total. Upgrade to continue.',
           { usage, upgradeRequired: true },
           { status: 429 },
           bridge,
