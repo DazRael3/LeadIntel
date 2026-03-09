@@ -55,6 +55,13 @@ export type WorkspacePolicies = {
     assistantActionRoles: WorkspaceRole[]
     assistantViewerRoles: WorkspaceRole[]
   }
+  growth: {
+    experimentsEnabled: boolean
+    exposureLoggingEnabled: boolean
+    manageRoles: WorkspaceRole[]
+    viewerRoles: WorkspaceRole[]
+    protectedSurfaces: string[]
+  }
 }
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'manager', 'rep', 'viewer'])
@@ -188,6 +195,22 @@ export const WorkspacePoliciesSchema = z.object({
       assistantActionRoles: ['owner', 'admin', 'manager'],
       assistantViewerRoles: ['owner', 'admin', 'manager', 'rep'],
     }),
+  growth: z
+    .object({
+      experimentsEnabled: z.boolean().default(false),
+      exposureLoggingEnabled: z.boolean().default(true),
+      manageRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin']),
+      viewerRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
+      // Stored as strings to avoid tight coupling; experiment engine enforces an allowlist.
+      protectedSurfaces: z.array(z.string()).default(['billing', 'security', 'governance', 'entitlements']),
+    })
+    .default({
+      experimentsEnabled: false,
+      exposureLoggingEnabled: true,
+      manageRoles: ['owner', 'admin'],
+      viewerRoles: ['owner', 'admin', 'manager'],
+      protectedSurfaces: ['billing', 'security', 'governance', 'entitlements'],
+    }),
 })
 
 export type WorkspacePoliciesPatch = z.infer<typeof WorkspacePoliciesPatchSchema>
@@ -209,6 +232,7 @@ export function mergeWorkspacePolicies(args: { current: WorkspacePolicies; patch
     platform: { ...args.current.platform, ...(args.patch.platform ?? {}) },
     reporting: { ...args.current.reporting, ...(args.patch.reporting ?? {}) },
     assistant: { ...args.current.assistant, ...(args.patch.assistant ?? {}) },
+    growth: { ...args.current.growth, ...(args.patch.growth ?? {}) },
   }
   return WorkspacePoliciesSchema.parse(merged)
 }
