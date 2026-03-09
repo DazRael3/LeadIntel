@@ -9,6 +9,20 @@ This app uses **Next.js 14 + Supabase + Stripe + Sentry**. Environment variables
 
 ---
 
+## Platform wave: operational trust
+
+This wave adds operational trust primitives (inspectability, predictable retries, metadata-first tooling).
+
+- **Admin/operator pages** are token-gated via `ADMIN_TOKEN` (`/admin/*`) and set `robots: noindex`.
+- **Audit and support tooling** is metadata-first:
+  - no pitch/report bodies
+  - no webhook secrets
+  - no raw provider payloads
+- **Freshness and quality** are surfaced as coarse labels (“limited / usable / strong”, “stale / recent / fresh”) instead of over-precise confidence.
+- **Retry-safe endpoints** avoid duplicate job/report/brief creation under retries and repeated clicks.
+
+---
+
 ## Required env vars (production)
 
 ### App URL / Origin

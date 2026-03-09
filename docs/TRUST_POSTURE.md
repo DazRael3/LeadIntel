@@ -22,6 +22,8 @@ Keep claims high-level and tied to mechanics:
 - **Structured logging + request IDs**: operational observability exists without logging secrets.
 - **Billing processors**: Stripe for billing; Supabase for auth/database.
 - **Operational handoff**: webhooks/exports are designed as explicit action surfaces.
+- **Operational transparency**: freshness + “limited data” states are surfaced when coverage is thin (no implied certainty).
+- **Metadata-first support tooling**: admin/operator context is derived from entitlements, usage counters, and status metadata (not content bodies).
 - **Team governance (where applicable)**: template approval and audit visibility exist on Team-gated surfaces.
 
 ## What we must NOT claim unless explicitly true
