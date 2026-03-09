@@ -39,6 +39,14 @@ The canonical shape is defined in:
 - **Key**: `handoffs.requireApproval`
 - **Meaning**: when enabled, delivery workflows can require approval checks (where implemented).
 
+### Intelligence controls
+
+- **Key**: `intelligence.*`
+- **Meaning**: controls bounded, feedback/outcome-informed recommendation nudges.
+- **Enforcement**:
+  - `/api/accounts/:id/recommendations` respects adaptive/feedback/outcome toggles
+  - `/settings/intelligence` is Team-gated and updates workspace policy state
+
 ## Audit
 
 Policy updates are audited as:
