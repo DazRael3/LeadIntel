@@ -56,6 +56,7 @@ const EVENT_CHOICES = [
   'handoff.crm.delivered',
   'handoff.sequencer.prepared',
   'handoff.sequencer.delivered',
+  'custom.action.executed',
   'signal.detected',
   'pitch.generated',
   'digest.sent',

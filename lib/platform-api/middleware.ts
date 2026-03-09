@@ -13,6 +13,7 @@ export async function withPlatformAuth(args: {
   request: NextRequest
   requestId: string
   requiredScopes?: PlatformScope[]
+  rateLimitCategory?: 'READ' | 'WRITE'
 }): Promise<
   | { ok: true; ctx: PlatformAuthContext }
   | { ok: false; response: ReturnType<typeof platformFail> }
@@ -58,7 +59,7 @@ export async function withPlatformAuth(args: {
     request: args.request,
     apiKeyId: auth.ctx.apiKeyId,
     route: new URL(args.request.url).pathname,
-    category: 'READ',
+    category: args.rateLimitCategory ?? 'READ',
   })
   if (rl && !rl.success) {
     return {

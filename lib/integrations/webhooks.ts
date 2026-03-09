@@ -19,6 +19,7 @@ export type WebhookEventType =
   | 'handoff.crm.delivered'
   | 'handoff.sequencer.prepared'
   | 'handoff.sequencer.delivered'
+  | 'custom.action.executed'
 
 const BACKOFF_SECONDS = [60, 5 * 60, 30 * 60, 2 * 60 * 60, 12 * 60 * 60] as const
 const MAX_ATTEMPTS = 6 as const

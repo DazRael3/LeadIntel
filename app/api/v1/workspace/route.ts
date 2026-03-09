@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const { data } = await admin
       .from('workspaces')
-      .select('id, name, owner_user_id, default_template_set_id, created_at, client_label, reference_tags')
+      .select('id, name, created_at, client_label, reference_tags')
       .eq('id', authed.ctx.workspaceId)
       .maybeSingle()
 
@@ -51,7 +51,14 @@ export async function GET(request: NextRequest) {
       return res
     }
 
-    const ws = serializeWorkspace({ workspace: data as any })
+    const row = data as unknown as {
+      id: string
+      name: string
+      created_at: string | null
+      client_label: string | null
+      reference_tags: unknown
+    }
+    const ws = serializeWorkspace({ workspace: row })
     const res = platformOk({ workspace: ws }, undefined, requestId)
     await logPlatformRequest({
       workspaceId: authed.ctx.workspaceId,

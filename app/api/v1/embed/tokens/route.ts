@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   const started = Date.now()
   const path = new URL(request.url).pathname
 
-  const authed = await withPlatformAuth({ request, requestId, requiredScopes: ['embed.token.create'] })
+  const authed = await withPlatformAuth({ request, requestId, requiredScopes: ['embed.token.create'], rateLimitCategory: 'WRITE' })
   if (!authed.ok) return authed.response
 
   let bodyJson: unknown = null

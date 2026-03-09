@@ -1,8 +1,7 @@
-import type { WorkspaceRow } from '@/lib/team/workspace'
 import type { PlatformObject } from '@/lib/platform-api/objects'
 
 export function serializeWorkspace(args: {
-  workspace: WorkspaceRow & { client_label?: string | null; reference_tags?: string[] | null }
+  workspace: { id: string; name: string; created_at: string | null; client_label?: string | null; reference_tags?: unknown }
 }): PlatformObject<
   'workspace',
   {
@@ -20,7 +19,7 @@ export function serializeWorkspace(args: {
     attributes: {
       name: args.workspace.name,
       client_label: typeof args.workspace.client_label === 'string' ? args.workspace.client_label : null,
-      reference_tags: Array.isArray(args.workspace.reference_tags) ? (args.workspace.reference_tags.filter((t) => typeof t === 'string') as string[]) : [],
+      reference_tags: Array.isArray(args.workspace.reference_tags) ? args.workspace.reference_tags.filter((t): t is string => typeof t === 'string') : [],
     },
   }
 }
