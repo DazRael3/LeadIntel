@@ -56,6 +56,15 @@ The canonical shape is defined in:
   - `/api/team/planning`, `/api/team/forecast-support`
   - `/settings/planning-intelligence`
 
+### Coverage / territory / portfolio controls
+
+Coverage and territory surfaces are Team-gated and reuse planning orchestration gating:
+
+- account coverage: `/api/accounts/:id/coverage`
+- territories: `/api/workspace/territories`
+- portfolio: `/api/team/portfolio`
+- portfolio UI: `/dashboard/portfolio`
+
 ## Audit
 
 Policy updates are audited as:
