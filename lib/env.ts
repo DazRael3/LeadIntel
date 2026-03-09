@@ -164,6 +164,10 @@ const serverEnvSchema = z.object({
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
 
+  // Platform API (optional; enforced at runtime when enabled)
+  PLATFORM_API_KEY_PEPPER: z.string().min(16).optional(),
+  EMBED_SIGNING_SECRET: z.string().min(32).optional(),
+
   // House accounts (optional): comma-separated list of emails treated as Closer without Stripe subscription.
   // Example: "owner@dazrael.com, ops@dazrael.com"
   HOUSE_CLOSER_EMAILS: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().optional().default('')),
