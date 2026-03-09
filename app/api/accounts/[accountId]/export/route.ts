@@ -12,6 +12,7 @@ import { toCsv } from '@/lib/exports/csv'
 import { uploadExportCsv } from '@/lib/exports/storage'
 import { logAudit } from '@/lib/audit/log'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
+import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,8 +66,18 @@ export const POST = withApiGuard(
       if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
-        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+      if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+
+      const { policies } = await getWorkspacePolicies({ supabase, workspaceId: workspace.id })
+      if (!policies.exports.allowedRoles.includes(membership.role)) {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Export restricted by workspace policy',
+          { role: `Role ${membership.role} cannot export in this workspace` },
+          undefined,
+          bridge,
+          requestId
+        )
       }
 
       const { data: lead, error: leadError } = await supabase

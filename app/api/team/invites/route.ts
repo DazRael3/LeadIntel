@@ -9,6 +9,8 @@ import { logAudit } from '@/lib/audit/log'
 import { requireTeamPlan } from '@/lib/team/gating'
 import { createHash, randomBytes } from 'crypto'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
+import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
+import { isInviteAllowed } from '@/lib/domain/workspace-policies'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,6 +57,22 @@ export const POST = withApiGuard(
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
 
+      const { policies } = await getWorkspacePolicies({ supabase, workspaceId: workspace.id })
+      const emailNorm = parsed.data.email.trim().toLowerCase()
+      if (!isInviteAllowed({ policies, email: emailNorm })) {
+        await logAudit({
+          supabase,
+          workspaceId: workspace.id,
+          actorUserId: user.id,
+          action: 'invite.denied_by_policy',
+          targetType: 'invite',
+          targetId: null,
+          meta: { email: emailNorm, allowedDomains: policies.invite.allowedDomains ?? [] },
+          request,
+        })
+        return fail(ErrorCode.FORBIDDEN, 'Invite restricted by workspace policy', { email: 'Domain not allowed for this workspace' }, undefined, bridge, requestId)
+      }
+
       const rawToken = randomBytes(24).toString('hex')
       const tokenHash = sha256Hex(rawToken)
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -64,7 +82,7 @@ export const POST = withApiGuard(
         .from('workspace_invites')
         .insert({
           workspace_id: workspace.id,
-          email: parsed.data.email.trim().toLowerCase(),
+          email: emailNorm,
           role: parsed.data.role,
           token_hash: tokenHash,
           expires_at: expiresAt,
@@ -87,7 +105,7 @@ export const POST = withApiGuard(
         meta: {
           inviteId: invite.id,
           role: parsed.data.role,
-          email: parsed.data.email.trim().toLowerCase(),
+          email: emailNorm,
         },
         request,
       })
@@ -99,7 +117,7 @@ export const POST = withApiGuard(
         payload: {
           workspaceId: workspace.id,
           inviteId: invite.id,
-          email: parsed.data.email.trim().toLowerCase(),
+          email: emailNorm,
           role: parsed.data.role,
           createdAt: new Date().toISOString(),
         },

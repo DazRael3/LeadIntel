@@ -164,8 +164,11 @@ export function AccountActionCenter(props: {
                 const json = (await res.json().catch(() => null)) as ExportEnvelope | null
                 if (!res.ok || !json || json.ok !== true) {
                   if (res.status === 403) {
-                    toast({ variant: 'destructive', title: 'Team feature', description: 'Export actions require the Team plan.' })
-                    window.location.href = '/pricing?target=team'
+                    const msg =
+                      json && 'error' in json && typeof json.error?.message === 'string'
+                        ? json.error.message
+                        : 'Export is restricted.'
+                    toast({ variant: 'destructive', title: 'Export restricted', description: msg })
                     return
                   }
                   toast({ variant: 'destructive', title: 'Export failed', description: json && 'error' in json && typeof json.error?.message === 'string' ? json.error.message : 'Export failed.' })
