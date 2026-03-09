@@ -32,6 +32,9 @@ import { DataQualityCard } from "@/components/account/DataQualityCard"
 import { SourceFreshnessCard } from "@/components/account/SourceFreshnessCard"
 import type { DataQualitySummary } from "@/lib/domain/data-quality"
 import type { SourceHealthSummary } from "@/lib/domain/source-health"
+import { RecommendationSummaryCard } from "@/components/account/RecommendationSummaryCard"
+import { RecommendationFeedbackBar } from "@/components/feedback/RecommendationFeedbackBar"
+import { OutcomeTracker } from "@/components/feedback/OutcomeTracker"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -400,6 +403,14 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
 
           <SignalMomentumCard momentum={explainability.momentum} currentScore={explainability.scoreExplainability?.score ?? null} />
 
+          <RecommendationSummaryCard accountId={lead.id} window={signalsWindow} />
+          <div className="rounded border border-cyan-500/10 bg-background/30 p-4">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Recommendation feedback</div>
+            <div className="mt-2">
+              <RecommendationFeedbackBar accountId={lead.id} recommendationType="account_priority" recommendationVersion="rec_v1" />
+            </div>
+          </div>
+
           {explainability.dataQuality ? <DataQualityCard quality={explainability.dataQuality} /> : null}
           {explainability.sourceHealth ? <SourceFreshnessCard health={explainability.sourceHealth} /> : null}
 
@@ -441,6 +452,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             personas={explainability.people?.personas ?? null}
             onBriefGenerated={() => setBriefRefreshKey((x) => x + 1)}
           />
+
+          <OutcomeTracker accountId={lead.id} />
 
           <AccountBriefCard
             accountId={lead.id}
