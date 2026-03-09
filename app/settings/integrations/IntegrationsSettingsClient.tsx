@@ -19,6 +19,7 @@ import { RecipeBuilder } from '@/components/settings/RecipeBuilder'
 import { RecipeDetailCard } from '@/components/settings/RecipeDetailCard'
 import type { ActionRecipeRow } from '@/lib/domain/action-recipes'
 import type { DeliveryHistoryRow } from '@/lib/services/delivery-history'
+import { CrmSyncHealthCard } from '@/components/integrations/CrmSyncHealthCard'
 
 type Role = 'owner' | 'admin' | 'member'
 
@@ -338,6 +339,8 @@ export function IntegrationsSettingsClient() {
             </CardContent>
           </Card>
         ) : null}
+
+        <CrmSyncHealthCard />
 
         <IntegrationConnectionPanel
           role={role}

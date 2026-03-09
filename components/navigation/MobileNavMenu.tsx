@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Menu, X, LayoutDashboard, ListChecks, BarChart3, Users, Package, Activity, Settings2, ShieldCheck, FlaskConical } from 'lucide-react'
+import { Menu, X, LayoutDashboard, ListChecks, BarChart3, Users, Package, Activity, Settings2, ShieldCheck, FlaskConical, CheckSquare } from 'lucide-react'
 import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
 
 export function MobileNavMenu() {
@@ -52,10 +52,12 @@ export function MobileNavMenu() {
                   <MenuLink href="/dashboard/approvals" label="Approvals" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/benchmarks" label="Benchmarks" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/growth" label="Growth" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/dashboard/verification" label="Verify" icon={<CheckSquare className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/partner" label="Partner" icon={<Users className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/rollouts" label="Rollouts" icon={<Package className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/operations" label="Ops" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/platform" label="Platform" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/settings/revenue-intelligence" label="Revenue" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/experiments" label="Experiments" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/settings/notifications" label="Prefs" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                 </nav>

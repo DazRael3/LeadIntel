@@ -43,6 +43,9 @@ import { CoverageSummaryCard } from "@/components/account/CoverageSummaryCard"
 import { OwnershipRoutingCard } from "@/components/account/OwnershipRoutingCard"
 import { PeerPatternInsightsCard } from "@/components/account/PeerPatternInsightsCard"
 import { MobileAccountTriage } from "@/components/mobile/MobileAccountTriage"
+import { OpportunityContextCard } from "@/components/account/OpportunityContextCard"
+import { WorkflowOutcomeLinkCard } from "@/components/account/WorkflowOutcomeLinkCard"
+import { AttributionSupportCard } from "@/components/account/AttributionSupportCard"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -431,6 +434,9 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           <CoverageSummaryCard accountId={lead.id} window={signalsWindow} />
           <OwnershipRoutingCard accountId={lead.id} window={signalsWindow} />
           <PeerPatternInsightsCard accountId={lead.id} window={signalsWindow} />
+          <OpportunityContextCard accountId={lead.id} />
+          <AttributionSupportCard accountId={lead.id} />
+          <WorkflowOutcomeLinkCard accountId={lead.id} />
           <div className="rounded border border-cyan-500/10 bg-background/30 p-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">Recommendation feedback</div>
             <div className="mt-2">

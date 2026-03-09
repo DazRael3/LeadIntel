@@ -62,6 +62,15 @@ export type WorkspacePolicies = {
     viewerRoles: WorkspaceRole[]
     protectedSurfaces: string[]
   }
+  revenueIntelligence: {
+    revenueIntelligenceEnabled: boolean
+    attributionSupportEnabled: boolean
+    verificationWorkflowsEnabled: boolean
+    viewerRoles: WorkspaceRole[]
+    verifierRoles: WorkspaceRole[]
+    ambiguousVisibleToViewerRoles: boolean
+    defaultLinkageWindowDays: number
+  }
 }
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'manager', 'rep', 'viewer'])
@@ -211,6 +220,25 @@ export const WorkspacePoliciesSchema = z.object({
       viewerRoles: ['owner', 'admin', 'manager'],
       protectedSurfaces: ['billing', 'security', 'governance', 'entitlements'],
     }),
+  revenueIntelligence: z
+    .object({
+      revenueIntelligenceEnabled: z.boolean().default(false),
+      attributionSupportEnabled: z.boolean().default(true),
+      verificationWorkflowsEnabled: z.boolean().default(true),
+      viewerRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
+      verifierRoles: z.array(WorkspaceRoleSchema).min(1).default(['owner', 'admin', 'manager']),
+      ambiguousVisibleToViewerRoles: z.boolean().default(false),
+      defaultLinkageWindowDays: z.number().int().min(7).max(90).default(30),
+    })
+    .default({
+      revenueIntelligenceEnabled: false,
+      attributionSupportEnabled: true,
+      verificationWorkflowsEnabled: true,
+      viewerRoles: ['owner', 'admin', 'manager'],
+      verifierRoles: ['owner', 'admin', 'manager'],
+      ambiguousVisibleToViewerRoles: false,
+      defaultLinkageWindowDays: 30,
+    }),
 })
 
 export type WorkspacePoliciesPatch = z.infer<typeof WorkspacePoliciesPatchSchema>
@@ -233,6 +261,7 @@ export function mergeWorkspacePolicies(args: { current: WorkspacePolicies; patch
     reporting: { ...args.current.reporting, ...(args.patch.reporting ?? {}) },
     assistant: { ...args.current.assistant, ...(args.patch.assistant ?? {}) },
     growth: { ...args.current.growth, ...(args.patch.growth ?? {}) },
+    revenueIntelligence: { ...args.current.revenueIntelligence, ...(args.patch.revenueIntelligence ?? {}) },
   }
   return WorkspacePoliciesSchema.parse(merged)
 }
