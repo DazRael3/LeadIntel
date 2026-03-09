@@ -15,6 +15,16 @@ export type SupportContext = {
   recentUsageEvents: Array<{ id: string; status: string; object_type: string | null; object_id: string | null; created_at: string }>
   recentReports: Array<{ id: string; status: string; report_kind: string | null; created_at: string; title: string | null }>
   recentExports: Array<{ id: string; status: string; type: string; created_at: string; ready_at: string | null; error: string | null }>
+  workspace: {
+    id: string
+    name: string
+    memberRole: string
+    policies: {
+      inviteAllowedDomains: string[] | null
+      exportAllowedRoles: string[]
+      requireHandoffApproval: boolean
+    } | null
+  } | null
 }
 
 function isoHoursAgo(h: number): string {
@@ -49,6 +59,7 @@ export async function buildSupportContext(args: { userId: string }): Promise<Sup
     recentUsageRes,
     reportsRes,
     exportsRes,
+    workspaceRes,
   ] = await Promise.all([
     admin.from('usage_events').select('id', { count: 'exact', head: true }).eq('user_id', args.userId).eq('status', 'complete').eq('object_type', 'pitch'),
     admin.from('usage_events').select('id', { count: 'exact', head: true }).eq('user_id', args.userId).eq('status', 'complete').eq('object_type', 'report'),
@@ -77,7 +88,38 @@ export async function buildSupportContext(args: { userId: string }): Promise<Sup
       .eq('created_by', args.userId)
       .order('created_at', { ascending: false })
       .limit(10),
+    admin
+      .from('workspace_members')
+      .select('workspace_id, role, workspaces!inner(id, name)')
+      .eq('user_id', args.userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ])
+
+  const wsId = (workspaceRes.data as unknown as { workspace_id?: unknown } | null)?.workspace_id
+  const wsRole = (workspaceRes.data as unknown as { role?: unknown } | null)?.role
+  const wsObj = (workspaceRes.data as unknown as { workspaces?: { id?: unknown; name?: unknown } } | null)?.workspaces
+  const workspaceId = typeof wsId === 'string' ? wsId : null
+  const workspaceName = wsObj && typeof wsObj.name === 'string' ? wsObj.name : null
+  const memberRole = typeof wsRole === 'string' ? wsRole : null
+
+  const policies =
+    workspaceId
+      ? await (async () => {
+          const { data: row } = await admin.from('workspace_policies').select('policy').eq('workspace_id', workspaceId).maybeSingle()
+          const p = (row as unknown as { policy?: unknown } | null)?.policy
+          if (!p || typeof p !== 'object') return null
+          const inviteAllowedDomains = (p as any)?.invite?.allowedDomains
+          const exportAllowedRoles = (p as any)?.exports?.allowedRoles
+          const requireHandoffApproval = (p as any)?.handoffs?.requireApproval
+          return {
+            inviteAllowedDomains: Array.isArray(inviteAllowedDomains) ? (inviteAllowedDomains as unknown[]).filter((x): x is string => typeof x === 'string') : null,
+            exportAllowedRoles: Array.isArray(exportAllowedRoles) ? (exportAllowedRoles as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+            requireHandoffApproval: typeof requireHandoffApproval === 'boolean' ? requireHandoffApproval : false,
+          }
+        })()
+      : null
 
   return {
     user: { id: args.userId, email, displayName },
@@ -104,6 +146,15 @@ export async function buildSupportContext(args: { userId: string }): Promise<Sup
       ready_at: string | null
       error: string | null
     }>,
+    workspace:
+      workspaceId && workspaceName && memberRole
+        ? {
+            id: workspaceId,
+            name: workspaceName,
+            memberRole,
+            policies,
+          }
+        : null,
   }
 }
 

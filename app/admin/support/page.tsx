@@ -125,6 +125,54 @@ export default async function AdminSupportPage(props: { searchParams?: Promise<R
 
           <Card className="border-cyan-500/20 bg-card/60">
             <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-lg">Workspace governance</CardTitle>
+                <Badge variant="outline">safe summary</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              {ctx.workspace ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{truncate(ctx.workspace.id, 12)}</Badge>
+                    <Badge variant="outline">{ctx.workspace.name}</Badge>
+                    <Badge variant="outline">role {ctx.workspace.memberRole}</Badge>
+                  </div>
+                  <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Policies</div>
+                    {ctx.workspace.policies ? (
+                      <div className="mt-2 space-y-1 text-xs">
+                        <div>
+                          <span className="font-medium text-foreground">Invite domains:</span>{' '}
+                          {ctx.workspace.policies.inviteAllowedDomains && ctx.workspace.policies.inviteAllowedDomains.length > 0
+                            ? ctx.workspace.policies.inviteAllowedDomains.join(', ')
+                            : 'none'}
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground">Export roles:</span>{' '}
+                          {ctx.workspace.policies.exportAllowedRoles.length > 0 ? ctx.workspace.policies.exportAllowedRoles.join(', ') : 'default'}
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground">Require handoff approval:</span>{' '}
+                          {ctx.workspace.policies.requireHandoffApproval ? 'enabled' : 'not required'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-muted-foreground">No workspace policy row.</div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-muted-foreground">Workspace not found for this user.</div>
+              )}
+              <div className="text-xs text-muted-foreground">
+                This view intentionally avoids secrets and does not expose premium generated body content.
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-cyan-500/20 bg-card/60">
+            <CardHeader className="pb-3">
               <CardTitle className="text-lg">Recent activity (metadata)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
