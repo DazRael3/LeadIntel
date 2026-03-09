@@ -21,6 +21,11 @@ export type WorkspacePolicies = {
     feedbackAggregationEnabled: boolean
     outcomeSubmitRoles: WorkspaceRole[]
   }
+  planning: {
+    planningIntelligenceEnabled: boolean
+    teamInfluenceSummariesEnabled: boolean
+    outcomeInformedPlanningEnabled: boolean
+  }
 }
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'manager', 'rep', 'viewer'])
@@ -73,6 +78,17 @@ export const WorkspacePoliciesSchema = z.object({
       feedbackAggregationEnabled: true,
       outcomeSubmitRoles: ['owner', 'admin', 'manager', 'rep'],
     }),
+  planning: z
+    .object({
+      planningIntelligenceEnabled: z.boolean().default(true),
+      teamInfluenceSummariesEnabled: z.boolean().default(true),
+      outcomeInformedPlanningEnabled: z.boolean().default(true),
+    })
+    .default({
+      planningIntelligenceEnabled: true,
+      teamInfluenceSummariesEnabled: true,
+      outcomeInformedPlanningEnabled: true,
+    }),
 })
 
 export type WorkspacePoliciesPatch = z.infer<typeof WorkspacePoliciesPatchSchema>
@@ -89,6 +105,7 @@ export function mergeWorkspacePolicies(args: { current: WorkspacePolicies; patch
     handoffs: { ...args.current.handoffs, ...(args.patch.handoffs ?? {}) },
     governance: { ...args.current.governance, ...(args.patch.governance ?? {}) },
     intelligence: { ...args.current.intelligence, ...(args.patch.intelligence ?? {}) },
+    planning: { ...args.current.planning, ...(args.patch.planning ?? {}) },
   }
   return WorkspacePoliciesSchema.parse(merged)
 }

@@ -36,6 +36,9 @@ import { RecommendationSummaryCard } from "@/components/account/RecommendationSu
 import { RecommendationFeedbackBar } from "@/components/feedback/RecommendationFeedbackBar"
 import { OutcomeTracker } from "@/components/feedback/OutcomeTracker"
 import { NextBestActionCard } from "@/components/account/NextBestActionCard"
+import { AccountPlanCard } from "@/components/account/AccountPlanCard"
+import { PipelineInfluenceCard } from "@/components/account/PipelineInfluenceCard"
+import { MultiTouchPlanCard } from "@/components/account/MultiTouchPlanCard"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -406,6 +409,9 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
 
           <RecommendationSummaryCard accountId={lead.id} window={signalsWindow} />
           <NextBestActionCard accountId={lead.id} window={signalsWindow} />
+          <AccountPlanCard accountId={lead.id} window={signalsWindow} />
+          <PipelineInfluenceCard accountId={lead.id} window={signalsWindow} />
+          <MultiTouchPlanCard accountId={lead.id} window={signalsWindow} />
           <div className="rounded border border-cyan-500/10 bg-background/30 p-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">Recommendation feedback</div>
             <div className="mt-2">
