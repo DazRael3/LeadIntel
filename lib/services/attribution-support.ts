@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AttributionSupportSummary, VerificationLabel } from '@/lib/crm-intelligence/types'
 import { verificationNote } from '@/lib/crm-intelligence/explanations'
+import { deriveAttributionSupport } from '@/lib/crm-intelligence/evidence'
 import { getOpportunityContext } from '@/lib/services/opportunity-context'
 import { buildWorkflowOutcomeLinkage } from '@/lib/services/workflow-outcome-linkage'
 
@@ -29,30 +30,15 @@ function labelFrom(args: {
   if (args.linkage.workflowEvents.length > 0) whatIsVerified.push('Workflow activity was recorded in LeadIntel in the selected window.')
   else whatIsMissing.push('No workflow activity recorded in LeadIntel in the selected window.')
 
-  // Bounded labels; never claim causality.
-  if (!args.attributionEnabled) {
-    return { label: 'insufficient_crm_data', verification: 'insufficient_evidence', whatIsVerified, whatIsInferred, whatIsMissing }
-  }
+  const derived = deriveAttributionSupport({
+    mappingStatus: mapping ? mapping.verificationStatus : null,
+    hasDownstreamObservation: Boolean(args.crm.latestObservation),
+    hasWorkflowActivity: args.linkage.workflowEvents.length > 0,
+    attributionEnabled: args.attributionEnabled,
+    ambiguousVisible: args.ambiguousVisible,
+  })
 
-  if (!mapping) return { label: 'insufficient_crm_data', verification: 'insufficient_evidence', whatIsVerified, whatIsInferred, whatIsMissing }
-
-  if (mapping.verificationStatus === 'ambiguous' && !args.ambiguousVisible) {
-    return { label: 'ambiguous_support', verification: 'ambiguous', whatIsVerified, whatIsInferred, whatIsMissing }
-  }
-
-  if (mapping.verificationStatus === 'verified' && args.crm.latestObservation && args.linkage.workflowEvents.length > 0) {
-    return { label: 'verified_downstream_support', verification: args.linkage.verification.label, whatIsVerified, whatIsInferred, whatIsMissing }
-  }
-
-  if (args.crm.latestObservation && args.linkage.workflowEvents.length > 0) {
-    return { label: 'plausible_support', verification: args.linkage.verification.label, whatIsVerified, whatIsInferred, whatIsMissing }
-  }
-
-  if (!args.crm.latestObservation) {
-    return { label: 'no_verified_support_yet', verification: 'insufficient_evidence', whatIsVerified, whatIsInferred, whatIsMissing }
-  }
-
-  return { label: 'ambiguous_support', verification: 'ambiguous', whatIsVerified, whatIsInferred, whatIsMissing }
+  return { label: derived.label, verification: derived.verification, whatIsVerified, whatIsInferred, whatIsMissing }
 }
 
 export async function buildAttributionSupportSummary(args: {

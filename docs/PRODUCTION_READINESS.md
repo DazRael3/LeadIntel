@@ -190,6 +190,12 @@ This wave adds a **grounded assistant layer** without introducing fake autonomy:
 | `EXPERIMENT_ASSIGNMENT_SEED` | server-only | Stable seed for deterministic experiment assignment. | Keep stable per environment for consistent bucketing. |
 | `NEXT_PUBLIC_EXPERIMENTS_ENABLED` | client-safe | Enables experiment evaluation calls from eligible UI surfaces. | Recommended `false` until governance is configured; gate via workspace policies. |
 
+### Revenue intelligence (closed-loop CRM)
+This wave adds **DB tables + workspace policies**, but **no new required environment variables**.
+
+- Apply migration `0062_closed_loop_crm_intelligence.sql`
+- Configure access via workspace policies under `policies.revenueIntelligence.*`
+
 ### Dev/test helpers (should be OFF in production)
 | Name | Scope | Purpose | TEST vs LIVE |
 | --- | --- | --- | --- |

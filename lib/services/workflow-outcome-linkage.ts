@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { WorkflowToOutcomeLink, WorkflowEvent, DownstreamCrmEvent, VerificationLabel } from '@/lib/crm-intelligence/types'
 import { verificationNote } from '@/lib/crm-intelligence/explanations'
+import { deriveTimingSummary } from '@/lib/crm-intelligence/evidence'
 import { getOpportunityContext } from '@/lib/services/opportunity-context'
 
 function isoDaysAgo(days: number): string {
@@ -8,22 +9,7 @@ function isoDaysAgo(days: number): string {
 }
 
 function summarizeTiming(args: { workflowEvents: WorkflowEvent[]; downstream: DownstreamCrmEvent[] }): { summary: string; ambiguity: string | null } {
-  const firstWorkflow = args.workflowEvents[0]?.at ?? null
-  const firstDownstream = args.downstream[0]?.at ?? null
-  if (!firstWorkflow || !firstDownstream) return { summary: 'Insufficient timeline events to compare timing.', ambiguity: null }
-  const wf = Date.parse(firstWorkflow)
-  const ds = Date.parse(firstDownstream)
-  if (!Number.isFinite(wf) || !Number.isFinite(ds)) return { summary: 'Timing comparison unavailable.', ambiguity: null }
-  const deltaHours = (ds - wf) / (1000 * 60 * 60)
-  if (deltaHours < 0) {
-    return {
-      summary: 'A downstream CRM observation predates recorded workflow actions in this window.',
-      ambiguity: 'Downstream activity may be unrelated to this workflow window, or the workflow timeline is incomplete.',
-    }
-  }
-  if (deltaHours < 24) return { summary: 'Downstream CRM activity was observed within ~24 hours of workflow activity.', ambiguity: 'Multi-touch ambiguity may still apply.' }
-  if (deltaHours < 7 * 24) return { summary: 'Downstream CRM activity was observed within ~7 days of workflow activity.', ambiguity: 'Multi-touch ambiguity may still apply.' }
-  return { summary: 'Downstream CRM activity was observed after workflow activity, but outside tight windows.', ambiguity: 'The relationship may be coincidental or multi-touch; treat as supporting evidence only.' }
+  return deriveTimingSummary({ firstWorkflowAt: args.workflowEvents[0]?.at ?? null, firstDownstreamAt: args.downstream[0]?.at ?? null })
 }
 
 function labelFromEvidence(args: { hasVerifiedMapping: boolean; hasDownstream: boolean; hasWorkflow: boolean }): VerificationLabel {

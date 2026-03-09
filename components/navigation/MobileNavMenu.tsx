@@ -53,6 +53,7 @@ export function MobileNavMenu() {
                   <MenuLink href="/dashboard/benchmarks" label="Benchmarks" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/growth" label="Growth" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/verification" label="Verify" icon={<CheckSquare className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/dashboard/revenue-workflows" label="Revenue" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/partner" label="Partner" icon={<Users className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/rollouts" label="Rollouts" icon={<Package className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/operations" label="Ops" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
