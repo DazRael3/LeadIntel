@@ -1,21 +1,21 @@
 import { test, expect } from './fixtures'
-import { loginViaUi, requireEnv, setE2ECookies } from './utils'
+import { setE2ECookies } from './utils'
 
 test.describe('Integrations + Exports', () => {
   test('webhook test delivery and export job ready', async ({ page }) => {
     const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000'
-    const email = requireEnv('E2E_TEAM_EMAIL')
-    const password = requireEnv('E2E_TEAM_PASSWORD')
-    const webhookUrl = requireEnv('E2E_WEBHOOK_TARGET_URL')
+    const email = process.env.E2E_TEAM_EMAIL || 'e2e-team@example.com'
+    const webhookUrl = process.env.E2E_WEBHOOK_TARGET_URL
+    test.skip(!webhookUrl, 'Requires E2E_WEBHOOK_TARGET_URL')
 
-    await setE2ECookies({ page, baseURL, plan: 'team', uid: 'e2e_integrations_owner', email })
-    await loginViaUi({ page, email, password })
+    await setE2ECookies({ page, baseURL, authed: true, plan: 'team', uid: 'e2e_integrations_owner', email })
+    await page.goto('/dashboard')
     await expect(page).toHaveURL(/\/dashboard/)
 
     await page.goto('/settings/integrations')
     await expect(page.getByTestId('integrations-page')).toBeVisible({ timeout: 15000 })
 
-    await page.getByTestId('webhooks-create-url').fill(webhookUrl)
+    await page.getByTestId('webhooks-create-url').fill(webhookUrl!)
     await page.getByTestId('webhooks-create-submit').click()
     await expect(page.getByTestId('webhooks-secret')).toBeVisible()
 

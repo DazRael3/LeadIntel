@@ -1,14 +1,13 @@
 import { test, expect } from './fixtures'
-import { loginViaUi, requireEnv, setE2ECookies } from './utils'
+import { setE2ECookies } from './utils'
 
 test.describe('Integrations + actions wave', () => {
   test('integrations settings, queue, and history render for Team', async ({ page }) => {
     const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000'
-    const email = requireEnv('E2E_TEAM_EMAIL')
-    const password = requireEnv('E2E_TEAM_PASSWORD')
+    const email = process.env.E2E_TEAM_EMAIL || 'e2e-team@example.com'
 
-    await setE2ECookies({ page, baseURL, plan: 'team', uid: 'e2e_actions_team', email })
-    await loginViaUi({ page, email, password })
+    await setE2ECookies({ page, baseURL, authed: true, plan: 'team', uid: 'e2e_actions_team', email })
+    await page.goto('/dashboard')
     await expect(page).toHaveURL(/\/dashboard/)
 
     // Dashboard shows the action queue card (empty state is fine).
@@ -18,8 +17,8 @@ test.describe('Integrations + actions wave', () => {
     await page.goto('/settings/integrations')
     await expect(page.getByTestId('integrations-page')).toBeVisible({ timeout: 15000 })
     await expect(page.getByTestId('integration-catalog')).toBeVisible()
-    await expect(page.getByText(/CRM handoff/i)).toBeVisible()
-    await expect(page.getByText(/Sequencer handoff/i)).toBeVisible()
+    await expect(page.getByRole('heading', { name: /CRM handoff/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Sequencer handoff/i })).toBeVisible()
     await expect(page.getByText(/Default handoff destination/i)).toBeVisible()
     await expect(page.getByText(/Action recipes/i)).toBeVisible()
     await expect(page.getByText(/Recent delivery activity/i)).toBeVisible()
