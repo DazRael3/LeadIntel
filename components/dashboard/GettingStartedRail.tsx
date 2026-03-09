@@ -23,9 +23,9 @@ function nextCta(stepId: string | null): { href: string; label: string; helper: 
 
 export function GettingStartedRail() {
   const { model } = useActivationV2()
+  const { assignment } = useExperiment({ experimentKey: 'dashboard_getting_started_copy_v1', surface: 'dashboard_getting_started' })
   if (!model) return null
 
-  const { assignment } = useExperiment({ experimentKey: 'dashboard_getting_started_copy_v1', surface: 'dashboard_getting_started' })
   const variant = assignment?.variantKey ?? 'control'
 
   const next = nextCta(model.activation.nextBestStep)
