@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { LogOut, LayoutDashboard, DollarSign, ListChecks, BarChart3 } from 'lucide-react'
 import { useInAppTour } from '@/components/tour/InAppTourProvider'
+import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
 
 export function DashboardHeader() {
   const router = useRouter()
@@ -22,14 +23,16 @@ export function DashboardHeader() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Left: Logo */}
-          <Link 
-            href="/" 
-            className="flex items-center space-x-2 group"
-          >
-            <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:to-purple-300 transition-colors">
-              LeadIntel
-            </span>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center space-x-2 group">
+              <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:to-purple-300 transition-colors">
+                LeadIntel
+              </span>
+            </Link>
+            <div className="hidden md:block">
+              <WorkspaceSwitcher />
+            </div>
+          </div>
 
           {/* Right: Navigation Links */}
           <div className="flex items-center space-x-3">
