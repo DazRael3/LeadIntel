@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { track } from '@/lib/analytics'
 import { COPY } from '@/lib/copy/leadintel'
+import { createClient } from '@/lib/supabase/client'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { parseTarget } from '@/lib/onboarding/targets'
 
 type ApiOk = {
   ok: true
@@ -34,8 +37,83 @@ export function TrySampleDigest() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<{ title: string; body: string } | null>(null)
   const [result, setResult] = useState<ApiOk['data'] | null>(null)
+  const [authed, setAuthed] = useState<boolean | null>(null)
+  const [tracking, setTracking] = useState(false)
+  const [tracked, setTracked] = useState(false)
+  const [usage, setUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null)
+  const [usageTier, setUsageTier] = useState<string | null>(null)
 
   const canSubmit = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
+
+  useEffect(() => {
+    let cancelled = false
+    const supabase = createClient()
+    void (async () => {
+      const user = await getUserSafe(supabase)
+      if (cancelled) return
+      setAuthed(Boolean(user))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadUsage = async () => {
+      try {
+        const res = await fetch('/api/usage/premium-generations', { method: 'GET', cache: 'no-store', credentials: 'include' })
+        if (!res.ok) return
+        const json = (await res.json()) as { ok?: boolean; data?: { capabilities?: { tier?: string }; usage?: { used: number; limit: number; remaining: number } } }
+        if (!json?.ok) return
+        if (cancelled) return
+        const u = json.data?.usage ?? null
+        if (u) setUsage(u)
+        setUsageTier(typeof json.data?.capabilities?.tier === 'string' ? json.data?.capabilities?.tier : null)
+      } catch {
+        // ignore
+      }
+    }
+    if (authed) void loadUsage()
+    return () => {
+      cancelled = true
+    }
+  }, [authed])
+
+  async function trackThisAccount() {
+    if (!result) return
+    if (authed !== true) {
+      const redirect = `/onboarding?from=sample&company=${encodeURIComponent(companyOrUrl.trim() || result.sample.company)}`
+      window.location.href = `/signup?redirect=${encodeURIComponent(redirect)}`
+      return
+    }
+
+    setTracking(true)
+    try {
+      const supabase = createClient()
+      const user = await getUserSafe(supabase)
+      if (!user) {
+        const redirect = `/onboarding?from=sample&company=${encodeURIComponent(companyOrUrl.trim() || result.sample.company)}`
+        window.location.href = `/login?mode=signin&redirect=${encodeURIComponent(redirect)}`
+        return
+      }
+
+      const parsed = parseTarget(companyOrUrl.trim() || result.sample.company)
+      const row =
+        parsed && parsed.domain
+          ? { user_id: user.id, company_domain: parsed.domain, company_url: parsed.url, company_name: null, ai_personalized_pitch: null }
+          : { user_id: user.id, company_domain: null, company_url: null, company_name: result.sample.company, ai_personalized_pitch: null }
+
+      const { error: upsertError } = await supabase.from('leads').upsert([row], { onConflict: 'user_id,company_domain' })
+      if (!upsertError) {
+        setTracked(true)
+        track('first_account_tracked', { source: 'sample_digest' })
+      }
+    } finally {
+      setTracking(false)
+    }
+  }
+
   async function onGenerate() {
     if (!canSubmit) return
     const trimmed = companyOrUrl.trim()
@@ -60,6 +138,7 @@ export function TrySampleDigest() {
       inputLen: trimmed.length,
       inputHasDot: trimmed.includes('.'),
     })
+    track('sample_started', { source: 'landing_try_sample' })
     if (wantsEmail) track('landing_sample_email_requested')
 
     try {
@@ -87,6 +166,7 @@ export function TrySampleDigest() {
 
       setResult(payload.data)
       track('landing_sample_generated', { score: payload.data.sample.score })
+      track('sample_completed', { score: payload.data.sample.score })
       if (payload.data.email.requested && payload.data.email.sent) {
         track('landing_sample_email_sent')
       }
@@ -218,15 +298,92 @@ export function TrySampleDigest() {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="text-sm text-muted-foreground">
-                {COPY.home.trySample.upsellLine}
+            <div className="rounded border border-cyan-500/20 bg-card/40 p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-foreground">What you just saw</div>
+                {authed && usageTier === 'starter' && usage ? (
+                  <div className="text-xs text-muted-foreground">
+                    Usage remaining: <span className="text-foreground font-medium">{usage.remaining}</span> / {usage.limit}
+                  </div>
+                ) : null}
               </div>
-              <Button asChild size="sm" className="neon-border hover:glow-effect">
-                <Link href="/signup?redirect=/onboarding" onClick={() => track('cta_signup_clicked', { source: 'sample_upsell' })}>
-                  {COPY.home.trySample.upsellCta}
-                </Link>
-              </Button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-muted-foreground">
+                <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Why this was prioritized</div>
+                  <div className="mt-2">{result.sample.whyNow}</div>
+                </div>
+                <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">What the score is based on</div>
+                  <div className="mt-2">
+                    Deterministic fit + signal recency + signal strength. No black-box ranking.
+                  </div>
+                  <div className="mt-2">
+                    <Link className="text-cyan-400 hover:underline" href="/how-scoring-works">
+                      Review scoring method
+                    </Link>
+                  </div>
+                </div>
+                <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">What gets unlocked in paid plans</div>
+                  <div className="mt-2">
+                    Full saved outputs, richer account workspace context, and action packaging (briefs, exports, webhooks).
+                  </div>
+                </div>
+                <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">What to do next</div>
+                  <div className="mt-2">
+                    Track the account, generate another preview, then use the action center while timing is fresh.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  size="sm"
+                  className="neon-border hover:glow-effect"
+                  onClick={() => {
+                    track('sample_restart_clicked', { source: 'sample_digest_next_steps' })
+                    setResult(null)
+                    setTracked(false)
+                  }}
+                >
+                  Generate another preview
+                </Button>
+                <Button size="sm" variant="outline" disabled={tracking || tracked} onClick={() => void trackThisAccount()}>
+                  {tracked ? 'Tracked' : tracking ? 'Tracking…' : 'Track this account'}
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/pricing" onClick={() => track('homepage_cta_pricing_clicked', { source: 'sample_next_steps' })}>
+                    View pricing
+                  </Link>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/how-scoring-works" onClick={() => track('first_scoring_explainer_viewed', { source: 'sample_next_steps' })}>
+                    Review scoring method
+                  </Link>
+                </Button>
+              </div>
+
+              {authed !== true ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-cyan-500/10">
+                  <div className="text-sm text-muted-foreground">{COPY.home.trySample.upsellLine}</div>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="neon-border hover:glow-effect"
+                    onClick={() => track('cta_signup_clicked', { source: 'sample_next_steps' })}
+                  >
+                    <Link
+                      href={`/signup?redirect=${encodeURIComponent(
+                        `/onboarding?from=sample&company=${encodeURIComponent(companyOrUrl.trim() || result.sample.company)}`
+                      )}`}
+                    >
+                      {COPY.home.trySample.upsellCta}
+                    </Link>
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </div>
         )}
