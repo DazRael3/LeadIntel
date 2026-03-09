@@ -23,6 +23,9 @@ class MockQuery {
   eq() {
     return this
   }
+  gte() {
+    return this
+  }
   order() {
     return this
   }
