@@ -18,10 +18,11 @@ import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
 import { makeNameCompanyKey } from '@/lib/company-key'
-import { ensurePersonalWorkspace, getCurrentWorkspace } from '@/lib/team/workspace'
+import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { randomUUID } from 'crypto'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { logAudit } from '@/lib/audit/log'
 import {
   getPremiumGenerationCapabilities,
   getPremiumGenerationUsage,
@@ -425,6 +426,19 @@ export const POST = withApiGuard(
         await ensurePersonalWorkspace({ supabase, userId: user.id })
         const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
         if (workspace) {
+          const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
+          if (membership) {
+            await logAudit({
+              supabase,
+              workspaceId: workspace.id,
+              actorUserId: user.id,
+              action: 'pitch.generated',
+              targetType: 'pitch',
+              targetId: pitchId,
+              meta: { leadId, templateId: template.id },
+              request,
+            })
+          }
           await enqueueWebhookEvent({
             workspaceId: workspace.id,
             eventType: 'pitch.generated',

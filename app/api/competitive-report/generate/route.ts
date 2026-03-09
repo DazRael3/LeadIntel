@@ -8,6 +8,8 @@ import { looksLikeEmail } from '@/lib/reports/reportFormatGuards'
 import { normalizeReportInput } from '@/lib/reports/reportInput'
 import { assertMinCitationsOrThrow, flattenCitations } from '@/lib/reports/sourceRequirements'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { logAudit } from '@/lib/audit/log'
 import {
   cancelPremiumGeneration,
   completePremiumGeneration,
@@ -313,6 +315,29 @@ export const POST = withApiGuard(
         objectId: inserted.id,
       })
       const usageAfter = await getPremiumGenerationUsage({ supabase, userId: user.id })
+
+      // Best-effort: audit log for team workspaces (no content).
+      try {
+        await ensurePersonalWorkspace({ supabase, userId: user.id })
+        const ws = await getCurrentWorkspace({ supabase, userId: user.id })
+        if (ws) {
+          const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
+          if (membership) {
+            await logAudit({
+              supabase,
+              workspaceId: ws.id,
+              actorUserId: user.id,
+              action: 'report.generated',
+              targetType: 'report',
+              targetId: inserted.id,
+              meta: { reportKind: 'competitive', companyKey: input.companyKey, forceRefresh },
+              request,
+            })
+          }
+        }
+      } catch {
+        // best-effort
+      }
 
       return ok(
         capabilities.blurPremiumSections
