@@ -18,7 +18,7 @@ type CurrentEnvelope =
   | { success: true; data: { workspace: { id: string; name: string }; role: string | null } }
   | { success: false; error?: { message?: string } }
 
-export function WorkspaceSwitcher() {
+export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
   const router = useRouter()
   const pathname = usePathname()
   const { toast } = useToast()
@@ -72,10 +72,12 @@ export function WorkspaceSwitcher() {
 
   if (!current) return null
 
+  const showPicker = Boolean(props.showPicker)
+
   return (
     <div className="flex items-center gap-3">
       <WorkspaceContextBadge name={current.name} role={current.role} />
-      <div className="hidden sm:flex items-center gap-2">
+      <div className={`${showPicker ? 'flex' : 'hidden sm:flex'} items-center gap-2`}>
         <select
           className="h-9 rounded border border-cyan-500/20 bg-background/30 px-2 text-sm text-foreground"
           disabled={!canSwitch || loading}

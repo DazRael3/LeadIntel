@@ -149,11 +149,11 @@ export function DashboardClient({
       />
 
       {/* Main Content */}
-      <div className="w-full overflow-x-auto" data-testid="dashboard-overflow-x">
-        <div className="min-w-[1100px]">
-          <main className="container mx-auto px-6 py-6">
+      <div className="w-full" data-testid="dashboard-overflow-x">
+        <main className="container mx-auto px-4 sm:px-6 py-6">
         <Tabs defaultValue="command" className="space-y-6">
-          <TabsList className="bg-background/50 border border-cyan-500/20">
+          <div className="overflow-x-auto">
+            <TabsList className="bg-background/50 border border-cyan-500/20 justify-start">
             <TabsTrigger value="command" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
               Command Center
             </TabsTrigger>
@@ -190,7 +190,8 @@ export function DashboardClient({
             <TabsTrigger value="settings" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
               Settings
             </TabsTrigger>
-          </TabsList>
+            </TabsList>
+          </div>
 
           <TabsContent value="command" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -430,8 +431,7 @@ export function DashboardClient({
           </Card>
         )}
 
-          </main>
-        </div>
+        </main>
       </div>
       </InAppTourProvider>
     </div>

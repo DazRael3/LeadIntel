@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { LogOut, LayoutDashboard, DollarSign, ListChecks, BarChart3, Users, Package, Activity } from 'lucide-react'
 import { useInAppTour } from '@/components/tour/InAppTourProvider'
 import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
+import { MobileNavMenu } from '@/components/navigation/MobileNavMenu'
 
 export function DashboardHeader() {
   const router = useRouter()
@@ -35,11 +36,12 @@ export function DashboardHeader() {
           </div>
 
           {/* Right: Navigation Links */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 md:space-x-3">
+            <MobileNavMenu />
             <Button
               onClick={() => startTour({ source: 'in_app', location: 'dashboard_header' })}
               variant="ghost"
-              className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
             >
               Take a tour
             </Button>
@@ -136,7 +138,7 @@ export function DashboardHeader() {
               className="text-muted-foreground hover:text-foreground hover:bg-red-500/10"
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Sign out
+              <span className="hidden sm:inline">Sign out</span>
             </Button>
           </div>
         </div>
