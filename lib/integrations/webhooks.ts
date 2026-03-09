@@ -7,6 +7,7 @@ export type WebhookEventType =
   | 'account.brief.generated'
   | 'account.exported'
   | 'account.pushed'
+  | 'report.generated'
   | 'signal.detected'
   | 'pitch.generated'
   | 'digest.sent'
@@ -14,6 +15,10 @@ export type WebhookEventType =
   | 'member.invited'
   | 'member.role_changed'
   | 'billing.subscription_updated'
+  | 'handoff.crm.prepared'
+  | 'handoff.crm.delivered'
+  | 'handoff.sequencer.prepared'
+  | 'handoff.sequencer.delivered'
 
 const BACKOFF_SECONDS = [60, 5 * 60, 30 * 60, 2 * 60 * 60, 12 * 60 * 60] as const
 const MAX_ATTEMPTS = 6 as const
@@ -42,26 +47,45 @@ export async function enqueueWebhookEvent(args: {
   eventType: WebhookEventType
   eventId: string
   payload: Record<string, unknown>
+  onlyEndpointId?: string
 }): Promise<void> {
   const admin = createSupabaseAdminClient({ schema: 'api' })
 
-  // Load enabled endpoints that subscribe to this event.
-  const { data: endpoints } = await admin
-    .from('webhook_endpoints')
-    .select('id, workspace_id, url, events, is_enabled')
-    .eq('workspace_id', args.workspaceId)
-    .eq('is_enabled', true)
+  const rows: Array<{ id: string; events: unknown[] }> = []
+  if (args.onlyEndpointId) {
+    const { data } = await admin
+      .from('webhook_endpoints')
+      .select('id, events')
+      .eq('workspace_id', args.workspaceId)
+      .eq('is_enabled', true)
+      .eq('id', args.onlyEndpointId)
+      .maybeSingle()
+    const id = (data as { id?: unknown } | null)?.id
+    const events = Array.isArray((data as { events?: unknown } | null)?.events) ? ((data as { events: unknown[] }).events ?? []) : []
+    if (typeof id === 'string' && id.length > 0) rows.push({ id, events })
+  } else {
+    const { data } = await admin
+      .from('webhook_endpoints')
+      .select('id, events')
+      .eq('workspace_id', args.workspaceId)
+      .eq('is_enabled', true)
+      .limit(200)
+    for (const r of (data ?? []) as unknown[]) {
+      const obj = r as { id?: unknown; events?: unknown }
+      const id = typeof obj.id === 'string' ? obj.id : null
+      const events = Array.isArray(obj.events) ? obj.events : []
+      if (id) rows.push({ id, events })
+    }
+  }
 
-  const targets = (endpoints ?? []).filter((e: any) => {
-    const ev = Array.isArray(e.events) ? (e.events as unknown[]) : []
-    return ev.includes(args.eventType)
-  })
+  const targets = rows
+    .filter((e) => e.events.includes(args.eventType))
 
   if (targets.length === 0) return
 
   // Idempotency (best-effort): if the same event id/type was already enqueued for an endpoint,
   // avoid creating a duplicate delivery row on retries.
-  const endpointIds = targets.map((t: any) => String(t.id)).filter(Boolean)
+  const endpointIds = targets.map((t) => t.id)
   const { data: existing } = await admin
     .from('webhook_deliveries')
     .select('id, endpoint_id')
@@ -70,13 +94,16 @@ export async function enqueueWebhookEvent(args: {
     .in('endpoint_id', endpointIds)
     .limit(200)
 
-  const already = new Set<string>((existing ?? []).map((r: any) => String(r.endpoint_id)))
-  const toInsert = targets.filter((t: any) => !already.has(String(t.id)))
+  const existingRows = (existing ?? []) as Array<{ endpoint_id?: unknown }>
+  const already = new Set<string>(
+    existingRows.map((r: { endpoint_id?: unknown }) => r.endpoint_id).filter((x: unknown): x is string => typeof x === 'string' && x.length > 0)
+  )
+  const toInsert = targets.filter((t) => !already.has(t.id))
 
   if (toInsert.length === 0) return
 
   await admin.from('webhook_deliveries').insert(
-    toInsert.map((e: any) => ({
+    toInsert.map((e) => ({
       endpoint_id: e.id,
       event_type: args.eventType,
       event_id: args.eventId,
@@ -88,6 +115,59 @@ export async function enqueueWebhookEvent(args: {
       last_error: null,
     }))
   )
+}
+
+export async function enqueueWebhookEventToEndpoint(args: {
+  workspaceId: string
+  endpointId: string
+  eventType: WebhookEventType
+  eventId: string
+  payload: Record<string, unknown>
+}): Promise<{ webhookDeliveryId: string } | null> {
+  const admin = createSupabaseAdminClient({ schema: 'api' })
+  const { data: endpoint } = await admin
+    .from('webhook_endpoints')
+    .select('id, events, is_enabled')
+    .eq('workspace_id', args.workspaceId)
+    .eq('id', args.endpointId)
+    .eq('is_enabled', true)
+    .maybeSingle()
+
+  if (!endpoint) return null
+  const ev = Array.isArray((endpoint as { events?: unknown }).events) ? ((endpoint as { events: unknown[] }).events ?? []) : []
+  if (!ev.includes(args.eventType)) return null
+
+  const { data: existing } = await admin
+    .from('webhook_deliveries')
+    .select('id')
+    .eq('endpoint_id', args.endpointId)
+    .eq('event_type', args.eventType)
+    .eq('event_id', args.eventId)
+    .limit(1)
+    .maybeSingle()
+
+  const existingId = (existing as { id?: unknown } | null)?.id
+  if (typeof existingId === 'string' && existingId.length > 0) return { webhookDeliveryId: existingId }
+
+  const { data: inserted } = await admin
+    .from('webhook_deliveries')
+    .insert({
+      endpoint_id: args.endpointId,
+      event_type: args.eventType,
+      event_id: args.eventId,
+      payload: args.payload,
+      status: 'pending',
+      attempts: 0,
+      next_attempt_at: new Date().toISOString(),
+      last_status: null,
+      last_error: null,
+    })
+    .select('id')
+    .single()
+
+  const id = (inserted as { id?: unknown } | null)?.id
+  if (typeof id === 'string' && id.length > 0) return { webhookDeliveryId: id }
+  return null
 }
 
 export async function runWebhookDeliveries(args: { limit: number }): Promise<{

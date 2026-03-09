@@ -10,6 +10,7 @@ import { assertMinCitationsOrThrow, flattenCitations } from '@/lib/reports/sourc
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { logAudit } from '@/lib/audit/log'
+import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { serverEnv } from '@/lib/env'
 import { logProductEvent } from '@/lib/services/analytics'
 import {
@@ -335,6 +336,38 @@ export const POST = withApiGuard(
               meta: { reportKind: 'competitive', companyKey: input.companyKey, forceRefresh },
               request,
             })
+
+            await enqueueWebhookEvent({
+              workspaceId: ws.id,
+              eventType: 'report.generated',
+              eventId: inserted.id,
+              payload: {
+                report: {
+                  id: inserted.id,
+                  kind: 'competitive',
+                  companyKey: input.companyKey,
+                  citationCount: citations.length,
+                },
+                generatedAt: new Date().toISOString(),
+              },
+            })
+
+            // Guided workflow: allow recipes to create action queue items from this trigger.
+            try {
+              const { runRecipesForTrigger } = await import('@/lib/services/action-recipes')
+              await runRecipesForTrigger({
+                supabase,
+                workspaceId: ws.id,
+                userId: user.id,
+                trigger: 'report_generated',
+                leadId: null,
+                explainability: null,
+                triggerMeta: { reportId: inserted.id, reportKind: 'competitive', companyKey: input.companyKey },
+                reason: 'Report generated',
+              })
+            } catch {
+              // best-effort
+            }
           }
         }
       } catch {

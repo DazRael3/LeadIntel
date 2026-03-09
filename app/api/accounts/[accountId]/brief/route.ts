@@ -14,6 +14,7 @@ import crypto from 'crypto'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { logAudit } from '@/lib/audit/log'
+import { runRecipesForTrigger } from '@/lib/services/action-recipes'
 import { serverEnv } from '@/lib/env'
 import { logProductEvent } from '@/lib/services/analytics'
 
@@ -314,6 +315,22 @@ export const POST = withApiGuard(
                 generatedAt: new Date().toISOString(),
               },
             })
+
+            // Guided workflow: allow Team recipes to create queue items from this trigger.
+            try {
+              await runRecipesForTrigger({
+                supabase,
+                workspaceId: ws.id,
+                userId,
+                trigger: 'brief_saved',
+                leadId: accountId,
+                explainability,
+                triggerMeta: { reportId: inserted.id, window },
+                reason: 'Brief saved',
+              })
+            } catch {
+              // best-effort
+            }
           }
         }
       } catch {

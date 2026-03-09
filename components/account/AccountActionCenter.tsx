@@ -6,9 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
-import { Copy, Download, Send, Sparkles, Lock } from 'lucide-react'
+import { Copy, Download, Send, Sparkles, Lock, ListChecks } from 'lucide-react'
 import type { PersonaRecommendationSummary } from '@/lib/domain/people'
 import type { OutreachVariant } from '@/lib/services/outreach-variants'
+import { ActionDestinationPicker } from '@/components/account/ActionDestinationPicker'
+import { CrmHandoffCard } from '@/components/account/CrmHandoffCard'
+import { SequencerHandoffCard } from '@/components/account/SequencerHandoffCard'
+import { ActionRecipeSuggestions } from '@/components/account/ActionRecipeSuggestions'
 
 type ExportEnvelope =
   | { ok: true; data: { jobId: string } }
@@ -72,6 +76,8 @@ export function AccountActionCenter(props: {
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-muted-foreground">
+        <ActionDestinationPicker />
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Button
             variant="outline"
@@ -207,7 +213,39 @@ export function AccountActionCenter(props: {
             <Send className="h-4 w-4 mr-2" />
             Send payload to webhook
           </Button>
+
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const res = await fetch(`/api/accounts/${encodeURIComponent(props.accountId)}/actions/queue`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ reason: 'Manual follow-up needed' }),
+              })
+              const json = (await res.json().catch(() => null)) as { ok?: boolean; data?: { queueItemId?: string }; error?: { message?: string } } | null
+              if (!res.ok) {
+                if (res.status === 403) {
+                  toast({ variant: 'destructive', title: 'Team feature', description: 'Workspace actions require the Team plan.' })
+                  window.location.href = '/pricing?target=team'
+                  return
+                }
+                toast({ variant: 'destructive', title: 'Queue failed', description: json?.error?.message ?? 'Unable to add to queue.' })
+                return
+              }
+              toast({ variant: 'success', title: 'Added to queue', description: 'Action added to workspace queue.' })
+            }}
+          >
+            <ListChecks className="h-4 w-4 mr-2" />
+            Add to actions queue
+          </Button>
         </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <CrmHandoffCard accountId={props.accountId} window={props.window} />
+          <SequencerHandoffCard accountId={props.accountId} window={props.window} />
+        </div>
+
+        <ActionRecipeSuggestions />
 
         {showVariants ? (
           <div className="rounded border border-cyan-500/10 bg-background/40 p-3">

@@ -8,6 +8,15 @@ import { useToast } from '@/components/ui/use-toast'
 import { formatRelativeDate } from '@/lib/domain/explainability'
 import { Badge } from '@/components/ui/badge'
 import { badgeClassForTone, webhookDeliveryStatusLabel } from '@/lib/ui/status-labels'
+import { track } from '@/lib/analytics'
+import type { WorkspaceIntegrationSummary } from '@/lib/integrations/types'
+import { IntegrationCatalog } from '@/components/settings/IntegrationCatalog'
+import { DefaultDestinationCard, type DefaultDestinationEndpoint } from '@/components/settings/DefaultDestinationCard'
+import { ActionRecipeTable } from '@/components/settings/ActionRecipeTable'
+import { DeliveryHistoryTable } from '@/components/settings/DeliveryHistoryTable'
+import { RecipeBuilder } from '@/components/settings/RecipeBuilder'
+import type { ActionRecipeRow } from '@/lib/domain/action-recipes'
+import type { DeliveryHistoryRow } from '@/lib/services/delivery-history'
 
 type Role = 'owner' | 'admin' | 'member'
 
@@ -40,6 +49,11 @@ const EVENT_CHOICES = [
   'account.brief.generated',
   'account.exported',
   'account.pushed',
+  'report.generated',
+  'handoff.crm.prepared',
+  'handoff.crm.delivered',
+  'handoff.sequencer.prepared',
+  'handoff.sequencer.delivered',
   'signal.detected',
   'pitch.generated',
   'digest.sent',
@@ -61,6 +75,11 @@ export function IntegrationsSettingsClient() {
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
   const [activeEndpointId, setActiveEndpointId] = useState<string | null>(null)
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
+  const [integrationSummary, setIntegrationSummary] = useState<WorkspaceIntegrationSummary | null>(null)
+  const [defaultsSaving, setDefaultsSaving] = useState(false)
+  const [recipes, setRecipes] = useState<ActionRecipeRow[]>([])
+  const [history, setHistory] = useState<DeliveryHistoryRow[]>([])
+  const [recipesSaving, setRecipesSaving] = useState(false)
 
   const isAdmin = role === 'owner' || role === 'admin'
 
@@ -72,14 +91,28 @@ export function IntegrationsSettingsClient() {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/team/webhooks', { cache: 'no-store' })
-      if (!res.ok) {
+      const [webhooksRes, summaryRes, recipesRes, historyRes] = await Promise.all([
+        fetch('/api/team/webhooks', { cache: 'no-store' }),
+        fetch('/api/workspace/integrations/summary', { cache: 'no-store' }),
+        fetch('/api/workspace/recipes', { cache: 'no-store' }),
+        fetch('/api/workspace/actions/delivery-history?limit=25', { cache: 'no-store' }),
+      ])
+
+      if (!webhooksRes.ok || !summaryRes.ok || !recipesRes.ok || !historyRes.ok) {
         toast({ variant: 'destructive', title: 'Access restricted.' })
         return
       }
-      const json = (await res.json()) as { ok?: boolean; data?: { role?: Role; endpoints?: WebhookEndpoint[] } }
-      setRole(json.data?.role ?? 'member')
-      setEndpoints(json.data?.endpoints ?? [])
+
+      const webhooksJson = (await webhooksRes.json()) as { ok?: boolean; data?: { role?: Role; endpoints?: WebhookEndpoint[] } }
+      const summaryJson = (await summaryRes.json()) as { ok?: boolean; data?: WorkspaceIntegrationSummary }
+      const recipesJson = (await recipesRes.json()) as { ok?: boolean; data?: { role?: Role; recipes?: ActionRecipeRow[] } }
+      const historyJson = (await historyRes.json()) as { ok?: boolean; data?: { history?: DeliveryHistoryRow[] } }
+
+      setRole(webhooksJson.data?.role ?? 'member')
+      setEndpoints(webhooksJson.data?.endpoints ?? [])
+      setIntegrationSummary(summaryJson.data ?? null)
+      setRecipes(recipesJson.data?.recipes ?? [])
+      setHistory(historyJson.data?.history ?? [])
     } catch {
       toast({ variant: 'destructive', title: 'Load failed', description: 'Please try again.' })
     } finally {
@@ -113,6 +146,7 @@ export function IntegrationsSettingsClient() {
   }
 
   useEffect(() => {
+    track('integration_settings_viewed', {})
     void refresh()
   }, [refresh])
 
@@ -205,13 +239,116 @@ export function IntegrationsSettingsClient() {
     setCreateEvents((prev) => (prev.includes(e) ? prev.filter((x) => x !== e) : prev.concat(e)))
   }
 
+  const defaultEndpoints: DefaultDestinationEndpoint[] = useMemo(
+    () =>
+      endpoints.map((e) => ({
+        id: e.id,
+        url: e.url,
+        is_enabled: e.is_enabled,
+      })),
+    [endpoints]
+  )
+
+  async function saveDefault(endpointId: string | null) {
+    if (!isAdmin) return
+    setDefaultsSaving(true)
+    try {
+      const res = await fetch('/api/workspace/integrations/defaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ default_handoff_webhook_endpoint_id: endpointId }),
+      })
+      if (!res.ok) {
+        toast({ variant: 'destructive', title: 'Save failed', description: 'Please try again.' })
+        return
+      }
+      toast({ title: 'Saved.' })
+      await refresh()
+      track('destination_configured', { kind: 'default_handoff_webhook', configured: Boolean(endpointId) })
+    } catch {
+      toast({ variant: 'destructive', title: 'Save failed', description: 'Please try again.' })
+    } finally {
+      setDefaultsSaving(false)
+    }
+  }
+
+  async function toggleRecipe(recipeId: string, next: boolean) {
+    if (!isAdmin) return
+    setRecipesSaving(true)
+    try {
+      const res = await fetch(`/api/workspace/recipes/${encodeURIComponent(recipeId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_enabled: next }),
+      })
+      if (!res.ok) {
+        toast({ variant: 'destructive', title: 'Save failed', description: 'Please try again.' })
+        return
+      }
+      toast({ title: 'Saved.' })
+      await refresh()
+    } finally {
+      setRecipesSaving(false)
+    }
+  }
+
+  async function createRecipe(draft: {
+    name: string
+    trigger_type: ActionRecipeRow['trigger_type']
+    action_type: ActionRecipeRow['action_type']
+    conditions: ActionRecipeRow['conditions']
+  }) {
+    if (!isAdmin) return
+    setRecipesSaving(true)
+    try {
+      const res = await fetch('/api/workspace/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      })
+      if (!res.ok) {
+        toast({ variant: 'destructive', title: 'Save failed', description: 'Please try again.' })
+        return
+      }
+      toast({ title: 'Saved.' })
+      await refresh()
+    } finally {
+      setRecipesSaving(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="integrations-page">
       <div className="container mx-auto px-6 py-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold bloomberg-font neon-cyan">Integrations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Webhooks and exports.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Destinations, handoffs, and workflow orchestration.</p>
         </div>
+
+        {integrationSummary ? (
+          <Card className="border-cyan-500/20 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Connected destinations</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
+              <IntegrationCatalog summary={integrationSummary} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <DefaultDestinationCard
+          role={role}
+          endpoints={defaultEndpoints}
+          saving={defaultsSaving}
+          selectedEndpointId={integrationSummary?.defaults.handoffWebhookEndpointId ?? null}
+          onSelect={(id) => void saveDefault(id)}
+        />
+
+        <DeliveryHistoryTable history={history} />
+
+        <ActionRecipeTable role={role} recipes={recipes} onToggleEnabled={(id, next) => void toggleRecipe(id, next)} disabled={recipesSaving} />
+
+        {isAdmin ? <RecipeBuilder disabled={recipesSaving} onCreate={createRecipe} /> : null}
 
         <Card className="border-cyan-500/20 bg-card/50">
           <CardHeader className="pb-3">
