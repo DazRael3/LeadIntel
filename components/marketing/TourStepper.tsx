@@ -12,9 +12,9 @@ const STEPS: Step[] = [
   { id: 'icp', title: 'Define your ICP' },
   { id: 'accounts', title: 'Add target accounts' },
   { id: 'shortlist', title: 'Get a daily shortlist' },
-  { id: 'score', title: 'Understand the score' },
-  { id: 'pitch', title: 'Generate a pitch draft' },
-  { id: 'saved', title: 'Save and reuse outputs' },
+  { id: 'score', title: 'Score + momentum' },
+  { id: 'pitch', title: 'Persona-aware outreach' },
+  { id: 'saved', title: 'Briefs + operational handoff' },
 ]
 
 export function TourStepper() {
@@ -90,7 +90,7 @@ export function TourStepper() {
                 <Link href="/#try-sample">Generate a sample digest</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/signup?redirect=/dashboard">Create your account</Link>
+                <Link href="/signup?redirect=/onboarding">Create your account</Link>
               </Button>
             </div>
             <div className="mt-3 flex flex-wrap gap-3 text-xs">

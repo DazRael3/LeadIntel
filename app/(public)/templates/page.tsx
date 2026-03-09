@@ -7,6 +7,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { TemplatesLibraryClient, type Template } from '@/components/marketing/TemplatesLibraryClient'
 import { VerticalTemplateRail } from '@/components/marketing/VerticalTemplateRail'
+import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 import { TEMPLATE_LIBRARY, TEMPLATE_TOKENS } from '@/lib/templates/registry'
 
 export const metadata: Metadata = {
@@ -56,6 +57,7 @@ export default function TemplatesPage() {
     <MarketingPage title="Templates" subtitle="Copy/paste outreach templates you can adapt to your ICP and timing signals.">
       <JsonLd data={jsonLd} />
       <PageViewTrack event="templates_page_view" props={{ page: 'templates' }} />
+      <AuthedSettingsStamp payload={{ templates_viewed_at: new Date().toISOString() }} sessionKey="templates_viewed" />
 
       <VerticalTemplateRail />
 

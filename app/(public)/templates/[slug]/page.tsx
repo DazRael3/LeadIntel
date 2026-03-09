@@ -5,6 +5,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { getTemplateBySlug, getTokenGlossaryForTemplate } from '@/lib/templates/registry'
 import { TemplateDetailClient } from '@/components/marketing/TemplateDetailClient'
+import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 
 export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await props.params
@@ -49,6 +50,7 @@ export default async function TemplateDetailPage(props: { params: Promise<{ slug
     <MarketingPage title="Template" subtitle={t.title}>
       <JsonLd data={jsonLd} />
       <PageViewTrack event="template_detail_view" props={{ slug: t.slug, channel: t.channel, trigger: t.trigger }} />
+      <AuthedSettingsStamp payload={{ templates_viewed_at: new Date().toISOString() }} sessionKey="templates_viewed" />
       <TemplateDetailClient template={t} glossary={glossary} />
     </MarketingPage>
   )

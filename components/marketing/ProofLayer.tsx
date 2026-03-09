@@ -33,7 +33,7 @@ export function ProofLayer() {
           <CardTitle className="text-lg">Why LeadIntel feels different in practice</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Proof that maps to real mechanics: explainability, action packaging, and inspectable trust—without pretending to be a giant database.
+          Proof that maps to real mechanics: explainable scoring, momentum over time, persona recommendations, first-party context when observed, and an action layer built for rep execution—not a giant contact database.
         </CardContent>
       </Card>
       <CapabilityProofGrid />

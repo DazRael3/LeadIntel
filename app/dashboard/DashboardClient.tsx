@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation'
 import { LeadLibrary } from '@/components/LeadLibrary'
 import { WebsiteVisitors } from '@/components/WebsiteVisitors'
 import { LiveIntent } from '@/components/LiveIntent'
-import { OnboardingWizard } from '@/components/OnboardingWizard'
 import { MarketSidebar } from '@/components/MarketSidebar'
 import { DashboardHeader } from '@/components/DashboardHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -21,7 +20,6 @@ import { getEntitlements } from '@/lib/billing/entitlements'
 import { useTriggerEvents } from './hooks/useTriggerEvents'
 import { useCredits } from './hooks/useCredits'
 import { useStats } from './hooks/useStats'
-import { useOnboarding } from './hooks/useOnboarding'
 import { useDebugInfo } from './hooks/useDebugInfo'
 import { DashboardHeaderSection } from './components/DashboardHeaderSection'
 import { StatsBar } from './components/StatsBar'
@@ -35,7 +33,11 @@ import { ActivationGoalCard } from './components/ActivationGoalCard'
 import { InAppTourProvider } from '@/components/tour/InAppTourProvider'
 import { QuickTourActionsCard } from './components/QuickTourActionsCard'
 import { ScoreExplainerCard } from './components/ScoreExplainerCard'
-import { ActivationChecklistCard } from '@/components/ActivationChecklistCard'
+import { ActivationChecklist } from '@/components/dashboard/ActivationChecklist'
+import { GettingStartedRail } from '@/components/dashboard/GettingStartedRail'
+import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed'
+import { ValueMomentsCard } from '@/components/dashboard/ValueMomentsCard'
+import { UpgradeReasonsCard } from '@/components/dashboard/UpgradeReasonsCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -45,7 +47,6 @@ interface DashboardClientProps {
   initialCompanyInput?: string
   initialHasIcp: boolean
   initialTourCompletedAt: string | null
-  initialOpenOnboardingStep?: 2 | 3 | 4 | 5 | 6 | null
   initialFocus?: 'pitch' | null
 }
 
@@ -57,7 +58,6 @@ export function DashboardClient({
   initialCompanyInput,
   initialHasIcp,
   initialTourCompletedAt,
-  initialOpenOnboardingStep,
   initialFocus,
 }: DashboardClientProps) {
   const [isPro, setIsPro] = useState(initialSubscriptionTier === 'pro')
@@ -77,11 +77,7 @@ export function DashboardClient({
   const { events, loading: eventsLoading, error: eventsError, loadEvents, lastUpdatedAt } = useTriggerEvents()
   const { creditsRemaining, loading: creditsLoading, loadCredits } = useCredits(initialCreditsRemaining, initialSubscriptionTier === 'pro')
   const { totalLeads, loadStats } = useStats()
-  const { showOnboarding, onboardingComplete, onboardingChecked, handleOnboardingComplete, dismissOnboarding } =
-    useOnboarding(initialOnboardingCompleted)
   const { debugInfo, showDebug, checkWhoami, hideDebug } = useDebugInfo()
-  const [manualOnboardingStep, setManualOnboardingStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
-  const [manualOnboardingOpen, setManualOnboardingOpen] = useState(false)
 
   // Sync isPro state with plan hook
   useEffect(() => {
@@ -98,13 +94,6 @@ export function DashboardClient({
     // Ensure lifecycle + settings rows exist (idempotent, best-effort).
     void fetch('/api/lifecycle/ensure', { method: 'POST' }).catch(() => {})
   }, [loadCredits, loadStats, loadEvents, planIsPro])
-
-  useEffect(() => {
-    if (typeof initialOpenOnboardingStep === 'number') {
-      setManualOnboardingStep(initialOpenOnboardingStep)
-      setManualOnboardingOpen(true)
-    }
-  }, [initialOpenOnboardingStep])
 
   useEffect(() => {
     if (initialFocus === 'pitch') {
@@ -134,26 +123,12 @@ export function DashboardClient({
 
   const loading = creditsLoading
 
-  const autoStartEligible = (!initialHasIcp || totalLeads === 0) && !onboardingComplete
+  const autoStartEligible = (!initialHasIcp || totalLeads === 0) && !initialOnboardingCompleted
 
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="dashboard-root">
       <InAppTourProvider autoStartEligible={autoStartEligible} serverTourCompletedAt={initialTourCompletedAt}>
         <DashboardHeader />
-      {/* Onboarding Wizard - Only show if server says not completed */}
-      {((onboardingChecked && showOnboarding && !onboardingComplete) || manualOnboardingOpen) && (
-        <OnboardingWizard
-          initialStep={manualOnboardingOpen ? manualOnboardingStep : undefined}
-          onComplete={() => {
-            handleOnboardingComplete()
-            setManualOnboardingOpen(false)
-          }}
-          onClose={() => {
-            if (manualOnboardingOpen) setManualOnboardingOpen(false)
-            else dismissOnboarding()
-          }}
-        />
-      )}
 
       {/* Header */}
       <DashboardHeaderSection isPro={isPro} creditsRemaining={creditsRemaining} />
@@ -220,30 +195,14 @@ export function DashboardClient({
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
-                <ActivationChecklistCard
-                  isStarter={tier === 'starter'}
-                  onOpenIcp={() => {
-                    setManualOnboardingStep(2)
-                    setManualOnboardingOpen(true)
-                  }}
-                  onOpenAccounts={() => {
-                    setManualOnboardingStep(3)
-                    setManualOnboardingOpen(true)
-                  }}
-                  onOpenDigestCadence={() => {
-                    setManualOnboardingStep(4)
-                    setManualOnboardingOpen(true)
-                  }}
-                  onOpenPitch={() => {
-                    router.push('/pitch')
-                  }}
-                />
-                <QuickTourActionsCard
-                  onOpenOnboarding={(step) => {
-                    setManualOnboardingStep(step)
-                    setManualOnboardingOpen(true)
-                  }}
-                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <GettingStartedRail />
+                  <ValueMomentsCard />
+                </div>
+                <UpgradeReasonsCard />
+                <ActivationChecklist />
+                <RecentActivityFeed />
+                <QuickTourActionsCard />
                 <ActivationGoalCard totalLeads={totalLeads} />
                 <PitchGenerator
                   initialUrl={initialCompanyInput}

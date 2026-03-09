@@ -85,7 +85,14 @@ export const POST = withApiGuard(
       const role = typeof input.role === 'string' ? input.role : undefined
       const team_size = typeof input.team_size === 'string' ? input.team_size : undefined
       const primary_goal = typeof input.primary_goal === 'string' ? input.primary_goal : undefined
+      const onboarding_v2_step = typeof input.onboarding_v2_step === 'number' ? input.onboarding_v2_step : undefined
+      const onboarding_workflow = typeof input.onboarding_workflow === 'string' ? input.onboarding_workflow : undefined
+      const onboarding_started_at = typeof input.onboarding_started_at === 'string' ? input.onboarding_started_at : undefined
       const heard_about_us_from = typeof input.heard_about_us_from === 'string' ? input.heard_about_us_from : undefined
+      const pricing_viewed_at = typeof input.pricing_viewed_at === 'string' ? input.pricing_viewed_at : undefined
+      const trust_viewed_at = typeof input.trust_viewed_at === 'string' ? input.trust_viewed_at : undefined
+      const scoring_viewed_at = typeof input.scoring_viewed_at === 'string' ? input.scoring_viewed_at : undefined
+      const templates_viewed_at = typeof input.templates_viewed_at === 'string' ? input.templates_viewed_at : undefined
       const preferred_contact_channel = typeof input.preferred_contact_channel === 'string' ? input.preferred_contact_channel : undefined
       const preferred_contact_detail = typeof input.preferred_contact_detail === 'string' ? input.preferred_contact_detail : undefined
       const allow_product_updates = typeof input.allow_product_updates === 'boolean' ? input.allow_product_updates : undefined
@@ -119,7 +126,14 @@ export const POST = withApiGuard(
             ...(role !== undefined ? { role } : {}),
             ...(team_size !== undefined ? { team_size } : {}),
             ...(primary_goal !== undefined ? { primary_goal } : {}),
+            ...(onboarding_v2_step !== undefined ? { onboarding_v2_step } : {}),
+            ...(onboarding_workflow !== undefined ? { onboarding_workflow } : {}),
+            ...(onboarding_started_at !== undefined ? { onboarding_started_at } : {}),
             ...(heard_about_us_from !== undefined ? { heard_about_us_from } : {}),
+            ...(pricing_viewed_at !== undefined ? { pricing_viewed_at } : {}),
+            ...(trust_viewed_at !== undefined ? { trust_viewed_at } : {}),
+            ...(scoring_viewed_at !== undefined ? { scoring_viewed_at } : {}),
+            ...(templates_viewed_at !== undefined ? { templates_viewed_at } : {}),
             ...(preferred_contact_channel !== undefined ? { preferred_contact_channel } : {}),
             ...(preferred_contact_detail !== undefined ? { preferred_contact_detail } : {}),
             ...(allow_product_updates !== undefined ? { allow_product_updates } : {}),
@@ -136,7 +150,7 @@ export const POST = withApiGuard(
           }
         )
         .select(
-          'user_id, onboarding_completed, role, team_size, primary_goal, heard_about_us_from, preferred_contact_channel, preferred_contact_detail, allow_product_updates, product_tips_opt_in, digest_emails_opt_in, last_upgrade_nudge_shown_at, phone, what_you_sell, ideal_customer, digest_enabled, digest_dow, digest_hour, digest_webhook_url, tour_completed_at, updated_at'
+          'user_id, onboarding_completed, role, team_size, primary_goal, onboarding_v2_step, onboarding_workflow, onboarding_started_at, heard_about_us_from, pricing_viewed_at, trust_viewed_at, scoring_viewed_at, templates_viewed_at, preferred_contact_channel, preferred_contact_detail, allow_product_updates, product_tips_opt_in, digest_emails_opt_in, last_upgrade_nudge_shown_at, phone, what_you_sell, ideal_customer, digest_enabled, digest_dow, digest_hour, digest_webhook_url, tour_completed_at, updated_at'
         )
         .single()
 
@@ -148,6 +162,13 @@ export const POST = withApiGuard(
           error.message?.includes('digest_dow') ||
           error.message?.includes('digest_enabled') ||
           error.message?.includes('digest_hour') ||
+          error.message?.includes('onboarding_v2_step') ||
+          error.message?.includes('onboarding_workflow') ||
+          error.message?.includes('onboarding_started_at') ||
+          error.message?.includes('pricing_viewed_at') ||
+          error.message?.includes('trust_viewed_at') ||
+          error.message?.includes('scoring_viewed_at') ||
+          error.message?.includes('templates_viewed_at') ||
           error.message?.includes('product_tips_opt_in') ||
           error.message?.includes('digest_emails_opt_in') ||
           error.message?.includes('last_upgrade_nudge_shown_at') ||

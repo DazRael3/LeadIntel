@@ -53,18 +53,7 @@ export default async function DashboardPage({
   const initialCompany =
     typeof sp.company === 'string' ? sp.company.trim().slice(0, 1000) : undefined
 
-  const onboardingParam = typeof sp.onboarding === 'string' ? sp.onboarding.trim() : ''
   const focusParam = typeof sp.focus === 'string' ? sp.focus.trim() : ''
-  const initialOnboardingStep =
-    onboardingParam === 'icp'
-      ? 2
-      : onboardingParam === 'accounts'
-        ? 3
-        : onboardingParam === 'cadence'
-          ? 4
-          : onboardingParam === 'pitch'
-            ? 5
-            : null
 
   // Try to get subscription tier from billing module
   try {
@@ -176,7 +165,6 @@ export default async function DashboardPage({
         initialCompanyInput={initialCompany}
         initialHasIcp={hasIcp}
         initialTourCompletedAt={tourCompletedAt}
-        initialOpenOnboardingStep={initialOnboardingStep}
         initialFocus={focusParam === 'pitch' ? 'pitch' : null}
       />
     </PlanProvider>

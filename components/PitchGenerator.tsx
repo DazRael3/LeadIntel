@@ -18,6 +18,7 @@ import { usePlan } from '@/components/PlanProvider'
 import { track } from '@/lib/analytics'
 import { formatRelativeDate, formatSignalType } from '@/lib/domain/explainability'
 import { UsageMeter } from '@/components/billing/UsageMeter'
+import { UpgradeExplainer } from '@/components/billing/UpgradeExplainer'
 import { BlurredPremiumSection } from '@/components/gating/BlurredPremiumSection'
 
 interface PitchGeneratorProps {
@@ -860,32 +861,7 @@ export function PitchGenerator({
             />
           ) : null}
           {isFreeLimitReached ? (
-            <div className="rounded-lg border border-cyan-500/20 bg-background/40 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-cyan-200">
-                    You’ve used all {premiumUsage?.limit ?? 3} preview generations.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Upgrade to unlock unlimited generation and full pitch/report access.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      track('upgrade_cta_clicked_from_limit', { surface: 'pitch_generator' })
-                      router.push('/pricing?target=closer')
-                    }}
-                    className="neon-border hover:glow-effect whitespace-nowrap"
-                  >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Upgrade to Closer
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <UpgradeExplainer target="closer" reason="free_limit_reached" source="pitch_generator" compact />
           ) : null}
           {authError && (
             <div className="text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded p-2">
@@ -968,30 +944,6 @@ export function PitchGenerator({
               </div>
             </div>
 
-            {isFreeLimitReached ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="rounded-lg border border-cyan-500/20 bg-background/80 px-4 py-3 text-center backdrop-blur-sm">
-                  <p className="text-sm font-semibold text-cyan-200">
-                    You’ve used all {premiumUsage?.limit ?? 3} preview generations.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Upgrade to continue generating and unlock full content.</p>
-                  <div className="mt-3 flex items-center justify-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        track('upgrade_cta_clicked_from_limit', { surface: 'pitch_generator' })
-                        router.push('/pricing?target=closer')
-                      }}
-                      className="neon-border hover:glow-effect"
-                    >
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      Upgrade to Closer
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
           </div>
           {freeLimitError ? (
             <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-100 flex items-center justify-between gap-3">

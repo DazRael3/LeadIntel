@@ -46,7 +46,7 @@ ${escapeHtml(text)}
           Want this daily for your accounts? Create your LeadIntel workspace and enable the Daily Digest.
         </p>
         <p style="font-family: ui-sans-serif, system-ui;">
-          <a href="https://dazrael.com/signup?redirect=/dashboard">Start free</a>
+          <a href="https://dazrael.com/signup?redirect=/onboarding">Start free</a>
         </p>
       `
 

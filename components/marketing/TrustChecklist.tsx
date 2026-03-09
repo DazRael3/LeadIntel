@@ -7,6 +7,7 @@ import { track } from '@/lib/analytics'
 
 const QUESTIONS = [
   'What data is stored, and what is explicitly out of scope?',
+  'What first-party intent/visitor signals exist, and how are they scoped to a workspace?',
   'How is tenant/workspace access controlled?',
   'What audit visibility exists for team-governed workflows?',
   'How do exports and webhooks behave (and what is sent)?',

@@ -19,7 +19,7 @@ interface SignupPageProps {
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
   const sp = (await searchParams) ?? {}
-  const redirectTo = sp.redirect ?? '/dashboard'
+  const redirectTo = sp.redirect ?? '/onboarding'
   return <LoginClient initialMode="signup" redirectTo={redirectTo} />
 }
 

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { UsageMeter } from '@/components/billing/UsageMeter'
+import { UpgradeExplainer } from '@/components/billing/UpgradeExplainer'
 import { ToastAction } from '@/components/ui/toast'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
@@ -269,6 +270,9 @@ export function CompetitiveReportNewClient() {
                   ))}
                 </ul>
               </div>
+            ) : null}
+            {usage && usage.remaining <= 0 ? (
+              <UpgradeExplainer target="closer" reason="free_limit_reached" source="competitive_report_new" compact />
             ) : null}
 
             <div className="space-y-2">
