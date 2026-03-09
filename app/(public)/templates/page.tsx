@@ -6,6 +6,7 @@ import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { TemplatesLibraryClient, type Template } from '@/components/marketing/TemplatesLibraryClient'
+import { VerticalTemplateRail } from '@/components/marketing/VerticalTemplateRail'
 import { TEMPLATE_LIBRARY, TEMPLATE_TOKENS } from '@/lib/templates/registry'
 
 export const metadata: Metadata = {
@@ -55,6 +56,8 @@ export default function TemplatesPage() {
     <MarketingPage title="Templates" subtitle="Copy/paste outreach templates you can adapt to your ICP and timing signals.">
       <JsonLd data={jsonLd} />
       <PageViewTrack event="templates_page_view" props={{ page: 'templates' }} />
+
+      <VerticalTemplateRail />
 
       <TemplatesLibraryClient templates={templates} tokens={tokens} />
 

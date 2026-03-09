@@ -97,6 +97,9 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
             <Link href={`/admin/growth?token=${encodeURIComponent(token ?? '')}`}>Growth Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/refinement?token=${encodeURIComponent(token ?? '')}`}>Refinement</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link href="/status">Status</Link>
           </Button>
         </div>

@@ -1,7 +1,8 @@
 import React from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { StateCard } from '@/components/ui/state/StateCard'
 import type { PlanTier } from '@/lib/billing/plan'
 import type { SavedReportSummary } from '@/lib/services/pitchesList'
 
@@ -23,7 +24,7 @@ export function ReportsHubContent({
           <div>
             <h1 className="text-3xl font-bold bloomberg-font neon-cyan">Saved reports</h1>
             <p className="text-muted-foreground mt-2">
-              Your past competitive briefs and pitches, ready to reopen in the dashboard.
+              Your saved competitive reports, ready to reopen in the dashboard.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -34,28 +35,22 @@ export function ReportsHubContent({
         </div>
 
         {isStarter && (
-          <Card className="border-cyan-500/20 bg-card/60">
-            <CardContent className="py-5 space-y-3">
-              <p className="text-sm text-muted-foreground">
-                You’re on the Starter plan. You can view your 3 most recent reports. Upgrade to unlock full report history.
-              </p>
-              <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
-                <Link href="/pricing">View pricing &amp; plans</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <StateCard
+            tone="info"
+            badge="Starter"
+            title="Starter plan visibility"
+            body="You can view your 3 most recent saved reports. Upgrade to unlock full report history."
+            primaryAction={{ label: 'View pricing & plans', href: '/pricing' }}
+          />
         )}
 
         {visible.length === 0 ? (
-          <Card className="border-cyan-500/20 bg-card/60">
-            <CardContent className="py-10 text-center space-y-3">
-              <p className="text-lg font-semibold">No reports yet</p>
-              <p className="text-sm text-muted-foreground">Generate your first competitive report in the dashboard to see it here.</p>
-              <Button asChild size="sm" className="neon-border hover:glow-effect">
-                <Link href="/dashboard">Go to dashboard</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <StateCard
+            title="No reports yet"
+            body="Generate your first competitive report to see it here."
+            primaryAction={{ label: 'Go to dashboard', href: '/dashboard' }}
+            secondaryAction={{ label: 'See templates', href: '/templates', variant: 'outline' }}
+          />
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {visible.map((r) => (

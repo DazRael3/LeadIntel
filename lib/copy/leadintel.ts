@@ -18,7 +18,7 @@ export const COPY = {
     whatYouGet: {
       title: 'What you get',
       bullets: [
-        'Daily Deal Digest: a short, prioritized list of accounts to action today',
+        'Daily shortlist: a short, prioritized list of accounts to action today',
         'Lead score (0–100) with clear reasons',
         'Outreach drafts: email + LinkedIn-ready copy',
         'Trigger signals: funding, hiring spikes, launches, partnerships, press mentions',
