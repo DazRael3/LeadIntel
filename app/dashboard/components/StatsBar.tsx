@@ -6,24 +6,25 @@ import { Activity, TrendingUp, Building2, Mail, Bug } from 'lucide-react'
 interface StatsBarProps {
   totalLeads: number
   eventsCount: number
-  isPro: boolean
+  tier: 'starter' | 'closer' | 'closer_plus' | 'team'
   debugEnabled: boolean
   onDebugClick?: () => void
 }
 
-export function StatsBar({ totalLeads, eventsCount, isPro, onDebugClick, debugEnabled }: StatsBarProps) {
+export function StatsBar({ totalLeads, eventsCount, tier, onDebugClick, debugEnabled }: StatsBarProps) {
   const showEmptyHint = totalLeads === 0 && eventsCount === 0
+  const accessLabel = tier === 'starter' ? 'Starter' : tier === 'closer' ? 'Closer' : tier === 'closer_plus' ? 'Closer+' : 'Team'
   return (
     <div className="border-b border-cyan-500/10 bg-background/60 backdrop-blur-sm">
-      <div className="container mx-auto px-6 py-3">
-        <div className="flex items-center justify-between">
-          <div className="grid grid-cols-4 gap-6 flex-1">
+      <div className="container mx-auto px-4 sm:px-6 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-1 min-w-[260px]">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
                 <Activity className="h-5 w-5 text-cyan-400" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Leads</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Tracked accounts</p>
                 <p className="text-xl font-bold neon-cyan">{totalLeads}</p>
               </div>
             </div>
@@ -45,7 +46,7 @@ export function StatsBar({ totalLeads, eventsCount, isPro, onDebugClick, debugEn
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Companies</p>
-                <p className="text-xl font-bold neon-blue">-</p>
+                <p className="text-xl font-bold neon-blue">{totalLeads}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -55,7 +56,7 @@ export function StatsBar({ totalLeads, eventsCount, isPro, onDebugClick, debugEn
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Access</p>
                 <p className="text-xl font-bold" style={{ color: 'hsl(var(--neon-purple))' }}>
-                  {isPro ? 'Full' : 'Limited'}
+                  {accessLabel}
                 </p>
               </div>
             </div>

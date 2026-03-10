@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/client"
 import { formatDate } from "@/lib/utils"
 import { Building2, Globe, Activity, Copy, Check } from "lucide-react"
 import { getAppBaseUrl } from "@/lib/app-url"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 interface WebsiteVisitor {
   id: string
@@ -23,6 +25,7 @@ export function WebsiteVisitors() {
   const [visitors, setVisitors] = useState<WebsiteVisitor[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedScript, setCopiedScript] = useState(false)
+  const [unavailable, setUnavailable] = useState<string | null>(null)
 
   const loadVisitors = useCallback(async () => {
     try {
@@ -34,8 +37,23 @@ export function WebsiteVisitors() {
 
       if (error) throw error
       setVisitors(data || [])
+      setUnavailable(null)
     } catch (error) {
-      console.error('Error loading visitors:', error)
+      const msg = (() => {
+        if (typeof error !== 'object' || error === null) return ''
+        if (!('message' in error)) return ''
+        const m = (error as { message?: unknown }).message
+        return typeof m === 'string' ? m : ''
+      })()
+      // Treat permission/config errors as an “unavailable” state, not a scary “broken” state.
+      if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('not allowed') || msg.includes('42501')) {
+        setUnavailable('Visitor tracking is not available for this workspace yet.')
+      } else if (msg.toLowerCase().includes('does not exist') || msg.toLowerCase().includes('schema')) {
+        setUnavailable('Visitor tracking is not configured in this environment.')
+      } else {
+        setUnavailable('Visitor data is unavailable right now.')
+      }
+      setVisitors([])
     } finally {
       setLoading(false)
     }
@@ -44,21 +62,21 @@ export function WebsiteVisitors() {
   useEffect(() => {
     loadVisitors()
     
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('visitors-channel')
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'api', table: 'website_visitors' },
-        () => {
+    // Set up real-time subscription only after a successful initial load (avoids noisy auth/config errors).
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    if (!unavailable) {
+      channel = supabase
+        .channel('visitors-channel')
+        .on('postgres_changes', { event: 'INSERT', schema: 'api', table: 'website_visitors' }, () => {
           loadVisitors()
-        }
-      )
-      .subscribe()
+        })
+        .subscribe()
+    }
 
     return () => {
-      supabase.removeChannel(channel)
+      if (channel) supabase.removeChannel(channel)
     }
-  }, [loadVisitors, supabase])
+  }, [loadVisitors, supabase, unavailable])
 
   const getTrackingScript = () => {
     const script = `<script src="${getAppBaseUrl()}/api/tracker"></script>`
@@ -116,6 +134,22 @@ export function WebsiteVisitors() {
           <div className="text-center py-12">
             <div className="animate-pulse text-muted-foreground">Loading visitors...</div>
           </div>
+        ) : unavailable ? (
+          <div className="text-center py-12 space-y-3">
+            <Globe className="h-12 w-12 mx-auto text-muted-foreground" />
+            <div className="text-muted-foreground">{unavailable}</div>
+            <div className="text-xs text-muted-foreground">
+              If you expected to see visitor data, confirm your plan and workspace setup, then try again.
+            </div>
+            <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
+              <Button asChild variant="outline" className="neon-border hover:glow-effect">
+                <Link href="/pricing">See plans</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/support">Contact support</Link>
+              </Button>
+            </div>
+          </div>
         ) : visitors.length === 0 ? (
           <div className="text-center py-12">
             <Globe className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -136,7 +170,7 @@ export function WebsiteVisitors() {
                   In production this will use the live app URL, not localhost.
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  2) Load a page on your site, then come back here. (See `docs/LAUNCH_CHECKLIST.md` → Tracker script smoke test.)
+                  2) Load a page on your site, then come back here.
                 </div>
               </div>
             </div>

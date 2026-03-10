@@ -4,15 +4,18 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Shield, Lock, DollarSign } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import type { PaidTier } from '@/lib/billing/tier'
+import { tierLabel } from '@/lib/billing/tier'
 
 interface ProOnlyCardProps {
   title: string
   description: string
   icon: 'shield' | 'lock'
   iconColor?: 'cyan' | 'purple'
+  upgradeTarget?: PaidTier
 }
 
-export function ProOnlyCard({ title, description, icon, iconColor = 'cyan' }: ProOnlyCardProps) {
+export function ProOnlyCard({ title, description, icon, iconColor = 'cyan', upgradeTarget = 'closer' }: ProOnlyCardProps) {
   const router = useRouter()
   const IconComponent = icon === 'shield' ? Shield : Lock
   
@@ -31,9 +34,9 @@ export function ProOnlyCard({ title, description, icon, iconColor = 'cyan' }: Pr
         <p className="text-sm text-muted-foreground">
           {description}
         </p>
-        <Button onClick={() => router.push('/pricing')} className="neon-border hover:glow-effect">
+        <Button onClick={() => router.push(`/pricing?target=${upgradeTarget}`)} className="neon-border hover:glow-effect">
           <DollarSign className="h-4 w-4 mr-2" />
-          Upgrade to Pro
+          Upgrade to {tierLabel(upgradeTarget)}
         </Button>
       </CardContent>
     </Card>

@@ -6,9 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Menu, X, LayoutDashboard, ListChecks, BarChart3, Users, Package, Activity, Settings2, ShieldCheck, FlaskConical, CheckSquare } from 'lucide-react'
 import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
+import { usePlan } from '@/components/PlanProvider'
+import { tierAtLeast } from '@/lib/billing/tier'
 
 export function MobileNavMenu() {
   const [open, setOpen] = useState(false)
+  const { tier } = usePlan()
+  const showPaid = tier !== 'starter'
+  const showTeam = tierAtLeast(tier, 'team')
 
   return (
     <div className="md:hidden">
@@ -49,20 +54,30 @@ export function MobileNavMenu() {
                 <nav className="grid grid-cols-2 gap-2">
                   <MenuLink href="/dashboard" label="Dashboard" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/actions" label="Actions" icon={<ListChecks className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/approvals" label="Approvals" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/benchmarks" label="Benchmarks" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/growth" label="Growth" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/verification" label="Verify" icon={<CheckSquare className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/revenue-workflows" label="Revenue" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/success" label="Success" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/partner" label="Partner" icon={<Users className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/rollouts" label="Rollouts" icon={<Package className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/operations" label="Ops" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/settings/platform" label="Platform" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/settings/revenue-intelligence" label="Revenue" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/settings/sources" label="Sources" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  {showTeam ? (
+                    <>
+                      <MenuLink href="/dashboard/approvals" label="Approvals" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/dashboard/benchmarks" label="Benchmarks" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/dashboard/partner" label="Partner" icon={<Users className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/dashboard/rollouts" label="Rollouts" icon={<Package className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/dashboard/operations" label="Ops" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/settings/platform" label="Platform" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/settings/sources" label="Sources" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                    </>
+                  ) : null}
+                  {showPaid ? (
+                    <>
+                      <MenuLink href="/dashboard/growth" label="Growth" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/dashboard/verification" label="Verify" icon={<CheckSquare className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/dashboard/revenue-workflows" label="Revenue" icon={<BarChart3 className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/dashboard/success" label="Success" icon={<Activity className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                      <MenuLink href="/settings/revenue-intelligence" label="Revenue" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                    </>
+                  ) : null}
                   <MenuLink href="/learn" label="Learn" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/settings/experiments" label="Experiments" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  {showTeam ? (
+                    <MenuLink href="/settings/experiments" label="Experiments" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  ) : null}
                   <MenuLink href="/settings/notifications" label="Prefs" icon={<Settings2 className="h-4 w-4" />} onClick={() => setOpen(false)} />
                 </nav>
               </CardContent>

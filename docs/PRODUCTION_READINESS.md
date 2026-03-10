@@ -56,6 +56,7 @@ This wave adds a bounded developer surface without weakening security or entitle
 This wave improves small-screen usability and adds bounded summary surfaces without turning LeadIntel into BI:
 
 - **Mobile-first summaries** are responsive web views (no native app claims).
+- **Dashboard request discipline**: Starter/preview users must not mount or request Team-only / Pro-only modules (no background 403/500 spam). Tabs must be mount-on-active to avoid hidden modules firing requests.
 - **Executive dashboard** (`/dashboard/executive`) is **metadata-first** and role-gated (default: owner/admin/manager).
 - **Executive snapshots** (`POST /api/executive/snapshot`) produce **copy/print** summaries (no premium body content).
 - **Command Center** (`/dashboard/command-center`) is a daily operating console built from observed queue + approvals.

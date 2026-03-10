@@ -80,19 +80,8 @@ export function useCredits(initialCredits: number, initialIsPro: boolean): UseCr
       
       // Reset credits if it's a new day
       if (lastReset !== today) {
-        // Try to update, but don't fail if columns don't exist
-        try {
-          await supabase
-            .from('users')
-            .update({
-              credits_remaining: FREE_DAILY_CREDITS,
-              last_credit_reset: new Date().toISOString()
-            })
-            .eq('id', user.id)
-        } catch (updateErr) {
-          // Update failed, but continue with fresh credits
-          console.warn('[useCredits] Failed to reset credits in DB:', formatErrorMessage(updateErr))
-        }
+        // UI is allowed to reset locally, but the dashboard must not issue background writes just to keep
+        // Starter/preview state coherent. Server-side loaders handle persistence where applicable.
         setCreditsRemaining(FREE_DAILY_CREDITS)
       } else {
         setCreditsRemaining(data.credits_remaining ?? FREE_DAILY_CREDITS)
