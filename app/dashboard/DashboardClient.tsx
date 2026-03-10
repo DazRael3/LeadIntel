@@ -203,21 +203,28 @@ export function DashboardClient({
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
+                {/* Primary workflow: next step + generate */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <GettingStartedRail />
-                  <ValueMomentsCard />
+                  <PitchGenerator
+                    initialUrl={initialCompanyInput}
+                    onCompanyContextChange={onCompanyContextChange}
+                    navigateToPitchOnGenerate
+                  />
                 </div>
-                <UpgradeReasonsCard />
-                <ActivationChecklist />
-                <RecentActivityFeed />
+
+                {/* Today / progress */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ActivationChecklist />
+                  <RecentActivityFeed />
+                </div>
+
+                {/* Secondary guidance */}
+                <ValueMomentsCard />
+                <ScoreExplainerCard />
                 <QuickTourActionsCard />
                 <ActivationGoalCard totalLeads={totalLeads} />
-                <PitchGenerator
-                  initialUrl={initialCompanyInput}
-                  onCompanyContextChange={onCompanyContextChange}
-                  navigateToPitchOnGenerate
-                />
-                <ScoreExplainerCard />
+                <UpgradeReasonsCard />
 
                 {isStarter ? (
                   <Card className="border-cyan-500/20 bg-card/50">

@@ -33,15 +33,26 @@ export function getDashboardTabs(args: { tier: Tier; entitlements: Entitlements 
     ]
   }
 
-  return [
+  const raw: DashboardTabPolicy[] = [
     { key: 'command', label: 'Command Center', visible: true },
     { key: 'leads', label: 'Lead Library', visible: true },
-    { key: 'visitors', label: 'Website Visitors', visible: true, requiredTier: 'closer', badge: { label: 'Pro' } },
-    { key: 'live-intent', label: 'Live Intent', visible: true, requiredTier: 'closer', badge: { label: 'Pro' } },
-    { key: 'market', label: 'Market Pulse', visible: true, requiredTier: 'closer', badge: { label: 'Pro' } },
-    { key: 'watchlist', label: 'Watchlist', visible: true, requiredTier: 'closer', badge: { label: 'Pro' } },
+    { key: 'visitors', label: 'Website Visitors', visible: true, requiredTier: 'closer' },
+    { key: 'live-intent', label: 'Live Intent', visible: true, requiredTier: 'closer' },
+    { key: 'market', label: 'Market Pulse', visible: true, requiredTier: 'closer' },
+    { key: 'watchlist', label: 'Watchlist', visible: true, requiredTier: 'closer' },
     { key: 'settings', label: 'Settings', visible: true },
   ]
+
+  // Only show "locked" badges when a tab is visible but not currently allowed.
+  return raw.map((t) => {
+    if (!t.requiredTier) return t
+    const allowed = tierAtLeast(args.tier, t.requiredTier)
+    return allowed ? t : { ...t, badge: { label: tierLabel(t.requiredTier) } }
+  })
+}
+
+function tierLabel(tier: PaidTier): string {
+  return tier === 'closer' ? 'Closer' : tier === 'closer_plus' ? 'Closer+' : 'Team'
 }
 
 export function getModulePolicy(args: { tier: Tier; module: 'action_queue' | 'market_sidebar' | 'website_visitors' }): DashboardModulePolicy {
