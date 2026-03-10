@@ -1,6 +1,6 @@
 -- LeadIntel: privacy-safe benchmarking RPCs (cross-workspace, thresholded)
 
-do $$
+do $migration$
 begin
   -- 1) Workflow norms (no bucket), across all workspaces
   execute $fn$
@@ -247,7 +247,7 @@ begin
     end;
     $$;
   $fn$;
-end $$;
+end $migration$;
 
 -- Restrict RPC execution to service role only (enforced by app routes + team gating).
 revoke all on function api.benchmark_workflow_norms(int) from public;
@@ -257,4 +257,3 @@ revoke all on function api.benchmark_playbook_norms(text,int) from public;
 grant execute on function api.benchmark_workflow_norms(int) to service_role;
 grant execute on function api.benchmark_pattern_bucket_norms(text,int) to service_role;
 grant execute on function api.benchmark_playbook_norms(text,int) to service_role;
-
