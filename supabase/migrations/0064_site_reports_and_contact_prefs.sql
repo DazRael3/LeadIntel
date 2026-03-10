@@ -1,4 +1,3 @@
--- 0022_site_reports_and_contact_prefs.sql
 -- Adds service-role-only daily site reports + user communication preferences fields.
 -- Safe to re-run (idempotent).
 
@@ -45,8 +44,6 @@ alter table api.user_settings
   add column if not exists preferred_contact_detail text,
   add column if not exists allow_product_updates boolean not null default true;
 
--- Ensure PostgREST reloads schema after new table/columns are added
 notify pgrst, 'reload schema';
-
 commit;
 

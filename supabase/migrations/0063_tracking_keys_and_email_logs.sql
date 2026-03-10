@@ -36,5 +36,6 @@ alter table api.email_logs
 
 create index if not exists email_logs_resend_message_id_idx on api.email_logs(resend_message_id);
 
+notify pgrst, 'reload schema';
 commit;
 
