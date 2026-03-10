@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { Badge } from '@/components/ui/badge'
 
 export function TopNav() {
   const router = useRouter()
@@ -15,6 +16,7 @@ export function TopNav() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loading, setLoading] = useState(true)
   const [supabaseError, setSupabaseError] = useState(false)
+  const [reviewMode, setReviewMode] = useState(false)
 
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null
@@ -48,6 +50,11 @@ export function TopNav() {
     }
   }, [])
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    setReviewMode(document.cookie.includes('li_review_mode=1'))
+  }, [pathname])
+
   const handleSignOut = async () => {
     try {
       const supabase = createClient()
@@ -69,6 +76,11 @@ export function TopNav() {
             <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:to-purple-300 transition-colors">
               LeadIntel
             </span>
+            {reviewMode ? (
+              <Badge variant="destructive" className="ml-2">
+                Review Mode
+              </Badge>
+            ) : null}
           </Link>
 
           {/* Center/Right: Primary nav + auth buttons */}

@@ -28,6 +28,10 @@ type PoliciesEnvelope =
     }
   | { ok: false }
 
+type ReviewLinksEnvelope =
+  | { ok: true; data: { workspaceId: string; links: Array<{ id: string; expires_at: string; created_at: string; revoked_at: string | null; last_used_at: string | null; use_count: number }> } }
+  | { ok: false; error?: { message?: string } }
+
 export function PlatformSettingsClient() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -37,13 +41,21 @@ export function PlatformSettingsClient() {
   const [embedEnabled, setEmbedEnabled] = useState(false)
   const [extensionsEnabled, setExtensionsEnabled] = useState(false)
   const [manageRoles, setManageRoles] = useState<Role[]>(['owner', 'admin', 'manager'])
+  const [reviewLinks, setReviewLinks] = useState<Array<{ id: string; expires_at: string; created_at: string; revoked_at: string | null; last_used_at: string | null; use_count: number }>>(
+    []
+  )
+  const [creatingReview, setCreatingReview] = useState(false)
+  const [latestReviewLinks, setLatestReviewLinks] = useState<null | Record<string, string>>(null)
 
   const canEdit = role === 'owner' || role === 'admin' || role === 'manager'
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/workspace/policies', { cache: 'no-store' })
+      const [res, reviewRes] = await Promise.all([
+        fetch('/api/workspace/policies', { cache: 'no-store' }),
+        fetch('/api/review-links', { cache: 'no-store' }),
+      ])
       const json = (await res.json().catch(() => null)) as PoliciesEnvelope | null
       if (!res.ok || !json || json.ok !== true) throw new Error('Access restricted.')
       setWorkspace({ id: json.data.workspace.id, name: json.data.workspace.name })
@@ -53,6 +65,17 @@ export function PlatformSettingsClient() {
       setExtensionsEnabled(Boolean(json.data.policies.platform.extensionsEnabled))
       setManageRoles((json.data.policies.platform.apiKeyManageRoles ?? ['owner', 'admin', 'manager']) as Role[])
       track('api_settings_viewed', { surface: 'platform_governance' })
+
+      if (reviewRes.ok) {
+        const rjson = (await reviewRes.json().catch(() => null)) as ReviewLinksEnvelope | null
+        if (rjson && rjson.ok === true) {
+          setReviewLinks(rjson.data.links ?? [])
+        } else {
+          setReviewLinks([])
+        }
+      } else {
+        setReviewLinks([])
+      }
     } catch (e) {
       toast({ title: 'Platform settings unavailable', description: e instanceof Error ? e.message : 'Failed to load', variant: 'destructive' })
     } finally {
@@ -95,6 +118,51 @@ export function PlatformSettingsClient() {
 
   function toggleRole(r: Role) {
     setManageRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]))
+  }
+
+  async function createReviewLink() {
+    setCreatingReview(true)
+    setLatestReviewLinks(null)
+    try {
+      const res = await fetch('/api/review-links', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ expiresInMinutes: 60 }),
+      })
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; data?: { links?: Record<string, string> }; error?: { message?: string } } | null
+      if (!res.ok || !json || json.ok !== true) {
+        toast({ title: 'Create failed', description: json?.error?.message ?? 'Access restricted.', variant: 'destructive' })
+        return
+      }
+      setLatestReviewLinks(json.data?.links ?? null)
+      toast({ title: 'Review link created', description: 'Share one of the destination links below.' })
+      await load()
+    } finally {
+      setCreatingReview(false)
+    }
+  }
+
+  async function revokeReviewLink(id: string) {
+    const res = await fetch('/api/review-links', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (!res.ok) {
+      toast({ title: 'Revoke failed', description: 'Access restricted.', variant: 'destructive' })
+      return
+    }
+    toast({ title: 'Revoked' })
+    await load()
+  }
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast({ title: 'Copied' })
+    } catch {
+      toast({ title: 'Copy failed', description: 'Copy manually from the text field.', variant: 'destructive' })
+    }
   }
 
   return (
@@ -163,6 +231,69 @@ export function PlatformSettingsClient() {
             Save
           </Button>
           {!canEdit ? <div className="text-xs text-muted-foreground">Only owner/admin/manager can edit platform settings.</div> : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Review access (temporary)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <div>
+            Generates a short-lived signed Review Mode link for external reviewers. Review Mode is read-only (writes are blocked server-side).
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => void createReviewLink()} disabled={!canEdit || loading || creatingReview}>
+              Create 60m review link
+            </Button>
+            {!canEdit ? <div className="text-xs text-muted-foreground">Only owner/admin/manager can create or revoke review links.</div> : null}
+          </div>
+
+          {latestReviewLinks ? (
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">Destination links</div>
+              {Object.entries(latestReviewLinks).map(([k, url]) => (
+                <div key={k} className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{k}</Badge>
+                  <input className="flex-1 min-w-[260px] rounded border bg-background px-2 py-1 text-xs" value={url} readOnly />
+                  <Button size="sm" variant="outline" onClick={() => void copy(url)}>
+                    Copy
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <div className="text-xs text-muted-foreground">Recent review links</div>
+            {reviewLinks.length === 0 ? (
+              <div className="text-xs text-muted-foreground">No links.</div>
+            ) : (
+              <div className="space-y-2">
+                {reviewLinks.map((l) => {
+                  const expired = Date.now() >= Date.parse(l.expires_at)
+                  const active = !l.revoked_at && !expired
+                  return (
+                    <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
+                      <div className="min-w-[240px]">
+                        <div className="text-xs text-foreground">Link {l.id.slice(0, 8)}…</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Expires {new Date(l.expires_at).toLocaleString()} · Used {l.use_count}×
+                          {l.last_used_at ? ` · Last used ${new Date(l.last_used_at).toLocaleString()}` : ''}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={active ? 'outline' : 'secondary'}>{active ? 'active' : l.revoked_at ? 'revoked' : 'expired'}</Badge>
+                        <Button size="sm" variant="destructive" disabled={!canEdit || !active} onClick={() => void revokeReviewLink(l.id)}>
+                          Revoke
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

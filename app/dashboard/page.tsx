@@ -5,6 +5,7 @@ import { getPlan } from '@/lib/billing/plan'
 import { PlanProvider } from '@/components/PlanProvider'
 import { getBuildInfo } from '@/lib/debug/buildInfo'
 import { checkLifecycleForUser } from '@/lib/lifecycle/checkUser'
+import { isReviewMode } from '@/lib/review/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,7 @@ export default async function DashboardPage({
 }) {
   const sp = (await searchParams) ?? {}
   const supabase = await createClient()
+  const reviewMode = await isReviewMode()
   
   // Check authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -95,7 +97,7 @@ export default async function DashboardPage({
           : null
         
         // Reset credits if it's a new day
-        if (lastReset !== today) {
+        if (!reviewMode && lastReset !== today) {
           // Try to update, but don't fail if columns don't exist
           try {
             await supabase
@@ -153,7 +155,9 @@ export default async function DashboardPage({
 
   // "Lazy cron": best-effort lifecycle evaluation on user activity (Hobby-safe).
   // Never block dashboard render; swallow errors.
-  void checkLifecycleForUser(user.id, { triggeredBy: 'request' }).catch(() => {})
+  if (!reviewMode) {
+    void checkLifecycleForUser(user.id, { triggeredBy: 'request' }).catch(() => {})
+  }
 
   return (
     <PlanProvider initialPlan={subscriptionTier} initialBuildInfo={buildInfo}>

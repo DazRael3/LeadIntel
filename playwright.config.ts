@@ -74,6 +74,7 @@ export default defineConfig({
       PLAYWRIGHT: '1',
       NEXT_PUBLIC_E2E: '1',
       NEXT_PUBLIC_PLAYWRIGHT: '1',
+      REVIEW_SIGNING_SECRET: 'e2e_review_secret',
     },
   },
 })
