@@ -11,12 +11,17 @@ import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
 import { MobileNavMenu } from '@/components/navigation/MobileNavMenu'
 import { AssistantLauncher } from '@/components/assistant/AssistantLauncher'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
+import { usePlan } from '@/components/PlanProvider'
+import { tierAtLeast } from '@/lib/billing/tier'
 
 export function DashboardHeader() {
   const router = useRouter()
   const supabase = createClient()
   const { startTour } = useInAppTour()
   const [assistantOpen, setAssistantOpen] = useState(false)
+  const { tier } = usePlan()
+  const showTeamNav = tierAtLeast(tier, 'team')
+  const showPaidNav = tier !== 'starter'
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -79,46 +84,50 @@ export function DashboardHeader() {
                 Actions
               </Link>
             </Button>
-            <Button
-              asChild
-              variant="ghost"
-              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-            >
-              <Link href="/dashboard/benchmarks">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Benchmarks
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="ghost"
-              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-            >
-              <Link href="/dashboard/partner">
-                <Users className="h-4 w-4 mr-2" />
-                Partner
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="ghost"
-              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-            >
-              <Link href="/dashboard/rollouts">
-                <Package className="h-4 w-4 mr-2" />
-                Rollouts
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="ghost"
-              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-            >
-              <Link href="/dashboard/operations">
-                <Activity className="h-4 w-4 mr-2" />
-                Operations
-              </Link>
-            </Button>
+            {showTeamNav ? (
+              <>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+                >
+                  <Link href="/dashboard/benchmarks">
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Benchmarks
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+                >
+                  <Link href="/dashboard/partner">
+                    <Users className="h-4 w-4 mr-2" />
+                    Partner
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+                >
+                  <Link href="/dashboard/rollouts">
+                    <Package className="h-4 w-4 mr-2" />
+                    Rollouts
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+                >
+                  <Link href="/dashboard/operations">
+                    <Activity className="h-4 w-4 mr-2" />
+                    Operations
+                  </Link>
+                </Button>
+              </>
+            ) : null}
             <Button
               asChild
               variant="ghost"
@@ -129,16 +138,18 @@ export function DashboardHeader() {
                 Pricing
               </Link>
             </Button>
-            <Button
-              asChild
-              variant="ghost"
-              className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-            >
-              <Link href="/dashboard/history" data-tour="tour-saved-outputs">
-                <LayoutDashboard className="h-4 w-4 mr-2" />
-                Pitch History
-              </Link>
-            </Button>
+            {showPaidNav ? (
+              <Button
+                asChild
+                variant="ghost"
+                className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+              >
+                <Link href="/dashboard/history" data-tour="tour-saved-outputs">
+                  <LayoutDashboard className="h-4 w-4 mr-2" />
+                  Saved outputs
+                </Link>
+              </Button>
+            ) : null}
             <Button
               onClick={handleSignOut}
               variant="ghost"

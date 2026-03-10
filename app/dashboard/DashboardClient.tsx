@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,8 @@ import { MarketPulse } from '@/components/MarketPulse'
 import { MarketWatchlistTab } from '@/components/MarketWatchlistTab'
 import { usePlan } from '@/components/PlanProvider'
 import { getEntitlements } from '@/lib/billing/entitlements'
+import { tierAtLeast } from '@/lib/billing/tier'
+import { getDashboardTabs, getModulePolicy, type DashboardTabKey } from '@/lib/dashboard/policy'
 import { useTriggerEvents } from './hooks/useTriggerEvents'
 import { useCredits } from './hooks/useCredits'
 import { useStats } from './hooks/useStats'
@@ -28,7 +31,6 @@ import { DebugPanel } from './components/DebugPanel'
 import { ViewModeToggle } from './components/ViewModeToggle'
 import { ProOnlyCard } from './components/ProOnlyCard'
 import { CommunicationPreferencesCard } from './components/CommunicationPreferencesCard'
-import { ProGate } from '@/components/ProGate'
 import { ActivationGoalCard } from './components/ActivationGoalCard'
 import { InAppTourProvider } from '@/components/tour/InAppTourProvider'
 import { QuickTourActionsCard } from './components/QuickTourActionsCard'
@@ -68,12 +70,15 @@ export function DashboardClient({
   const [autopilotSaving, setAutopilotSaving] = useState<boolean>(false)
   const [activeCompanyInput, setActiveCompanyInput] = useState<string | null>(null)
   const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<DashboardTabKey>('command')
   const router = useRouter()
   const { plan, tier, isPro: planIsPro, trial } = usePlan()
   // Debug UI should never render in production even if misconfigured env vars are present.
   const debugEnabled = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI === 'true'
   const autopilotUiEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI === 'true'
   const entitlements = useMemo(() => getEntitlements({ plan, trial }), [plan, trial])
+  const isStarter = tier === 'starter'
+  const tabs = useMemo(() => getDashboardTabs({ tier, entitlements }), [tier, entitlements])
 
   // Data fetching hooks
   const { events, loading: eventsLoading, error: eventsError, loadEvents, lastUpdatedAt } = useTriggerEvents()
@@ -89,13 +94,15 @@ export function DashboardClient({
     }
   }, [planIsPro, loadCredits])
 
-  // Initial data load
+  // Initial data load: keep this cheap and entitlement-aware.
   useEffect(() => {
-    loadCredits(planIsPro)
-    loadStats()
-    // Ensure lifecycle + settings rows exist (idempotent, best-effort).
-    void fetch('/api/lifecycle/ensure', { method: 'POST' }).catch(() => {})
-  }, [loadCredits, loadStats, loadEvents, planIsPro])
+    // Credits are derived server-side as well; the client refresh stays read-only.
+    void loadCredits(planIsPro)
+    // Only load stats when the command surface is active to prevent background request spam.
+    if (activeTab === 'command') {
+      void loadStats()
+    }
+  }, [loadCredits, loadStats, planIsPro, activeTab])
 
   useEffect(() => {
     if (initialFocus === 'pitch') {
@@ -112,11 +119,12 @@ export function DashboardClient({
 
   // Refresh Trigger Events when the active company context changes (debounced).
   useEffect(() => {
+    if (activeTab !== 'command') return
     const t = setTimeout(() => {
       void loadEvents(triggerFilter)
     }, 250)
     return () => clearTimeout(t)
-  }, [loadEvents, triggerFilter])
+  }, [loadEvents, triggerFilter, activeTab])
 
   const onCompanyContextChange = useCallback((args: { companyInput: string; companyDomain: string | null }) => {
     setActiveCompanyInput(args.companyInput)
@@ -126,6 +134,9 @@ export function DashboardClient({
   const loading = creditsLoading
 
   const autoStartEligible = (!initialHasIcp || totalLeads === 0) && !initialOnboardingCompleted
+
+  const actionQueuePolicy = useMemo(() => getModulePolicy({ tier, module: 'action_queue' }), [tier])
+  const marketSidebarPolicy = useMemo(() => getModulePolicy({ tier, module: 'market_sidebar' }), [tier])
 
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="dashboard-root">
@@ -144,7 +155,7 @@ export function DashboardClient({
       <StatsBar 
         totalLeads={totalLeads} 
         eventsCount={events.length} 
-        isPro={isPro} 
+        tier={tier}
         debugEnabled={debugEnabled}
         onDebugClick={checkWhoami}
       />
@@ -152,50 +163,43 @@ export function DashboardClient({
       {/* Main Content */}
       <div className="w-full" data-testid="dashboard-overflow-x">
         <main className="container mx-auto px-4 sm:px-6 py-6">
-        <Tabs defaultValue="command" className="space-y-6">
-          <div className="overflow-x-auto">
-            <TabsList className="bg-background/50 border border-cyan-500/20 justify-start">
-            <TabsTrigger value="command" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
-              Command Center
-            </TabsTrigger>
-            <TabsTrigger value="leads" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
-              Lead Library
-            </TabsTrigger>
-            <TabsTrigger value="visitors" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
-              Website Visitors
-            </TabsTrigger>
-            <TabsTrigger value="live-intent" className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400">
-              Live Intent
-              {!isPro && (
-                <Badge variant="outline" className="ml-2 border-purple-500/30 text-purple-400 bg-purple-500/10 text-xs h-4 px-1">
-                  Pro
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="market" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
-              Market Pulse
-              {!isPro && (
-                <Badge variant="outline" className="ml-2 border-purple-500/30 text-purple-400 bg-purple-500/10 text-xs h-4 px-1">
-                  Pro
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="watchlist" className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-400">
-              Watchlist
-              {!isPro && (
-                <Badge variant="outline" className="ml-2 border-purple-500/30 text-purple-400 bg-purple-500/10 text-xs h-4 px-1">
-                  Pro
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400">
-              Settings
-            </TabsTrigger>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as DashboardTabKey)} className="space-y-6">
+          <div className="max-w-full">
+            <TabsList className="flex h-auto w-full flex-wrap items-center justify-start gap-1 bg-background/50 border border-cyan-500/20 p-1">
+              {tabs
+                .filter((t) => t.visible)
+                .map((t) => (
+                  <TabsTrigger
+                    key={t.key}
+                    value={t.key}
+                    className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
+                  >
+                    {t.label}
+                    {t.badge ? (
+                      <Badge variant="outline" className="ml-2 border-purple-500/30 text-purple-400 bg-purple-500/10 text-xs h-4 px-1">
+                        {t.badge.label}
+                      </Badge>
+                    ) : null}
+                  </TabsTrigger>
+                ))}
             </TabsList>
           </div>
 
-          <TabsContent value="command" className="space-y-6">
-            <MobileShortlistView />
+          {activeTab === 'command' ? (
+            <TabsContent value="command" className="space-y-6">
+            {tierAtLeast(tier, 'team') ? (
+              <MobileShortlistView />
+            ) : (
+              <div className="md:hidden">
+                <ProOnlyCard
+                  title="Daily shortlist is Team-only"
+                  description="Upgrade to Team to unlock the workflow shortlist, queue + approvals triage, and team operations."
+                  icon="lock"
+                  iconColor="purple"
+                  upgradeTarget="team"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
@@ -214,6 +218,25 @@ export function DashboardClient({
                   navigateToPitchOnGenerate
                 />
                 <ScoreExplainerCard />
+
+                {isStarter ? (
+                  <Card className="border-cyan-500/20 bg-card/50">
+                    <CardContent className="py-6 space-y-2 text-sm text-muted-foreground">
+                      <div className="text-sm font-semibold text-foreground">What’s next on Starter</div>
+                      <div>
+                        You can generate preview pitches and reports, track a small set of accounts, and learn the workflow. Advanced signals and team operations unlock on paid tiers.
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        <Button asChild variant="outline" className="neon-border hover:glow-effect">
+                          <Link href="/pricing?target=closer">See what Closer unlocks</Link>
+                        </Button>
+                        <Button asChild variant="outline">
+                          <Link href="/trust">Verify trust posture</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
               </div>
 
               {/* Secondary column */}
@@ -229,20 +252,42 @@ export function DashboardClient({
                   debugEnabled={debugEnabled}
                 />
 
-                <ActionQueueCard />
+                {actionQueuePolicy.canMount ? (
+                  <ActionQueueCard />
+                ) : actionQueuePolicy.renderAs === 'locked' ? (
+                  <ProOnlyCard
+                    title="Action queue is Team-only"
+                    description="Upgrade to Team to review and deliver queued handoffs from your workspace action layer."
+                    icon="lock"
+                    iconColor="purple"
+                    upgradeTarget="team"
+                  />
+                ) : null}
 
-                <MarketSidebar />
+                {marketSidebarPolicy.canMount ? (
+                  <MarketSidebar />
+                ) : marketSidebarPolicy.renderAs === 'locked' ? (
+                  <ProOnlyCard
+                    title="Markets and watchlists are available on Closer"
+                    description="Upgrade to Closer to unlock market pulse, watchlists, and alerts."
+                    icon="lock"
+                    iconColor="purple"
+                    upgradeTarget="closer"
+                  />
+                ) : null}
               </div>
             </div>
           </TabsContent>
+          ) : null}
 
-          <TabsContent value="leads" className="space-y-6">
+          {activeTab === 'leads' ? (
+            <TabsContent value="leads" className="space-y-6">
             {/* View Mode Toggle */}
             <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Main Column */}
-              <div className="lg:col-span-3">
+              <div className={marketSidebarPolicy.canMount ? 'lg:col-span-3' : 'lg:col-span-4'}>
                 {loading ? (
                   <Card className="border-cyan-500/20 bg-card/50">
                     <CardContent className="py-20 text-center">
@@ -261,14 +306,14 @@ export function DashboardClient({
                         </div>
                         <div className="text-lg font-semibold">Your work is safely stored</div>
                         <div className="text-sm text-muted-foreground max-w-xl mx-auto">
-                          Upgrade to Pro to unlock your Lead Library, pitch history, and exports—and continue where you left off.
+                          Upgrade to Closer to unlock your Lead Library, saved outputs, and exports—and continue where you left off.
                         </div>
                         <Button
                           size="sm"
                           className="neon-border hover:glow-effect"
-                          onClick={() => (window.location.href = '/pricing')}
+                          onClick={() => (window.location.href = '/pricing?target=closer')}
                         >
-                          Upgrade to Pro
+                          Upgrade to Closer
                         </Button>
                       </CardContent>
                     </Card>
@@ -277,78 +322,117 @@ export function DashboardClient({
               </div>
 
               {/* Right Sidebar - Markets */}
-              <div className="lg:col-span-1">
-                <MarketSidebar />
-              </div>
+              {marketSidebarPolicy.canMount ? (
+                <div className="lg:col-span-1">
+                  <MarketSidebar />
+                </div>
+              ) : null}
             </div>
           </TabsContent>
+          ) : null}
 
-          <TabsContent value="visitors" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-3">
-                <WebsiteVisitors />
+          {activeTab === 'visitors' ? (
+            <TabsContent value="visitors" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className={marketSidebarPolicy.canMount ? 'lg:col-span-3' : 'lg:col-span-4'}>
+                  {tierAtLeast(tier, 'closer') ? (
+                    <WebsiteVisitors />
+                  ) : (
+                    <ProOnlyCard
+                      title="Website visitors are available on Closer"
+                      description="Upgrade to Closer to enable visitor tracking and company identification."
+                      icon="lock"
+                      iconColor="purple"
+                      upgradeTarget="closer"
+                    />
+                  )}
+                </div>
+                {marketSidebarPolicy.canMount ? (
+                  <div className="lg:col-span-1">
+                    <MarketSidebar />
+                  </div>
+                ) : null}
               </div>
-              <div className="lg:col-span-1">
-                <MarketSidebar />
-              </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
+          ) : null}
 
-          <TabsContent value="live-intent" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-3">
-                <ProGate
-                  requiredTier="closer"
-                  upgradeTarget="closer"
-                  label="Live Intent (Pro)"
-                  description="Unlock real-time intent signals and enrichment with the Closer plan."
-                >
-                  <LiveIntent isPro={isPro} />
-                </ProGate>
+          {activeTab === 'live-intent' ? (
+            <TabsContent value="live-intent" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className={marketSidebarPolicy.canMount ? 'lg:col-span-3' : 'lg:col-span-4'}>
+                  {tierAtLeast(tier, 'closer') ? (
+                    <LiveIntent isPro={isPro} />
+                  ) : (
+                    <ProOnlyCard
+                      title="Live Intent is available on Closer"
+                      description="Upgrade to Closer to unlock real-time intent signals and enrichment."
+                      icon="lock"
+                      iconColor="purple"
+                      upgradeTarget="closer"
+                    />
+                  )}
+                </div>
+                {marketSidebarPolicy.canMount ? (
+                  <div className="lg:col-span-1">
+                    <MarketSidebar />
+                  </div>
+                ) : null}
               </div>
-              <div className="lg:col-span-1">
-                <MarketSidebar />
-              </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
+          ) : null}
 
-          <TabsContent value="market" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-3">
-                <ProGate
-                  requiredTier="closer"
-                  upgradeTarget="closer"
-                  label="Market Pulse (Pro)"
-                  description="Unlock real-time market pulse and alerts with the Closer plan."
-                >
-                  <MarketPulse />
-                </ProGate>
+          {activeTab === 'market' ? (
+            <TabsContent value="market" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className={marketSidebarPolicy.canMount ? 'lg:col-span-3' : 'lg:col-span-4'}>
+                  {tierAtLeast(tier, 'closer') ? (
+                    <MarketPulse />
+                  ) : (
+                    <ProOnlyCard
+                      title="Market Pulse is available on Closer"
+                      description="Upgrade to Closer to unlock market pulse and alerts."
+                      icon="lock"
+                      iconColor="purple"
+                      upgradeTarget="closer"
+                    />
+                  )}
+                </div>
+                {marketSidebarPolicy.canMount ? (
+                  <div className="lg:col-span-1">
+                    <MarketSidebar />
+                  </div>
+                ) : null}
               </div>
-              <div className="lg:col-span-1">
-                <MarketSidebar />
-              </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
+          ) : null}
 
-          <TabsContent value="watchlist" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-1">
-                <MarketSidebar />
+          {activeTab === 'watchlist' ? (
+            <TabsContent value="watchlist" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {marketSidebarPolicy.canMount ? (
+                  <div className="lg:col-span-1">
+                    <MarketSidebar />
+                  </div>
+                ) : null}
+                <div className={marketSidebarPolicy.canMount ? 'lg:col-span-3' : 'lg:col-span-4'}>
+                  {tierAtLeast(tier, 'closer') ? (
+                    <MarketWatchlistTab />
+                  ) : (
+                    <ProOnlyCard
+                      title="Watchlists are available on Closer"
+                      description="Upgrade to Closer to build watchlists and configure alerts."
+                      icon="lock"
+                      iconColor="purple"
+                      upgradeTarget="closer"
+                    />
+                  )}
+                </div>
               </div>
-              <div className="lg:col-span-3">
-                <ProGate
-                  requiredTier="closer"
-                  upgradeTarget="closer"
-                  label="Watchlist (Pro)"
-                  description="Unlock custom watchlists and alerts with the Closer plan."
-                >
-                  <MarketWatchlistTab />
-                </ProGate>
-              </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
+          ) : null}
 
-          <TabsContent value="settings" className="space-y-6">
+          {activeTab === 'settings' ? (
+            <TabsContent value="settings" className="space-y-6">
             {autopilotUiEnabled ? (
               isPro ? (
                 <Card className="border-cyan-500/20 bg-card/50">
@@ -392,10 +476,11 @@ export function DashboardClient({
                 </Card>
               ) : (
                 <ProOnlyCard
-                  title="Autopilot is Pro-only"
-                  description="Upgrade to Pro to enable Autopilot outreach."
+                  title="Autopilot is available on Closer"
+                  description="Upgrade to Closer to enable Autopilot outreach."
                   icon="lock"
                   iconColor="purple"
+                  upgradeTarget="closer"
                 />
               )
             ) : (
@@ -408,6 +493,7 @@ export function DashboardClient({
 
             <CommunicationPreferencesCard />
           </TabsContent>
+          ) : null}
         </Tabs>
 
         {/* Value Proposition Banner for Free Users */}
@@ -418,7 +504,7 @@ export function DashboardClient({
                 <div>
                   <h3 className="text-lg font-bold mb-2">Credits Exhausted</h3>
                   <p className="text-sm text-muted-foreground">
-                    You&apos;ve used your daily free lead. Upgrade to Pro for unlimited access to all leads with full contact details.
+                    You&apos;ve used your Starter preview for today. Upgrade to Closer for unlimited access to saved outputs and advanced surfaces.
                   </p>
                 </div>
                 <Button
@@ -426,7 +512,7 @@ export function DashboardClient({
                   className="neon-border hover:glow-effect bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400"
                 >
                   <DollarSign className="h-4 w-4 mr-2" />
-                  Upgrade to Pro
+                  Upgrade to Closer
                 </Button>
               </div>
             </CardContent>

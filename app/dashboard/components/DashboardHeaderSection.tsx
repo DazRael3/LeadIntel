@@ -65,22 +65,22 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
   }
 
   return (
-    <header className="border-b border-cyan-500/20 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-      <div className="container mx-auto px-6 py-4">
-        <div className="flex items-center justify-between">
+    <header className="border-b border-cyan-500/20 bg-background/80 backdrop-blur-sm">
+      <div className="container mx-auto px-4 sm:px-6 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold bloomberg-font neon-cyan">LEADINTEL</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">PROFESSIONAL TERMINAL</p>
+            <h1 className="text-xl sm:text-2xl font-bold bloomberg-font neon-cyan">Dashboard</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Why-now signals → explainable score → send-ready outreach</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Credits Display */}
             <Card className="border-cyan-500/20 bg-card/50 px-4 py-2">
               <div className="flex items-center gap-3">
                 <CreditCard className="h-4 w-4 text-cyan-400" />
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Credits</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">{isStarter ? 'Preview remaining' : 'Credits'}</p>
                   <p className="text-sm font-bold neon-cyan">
-                    {planMeta.creditsLabel}
+                    {isStarter ? `${Math.max(0, creditsRemaining)}` : planMeta.creditsLabel}
                   </p>
                 </div>
               </div>
@@ -104,7 +104,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
 
             {/* Upgrade / Billing CTAs */}
             {isStarter ? (
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-col items-start gap-2 sm:items-end">
                 <Button
                   variant="outline"
                   onClick={() => router.push('/pricing?target=closer')}
@@ -121,7 +121,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                     <li>Unlimited competitive reports</li>
                     <li>Full report details (competitor moves, trigger sources)</li>
                     <li>Saved report history in one place</li>
-                    <li>Pro market watchlists &amp; alerts</li>
+                    <li>Market watchlists &amp; alerts</li>
                   </ul>
                 </div>
               </div>
