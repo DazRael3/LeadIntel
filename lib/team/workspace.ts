@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type WorkspaceRole = 'owner' | 'admin' | 'member'
+export type WorkspaceRole = 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
 
 export type WorkspaceRow = {
   id: string
@@ -36,6 +36,12 @@ export async function ensurePersonalWorkspace(args: {
       },
       { onConflict: 'workspace_id,user_id' }
     )
+    // Best-effort: set current workspace for stable multi-workspace UX.
+    try {
+      await args.supabase.from('users').update({ current_workspace_id: ownedRow.id }).eq('id', args.userId)
+    } catch {
+      // ignore (schema drift / old environments)
+    }
     return ownedRow
   }
 
@@ -62,6 +68,13 @@ export async function ensurePersonalWorkspace(args: {
     { onConflict: 'workspace_id,user_id' }
   )
 
+  // Best-effort: set current workspace for stable multi-workspace UX.
+  try {
+    await args.supabase.from('users').update({ current_workspace_id: (ws as WorkspaceRow).id }).eq('id', args.userId)
+  } catch {
+    // ignore (schema drift / old environments)
+  }
+
   return ws as WorkspaceRow
 }
 
@@ -79,7 +92,9 @@ export async function getWorkspaceMembership(args: {
     .maybeSingle()
 
   const role = (data as { role?: unknown } | null)?.role
-  if (role === 'owner' || role === 'admin' || role === 'member') return { role }
+  // Back-compat: older schema uses 'member' which maps to 'rep'.
+  if (role === 'member') return { role: 'rep' }
+  if (role === 'owner' || role === 'admin' || role === 'manager' || role === 'rep' || role === 'viewer') return { role }
   return null
 }
 
@@ -87,7 +102,27 @@ export async function getCurrentWorkspace(args: {
   supabase: SupabaseClient
   userId: string
 }): Promise<WorkspaceRow | null> {
-  // Prefer owned workspace when present, otherwise pick the oldest membership.
+  // Multi-workspace: prefer persisted selection when valid.
+  try {
+    const { data: userRow } = await args.supabase.from('users').select('current_workspace_id').eq('id', args.userId).maybeSingle()
+    const currentId = (userRow as { current_workspace_id?: unknown } | null)?.current_workspace_id
+    if (typeof currentId === 'string' && currentId) {
+      const membership = await getWorkspaceMembership({ supabase: args.supabase, workspaceId: currentId, userId: args.userId })
+      if (membership) {
+        const { data: ws } = await args.supabase
+          .schema('api')
+          .from('workspaces')
+          .select('id, name, owner_user_id, default_template_set_id, created_at')
+          .eq('id', currentId)
+          .maybeSingle()
+        if (ws) return ws as WorkspaceRow
+      }
+    }
+  } catch {
+    // ignore (schema drift / old environments)
+  }
+
+  // Fallback: prefer owned workspace when present, otherwise pick the oldest membership.
   const { data: owned } = await args.supabase
     .schema('api')
     .from('workspaces')

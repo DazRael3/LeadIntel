@@ -1,20 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-
-type AuditLogRow = {
-  id: string
-  action: string
-  target_type: string
-  target_id: string | null
-  meta: Record<string, unknown>
-  created_at: string
-  actor: { userId: string; email: string | null; displayName: string | null }
-}
+import { AuditFilterBar } from '@/components/settings/AuditFilterBar'
+import { AuditEventDetail } from '@/components/settings/AuditEventDetail'
+import { AuditEventTable, type AuditLogRow } from '@/components/settings/AuditEventTable'
 
 export function AuditSettingsClient() {
   const { toast } = useToast()
@@ -24,6 +16,9 @@ export function AuditSettingsClient() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [rows, setRows] = useState<AuditLogRow[]>([])
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [selected, setSelected] = useState<AuditLogRow | null>(null)
 
   const queryString = useMemo(() => {
     const sp = new URLSearchParams()
@@ -31,9 +26,11 @@ export function AuditSettingsClient() {
     if (actor.trim()) sp.set('actor', actor.trim())
     if (from.trim()) sp.set('from', from.trim())
     if (to.trim()) sp.set('to', to.trim())
+    sp.set('page', String(page))
+    sp.set('pageSize', '50')
     const s = sp.toString()
     return s ? `?${s}` : ''
-  }, [action, actor, from, to])
+  }, [action, actor, from, to, page])
 
   async function load() {
     setLoading(true)
@@ -44,8 +41,10 @@ export function AuditSettingsClient() {
         setRows([])
         return
       }
-      const json = (await res.json()) as { ok?: boolean; data?: { logs?: AuditLogRow[] } }
+      const json = (await res.json()) as { ok?: boolean; data?: { logs?: AuditLogRow[]; hasMore?: boolean } }
       setRows(json.data?.logs ?? [])
+      setHasMore(Boolean(json.data?.hasMore))
+      setSelected(null)
     } catch {
       toast({ variant: 'destructive', title: 'Load failed', description: 'Please try again.' })
     } finally {
@@ -56,7 +55,7 @@ export function AuditSettingsClient() {
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [queryString])
 
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="audit-page">
@@ -66,65 +65,59 @@ export function AuditSettingsClient() {
           <p className="mt-1 text-sm text-muted-foreground">Admin visibility across workspace activity.</p>
         </div>
 
-        <Card className="border-cyan-500/20 bg-card/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Filters</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm text-muted-foreground">
-            <Input placeholder="action" value={action} onChange={(e) => setAction(e.target.value)} data-testid="audit-filter-action" />
-            <Input placeholder="actor user id" value={actor} onChange={(e) => setActor(e.target.value)} data-testid="audit-filter-actor" />
-            <Input placeholder="from (ISO)" value={from} onChange={(e) => setFrom(e.target.value)} data-testid="audit-filter-from" />
-            <Input placeholder="to (ISO)" value={to} onChange={(e) => setTo(e.target.value)} data-testid="audit-filter-to" />
-            <div className="md:col-span-4">
-              <Button onClick={() => void load()} className="neon-border hover:glow-effect" data-testid="audit-apply">
-                Apply
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <AuditFilterBar
+          action={action}
+          actor={actor}
+          from={from}
+          to={to}
+          onChange={(next) => {
+            setAction(next.action)
+            setActor(next.actor)
+            setFrom(next.from)
+            setTo(next.to)
+          }}
+          onApply={() => {
+            setPage(0)
+          }}
+        />
 
-        <Card className="border-cyan-500/20 bg-card/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Events</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {loading ? (
-              <div>Loading…</div>
-            ) : rows.length === 0 ? (
-              <div>No events found.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="text-xs text-muted-foreground">
-                    <tr>
-                      <th className="py-2 pr-4">Time</th>
-                      <th className="py-2 pr-4">Actor</th>
-                      <th className="py-2 pr-4">Action</th>
-                      <th className="py-2 pr-4">Target</th>
-                      <th className="py-2 pr-2">Meta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.id} className="border-t border-cyan-500/10">
-                        <td className="py-2 pr-4">{new Date(r.created_at).toLocaleString()}</td>
-                        <td className="py-2 pr-4">{r.actor.displayName ?? r.actor.email ?? r.actor.userId}</td>
-                        <td className="py-2 pr-4 text-foreground">{r.action}</td>
-                        <td className="py-2 pr-4">
-                          {r.target_type}
-                          {r.target_id ? ` · ${r.target_id}` : ''}
-                        </td>
-                        <td className="py-2 pr-2">
-                          <span className="text-xs">{Object.keys(r.meta ?? {}).slice(0, 3).join(', ') || '—'}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <AuditEventTable loading={loading} rows={rows} onSelect={(r) => setSelected(r)} />
+            <Card className="mt-4 border-cyan-500/20 bg-card/50">
+              <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+                <div>Page {page + 1}</div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (page <= 0) return
+                      setPage((p) => Math.max(0, p - 1))
+                    }}
+                    disabled={page <= 0 || loading}
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!hasMore) return
+                      setPage((p) => p + 1)
+                    }}
+                    disabled={!hasMore || loading}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          <div className="lg:col-span-1">
+            <AuditEventDetail selected={selected} />
+          </div>
+        </div>
       </div>
     </div>
   )

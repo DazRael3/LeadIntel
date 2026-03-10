@@ -50,7 +50,7 @@ export const PATCH = withApiGuard(
         if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
 
         const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-        if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+        if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {
           return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
         }
 
@@ -97,7 +97,7 @@ export const PATCH = withApiGuard(
       if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
 

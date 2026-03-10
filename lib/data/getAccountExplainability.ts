@@ -7,6 +7,10 @@ import type { BuyingGroupRecommendation, PersonaRecommendationSummary } from '@/
 import { deriveBuyingGroup } from '@/lib/services/buying-group'
 import { derivePersonaRecommendations } from '@/lib/services/persona-recommendations'
 import { deriveFirstPartyIntentSummary } from '@/lib/services/first-party-intent'
+import { deriveAccountDataQuality } from '@/lib/services/data-quality'
+import { deriveSourceHealth } from '@/lib/services/source-health'
+import type { DataQualitySummary } from '@/lib/domain/data-quality'
+import type { SourceHealthSummary } from '@/lib/domain/source-health'
 
 type DbLeadRow = {
   id: string
@@ -51,6 +55,8 @@ export type AccountExplainability = {
   scoreExplainability: ScoreExplainability
   momentum: SignalMomentum
   firstPartyIntent: FirstPartyIntent
+  dataQuality: DataQualitySummary
+  sourceHealth: SourceHealthSummary
   people: {
     personas: PersonaRecommendationSummary
     buyingGroup: BuyingGroupRecommendation
@@ -435,6 +441,20 @@ export async function getAccountExplainability(args: {
 
   const buyingGroup = deriveBuyingGroup(personas)
 
+  const sourceHealth = deriveSourceHealth({
+    window,
+    signals,
+    firstPartyLastVisitedAt: visitorMatches.lastVisitedAt,
+  })
+
+  const dataQuality = deriveAccountDataQuality({
+    signals,
+    scoreExplainability,
+    momentum: momentum ?? null,
+    firstPartyIntent,
+    people: { personas, buyingGroup },
+  })
+
   return {
     account: {
       id: lead.id,
@@ -448,6 +468,8 @@ export async function getAccountExplainability(args: {
     scoreExplainability,
     momentum,
     firstPartyIntent,
+    dataQuality,
+    sourceHealth,
     people: {
       personas,
       buyingGroup,

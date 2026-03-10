@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle2, Circle } from 'lucide-react'
 import { track } from '@/lib/analytics'
 import { useActivationV2 } from '@/components/dashboard/useActivationV2'
+import { useExperiment } from '@/lib/experiments/useExperiment'
 
 function stepHref(stepId: string): string {
   if (stepId === 'target_accounts_added') return '/onboarding'
@@ -35,6 +36,8 @@ function stepCta(stepId: string): string {
 
 export function ActivationChecklist() {
   const { loading, model, refresh } = useActivationV2()
+  const { assignment } = useExperiment({ experimentKey: 'dashboard_activation_copy_v1', surface: 'dashboard_activation' })
+  const variant = assignment?.variantKey ?? 'control'
 
   useEffect(() => {
     track('dashboard_activation_checklist_viewed', { location: 'dashboard_command' })
@@ -61,7 +64,9 @@ export function ActivationChecklist() {
           <div>
             <CardTitle className="text-base">Activation</CardTitle>
             <div className="mt-1 text-xs text-muted-foreground">
-              Make the workflow real: targets → why-now → drafts → action.
+              {variant === 'direct'
+                ? 'Run the loop: targets → why-now → draft → action.'
+                : 'Make the workflow real: targets → why-now → drafts → action.'}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -97,7 +102,15 @@ export function ActivationChecklist() {
                 <Button asChild size="sm" variant="outline" className="neon-border hover:glow-effect shrink-0">
                   <Link
                     href={stepHref(s.id)}
-                    onClick={() => track('checklist_step_clicked', { stepId: s.id, version: 'v2' })}
+                    onClick={() =>
+                      track('checklist_step_clicked', {
+                        stepId: s.id,
+                        version: 'v2',
+                        experimentKey: assignment?.experimentKey ?? null,
+                        variantKey: assignment?.variantKey ?? null,
+                        surface: 'dashboard_activation',
+                      })
+                    }
                   >
                     {stepCta(s.id)}
                   </Link>

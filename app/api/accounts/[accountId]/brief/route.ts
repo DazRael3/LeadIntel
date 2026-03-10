@@ -14,6 +14,9 @@ import crypto from 'crypto'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { logAudit } from '@/lib/audit/log'
+import { runRecipesForTrigger } from '@/lib/services/action-recipes'
+import { serverEnv } from '@/lib/env'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -115,6 +118,31 @@ export const POST = withApiGuard(
       if (tier === 'starter') {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
+
+      // Idempotency (best-effort): if a brief was just generated for the same window, reuse it.
+      const sinceIso = new Date(Date.now() - 60 * 1000).toISOString()
+      const { data: recentBrief } = await supabase
+        .from('user_reports')
+        .select('id, created_at, report_markdown')
+        .eq('user_id', userId)
+        .eq('report_kind', 'account_brief')
+        .eq('meta->>leadId', accountId)
+        .eq('meta->>signalWindow', window)
+        .eq('status', 'complete')
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (recentBrief?.id && typeof (recentBrief as { report_markdown?: unknown }).report_markdown === 'string') {
+        return ok(
+          { reportId: recentBrief.id, brief_markdown: (recentBrief as { report_markdown: string }).report_markdown, reused: true },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
+
       const { data: lead, error: leadError } = await supabase
         .from('leads')
         .select('id, company_name, company_domain, company_url')
@@ -240,6 +268,18 @@ export const POST = withApiGuard(
         return fail(ErrorCode.DATABASE_ERROR, 'Failed to save brief', { message: insertError?.message }, undefined, bridge, requestId)
       }
 
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        try {
+          await logProductEvent({
+            userId,
+            eventName: 'account_brief_saved',
+            eventProps: { leadId: accountId, reportId: inserted.id, window },
+          })
+        } catch {
+          // best-effort
+        }
+      }
+
       // Best-effort: record as an action in the workspace action layer when Team webhooks exist.
       try {
         await ensurePersonalWorkspace({ supabase, userId })
@@ -261,7 +301,7 @@ export const POST = withApiGuard(
             await enqueueWebhookEvent({
               workspaceId: ws.id,
               eventType: 'account.brief.generated',
-              eventId: crypto.randomUUID(),
+              eventId: inserted.id,
               payload: {
                 account: {
                   id: accountId,
@@ -275,6 +315,29 @@ export const POST = withApiGuard(
                 generatedAt: new Date().toISOString(),
               },
             })
+
+            // Guided workflow: allow Team recipes to create queue items from this trigger.
+            try {
+              const ran = await runRecipesForTrigger({
+                supabase,
+                workspaceId: ws.id,
+                userId,
+                trigger: 'brief_saved',
+                leadId: accountId,
+                explainability,
+                triggerMeta: { reportId: inserted.id, window },
+                reason: 'Brief saved',
+              })
+              if ((ran.createdQueueItemIds ?? []).length > 0) {
+                await logProductEvent({
+                  userId,
+                  eventName: 'action_recipe_run',
+                  eventProps: { trigger: 'brief_saved', created: ran.createdQueueItemIds.length, reportId: inserted.id, leadId: accountId },
+                })
+              }
+            } catch {
+              // best-effort
+            }
           }
         }
       } catch {

@@ -15,6 +15,25 @@ const QuerySchema = z.object({
   actor: z.string().uuid().optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
+  page: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => {
+      if (!v) return 0
+      const n = Number.parseInt(v, 10)
+      return Number.isFinite(n) && n >= 0 ? n : 0
+    }),
+  pageSize: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => {
+      if (!v) return 50
+      const n = Number.parseInt(v, 10)
+      if (!Number.isFinite(n)) return 50
+      return Math.max(10, Math.min(100, n))
+    }),
 })
 
 export const GET = withApiGuard(
@@ -54,15 +73,19 @@ export const GET = withApiGuard(
       let q = supabase
         .schema('api')
         .from('audit_logs')
-        .select('id, workspace_id, actor_user_id, action, target_type, target_id, meta, ip, user_agent, created_at')
+        .select('id, workspace_id, actor_user_id, action, target_type, target_id, meta, created_at')
         .eq('workspace_id', workspace.id)
 
       if (parsedQuery.data.action) q = q.eq('action', parsedQuery.data.action)
       if (parsedQuery.data.actor) q = q.eq('actor_user_id', parsedQuery.data.actor)
       if (parsedQuery.data.from) q = q.gte('created_at', parsedQuery.data.from)
-      if (parsedQuery.data.to) q = q.gte('created_at', parsedQuery.data.to) // inclusive; UI uses end-of-day when needed
+      if (parsedQuery.data.to) q = q.lte('created_at', parsedQuery.data.to) // inclusive; UI uses end-of-day when needed
 
-      const { data: rows, error } = await q.order('created_at', { ascending: false }).limit(200)
+      const page = parsedQuery.data.page ?? 0
+      const pageSize = parsedQuery.data.pageSize ?? 50
+      const offset = page * pageSize
+
+      const { data: rows, error } = await q.order('created_at', { ascending: false }).range(offset, offset + pageSize - 1)
       if (error) {
         return fail(ErrorCode.DATABASE_ERROR, 'Failed to load audit log', undefined, undefined, bridge, requestId)
       }
@@ -102,7 +125,8 @@ export const GET = withApiGuard(
         },
       }))
 
-      return ok({ workspace, logs: enriched }, undefined, bridge, requestId)
+      const hasMore = (rows ?? []).length === pageSize
+      return ok({ workspace, logs: enriched, page, pageSize, hasMore }, undefined, bridge, requestId)
     } catch (error) {
       return asHttpError(error, '/api/team/audit', userId, bridge, requestId)
     }

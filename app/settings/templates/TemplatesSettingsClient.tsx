@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 
-type Role = 'owner' | 'admin' | 'member'
+type Role = 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
 type Channel = 'email' | 'linkedin_dm' | 'call_opener'
 type Status = 'draft' | 'approved'
 
@@ -41,7 +41,7 @@ type TemplatesEnvelope = { ok: true; data: { role: Role; templates: TemplateRow[
 export function TemplatesSettingsClient() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [role, setRole] = useState<Role>('member')
+  const [role, setRole] = useState<Role>('viewer')
   const [sets, setSets] = useState<TemplateSet[]>([])
   const [templates, setTemplates] = useState<TemplateRow[]>([])
   const [defaultSetId, setDefaultSetId] = useState<string | null>(null)
@@ -65,7 +65,7 @@ export function TemplatesSettingsClient() {
   })
   const [savingTemplate, setSavingTemplate] = useState(false)
 
-  const isAdmin = role === 'owner' || role === 'admin'
+  const isAdmin = role === 'owner' || role === 'admin' || role === 'manager'
 
   const filteredTemplates = useMemo(() => {
     if (!activeSetId) return templates
@@ -228,6 +228,24 @@ export function TemplatesSettingsClient() {
     }
   }
 
+  async function submitForReview(id: string) {
+    try {
+      const res = await fetch('/api/team/approvals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType: 'template', targetId: id, note: 'Template ready for review' }),
+      })
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: { message?: string } } | null
+        toast({ variant: 'destructive', title: 'Submit failed', description: json?.error?.message ?? 'Access restricted.' })
+        return
+      }
+      toast({ title: 'Submitted for review.' })
+    } catch {
+      toast({ variant: 'destructive', title: 'Submit failed', description: 'Please try again.' })
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="templates-settings-page">
       <AuthedSettingsStamp payload={{ templates_viewed_at: new Date().toISOString() }} sessionKey="templates_viewed" />
@@ -340,6 +358,11 @@ export function TemplatesSettingsClient() {
                           </div>
                           {isAdmin && (
                             <div className="flex items-center gap-2">
+                              {t.status !== 'approved' ? (
+                                <Button variant="outline" size="sm" onClick={() => void submitForReview(t.id)} data-testid={`templates-submit-${t.id}`}>
+                                  Send to approvals
+                                </Button>
+                              ) : null}
                               {t.status !== 'approved' && (
                                 <Button size="sm" onClick={() => void approveTemplate(t.id)} data-testid={`templates-approve-${t.id}`}>
                                   Approve

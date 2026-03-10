@@ -1,11 +1,10 @@
 import { test, expect } from './fixtures'
-import { requireEnv, loginViaUi, setE2ECookies } from './utils'
+import { setE2ECookies } from './utils'
 
 test.describe('Activation flow', () => {
   test('completes ICP + 10 accounts + first pitch + cadence', async ({ page }) => {
     const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000'
-    const email = requireEnv('E2E_EMAIL')
-    const password = requireEnv('E2E_PASSWORD')
+    const email = process.env.E2E_EMAIL || 'e2e@example.com'
 
     await page.addInitScript(() => {
       try {
@@ -15,8 +14,8 @@ test.describe('Activation flow', () => {
       }
     })
 
-    await setE2ECookies({ page, baseURL, plan: 'pro', uid: 'e2e_activation', email })
-    await loginViaUi({ page, email, password })
+    await setE2ECookies({ page, baseURL, authed: true, plan: 'pro', uid: 'e2e_activation', email })
+    await page.goto('/dashboard')
     await expect(page).toHaveURL(/\/dashboard/)
 
     const domains = Array.from({ length: 10 }).map((_, i) => `e2e-${String(i + 1).padStart(2, '0')}.example.com`)

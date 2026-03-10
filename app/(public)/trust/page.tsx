@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { TrustChecklist } from '@/components/marketing/TrustChecklist'
 import { BuyerReadiness } from '@/components/marketing/BuyerReadiness'
+import { OperationalReadiness } from '@/components/marketing/OperationalReadiness'
 import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 
 export const metadata: Metadata = {
@@ -36,6 +37,7 @@ const LINKS: TrustLink[] = [
   { href: '/acceptable-use', label: 'Acceptable Use' },
   { href: '/subprocessors', label: 'Subprocessors' },
   { href: '/dpa', label: 'DPA' },
+  { href: '/trust/buyer-readiness', label: 'Buyer readiness', note: 'Controls today, and what we do not claim.' },
   { href: '/status', label: 'Status' },
   { href: '/version', label: 'Version' },
   { href: '/changelog', label: 'Changelog' },
@@ -70,6 +72,7 @@ export default function TrustCenterPage() {
 
         <TrustChecklist />
         <BuyerReadiness />
+        <OperationalReadiness />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {LINKS.map((l) => (

@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
+import { Badge } from '@/components/ui/badge'
 
-type Role = 'owner' | 'admin' | 'member'
+type Role = 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
 
 type MembersPayload = {
   workspace: { id: string; name: string; owner_user_id: string }
@@ -21,6 +22,16 @@ type MembersPayload = {
   }>
 }
 
+type InviteRow = {
+  id: string
+  email: string
+  role: string
+  expires_at: string
+  accepted_at: string | null
+  created_at: string
+  created_by: string
+}
+
 export function TeamSettingsClient() {
   const { toast } = useToast()
   const router = useRouter()
@@ -29,8 +40,9 @@ export function TeamSettingsClient() {
 
   const [loading, setLoading] = useState(true)
   const [payload, setPayload] = useState<MembersPayload | null>(null)
+  const [invites, setInvites] = useState<InviteRow[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member')
+  const [inviteRole, setInviteRole] = useState<'admin' | 'manager' | 'rep' | 'viewer'>('rep')
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
 
@@ -40,10 +52,15 @@ export function TeamSettingsClient() {
     return m
   }, [payload])
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/team/members', { method: 'GET', cache: 'no-store' })
+      const [membersRes, invitesRes] = await Promise.all([
+        fetch('/api/team/members', { method: 'GET', cache: 'no-store' }),
+        fetch('/api/team/invites', { method: 'GET', cache: 'no-store' }),
+      ])
+
+      const res = membersRes
       if (!res.ok) {
         toast({ variant: 'destructive', title: 'Access restricted.' })
         setPayload(null)
@@ -51,13 +68,20 @@ export function TeamSettingsClient() {
       }
       const json = (await res.json()) as { ok?: boolean; data?: MembersPayload }
       setPayload(json.data ?? null)
+
+      if (invitesRes.ok) {
+        const invJson = (await invitesRes.json().catch(() => null)) as { ok?: boolean; data?: { invites?: InviteRow[] } } | null
+        setInvites(invJson?.data?.invites ?? [])
+      } else {
+        setInvites([])
+      }
     } catch {
       setPayload(null)
       toast({ variant: 'destructive', title: 'Load failed', description: 'Please try again.' })
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
   async function acceptInvite(token: string) {
     try {
@@ -81,8 +105,7 @@ export function TeamSettingsClient() {
 
   useEffect(() => {
     void refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [refresh])
 
   useEffect(() => {
     if (!acceptToken) return
@@ -102,7 +125,12 @@ export function TeamSettingsClient() {
       const text = await res.text()
       const json = text ? (JSON.parse(text) as { ok?: boolean; data?: { inviteLink?: string } }) : null
       if (!res.ok) {
-        toast({ variant: 'destructive', title: 'Access restricted.' })
+        const errJson = text ? (JSON.parse(text) as { error?: { message?: string } }) : null
+        toast({
+          variant: 'destructive',
+          title: 'Invite blocked',
+          description: errJson?.error?.message ?? 'Access restricted.',
+        })
         return
       }
       toast({ title: 'Invite sent.' })
@@ -163,6 +191,26 @@ export function TeamSettingsClient() {
     }
   }
 
+  async function revokeInvite(inviteId: string) {
+    const ok = window.confirm('Revoke invite?')
+    if (!ok) return
+    try {
+      const res = await fetch('/api/team/invites', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId }),
+      })
+      if (!res.ok) {
+        toast({ variant: 'destructive', title: 'Access restricted.' })
+        return
+      }
+      toast({ title: 'Invite revoked.' })
+      await refresh()
+    } catch {
+      toast({ variant: 'destructive', title: 'Revoke failed', description: 'Please try again.' })
+    }
+  }
+
   const isEmpty = !loading && (payload?.members?.length ?? 0) === 0
 
   return (
@@ -170,12 +218,17 @@ export function TeamSettingsClient() {
       <div className="container mx-auto px-6 py-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold bloomberg-font neon-cyan">Team</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Members and roles for your workspace.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Members, roles, and governance for your workspace.</p>
         </div>
 
         <Card className="border-cyan-500/20 bg-card/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Invite member</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Invite member</CardTitle>
+              <Button variant="outline" size="sm" onClick={() => (window.location.href = '/settings/workspace')}>
+                Workspace invite policy
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -188,10 +241,15 @@ export function TeamSettingsClient() {
               <select
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                 value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value === 'admin' ? 'admin' : 'member')}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === 'admin' || v === 'manager' || v === 'rep' || v === 'viewer') setInviteRole(v)
+                }}
                 data-testid="team-invite-role"
               >
-                <option value="member">Member</option>
+                <option value="viewer">Viewer</option>
+                <option value="rep">Rep</option>
+                <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
               </select>
               <Button
@@ -215,6 +273,54 @@ export function TeamSettingsClient() {
                 >
                   Copy link
                 </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-cyan-500/20 bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Pending invites</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {loading ? (
+              <div>Loading…</div>
+            ) : invites.length === 0 ? (
+              <div>No pending invites.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="text-xs text-muted-foreground">
+                    <tr>
+                      <th className="py-2 pr-4">Email</th>
+                      <th className="py-2 pr-4">Role</th>
+                      <th className="py-2 pr-4">Expires</th>
+                      <th className="py-2 pr-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invites
+                      .filter((i) => !i.accepted_at)
+                      .map((i) => (
+                        <tr key={i.id} className="border-t border-cyan-500/10">
+                          <td className="py-2 pr-4">{i.email}</td>
+                          <td className="py-2 pr-4">
+                            <Badge variant="outline">{i.role}</Badge>
+                          </td>
+                          <td className="py-2 pr-4 text-xs">{new Date(i.expires_at).toLocaleString()}</td>
+                          <td className="py-2 pr-2">
+                            {payload?.viewer.role === 'owner' || payload?.viewer.role === 'admin' ? (
+                              <Button variant="outline" size="sm" onClick={() => void revokeInvite(i.id)}>
+                                Revoke
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>
@@ -254,7 +360,9 @@ export function TeamSettingsClient() {
                           >
                           {payload?.viewer.role === 'owner' && <option value="owner">Owner</option>}
                             <option value="admin">Admin</option>
-                            <option value="member">Member</option>
+                            <option value="manager">Manager</option>
+                            <option value="rep">Rep</option>
+                            <option value="viewer">Viewer</option>
                           </select>
                         </td>
                         <td className="py-2 pr-2">

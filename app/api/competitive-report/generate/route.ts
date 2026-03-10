@@ -8,6 +8,11 @@ import { looksLikeEmail } from '@/lib/reports/reportFormatGuards'
 import { normalizeReportInput } from '@/lib/reports/reportInput'
 import { assertMinCitationsOrThrow, flattenCitations } from '@/lib/reports/sourceRequirements'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { logAudit } from '@/lib/audit/log'
+import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
+import { serverEnv } from '@/lib/env'
+import { logProductEvent } from '@/lib/services/analytics'
 import {
   cancelPremiumGeneration,
   completePremiumGeneration,
@@ -72,6 +77,53 @@ export const POST = withApiGuard(
         getPremiumGenerationCapabilities({ supabase, userId: user.id, sessionEmail: user.email ?? null }),
         getPremiumGenerationUsage({ supabase, userId: user.id }),
       ])
+
+      // Idempotency (best-effort): if a report was just generated for the same company key,
+      // return it rather than generating and counting again.
+      const sinceIso = new Date(Date.now() - 60 * 1000).toISOString()
+      const { data: recent } = await supabase
+        .from('user_reports')
+        .select('id, report_markdown, report_json')
+        .eq('user_id', user.id)
+        .eq('report_kind', 'competitive')
+        .eq('status', 'complete')
+        .eq('meta->>companyKey', input.companyKey)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (recent?.id && typeof (recent as { report_markdown?: unknown }).report_markdown === 'string') {
+        const usageAfter = usageBefore
+        const full = (recent as { report_markdown: string; report_json?: unknown }).report_markdown
+        return ok(
+          capabilities.blurPremiumSections
+            ? {
+                reportId: recent.id,
+                report_markdown: null,
+                report_json: null,
+                reportPreviewMarkdown: redactTextPreview(full, 1600),
+                isBlurred: true,
+                lockedSections: ['report_markdown'] as const,
+                usage: usageAfter,
+                upgradeRequired: capabilities.tier === 'starter' && usageAfter.used >= usageAfter.limit,
+                reused: true,
+              }
+            : {
+                reportId: recent.id,
+                report_markdown: full,
+                report_json: (recent as { report_json?: unknown }).report_json ?? null,
+                isBlurred: false,
+                lockedSections: [] as const,
+                usage: usageAfter,
+                upgradeRequired: false,
+                reused: true,
+              },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
 
       if (capabilities.tier === 'starter') {
         if (usageBefore.used >= usageBefore.limit) {
@@ -267,6 +319,80 @@ export const POST = withApiGuard(
       })
       const usageAfter = await getPremiumGenerationUsage({ supabase, userId: user.id })
 
+      // Best-effort: audit log for team workspaces (no content).
+      try {
+        await ensurePersonalWorkspace({ supabase, userId: user.id })
+        const ws = await getCurrentWorkspace({ supabase, userId: user.id })
+        if (ws) {
+          const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
+          if (membership) {
+            await logAudit({
+              supabase,
+              workspaceId: ws.id,
+              actorUserId: user.id,
+              action: 'report.generated',
+              targetType: 'report',
+              targetId: inserted.id,
+              meta: { reportKind: 'competitive', companyKey: input.companyKey, forceRefresh },
+              request,
+            })
+
+            await enqueueWebhookEvent({
+              workspaceId: ws.id,
+              eventType: 'report.generated',
+              eventId: inserted.id,
+              payload: {
+                report: {
+                  id: inserted.id,
+                  kind: 'competitive',
+                  companyKey: input.companyKey,
+                  citationCount: citations.length,
+                },
+                generatedAt: new Date().toISOString(),
+              },
+            })
+
+            // Guided workflow: allow recipes to create action queue items from this trigger.
+            try {
+              const { runRecipesForTrigger } = await import('@/lib/services/action-recipes')
+              const ran = await runRecipesForTrigger({
+                supabase,
+                workspaceId: ws.id,
+                userId: user.id,
+                trigger: 'report_generated',
+                leadId: null,
+                explainability: null,
+                triggerMeta: { reportId: inserted.id, reportKind: 'competitive', companyKey: input.companyKey },
+                reason: 'Report generated',
+              })
+              if ((ran.createdQueueItemIds ?? []).length > 0) {
+                await logProductEvent({
+                  userId: user.id,
+                  eventName: 'action_recipe_run',
+                  eventProps: { trigger: 'report_generated', created: ran.createdQueueItemIds.length, reportId: inserted.id, companyKey: input.companyKey },
+                })
+              }
+            } catch {
+              // best-effort
+            }
+          }
+        }
+      } catch {
+        // best-effort
+      }
+
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        try {
+          await logProductEvent({
+            userId: user.id,
+            eventName: 'generation_succeeded',
+            eventProps: { kind: 'report', reportKind: 'competitive', objectId: inserted.id, companyKey: input.companyKey, citations: citations.length },
+          })
+        } catch {
+          // best-effort
+        }
+      }
+
       return ok(
         capabilities.blurPremiumSections
           ? {
@@ -293,6 +419,17 @@ export const POST = withApiGuard(
         requestId
       )
     } catch (error) {
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        try {
+          await logProductEvent({
+            userId: userId ?? null,
+            eventName: 'generation_failed',
+            eventProps: { kind: 'report', reportKind: 'competitive', errorCode: error instanceof Error ? (error.message || error.name) : 'unknown_error' },
+          })
+        } catch {
+          // best-effort
+        }
+      }
       try {
         const supabase = createRouteClient(request, bridge)
         await cancelPremiumGeneration({ supabase, reservationId })

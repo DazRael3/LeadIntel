@@ -9,12 +9,24 @@ import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } 
 import { toCsv } from '@/lib/exports/csv'
 import { uploadExportCsv } from '@/lib/exports/storage'
 import { logAudit } from '@/lib/audit/log'
+import { serverEnv } from '@/lib/env'
+import { logProductEvent } from '@/lib/services/analytics'
+import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
 
 export const dynamic = 'force-dynamic'
 
 const BodySchema = z.object({
   type: z.enum(['accounts', 'signals', 'templates', 'pitches']),
 })
+
+function isoMinutesAgo(m: number): string {
+  return new Date(Date.now() - m * 60 * 1000).toISOString()
+}
+
+function safeErr(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  return msg.length > 160 ? msg.slice(0, 157) + '...' : msg
+}
 
 export const POST = withApiGuard(
   async (request: NextRequest, { requestId, userId, body }) => {
@@ -36,8 +48,38 @@ export const POST = withApiGuard(
       if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
-        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+      if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+
+      const { policies } = await getWorkspacePolicies({ supabase, workspaceId: workspace.id })
+      if (!policies.exports.allowedRoles.includes(membership.role)) {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Export restricted by workspace policy',
+          { role: `Role ${membership.role} cannot export in this workspace` },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
+
+      // Idempotency (best-effort): reuse a recently-created pending job for the same export type.
+      // This prevents double-creation under retries or rapid repeated clicks.
+      const since = isoMinutesAgo(2)
+      const { data: existingPending } = await supabase
+        .schema('api')
+        .from('export_jobs')
+        .select('id, created_at')
+        .eq('workspace_id', workspace.id)
+        .eq('created_by', user.id)
+        .eq('type', parsed.data.type)
+        .eq('status', 'pending')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existingPending?.id) {
+        return ok({ jobId: existingPending.id, reused: true }, { status: 202 }, bridge, requestId)
       }
 
       // Create job row first (RLS allows admin insert).
@@ -141,6 +183,18 @@ export const POST = withApiGuard(
           request,
         })
 
+        if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+          try {
+            await logProductEvent({
+              userId: user.id,
+              eventName: 'export_succeeded',
+              eventProps: { jobId: job.id, type: parsed.data.type },
+            })
+          } catch {
+            // best-effort
+          }
+        }
+
         return ok({ jobId: job.id }, { status: 201 }, bridge, requestId)
       } catch (err) {
         await supabase
@@ -149,6 +203,29 @@ export const POST = withApiGuard(
           .update({ status: 'failed', error: err instanceof Error ? err.message : 'Export failed' })
           .eq('id', job.id)
           .eq('workspace_id', workspace.id)
+
+        await logAudit({
+          supabase,
+          workspaceId: workspace.id,
+          actorUserId: user.id,
+          action: 'export.failed',
+          targetType: 'export_job',
+          targetId: job.id,
+          meta: { type: parsed.data.type, error: safeErr(err) },
+          request,
+        })
+
+        if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+          try {
+            await logProductEvent({
+              userId: user.id,
+              eventName: 'export_failed',
+              eventProps: { jobId: job.id, type: parsed.data.type, error: safeErr(err) },
+            })
+          } catch {
+            // best-effort
+          }
+        }
 
         return fail(ErrorCode.INTERNAL_ERROR, 'Export failed', undefined, undefined, bridge, requestId)
       }

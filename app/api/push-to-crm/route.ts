@@ -47,7 +47,17 @@ export const POST = withApiGuard(
 
       // Get Zapier webhook URL (lazy load at runtime, not during build)
       const env = getServerEnv()
-      const ZAPIER_WEBHOOK_URL = env.ZAPIER_WEBHOOK_URL || 'https://hooks.zapier.com/hooks/catch/YOUR_WEBHOOK_ID/'
+      const ZAPIER_WEBHOOK_URL = env.ZAPIER_WEBHOOK_URL
+      if (!ZAPIER_WEBHOOK_URL || ZAPIER_WEBHOOK_URL.trim().length === 0) {
+        return fail(
+          ErrorCode.SERVICE_UNAVAILABLE,
+          'Destination not configured',
+          { destination: 'Set ZAPIER_WEBHOOK_URL to enable this workflow.' },
+          { status: 424 },
+          bridge,
+          requestId
+        )
+      }
 
       // Send lead data to Zapier webhook
       const response = await fetch(ZAPIER_WEBHOOK_URL, {

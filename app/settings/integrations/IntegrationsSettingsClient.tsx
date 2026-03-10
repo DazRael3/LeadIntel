@@ -6,6 +6,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import { formatRelativeDate } from '@/lib/domain/explainability'
+import { Badge } from '@/components/ui/badge'
+import { badgeClassForTone, webhookDeliveryStatusLabel } from '@/lib/ui/status-labels'
+import { track } from '@/lib/analytics'
+import type { WorkspaceIntegrationSummary } from '@/lib/integrations/types'
+import { IntegrationCatalog } from '@/components/settings/IntegrationCatalog'
+import { type DefaultDestinationEndpoint } from '@/components/settings/DefaultDestinationCard'
+import { IntegrationConnectionPanel } from '@/components/settings/IntegrationConnectionPanel'
+import { ActionRecipeTable } from '@/components/settings/ActionRecipeTable'
+import { DeliveryHistoryTable } from '@/components/settings/DeliveryHistoryTable'
+import { RecipeBuilder } from '@/components/settings/RecipeBuilder'
+import { RecipeDetailCard } from '@/components/settings/RecipeDetailCard'
+import type { ActionRecipeRow } from '@/lib/domain/action-recipes'
+import type { DeliveryHistoryRow } from '@/lib/services/delivery-history'
+import { CrmSyncHealthCard } from '@/components/integrations/CrmSyncHealthCard'
 
 type Role = 'owner' | 'admin' | 'member'
 
@@ -38,6 +52,12 @@ const EVENT_CHOICES = [
   'account.brief.generated',
   'account.exported',
   'account.pushed',
+  'report.generated',
+  'handoff.crm.prepared',
+  'handoff.crm.delivered',
+  'handoff.sequencer.prepared',
+  'handoff.sequencer.delivered',
+  'custom.action.executed',
   'signal.detected',
   'pitch.generated',
   'digest.sent',
@@ -59,6 +79,11 @@ export function IntegrationsSettingsClient() {
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
   const [activeEndpointId, setActiveEndpointId] = useState<string | null>(null)
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
+  const [integrationSummary, setIntegrationSummary] = useState<WorkspaceIntegrationSummary | null>(null)
+  const [defaultsSaving, setDefaultsSaving] = useState(false)
+  const [recipes, setRecipes] = useState<ActionRecipeRow[]>([])
+  const [history, setHistory] = useState<DeliveryHistoryRow[]>([])
+  const [recipesSaving, setRecipesSaving] = useState(false)
 
   const isAdmin = role === 'owner' || role === 'admin'
 
@@ -70,14 +95,28 @@ export function IntegrationsSettingsClient() {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/team/webhooks', { cache: 'no-store' })
-      if (!res.ok) {
+      const [webhooksRes, summaryRes, recipesRes, historyRes] = await Promise.all([
+        fetch('/api/team/webhooks', { cache: 'no-store' }),
+        fetch('/api/workspace/integrations/summary', { cache: 'no-store' }),
+        fetch('/api/workspace/recipes', { cache: 'no-store' }),
+        fetch('/api/workspace/actions/delivery-history?limit=25', { cache: 'no-store' }),
+      ])
+
+      if (!webhooksRes.ok || !summaryRes.ok || !recipesRes.ok || !historyRes.ok) {
         toast({ variant: 'destructive', title: 'Access restricted.' })
         return
       }
-      const json = (await res.json()) as { ok?: boolean; data?: { role?: Role; endpoints?: WebhookEndpoint[] } }
-      setRole(json.data?.role ?? 'member')
-      setEndpoints(json.data?.endpoints ?? [])
+
+      const webhooksJson = (await webhooksRes.json()) as { ok?: boolean; data?: { role?: Role; endpoints?: WebhookEndpoint[] } }
+      const summaryJson = (await summaryRes.json()) as { ok?: boolean; data?: WorkspaceIntegrationSummary }
+      const recipesJson = (await recipesRes.json()) as { ok?: boolean; data?: { role?: Role; recipes?: ActionRecipeRow[] } }
+      const historyJson = (await historyRes.json()) as { ok?: boolean; data?: { history?: DeliveryHistoryRow[] } }
+
+      setRole(webhooksJson.data?.role ?? 'member')
+      setEndpoints(webhooksJson.data?.endpoints ?? [])
+      setIntegrationSummary(summaryJson.data ?? null)
+      setRecipes(recipesJson.data?.recipes ?? [])
+      setHistory(historyJson.data?.history ?? [])
     } catch {
       toast({ variant: 'destructive', title: 'Load failed', description: 'Please try again.' })
     } finally {
@@ -99,7 +138,19 @@ export function IntegrationsSettingsClient() {
     }
   }
 
+  function deliveryStatusBadge(d: DeliveryRow) {
+    const stRaw = d.status
+    const st = stRaw === 'pending' || stRaw === 'sent' || stRaw === 'failed' ? stRaw : 'pending'
+    const label = webhookDeliveryStatusLabel(st, d.attempts ?? 0)
+    return (
+      <Badge variant="outline" className={badgeClassForTone(label.tone)}>
+        {label.label}
+      </Badge>
+    )
+  }
+
   useEffect(() => {
+    track('integration_settings_viewed', {})
     void refresh()
   }, [refresh])
 
@@ -192,13 +243,120 @@ export function IntegrationsSettingsClient() {
     setCreateEvents((prev) => (prev.includes(e) ? prev.filter((x) => x !== e) : prev.concat(e)))
   }
 
+  const defaultEndpoints: DefaultDestinationEndpoint[] = useMemo(
+    () =>
+      endpoints.map((e) => ({
+        id: e.id,
+        url: e.url,
+        is_enabled: e.is_enabled,
+      })),
+    [endpoints]
+  )
+
+  async function saveDefault(endpointId: string | null) {
+    if (!isAdmin) return
+    setDefaultsSaving(true)
+    try {
+      const res = await fetch('/api/workspace/integrations/defaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ default_handoff_webhook_endpoint_id: endpointId }),
+      })
+      if (!res.ok) {
+        toast({ variant: 'destructive', title: 'Save failed', description: 'Please try again.' })
+        return
+      }
+      toast({ title: 'Saved.' })
+      await refresh()
+      track('destination_configured', { kind: 'default_handoff_webhook', configured: Boolean(endpointId) })
+    } catch {
+      toast({ variant: 'destructive', title: 'Save failed', description: 'Please try again.' })
+    } finally {
+      setDefaultsSaving(false)
+    }
+  }
+
+  async function toggleRecipe(recipeId: string, next: boolean) {
+    if (!isAdmin) return
+    setRecipesSaving(true)
+    try {
+      const res = await fetch(`/api/workspace/recipes/${encodeURIComponent(recipeId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_enabled: next }),
+      })
+      if (!res.ok) {
+        toast({ variant: 'destructive', title: 'Save failed', description: 'Please try again.' })
+        return
+      }
+      toast({ title: 'Saved.' })
+      await refresh()
+    } finally {
+      setRecipesSaving(false)
+    }
+  }
+
+  async function createRecipe(draft: {
+    name: string
+    trigger_type: ActionRecipeRow['trigger_type']
+    action_type: ActionRecipeRow['action_type']
+    conditions: ActionRecipeRow['conditions']
+  }) {
+    if (!isAdmin) return
+    setRecipesSaving(true)
+    try {
+      const res = await fetch('/api/workspace/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      })
+      if (!res.ok) {
+        toast({ variant: 'destructive', title: 'Save failed', description: 'Please try again.' })
+        return
+      }
+      toast({ title: 'Saved.' })
+      await refresh()
+    } finally {
+      setRecipesSaving(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="integrations-page">
       <div className="container mx-auto px-6 py-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold bloomberg-font neon-cyan">Integrations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Webhooks and exports.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Destinations, handoffs, and workflow orchestration.</p>
         </div>
+
+        {integrationSummary ? (
+          <Card className="border-cyan-500/20 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Connected destinations</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
+              <IntegrationCatalog summary={integrationSummary} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <CrmSyncHealthCard />
+
+        <IntegrationConnectionPanel
+          role={role}
+          endpoints={defaultEndpoints}
+          saving={defaultsSaving}
+          selectedEndpointId={integrationSummary?.defaults.handoffWebhookEndpointId ?? null}
+          onSelectDefault={(id) => void saveDefault(id)}
+        />
+
+        <DeliveryHistoryTable history={history} />
+
+        <RecipeDetailCard />
+
+        <ActionRecipeTable role={role} recipes={recipes} onToggleEnabled={(id, next) => void toggleRecipe(id, next)} disabled={recipesSaving} />
+
+        {isAdmin ? <RecipeBuilder disabled={recipesSaving} onCreate={createRecipe} /> : null}
 
         <Card className="border-cyan-500/20 bg-card/50">
           <CardHeader className="pb-3">
@@ -329,8 +487,10 @@ export function IntegrationsSettingsClient() {
                           ) : (
                             deliveries.map((d) => (
                               <div key={d.id} className="text-xs rounded border border-cyan-500/10 p-2">
-                                <div className="text-foreground">
-                                  {d.event_type} · {d.status} · attempts {d.attempts}
+                                <div className="flex flex-wrap items-center gap-2 text-foreground">
+                                  <span className="font-medium">{d.event_type}</span>
+                                  {deliveryStatusBadge(d)}
+                                  <span className="text-muted-foreground">attempts {d.attempts}</span>
                                 </div>
                                 <div className="text-muted-foreground">
                                   {d.last_status ? `HTTP ${d.last_status}` : d.last_error ? d.last_error : '—'}

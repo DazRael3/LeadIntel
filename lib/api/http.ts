@@ -10,6 +10,7 @@ import { ZodError } from 'zod'
 import { jsonWithCookies } from '@/lib/http/json'
 import { getOrCreateRequestId, setRequestIdHeader } from '@/lib/observability/request-id'
 import { captureException, setRequestId } from '@/lib/observability/sentry'
+import { redactPotentialSecrets } from '@/lib/security/token-redaction'
 
 /**
  * Request ID header name (exported for use in other modules)
@@ -96,7 +97,8 @@ interface LogContext {
  * Also sends to Sentry if configured
  */
 function logError(error: unknown, context: LogContext = {}): void {
-  const errorMessage = error instanceof Error ? error.message : String(error)
+  const rawMessage = error instanceof Error ? error.message : String(error)
+  const errorMessage = redactPotentialSecrets(rawMessage)
   const errorName = error instanceof Error ? error.name : 'UnknownError'
   
   // Never log full error objects (may contain secrets)
@@ -294,6 +296,7 @@ export function asHttpError(
   // Handle Supabase auth errors
   if (error && typeof error === 'object' && 'message' in error) {
     const errorObj = error as { message: string; status?: number }
+    const safeMessage = redactPotentialSecrets(errorObj.message || '')
     
     // Check for common Supabase auth error patterns
     if (errorObj.message.includes('JWT') || errorObj.message.includes('token')) {
@@ -330,7 +333,7 @@ export function asHttpError(
     // Generic error with message (but never expose stack traces)
     return fail(
       ErrorCode.INTERNAL_ERROR,
-      errorObj.message || 'An unexpected error occurred',
+      safeMessage || 'An unexpected error occurred',
       undefined,
       { status: errorObj.status ?? HttpStatus.INTERNAL_SERVER_ERROR },
       cookieBridge,
@@ -343,7 +346,7 @@ export function asHttpError(
     // Never expose stack traces to clients
     return fail(
       ErrorCode.INTERNAL_ERROR,
-      error.message || 'An unexpected error occurred',
+      redactPotentialSecrets(error.message || 'An unexpected error occurred'),
       undefined,
       undefined,
       cookieBridge,

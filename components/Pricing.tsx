@@ -656,7 +656,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Webhooks + exports</p>
-                      <p className="text-sm text-muted-foreground">A real action layer for outbound teams</p>
+                      <p className="text-sm text-muted-foreground">Handoff packages + workspace queue + delivery history (via webhook/export workflows)</p>
                     </div>
                   </li>
                 </ul>
@@ -706,7 +706,7 @@ export function Pricing() {
                     ['Full pitch/report access', 'Unlock full content and reuse outputs without locked sections.'],
                     ['Saved workflow outputs', 'Keep briefs, reports, and drafts available for reopening and iteration.'],
                     ['Team standardization', 'Shared templates and approvals keep messaging consistent across reps.'],
-                    ['Webhook/export operations', 'Push or export outputs to fit your operating system.'],
+                    ['Webhook/export operations', 'Handoff packages, workspace queue, and delivery history to fit your operating system.'],
                     ['Audit visibility', 'Admin visibility for governance and rollout workflows.'],
                   ].map(([reason, detail]) => (
                     <tr key={reason} className="border-b border-cyan-500/10">

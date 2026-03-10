@@ -28,6 +28,24 @@ import { deriveFirstPartyIntentSummary } from "@/lib/services/first-party-intent
 import { RecommendedPeopleCard } from "@/components/account/RecommendedPeopleCard"
 import { BuyingGroupCard } from "@/components/account/BuyingGroupCard"
 import { SignalMomentumTimeline } from "@/components/account/SignalMomentumTimeline"
+import { DataQualityCard } from "@/components/account/DataQualityCard"
+import { SourceFreshnessCard } from "@/components/account/SourceFreshnessCard"
+import type { DataQualitySummary } from "@/lib/domain/data-quality"
+import type { SourceHealthSummary } from "@/lib/domain/source-health"
+import { RecommendationSummaryCard } from "@/components/account/RecommendationSummaryCard"
+import { RecommendationFeedbackBar } from "@/components/feedback/RecommendationFeedbackBar"
+import { OutcomeTracker } from "@/components/feedback/OutcomeTracker"
+import { NextBestActionCard } from "@/components/account/NextBestActionCard"
+import { AccountPlanCard } from "@/components/account/AccountPlanCard"
+import { PipelineInfluenceCard } from "@/components/account/PipelineInfluenceCard"
+import { MultiTouchPlanCard } from "@/components/account/MultiTouchPlanCard"
+import { CoverageSummaryCard } from "@/components/account/CoverageSummaryCard"
+import { OwnershipRoutingCard } from "@/components/account/OwnershipRoutingCard"
+import { PeerPatternInsightsCard } from "@/components/account/PeerPatternInsightsCard"
+import { MobileAccountTriage } from "@/components/mobile/MobileAccountTriage"
+import { OpportunityContextCard } from "@/components/account/OpportunityContextCard"
+import { WorkflowOutcomeLinkCard } from "@/components/account/WorkflowOutcomeLinkCard"
+import { AttributionSupportCard } from "@/components/account/AttributionSupportCard"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -43,6 +61,8 @@ type ExplainabilityEnvelope =
         scoreExplainability: ScoreExplainability
         momentum: SignalMomentum
         firstPartyIntent: FirstPartyIntent
+        dataQuality: DataQualitySummary
+        sourceHealth: SourceHealthSummary
         people: { personas: PersonaRecommendationSummary; buyingGroup: BuyingGroupRecommendation }
       }
     }
@@ -71,6 +91,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     scoreExplainability: ScoreExplainability | null
     momentum: SignalMomentum | null
     firstPartyIntent: FirstPartyIntent
+    dataQuality: DataQualitySummary | null
+    sourceHealth: SourceHealthSummary | null
     people: { personas: PersonaRecommendationSummary; buyingGroup: BuyingGroupRecommendation } | null
   }>({
     loading: true,
@@ -79,6 +101,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     scoreExplainability: null,
     momentum: null,
     firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+    dataQuality: null,
+    sourceHealth: null,
     people: null,
   })
 
@@ -178,6 +202,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             scoreExplainability: null,
             momentum: null,
             firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+            dataQuality: null,
+            sourceHealth: null,
             people: null,
           })
           return
@@ -190,6 +216,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           momentum: json.data.momentum ?? null,
           firstPartyIntent:
             json.data.firstPartyIntent ?? { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+          dataQuality: json.data.dataQuality ?? null,
+          sourceHealth: json.data.sourceHealth ?? null,
           people: json.data.people ?? null,
         })
       } catch (_err) {
@@ -201,6 +229,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           scoreExplainability: null,
           momentum: null,
           firstPartyIntent: { visitorMatches: EMPTY_VISITOR_MATCHES, summary: deriveFirstPartyIntentSummary({ visitorMatches: EMPTY_VISITOR_MATCHES }) },
+          dataQuality: null,
+          sourceHealth: null,
           people: null,
         })
       }
@@ -288,6 +318,18 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
         </CardHeader>
 
         <CardContent className="space-y-6 pt-6">
+          <MobileAccountTriage
+            companyName={(lead.company_name ?? 'Account').toString()}
+            triggerEvent={typeof lead.trigger_event === 'string' ? lead.trigger_event : null}
+            pitchText={typeof lead.ai_personalized_pitch === 'string' ? lead.ai_personalized_pitch : ''}
+            scoreExplainability={explainability.scoreExplainability}
+            momentum={explainability.momentum}
+            dataQuality={explainability.dataQuality}
+            sourceHealth={explainability.sourceHealth}
+            signals={explainability.signals}
+            onOpenQueue={() => (window.location.href = '/dashboard/actions')}
+          />
+
           {/* Unlock Status for Free Users */}
           {!isPro && !unlocked && (
             <div className="p-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5">
@@ -384,6 +426,27 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
 
           <SignalMomentumCard momentum={explainability.momentum} currentScore={explainability.scoreExplainability?.score ?? null} />
 
+          <RecommendationSummaryCard accountId={lead.id} window={signalsWindow} />
+          <NextBestActionCard accountId={lead.id} window={signalsWindow} />
+          <AccountPlanCard accountId={lead.id} window={signalsWindow} />
+          <PipelineInfluenceCard accountId={lead.id} window={signalsWindow} />
+          <MultiTouchPlanCard accountId={lead.id} window={signalsWindow} />
+          <CoverageSummaryCard accountId={lead.id} window={signalsWindow} />
+          <OwnershipRoutingCard accountId={lead.id} window={signalsWindow} />
+          <PeerPatternInsightsCard accountId={lead.id} window={signalsWindow} />
+          <OpportunityContextCard accountId={lead.id} />
+          <AttributionSupportCard accountId={lead.id} />
+          <WorkflowOutcomeLinkCard accountId={lead.id} />
+          <div className="rounded border border-cyan-500/10 bg-background/30 p-4">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Recommendation feedback</div>
+            <div className="mt-2">
+              <RecommendationFeedbackBar accountId={lead.id} recommendationType="account_priority" recommendationVersion="rec_v1" />
+            </div>
+          </div>
+
+          {explainability.dataQuality ? <DataQualityCard quality={explainability.dataQuality} /> : null}
+          {explainability.sourceHealth ? <SourceFreshnessCard health={explainability.sourceHealth} /> : null}
+
           <ScoreExplainer
             explainability={explainability.scoreExplainability}
             momentum={explainability.momentum}
@@ -422,6 +485,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
             personas={explainability.people?.personas ?? null}
             onBriefGenerated={() => setBriefRefreshKey((x) => x + 1)}
           />
+
+          <OutcomeTracker accountId={lead.id} />
 
           <AccountBriefCard
             accountId={lead.id}

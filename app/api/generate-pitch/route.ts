@@ -18,10 +18,11 @@ import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { logInfo } from '@/lib/observability/logger'
 import { makeNameCompanyKey } from '@/lib/company-key'
-import { ensurePersonalWorkspace, getCurrentWorkspace } from '@/lib/team/workspace'
+import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { randomUUID } from 'crypto'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { logAudit } from '@/lib/audit/log'
 import {
   getPremiumGenerationCapabilities,
   getPremiumGenerationUsage,
@@ -404,6 +405,17 @@ export const POST = withApiGuard(
             isAppTrial: Boolean(details.isAppTrial),
           },
         })
+        await logProductEvent({
+          userId: user.id,
+          eventName: 'generation_succeeded',
+          eventProps: {
+            kind: 'pitch',
+            objectId: pitchId,
+            templateId: template.id,
+            hasDomain: Boolean(domain),
+            plan: details.plan,
+          },
+        })
       } catch {
         // best-effort
       }
@@ -425,10 +437,23 @@ export const POST = withApiGuard(
         await ensurePersonalWorkspace({ supabase, userId: user.id })
         const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
         if (workspace) {
+          const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
+          if (membership) {
+            await logAudit({
+              supabase,
+              workspaceId: workspace.id,
+              actorUserId: user.id,
+              action: 'pitch.generated',
+              targetType: 'pitch',
+              targetId: pitchId,
+              meta: { leadId, templateId: template.id },
+              request,
+            })
+          }
           await enqueueWebhookEvent({
             workspaceId: workspace.id,
             eventType: 'pitch.generated',
-            eventId: randomUUID(),
+            eventId: pitchId,
             payload: {
               workspaceId: workspace.id,
               leadId,
@@ -446,6 +471,21 @@ export const POST = withApiGuard(
       const successResponse = ok(response, undefined, bridge, requestId)
       return successResponse
     } catch (error) {
+      // Operational analytics: failure events should not include sensitive text.
+      if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+        try {
+          await logProductEvent({
+            userId: userId ?? null,
+            eventName: 'generation_failed',
+            eventProps: {
+              kind: 'pitch',
+              errorCode: error instanceof Error ? (error.message || error.name) : 'unknown_error',
+            },
+          })
+        } catch {
+          // best-effort
+        }
+      }
       try {
         await cancelPremiumGeneration({ supabase: createRouteClient(request, bridge), reservationId })
       } catch {

@@ -9,6 +9,71 @@ This app uses **Next.js 14 + Supabase + Stripe + Sentry**. Environment variables
 
 ---
 
+## Platform wave: operational trust
+
+This wave adds operational trust primitives (inspectability, predictable retries, metadata-first tooling).
+
+- **Admin/operator pages** are token-gated via `ADMIN_TOKEN` (`/admin/*`) and set `robots: noindex`.
+- **Audit and support tooling** is metadata-first:
+  - no pitch/report bodies
+  - no webhook secrets
+  - no raw provider payloads
+- **Freshness and quality** are surfaced as coarse labels (“limited / usable / strong”, “stale / recent / fresh”) instead of over-precise confidence.
+- **Retry-safe endpoints** avoid duplicate job/report/brief creation under retries and repeated clicks.
+- **Integrations + actions** are Team-gated and destination-based:
+  - handoffs are prepared/queued first, then delivered via configured webhooks/exports
+  - delivery history is sanitized (status + correlation IDs, no secrets)
+
+---
+
+## Platform wave: partner + multi-workspace operations
+
+This wave adds multi-workspace support without weakening isolation:
+
+- **Current workspace selection** is persisted per user (`api.users.current_workspace_id`) and validated against membership.
+- **Workspace switching** is explicit and audited (`workspace.switched`).
+- **Partner/agency overview** surfaces are **summary-safe** and never show cross-workspace account lists or payload bodies.
+- **Delegated access** is explicit, revocable, and auditable; it is implemented as a delegated membership row for workspace-scoped RLS.
+- **Rollouts** distribute templates via copy semantics (draft in target workspace; origin metadata retained).
+
+---
+
+## Platform wave: API platform + embeds + extensibility
+
+This wave adds a bounded developer surface without weakening security or entitlement enforcement:
+
+- **Workspace-scoped API keys** (hashed storage, shown once, revocable, scoped).
+- **Versioned platform API** (`/api/v1/*`) with typed envelopes and stable platform objects.
+- **Platform governance controls** (`/settings/platform`) to enable/disable API access, embeds, and extensions per workspace.
+- **Embed mode (bounded)** with signed, short-lived tokens and embed-safe widgets under `/embed/*`.
+- **Extensions (custom actions)**: validated payload templates delivered via existing webhook infrastructure.
+- **API usage visibility** via sanitized request logs (`/settings/api/usage`).
+
+---
+
+## Platform wave: mobile workflows + executive reporting + command center
+
+This wave improves small-screen usability and adds bounded summary surfaces without turning LeadIntel into BI:
+
+- **Mobile-first summaries** are responsive web views (no native app claims).
+- **Executive dashboard** (`/dashboard/executive`) is **metadata-first** and role-gated (default: owner/admin/manager).
+- **Executive snapshots** (`POST /api/executive/snapshot`) produce **copy/print** summaries (no premium body content).
+- **Command Center** (`/dashboard/command-center`) is a daily operating console built from observed queue + approvals.
+- **Reporting governance** is configurable under `/settings/reporting` and enforced server-side for all reporting endpoints.
+
+---
+
+## Platform wave: assistants + conversational workflows
+
+This wave adds a **grounded assistant layer** without introducing fake autonomy:
+
+- **Assistant governance** is configurable under `/settings/assistant` and enforced server-side for all assistant endpoints.
+- **Assistant conversations** are workspace-scoped and (optionally) stored as object-attached threads.
+- **Assistant actions** are preview-first and require explicit confirmation to execute.
+- **No** automatic outreach sending, and no cross-workspace access.
+
+---
+
 ## Required env vars (production)
 
 ### App URL / Origin
@@ -67,6 +132,12 @@ This app uses **Next.js 14 + Supabase + Stripe + Sentry**. Environment variables
 
 ---
 
+### Platform API / embeds (optional)
+| Name | Scope | Purpose | TEST vs LIVE |
+| --- | --- | --- | --- |
+| `PLATFORM_API_KEY_PEPPER` | server-only | Pepper used when hashing workspace API keys. Required if platform API access is enabled. | Keep stable per environment; rotate only with a key rotation plan. |
+| `EMBED_SIGNING_SECRET` | server-only | Secret used to sign short-lived embed tokens. Required if embed mode is enabled. | Keep stable per environment. |
+
 ## Optional integrations / feature config (set only if used)
 
 ### Resend (email)
@@ -112,6 +183,18 @@ This app uses **Next.js 14 + Supabase + Stripe + Sentry**. Environment variables
 | `FEATURE_STRIPE_WEBHOOK_ENABLED` | server-only | Global kill switch for Stripe webhooks. | Same as above. |
 | `FEATURE_CLEARBIT_ENABLED` | server-only | Global kill switch for Clearbit. | Same as above. |
 | `FEATURE_ZAPIER_PUSH_ENABLED` | server-only | Global kill switch for Zapier. | Same as above. |
+
+### Experimentation (growth ops)
+| Name | Scope | Purpose | TEST vs LIVE |
+| --- | --- | --- | --- |
+| `EXPERIMENT_ASSIGNMENT_SEED` | server-only | Stable seed for deterministic experiment assignment. | Keep stable per environment for consistent bucketing. |
+| `NEXT_PUBLIC_EXPERIMENTS_ENABLED` | client-safe | Enables experiment evaluation calls from eligible UI surfaces. | Recommended `false` until governance is configured; gate via workspace policies. |
+
+### Revenue intelligence (closed-loop CRM)
+This wave adds **DB tables + workspace policies**, but **no new required environment variables**.
+
+- Apply migration `0062_closed_loop_crm_intelligence.sql`
+- Configure access via workspace policies under `policies.revenueIntelligence.*`
 
 ### Dev/test helpers (should be OFF in production)
 | Name | Scope | Purpose | TEST vs LIVE |

@@ -10,6 +10,7 @@ import { runEnvDoctor } from '@/lib/ops/envDoctor'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { AdminKpiMonitorPanelClient } from './AdminKpiMonitorPanelClient'
 import { computeOpsHealth, type OpsHealthCheckStatus } from '@/lib/ops/opsHealth'
+import { isValidAdminToken } from '@/lib/admin/admin-token'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,9 +21,7 @@ export const metadata: Metadata = {
 }
 
 function requireAdminToken(token: string | null): void {
-  const expected = (process.env.ADMIN_TOKEN ?? '').trim()
-  if (!expected) notFound()
-  if (!token || token !== expected) notFound()
+  if (!isValidAdminToken(token)) notFound()
 }
 
 type ContentAuditReportRow = {
@@ -98,6 +97,21 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href={`/admin/refinement?token=${encodeURIComponent(token ?? '')}`}>Refinement</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/run-health?token=${encodeURIComponent(token ?? '')}`}>Run health</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/data-health?token=${encodeURIComponent(token ?? '')}`}>Data health</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/generations?token=${encodeURIComponent(token ?? '')}`}>Generations</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/webhooks?token=${encodeURIComponent(token ?? '')}`}>Webhooks</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/support?token=${encodeURIComponent(token ?? '')}`}>Support</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/status">Status</Link>
