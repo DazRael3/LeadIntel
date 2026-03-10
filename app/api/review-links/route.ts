@@ -111,7 +111,7 @@ export const POST = withApiGuard(
       const exp = Math.floor(expiresAt.getTime() / 1000)
       const secretReady = Boolean((process.env.REVIEW_SIGNING_SECRET ?? '').trim())
       if (!secretReady) {
-        return fail(ErrorCode.FAILED_DEPENDENCY, 'Review mode not configured', undefined, { status: 424 }, bridge, requestId)
+        return fail(ErrorCode.SERVICE_UNAVAILABLE, 'Review mode not configured', undefined, { status: 424 }, bridge, requestId)
       }
       const token = signReviewToken({ v: 1, aud: 'review_link', linkId, exp })
 

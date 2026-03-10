@@ -83,10 +83,13 @@ export async function ensureReviewDemoSetup(): Promise<ReviewDemoSetup> {
     }
   }
 
+  if (!demoUserId) throw new Error('review_demo_user_unavailable')
+  const demoUserIdStr = demoUserId
+
   // Ensure review metadata is present even if the user already existed.
   try {
     const api = admin as unknown as AdminAuthApi
-    await api.auth.admin.updateUserById(demoUserId, { user_metadata: { review_mode: true } })
+    await api.auth.admin.updateUserById(demoUserIdStr, { user_metadata: { review_mode: true } })
   } catch {
     // ignore
   }
@@ -98,7 +101,7 @@ export async function ensureReviewDemoSetup(): Promise<ReviewDemoSetup> {
       .from('users')
       .upsert(
         {
-          id: demoUserId,
+          id: demoUserIdStr,
           email: demoEmail,
           subscription_tier: 'team',
           credits_remaining: 9999,
@@ -108,7 +111,7 @@ export async function ensureReviewDemoSetup(): Promise<ReviewDemoSetup> {
       )
   } catch {
     // ignore (older schema)
-    await admin.schema('api').from('users').upsert({ id: demoUserId, email: demoEmail } as never, { onConflict: 'id' }).catch(() => undefined)
+    await admin.schema('api').from('users').upsert({ id: demoUserIdStr, email: demoEmail } as never, { onConflict: 'id' }).catch(() => undefined)
   }
 
   // 3) Ensure user_settings exists.
@@ -117,7 +120,7 @@ export async function ensureReviewDemoSetup(): Promise<ReviewDemoSetup> {
     .from('user_settings')
     .upsert(
       {
-        user_id: demoUserId,
+        user_id: demoUserIdStr,
         display_name: 'LeadIntel Review',
         from_name: 'LeadIntel Review',
         from_email: demoEmail,
@@ -132,40 +135,48 @@ export async function ensureReviewDemoSetup(): Promise<ReviewDemoSetup> {
     .schema('api')
     .from('workspaces')
     .select('id, name, owner_user_id, created_at')
-    .eq('owner_user_id', demoUserId)
+    .eq('owner_user_id', demoUserIdStr)
     .eq('name', workspaceName)
     .limit(1)
     .maybeSingle()
 
-  let demoWorkspaceId = (existingWs as { id?: unknown } | null)?.id
-  if (typeof demoWorkspaceId !== 'string' || !demoWorkspaceId) {
+  let demoWorkspaceId: string | null =
+    typeof (existingWs as { id?: unknown } | null)?.id === 'string' ? String((existingWs as { id?: unknown } | null)?.id) : null
+  if (!demoWorkspaceId) {
     const { data: ws, error } = await admin
       .schema('api')
       .from('workspaces')
-      .insert({ name: workspaceName, owner_user_id: demoUserId } as never)
+      .insert({ name: workspaceName, owner_user_id: demoUserIdStr } as never)
       .select('id')
       .single()
-    if (error || !ws || typeof (ws as any).id !== 'string') throw new Error('review_demo_workspace_unavailable')
-    demoWorkspaceId = String((ws as any).id)
+    const inserted = (ws as { id?: unknown } | null)?.id
+    if (error || !inserted || typeof inserted !== 'string') throw new Error('review_demo_workspace_unavailable')
+    demoWorkspaceId = inserted
   }
+  const demoWorkspaceIdStr = demoWorkspaceId
 
   // 5) Ensure membership (manager for broad read access; server enforces review read-only).
   await admin
     .schema('api')
     .from('workspace_members')
     .upsert(
-      { workspace_id: demoWorkspaceId, user_id: demoUserId, role: 'manager', membership_source: 'direct' } as never,
+      { workspace_id: demoWorkspaceIdStr, user_id: demoUserIdStr, role: 'manager', membership_source: 'direct' } as never,
       { onConflict: 'workspace_id,user_id' }
     )
     .catch(() => undefined)
 
   // 6) Ensure current workspace points at demo workspace for stable UX.
-  await admin.schema('api').from('users').update({ current_workspace_id: demoWorkspaceId } as never).eq('id', demoUserId).catch(() => undefined)
+  await admin
+    .schema('api')
+    .from('users')
+    .update({ current_workspace_id: demoWorkspaceIdStr } as never)
+    .eq('id', demoUserIdStr)
+    .catch(() => undefined)
 
   // 7) Seed fake data (idempotent).
-  await seedReviewDemoData({ admin, demoUserId, demoWorkspaceId }).catch(() => undefined)
+  await seedReviewDemoData({ admin, demoUserId: demoUserIdStr, demoWorkspaceId: demoWorkspaceIdStr }).catch(() => undefined)
 
-  return { demoUserId, demoEmail, demoWorkspaceId }
+  return { demoUserId: demoUserIdStr, demoEmail, demoWorkspaceId: demoWorkspaceIdStr }
 }
 
 async function seedReviewDemoData(args: { admin: AdminClient; demoUserId: string; demoWorkspaceId: string }): Promise<void> {
