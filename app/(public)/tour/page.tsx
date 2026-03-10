@@ -38,7 +38,7 @@ export default function TourPage() {
   return (
     <MarketingPage title="Product tour" subtitle="Interactive product preview: signal → shortlist → explain → draft → action.">
       <JsonLd data={jsonLd} />
-      <PageViewTrack event="tour_page_view" props={{ page: 'tour' }} />
+      <PageViewTrack event="tour_preview_viewed" props={{ page: 'tour' }} />
 
       <div className="grid grid-cols-1 gap-6">
         <InteractiveWorkspaceDemo />
@@ -55,6 +55,12 @@ export default function TourPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <Button asChild variant="outline">
                 <Link href="/templates">Browse templates</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/use-cases">Explore use cases</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/trust">Trust Center</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/pricing">See pricing</Link>

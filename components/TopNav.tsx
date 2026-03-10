@@ -118,7 +118,7 @@ export function TopNav() {
               variant="ghost"
               className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
             >
-              <Link href="/security">Security</Link>
+              <Link href="/trust">Trust</Link>
             </Button>
             <Button
               asChild

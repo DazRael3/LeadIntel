@@ -25,7 +25,7 @@ export default function ProductLaunchTimingUseCasePage() {
   const playbook = getUseCasePlaybook('product-launch-timing')
   return (
     <MarketingPage title={playbook.title} subtitle={playbook.subtitle}>
-      <PageViewTrack event="use_case_view" props={{ useCase: 'product_launch_timing' }} />
+      <PageViewTrack event="use_case_viewed" props={{ useCase: 'product_launch_timing' }} />
       <PlaybookTemplate
         title={playbook.title}
         subtitle={playbook.subtitle}

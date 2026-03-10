@@ -25,7 +25,7 @@ export default function HiringSpikeUseCasePage() {
   const playbook = getUseCasePlaybook('hiring-spike')
   return (
     <MarketingPage title={playbook.title} subtitle={playbook.subtitle}>
-      <PageViewTrack event="use_case_view" props={{ useCase: 'hiring_spike' }} />
+      <PageViewTrack event="use_case_viewed" props={{ useCase: 'hiring_spike' }} />
       <PlaybookTemplate
         title={playbook.title}
         subtitle={playbook.subtitle}

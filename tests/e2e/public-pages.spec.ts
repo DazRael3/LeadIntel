@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
-const ROUTES = ['/', '/pricing', '/templates', '/security', '/compare', '/tour', '/use-cases', '/trust', '/version']
+const ROUTES = ['/', '/pricing', '/templates', '/security', '/compare', '/tour', '/use-cases', '/trust', '/version', '/support', '/status']
 
 test.describe('Public pages', () => {
   for (const path of ROUTES) {
@@ -26,6 +26,9 @@ test.describe('Public pages', () => {
         await expect(page.getByText(/Best-fit motions/i)).toBeVisible()
         await expect(page.getByText(/Workflow types/i)).toBeVisible()
         await expect(page.getByText(/Team rollout/i)).toBeVisible()
+        // Use-cases hub should not show internal route strings as CTA labels.
+        await expect(page.locator('body')).not.toContainText('/settings/')
+        await expect(page.locator('body')).not.toContainText('/dashboard')
       }
 
       // Footer should link to the human-readable version page (not raw JSON).

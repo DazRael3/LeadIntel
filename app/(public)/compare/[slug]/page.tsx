@@ -56,7 +56,7 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
   return (
     <MarketingPage title={`LeadIntel vs ${page.competitorName}`} subtitle={page.hero.summary}>
       <JsonLd data={jsonLd} />
-      <PageViewTrack event="competitor_compare_page_viewed" props={{ slug: page.slug, competitor: page.competitorName }} />
+      <PageViewTrack event="compare_page_viewed" props={{ kind: 'detail', slug: page.slug, competitor: page.competitorName }} />
 
       <div className="grid grid-cols-1 gap-6">
         <Card className="border-cyan-500/20 bg-card/60">
@@ -204,11 +204,17 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
                 <Link className="text-cyan-400 hover:underline" href="/tour">
                   Product tour
                 </Link>
+                <Link className="text-cyan-400 hover:underline" href="/use-cases">
+                  Use cases
+                </Link>
                 <Link className="text-cyan-400 hover:underline" href="/templates">
                   Templates
                 </Link>
                 <Link className="text-cyan-400 hover:underline" href="/pricing">
                   Pricing
+                </Link>
+                <Link className="text-cyan-400 hover:underline" href="/trust">
+                  Trust Center
                 </Link>
               </div>
             </CardContent>

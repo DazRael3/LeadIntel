@@ -81,6 +81,9 @@ export default async function StatusPage() {
 
   const status = health?.ok === true ? health.data.status : 'degraded'
   const checkedAt = health?.ok === true ? health.data.checkedAt : null
+  const branch = version?.ok === true ? (version.data?.branch ?? null) : null
+  const commitSha = version?.ok === true ? (version.data?.commitSha ?? null) : null
+  const commitShort = commitSha ? commitSha.slice(0, 8) : null
 
   const badge =
     status === 'operational'
@@ -91,7 +94,7 @@ export default async function StatusPage() {
 
   return (
     <MarketingPage title="Status" subtitle="Operational signals for the LeadIntel service.">
-      <PageViewTrack event="status_page_view" props={{ page: 'status' }} />
+      <PageViewTrack event="status_page_viewed" props={{ page: 'status' }} />
       <StatusAutoRefresh />
 
       <div className="grid grid-cols-1 gap-6">
@@ -123,20 +126,26 @@ export default async function StatusPage() {
               </div>
             ) : null}
             <div>
-              <span className="font-medium text-foreground">Health endpoint:</span>{' '}
-              <Link className="text-cyan-400 hover:underline" href="/api/health">
-                /api/health
-              </Link>
-            </div>
-            <div>
               <span className="font-medium text-foreground">Version:</span>{' '}
               <Link className="text-cyan-400 hover:underline" href="/version">
                 /version
               </Link>{' '}
-              <span className="text-xs text-muted-foreground">
-                (raw: <Link className="text-cyan-400 hover:underline" href="/api/version">/api/version</Link>)
-              </span>
             </div>
+            <details className="rounded border border-cyan-500/10 bg-background/40 p-3">
+              <summary className="cursor-pointer text-xs text-foreground">Technical endpoints (debug)</summary>
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                <div>
+                  <Link className="text-cyan-400 hover:underline" href="/api/health">
+                    /api/health
+                  </Link>
+                </div>
+                <div>
+                  <Link className="text-cyan-400 hover:underline" href="/api/version">
+                    /api/version
+                  </Link>
+                </div>
+              </div>
+            </details>
           </CardContent>
         </Card>
 
@@ -201,10 +210,10 @@ export default async function StatusPage() {
               {version && version.ok === true ? (
                 <>
                   <div>
-                    <span className="font-medium text-foreground">Branch:</span> {version.data?.branch ?? 'unknown'}
+                    <span className="font-medium text-foreground">Branch:</span> {branch ?? 'unknown'}
                   </div>
                   <div>
-                    <span className="font-medium text-foreground">Commit:</span> {version.data?.commitSha ?? 'unknown'}
+                    <span className="font-medium text-foreground">Commit:</span> {commitShort ?? 'unknown'}
                   </div>
                 </>
               ) : (
@@ -244,11 +253,7 @@ export default async function StatusPage() {
                           <td className="py-2 pr-3 font-medium text-foreground">
                             <div>{job}</div>
                             {job === 'content_audit' ? (
-                              <div className="mt-1 text-xs font-normal">
-                                <Link className="text-cyan-400 hover:underline" href="/admin/ops">
-                                  Latest content audit
-                                </Link>
-                              </div>
+                              <div className="mt-1 text-xs font-normal text-muted-foreground">Content audit details are available inside the app.</div>
                             ) : null}
                           </td>
                           <td className="py-2 pr-3">

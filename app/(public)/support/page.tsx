@@ -29,7 +29,7 @@ export default function SupportPage() {
 
   return (
     <MarketingPage title="Support" subtitle="Get help with billing, upgrades, and using LeadIntel.">
-      <PageViewTrack event="support_page_view" props={{ page: 'support' }} />
+      <PageViewTrack event="support_page_viewed" props={{ page: 'support' }} />
 
       <div className="grid grid-cols-1 gap-6">
         <Card className="border-cyan-500/20 bg-card/60">
@@ -72,9 +72,27 @@ export default function SupportPage() {
             <div>
               <div className="font-medium text-foreground">I upgraded, but the app still shows Starter.</div>
               <div className="mt-1">
-                Refresh the page, then visit <span className="font-mono text-foreground">/api/plan</span> once. If it still
-                shows Starter after a successful Stripe checkout, email support.
+                Refresh the page. If it still shows Starter after a successful Stripe checkout, sign out and back in, then
+                use <span className="font-medium text-foreground">Manage billing</span> to confirm the subscription in Stripe.
+                If it still looks mismatched, email support with the checkout email and approximate time of purchase.
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card id="email-preferences" className="border-cyan-500/20 bg-card/60 scroll-mt-24">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Email preferences</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <div>Manage notification and digest preferences inside your account.</div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
+                <Link href="/settings/notifications">Manage email preferences (in-app)</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
+                <Link href="/login?mode=signin&redirect=/settings/notifications">Log in</Link>
+              </Button>
             </div>
           </CardContent>
         </Card>

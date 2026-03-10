@@ -55,7 +55,7 @@ export default function CompareHubPage() {
   return (
     <MarketingPage title="Compare" subtitle="Buyer-grade comparisons for signal-based outbound workflows.">
       <JsonLd data={jsonLd} />
-      <PageViewTrack event="compare_hub_view" props={{ page: 'compare' }} />
+      <PageViewTrack event="compare_page_viewed" props={{ kind: 'hub' }} />
 
       <div className="grid grid-cols-1 gap-6">
         <CompetitorMatrix entries={matrixEntries} />
@@ -101,11 +101,17 @@ export default function CompareHubPage() {
             <Link className="text-cyan-400 hover:underline" href="/pricing">
               Pricing
             </Link>
+            <Link className="text-cyan-400 hover:underline" href="/tour">
+              Product tour
+            </Link>
             <Link className="text-cyan-400 hover:underline" href="/templates">
               Templates
             </Link>
             <Link className="text-cyan-400 hover:underline" href="/use-cases">
               Use cases
+            </Link>
+            <Link className="text-cyan-400 hover:underline" href="/trust">
+              Trust Center
             </Link>
             <Link className="text-cyan-400 hover:underline" href="/how-scoring-works">
               How scoring works
