@@ -114,11 +114,11 @@ create table if not exists api.account_recommendation_snapshots (
   workspace_id uuid not null references api.workspaces(id) on delete cascade,
   account_id uuid not null references api.leads(id) on delete cascade,
   recommendation_version text not null,
-  window text not null,
+  "window" text not null,
   priority_score int not null,
   feature_key text not null,
   computed_at timestamptz not null default now(),
-  unique (workspace_id, account_id, recommendation_version, window)
+  unique (workspace_id, account_id, recommendation_version, "window")
 );
 
 do $$
