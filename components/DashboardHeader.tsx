@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { LogOut, LayoutDashboard, DollarSign, ListChecks, BarChart3, Users, Package, Activity } from 'lucide-react'
+import { LogOut, LayoutDashboard, DollarSign, ListChecks, BarChart3, Users, Package, Activity, MoreHorizontal, Settings2, Sparkles } from 'lucide-react'
 import { useInAppTour } from '@/components/tour/InAppTourProvider'
 import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
 import { MobileNavMenu } from '@/components/navigation/MobileNavMenu'
@@ -13,6 +13,7 @@ import { AssistantLauncher } from '@/components/assistant/AssistantLauncher'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 import { usePlan } from '@/components/PlanProvider'
 import { tierAtLeast } from '@/lib/billing/tier'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 export function DashboardHeader() {
   const router = useRouter()
@@ -22,6 +23,7 @@ export function DashboardHeader() {
   const { tier } = usePlan()
   const showTeamNav = tierAtLeast(tier, 'team')
   const showPaidNav = tier !== 'starter'
+  const showMore = showPaidNav || showTeamNav
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -51,20 +53,6 @@ export function DashboardHeader() {
               <AssistantLauncher source="dashboard_header" onOpen={() => setAssistantOpen(true)} />
             </div>
             <Button
-              onClick={() => startTour({ source: 'in_app', location: 'dashboard_header' })}
-              variant="ghost"
-              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-            >
-              Take a tour
-            </Button>
-            <Button
-              asChild
-              variant="ghost"
-              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-            >
-              <Link href="/settings/notifications">Email preferences</Link>
-            </Button>
-            <Button
               asChild
               variant="ghost"
               className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
@@ -86,46 +74,7 @@ export function DashboardHeader() {
             </Button>
             {showTeamNav ? (
               <>
-                <Button
-                  asChild
-                  variant="ghost"
-                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-                >
-                  <Link href="/dashboard/benchmarks">
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    Benchmarks
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  variant="ghost"
-                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-                >
-                  <Link href="/dashboard/partner">
-                    <Users className="h-4 w-4 mr-2" />
-                    Partner
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  variant="ghost"
-                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-                >
-                  <Link href="/dashboard/rollouts">
-                    <Package className="h-4 w-4 mr-2" />
-                    Rollouts
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  variant="ghost"
-                  className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-                >
-                  <Link href="/dashboard/operations">
-                    <Activity className="h-4 w-4 mr-2" />
-                    Operations
-                  </Link>
-                </Button>
+                {/* Team surfaces are intentionally grouped under "More" to reduce top-line clutter. */}
               </>
             ) : null}
             <Button
@@ -145,10 +94,73 @@ export function DashboardHeader() {
                 className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
               >
                 <Link href="/dashboard/history" data-tour="tour-saved-outputs">
-                  <LayoutDashboard className="h-4 w-4 mr-2" />
+                  <Sparkles className="h-4 w-4 mr-2" />
                   Saved outputs
                 </Link>
               </Button>
+            ) : null}
+            {showMore ? (
+              <div className="hidden md:block">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10">
+                      <MoreHorizontal className="h-4 w-4 mr-2" />
+                      More
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Quick links</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={() => startTour({ source: 'in_app', location: 'dashboard_header' })}>
+                      <Sparkles className="h-4 w-4" />
+                      Take a tour
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings/notifications">
+                        <Settings2 className="h-4 w-4" />
+                        Email preferences
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {showPaidNav ? (
+                      <DropdownMenuItem asChild>
+                        <Link href="/learn">
+                          <Activity className="h-4 w-4" />
+                          Learn
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+                    {showTeamNav ? (
+                      <>
+                        <DropdownMenuLabel>Team &amp; ops</DropdownMenuLabel>
+                        <DropdownMenuItem asChild>
+                          <Link href="/dashboard/benchmarks">
+                            <BarChart3 className="h-4 w-4" />
+                            Benchmarks
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/dashboard/partner">
+                            <Users className="h-4 w-4" />
+                            Partner
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/dashboard/rollouts">
+                            <Package className="h-4 w-4" />
+                            Rollouts
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/dashboard/operations">
+                            <Activity className="h-4 w-4" />
+                            Operations
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ) : null}
             <Button
               onClick={handleSignOut}

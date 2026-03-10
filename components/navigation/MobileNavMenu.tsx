@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Menu, X, LayoutDashboard, ListChecks, BarChart3, Users, Package, Activity, Settings2, ShieldCheck, FlaskConical, CheckSquare } from 'lucide-react'
+import { Menu, X, LayoutDashboard, ListChecks, BarChart3, Users, Package, Activity, Settings2, ShieldCheck, FlaskConical, CheckSquare, DollarSign, Sparkles } from 'lucide-react'
 import { WorkspaceSwitcher } from '@/components/navigation/WorkspaceSwitcher'
 import { usePlan } from '@/components/PlanProvider'
 import { tierAtLeast } from '@/lib/billing/tier'
@@ -54,6 +54,8 @@ export function MobileNavMenu() {
                 <nav className="grid grid-cols-2 gap-2">
                   <MenuLink href="/dashboard" label="Dashboard" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/dashboard/actions" label="Actions" icon={<ListChecks className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/competitive-report" label="Reports" icon={<Sparkles className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/pricing" label="Pricing" icon={<DollarSign className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   {showTeam ? (
                     <>
                       <MenuLink href="/dashboard/approvals" label="Approvals" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />

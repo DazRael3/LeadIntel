@@ -6,13 +6,11 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CreditCard, DollarSign, Shield } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { SignOutButton } from '@/components/SignOutButton'
 import { usePlan } from '@/components/PlanProvider'
 import { getDisplayPlanMeta } from '@/lib/billing/plan'
 import { createClient } from '@/lib/supabase/client'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { useStripePortal } from '../hooks/useStripePortal'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import { HouseCloserBadge } from './HouseCloserBadge'
 import { BuildDebugPanel } from './BuildDebugPanel'
 import { tierLabel as formatTierLabel, type Tier } from '@/lib/billing/tier'
@@ -113,17 +111,17 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                   <DollarSign className="h-4 w-4 mr-2" />
                   Upgrade to Closer
                 </Button>
-                <div className="max-w-[240px] text-right">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Upgrade unlocks
-                  </div>
-                  <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                <details className="max-w-[280px] rounded border border-cyan-500/10 bg-background/40 p-3">
+                  <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    What upgrading unlocks
+                  </summary>
+                  <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                     <li>Unlimited competitive reports</li>
                     <li>Full report details (competitor moves, trigger sources)</li>
                     <li>Saved report history in one place</li>
                     <li>Market watchlists &amp; alerts</li>
                   </ul>
-                </div>
+                </details>
               </div>
             ) : (
               <>
@@ -169,8 +167,6 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
             >
               Reports
             </Button>
-            <ThemeToggle />
-            <SignOutButton />
           </div>
         </div>
         <div className="mt-2 flex justify-end">
