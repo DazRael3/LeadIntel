@@ -25,7 +25,7 @@ export default function ExpansionSignalsUseCasePage() {
   const playbook = getUseCasePlaybook('expansion-signals')
   return (
     <MarketingPage title={playbook.title} subtitle={playbook.subtitle}>
-      <PageViewTrack event="use_case_view" props={{ useCase: 'expansion_signals' }} />
+      <PageViewTrack event="use_case_viewed" props={{ useCase: 'expansion_signals' }} />
       <PlaybookTemplate
         title={playbook.title}
         subtitle={playbook.subtitle}

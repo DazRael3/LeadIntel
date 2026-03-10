@@ -25,7 +25,7 @@ export default function PartnershipAnnouncementUseCasePage() {
   const playbook = getUseCasePlaybook('partnership-announcement')
   return (
     <MarketingPage title={playbook.title} subtitle={playbook.subtitle}>
-      <PageViewTrack event="use_case_view" props={{ useCase: 'partnership_announcement' }} />
+      <PageViewTrack event="use_case_viewed" props={{ useCase: 'partnership_announcement' }} />
       <PlaybookTemplate
         title={playbook.title}
         subtitle={playbook.subtitle}

@@ -13,6 +13,7 @@ import { getVerticalMessaging } from '@/lib/verticals/messaging'
 export const metadata: Metadata = {
   title: 'Use cases | LeadIntel',
   description: 'High-intent outbound plays powered by daily “why now” signals.',
+  alternates: { canonical: 'https://dazrael.com/use-cases' },
   openGraph: {
     title: 'Use cases | LeadIntel',
     description: 'High-intent outbound plays powered by daily “why now” signals.',
@@ -36,6 +37,22 @@ type UseCase = {
   tag: string
 }
 
+type RelatedRoute = { href: string; label: string }
+
+function toCustomerFacingRoute(route: string): RelatedRoute {
+  const cleaned = route.trim()
+  const labels: Record<string, string> = {
+    '/dashboard': 'View the workflow (dashboard)',
+    '/templates': 'Explore templates',
+    '/settings/templates': 'See team template setup',
+    '/settings/integrations': 'Review integrations',
+    '/settings/exports': 'Understand operational handoff',
+    '/pricing': 'See pricing',
+    '/use-cases': 'Browse use cases',
+  }
+  return { href: cleaned || '/', label: labels[cleaned] ?? 'Open' }
+}
+
 export default function UseCasesPage() {
   const useCases: UseCase[] = USE_CASES.map((u) => ({
     href: u.href,
@@ -47,8 +64,11 @@ export default function UseCasesPage() {
   }))
 
   return (
-    <MarketingPage title="Use cases" subtitle="Bounded workflow fits + high-intent plays built around “why now” signals.">
-      <PageViewTrack event="use_case_view" props={{ page: 'hub' }} />
+    <MarketingPage
+      title="Use cases"
+      subtitle="Bounded, workflow-aware motions for SDRs, AEs, and GTM teams using daily “why now” signals."
+    >
+      <PageViewTrack event="use_case_viewed" props={{ kind: 'hub' }} />
 
       <Card className="border-cyan-500/20 bg-card/60">
         <CardHeader className="pb-3">
@@ -109,6 +129,9 @@ export default function UseCasesPage() {
             <Button asChild variant="outline">
               <Link href="/templates">Browse templates</Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href="/tour">Take the tour</Link>
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -128,16 +151,51 @@ export default function UseCasesPage() {
                 ))}
               </ul>
               <div className="mt-3 flex flex-wrap gap-3 text-xs">
-                {u.relatedRoutes.slice(0, 3).map((r) => (
-                  <Link key={r} className="text-cyan-400 hover:underline" href={r}>
-                    {r}
-                  </Link>
-                ))}
+                {u.relatedRoutes.slice(0, 3).map((r) => {
+                  const { href, label } = toCustomerFacingRoute(r)
+                  return (
+                    <Link key={href} className="text-cyan-400 hover:underline" href={href}>
+                      {label}
+                    </Link>
+                  )
+                })}
               </div>
             </div>
           ))}
         </CardContent>
       </Card>
+
+      <Card className="border-cyan-500/20 bg-card/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Evaluate LeadIntel</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm text-muted-foreground">
+          <div>
+            If you’re deciding whether LeadIntel fits, start with the tour, then compare workflows, then verify trust posture.
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button asChild variant="outline">
+              <Link href="/tour">Interactive product preview</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/compare">Compare workflows</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/trust">Trust Center</Link>
+            </Button>
+            <Button asChild className="neon-border hover:glow-effect">
+              <Link href="/pricing">See pricing</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="max-w-4xl">
+        <h2 className="text-xl font-semibold text-foreground">High-intent plays</h2>
+        <div className="mt-2 text-sm text-muted-foreground">
+          Each play shows the “why now” trigger, what to say, and a template pack you can adapt.
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {useCases.map((u) => (
@@ -161,10 +219,10 @@ export default function UseCasesPage() {
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button asChild className="neon-border hover:glow-effect">
-                  <Link href={u.href}>View play</Link>
+                  <Link href={u.href}>View the play</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/#try-sample">Try sample</Link>
+                  <Link href="/#try-sample">Try a sample digest</Link>
                 </Button>
               </div>
             </CardContent>
@@ -174,4 +232,3 @@ export default function UseCasesPage() {
     </MarketingPage>
   )
 }
-

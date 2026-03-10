@@ -25,7 +25,7 @@ export default function CompetitiveDisplacementUseCasePage() {
   const playbook = getUseCasePlaybook('competitive-displacement')
   return (
     <MarketingPage title={playbook.title} subtitle={playbook.subtitle}>
-      <PageViewTrack event="use_case_view" props={{ useCase: 'competitive_displacement' }} />
+      <PageViewTrack event="use_case_viewed" props={{ useCase: 'competitive_displacement' }} />
       <PlaybookTemplate
         title={playbook.title}
         subtitle={playbook.subtitle}

@@ -25,7 +25,7 @@ export default function FundingOutreachUseCasePage() {
   const playbook = getUseCasePlaybook('funding-outreach')
   return (
     <MarketingPage title={playbook.title} subtitle={playbook.subtitle}>
-      <PageViewTrack event="use_case_view" props={{ useCase: 'funding_outreach' }} />
+      <PageViewTrack event="use_case_viewed" props={{ useCase: 'funding_outreach' }} />
       <PlaybookTemplate
         title={playbook.title}
         subtitle={playbook.subtitle}
