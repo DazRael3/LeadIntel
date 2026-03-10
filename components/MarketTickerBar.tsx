@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { InstrumentLogo } from '@/components/InstrumentLogo'
 import type { InstrumentDefinition } from '@/lib/market/instruments'
 import { getQuotePriceDecimals } from '@/lib/market/quotes'
+import { Badge } from '@/components/ui/badge'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -61,6 +62,7 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [error, setError] = useState<string | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+  const [reviewMode, setReviewMode] = useState(false)
 
   useEffect(() => {
     if (mergedInstruments.length === 0) return
@@ -86,6 +88,12 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
       clearInterval(interval)
     }
   }, [mergedInstruments])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const has = document.cookie.includes('li_review_mode=1')
+    setReviewMode(has)
+  }, [])
 
   const doubled = useMemo(() => [...mergedInstruments, ...mergedInstruments], [mergedInstruments])
   const durationSec = computeTickerDuration(mergedInstruments.length)
@@ -169,6 +177,11 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
           </div>
         </div>
         <div className="hidden md:flex items-center gap-2 px-4 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
+          {reviewMode ? (
+            <Badge variant="destructive" className="rounded-full px-2 py-0.5 text-[10px]">
+              Review Mode
+            </Badge>
+          ) : null}
           {lastUpdatedAt ? (
             <span>Updated {formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })}</span>
           ) : null}

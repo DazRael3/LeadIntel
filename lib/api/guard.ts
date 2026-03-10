@@ -27,6 +27,7 @@ import { serverEnv } from '@/lib/env'
 import { timingSafeEqualAscii, verifyCronToken } from '@/lib/api/cron-auth'
 import { recordCounter } from '@/lib/observability/metrics'
 import crypto from 'crypto'
+import { getReviewSessionFromRequest } from '@/lib/review/session'
 
 /**
  * Options for withApiGuard
@@ -80,6 +81,22 @@ export function withApiGuard(
     const method = request.method
     const pathname = new URL(request.url).pathname
     const requestId = getRequestId(request)
+
+    // Review mode: deny state-changing operations (read-only surface).
+    // Allowlist: analytics tracking (best-effort) only.
+    const reviewSession = getReviewSessionFromRequest(request)
+    if (reviewSession && method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+      if (pathname !== '/api/analytics/track') {
+        return fail(
+          ErrorCode.FORBIDDEN,
+          'Read-only in Review Mode',
+          undefined,
+          undefined,
+          bridge,
+          requestId
+        )
+      }
+    }
     
     // Get route policy
     const policyName = options.policyName || pathname
