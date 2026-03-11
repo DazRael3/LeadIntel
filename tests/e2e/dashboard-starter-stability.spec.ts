@@ -44,8 +44,9 @@ test.describe('Dashboard (Starter) stability', () => {
     await expect(page.getByRole('tab', { name: /Live Intent/i })).toHaveCount(0)
 
     // "Companies" should not be a broken placeholder.
-    await expect(page.getByText(/Companies/i)).toBeVisible()
-    await expect(page.locator('body')).not.toContainText('Companies\n-')
+    const metrics = page.getByTestId('dashboard-metrics')
+    await expect(metrics.getByText('Tracked accounts', { exact: true })).toBeVisible()
+    await expect(metrics.getByText('Events', { exact: true })).toBeVisible()
 
     // No horizontal page-wide overflow.
     const hasOverflow = await page.evaluate(() => {

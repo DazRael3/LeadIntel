@@ -70,22 +70,9 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
             <h1 className="text-xl sm:text-2xl font-bold bloomberg-font neon-cyan">Dashboard</h1>
             <p className="text-sm text-muted-foreground mt-0.5">Why-now signals → explainable score → send-ready outreach</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Credits Display */}
-            <Card className="border-cyan-500/20 bg-card/50 px-4 py-2">
-              <div className="flex items-center gap-3">
-                <CreditCard className="h-4 w-4 text-cyan-400" />
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">{isStarter ? 'Preview remaining' : 'Credits'}</p>
-                  <p className="text-sm font-bold neon-cyan">
-                    {isStarter ? `${Math.max(0, creditsRemaining)}` : planMeta.creditsLabel}
-                  </p>
-                </div>
-              </div>
-            </Card>
-
-            {/* Subscription Badge */}
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
+            {/* Account badge */}
+            <div className="flex flex-wrap items-center gap-2">
               <Badge
                 variant={isStarter ? 'outline' : 'default'}
                 className={
@@ -102,7 +89,16 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
 
             {/* Upgrade / Billing CTAs */}
             {isStarter ? (
-              <div className="flex flex-col items-start gap-2 sm:items-end">
+              <div className="flex flex-wrap items-center gap-3">
+                <Card className="border-cyan-500/20 bg-card/50 px-4 py-2">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="h-4 w-4 text-cyan-300" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Preview remaining</p>
+                      <p className="text-sm font-semibold text-foreground">{Math.max(0, creditsRemaining)}</p>
+                    </div>
+                  </div>
+                </Card>
                 <Button
                   variant="outline"
                   onClick={() => router.push('/pricing?target=closer')}
@@ -111,7 +107,7 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                   <DollarSign className="h-4 w-4 mr-2" />
                   Upgrade to Closer
                 </Button>
-                <details className="max-w-[280px] rounded border border-cyan-500/10 bg-background/40 p-3">
+                <details className="w-full lg:w-auto lg:max-w-[280px] rounded border border-cyan-500/10 bg-background/40 p-3">
                   <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     What upgrading unlocks
                   </summary>
@@ -125,6 +121,15 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
               </div>
             ) : (
               <>
+                <Card className="border-cyan-500/20 bg-card/50 px-4 py-2">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="h-4 w-4 text-cyan-300" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Credits</p>
+                      <p className="text-sm font-semibold text-foreground">{planMeta.creditsLabel}</p>
+                    </div>
+                  </div>
+                </Card>
                 {planMeta.tier === 'closer' ? (
                   <Button
                     variant="outline"

@@ -155,7 +155,6 @@ export function DashboardClient({
       <StatsBar 
         totalLeads={totalLeads} 
         eventsCount={events.length} 
-        tier={tier}
         debugEnabled={debugEnabled}
         onDebugClick={checkWhoami}
       />
