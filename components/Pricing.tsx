@@ -350,7 +350,7 @@ export function Pricing() {
           <OutcomePricingIntro />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
           <div id="plan-starter">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
@@ -784,10 +784,17 @@ export function Pricing() {
                 <div className="flex flex-wrap gap-3">
                   <a
                     className="text-cyan-400 hover:underline"
-                    href="/security"
-                    onClick={() => track('pricing_trust_link_clicked', { href: '/security' })}
+                    href="/trust"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/trust' })}
                   >
-                    Security
+                    Trust Center
+                  </a>
+                  <a
+                    className="text-cyan-400 hover:underline"
+                    href="/trust/buyer-readiness"
+                    onClick={() => track('pricing_trust_link_clicked', { href: '/trust/buyer-readiness' })}
+                  >
+                    Buyer readiness
                   </a>
                   <a
                     className="text-cyan-400 hover:underline"
