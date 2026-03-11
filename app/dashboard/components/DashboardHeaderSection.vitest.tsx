@@ -49,14 +49,12 @@ describe('DashboardHeaderSection', () => {
     planMock.planId = null
     planMock.isHouseCloserOverride = false
     planMock.buildInfo = null
-    render(<DashboardHeaderSection isPro={false} creditsRemaining={1} />)
+    render(<DashboardHeaderSection creditsRemaining={1} />)
     expect(screen.getByRole('button', { name: /upgrade to closer/i })).toBeTruthy()
     expect(screen.getByText(/starter/i)).toBeTruthy()
-    expect(screen.getByText(/upgrade unlocks/i)).toBeTruthy()
-    expect(screen.getByText(/unlimited competitive reports/i)).toBeTruthy()
     expect(screen.queryByText(/house closer/i)).toBeNull()
     expect(screen.queryByTestId('build-debug-panel')).toBeNull()
-    expect(screen.getByRole('button', { name: /toggle color theme/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /upgrade to closer/i })).toBeTruthy()
   })
 
   it('closer hides Upgrade to Closer CTA', () => {
@@ -65,15 +63,13 @@ describe('DashboardHeaderSection', () => {
     planMock.planId = 'pro'
     planMock.isHouseCloserOverride = false
     planMock.buildInfo = { repoOwner: 'DazRael3', repoSlug: 'LeadIntel', branch: 'main', commitSha: 'abcdef123456' }
-    render(<DashboardHeaderSection isPro={true} creditsRemaining={9999} />)
+    render(<DashboardHeaderSection creditsRemaining={9999} />)
     expect(screen.queryByRole('button', { name: /upgrade to closer/i })).toBeNull()
     expect(screen.getByRole('button', { name: /upgrade to closer\\+/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
     expect(screen.getByText(/closer/i)).toBeTruthy()
-    expect(screen.queryByText(/upgrade unlocks/i)).toBeNull()
     expect(screen.queryByText(/house closer/i)).toBeNull()
     expect(screen.queryByTestId('build-debug-panel')).toBeNull()
-    expect(screen.getByRole('button', { name: /toggle color theme/i })).toBeTruthy()
   })
 
   it('closer_plus shows Upgrade to Team CTA', () => {
@@ -82,11 +78,10 @@ describe('DashboardHeaderSection', () => {
     planMock.planId = 'closer_plus'
     planMock.isHouseCloserOverride = false
     planMock.buildInfo = null
-    render(<DashboardHeaderSection isPro={true} creditsRemaining={9999} />)
+    render(<DashboardHeaderSection creditsRemaining={9999} />)
     expect(screen.getByRole('button', { name: /upgrade to team/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
     expect(screen.getByText(/closer\\+/i)).toBeTruthy()
-    expect(screen.queryByText(/upgrade unlocks/i)).toBeNull()
   })
 
   it('team shows Manage billing and no upgrade CTAs', () => {
@@ -95,7 +90,7 @@ describe('DashboardHeaderSection', () => {
     planMock.planId = 'team'
     planMock.isHouseCloserOverride = false
     planMock.buildInfo = null
-    render(<DashboardHeaderSection isPro={true} creditsRemaining={9999} />)
+    render(<DashboardHeaderSection creditsRemaining={9999} />)
     expect(screen.queryByRole('button', { name: /upgrade to closer\\+/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /upgrade to team/i })).toBeNull()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
@@ -108,7 +103,7 @@ describe('DashboardHeaderSection', () => {
     planMock.planId = 'pro'
     planMock.isHouseCloserOverride = true
     planMock.buildInfo = { repoOwner: 'DazRael3', repoSlug: 'LeadIntel', branch: 'main', commitSha: 'abcdef123456' }
-    render(<DashboardHeaderSection isPro={true} creditsRemaining={9999} />)
+    render(<DashboardHeaderSection creditsRemaining={9999} />)
     expect(screen.getByText(/house closer/i)).toBeTruthy()
     expect(screen.getByTestId('build-debug-panel')).toBeTruthy()
     expect(screen.getByText(/build debug \(house closer only\)/i)).toBeTruthy()

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CreditCard, DollarSign, Shield } from 'lucide-react'
+import { DollarSign, Shield } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { usePlan } from '@/components/PlanProvider'
 import { getDisplayPlanMeta } from '@/lib/billing/plan'
@@ -16,11 +16,10 @@ import { BuildDebugPanel } from './BuildDebugPanel'
 import { tierLabel as formatTierLabel, type Tier } from '@/lib/billing/tier'
 
 interface DashboardHeaderSectionProps {
-  isPro: boolean
   creditsRemaining: number
 }
 
-export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHeaderSectionProps) {
+export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSectionProps) {
   const router = useRouter()
   const { openPortal } = useStripePortal()
   const [isPending, startTransition] = useTransition()
@@ -71,34 +70,37 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
             <p className="text-sm text-muted-foreground mt-0.5">Why-now signals → explainable score → send-ready outreach</p>
           </div>
           <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
-            {/* Account badge */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant={isStarter ? 'outline' : 'default'}
-                className={
-                  isStarter
-                    ? 'border-slate-700/70 bg-slate-900/70 text-slate-100'
-                    : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
-                }
-              >
-                <Shield className="h-3 w-3 mr-1" />
-                {username} — {formatTierLabel(planMeta.tier as Tier)}
-              </Badge>
-              {showHouseBadge ? <HouseCloserBadge /> : null}
-            </div>
+            {/* Account summary (compact) */}
+            <Card className="border-cyan-500/20 bg-card/50 px-4 py-2">
+              <div className="flex items-center gap-3">
+                <div className="grid h-9 w-9 place-items-center rounded-lg border border-cyan-500/20 bg-cyan-500/10">
+                  <Shield className="h-4 w-4 text-cyan-300" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="truncate text-sm font-semibold text-foreground">{username}</div>
+                    <Badge
+                      variant={isStarter ? 'outline' : 'default'}
+                      className={
+                        isStarter
+                          ? 'border-slate-700/70 bg-slate-900/70 text-slate-100'
+                          : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                      }
+                    >
+                      {formatTierLabel(planMeta.tier as Tier)}
+                    </Badge>
+                    {showHouseBadge ? <HouseCloserBadge /> : null}
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {isStarter ? `Preview remaining: ${Math.max(0, creditsRemaining)}` : `Credits: ${planMeta.creditsLabel}`}
+                  </div>
+                </div>
+              </div>
+            </Card>
 
             {/* Upgrade / Billing CTAs */}
             {isStarter ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <Card className="border-cyan-500/20 bg-card/50 px-4 py-2">
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="h-4 w-4 text-cyan-300" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Preview remaining</p>
-                      <p className="text-sm font-semibold text-foreground">{Math.max(0, creditsRemaining)}</p>
-                    </div>
-                  </div>
-                </Card>
+              <>
                 <Button
                   variant="outline"
                   onClick={() => router.push('/pricing?target=closer')}
@@ -107,29 +109,9 @@ export function DashboardHeaderSection({ isPro, creditsRemaining }: DashboardHea
                   <DollarSign className="h-4 w-4 mr-2" />
                   Upgrade to Closer
                 </Button>
-                <details className="w-full lg:w-auto lg:max-w-[280px] rounded border border-cyan-500/10 bg-background/40 p-3">
-                  <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    What upgrading unlocks
-                  </summary>
-                  <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-                    <li>Unlimited competitive reports</li>
-                    <li>Full report details (competitor moves, trigger sources)</li>
-                    <li>Saved report history in one place</li>
-                    <li>Market watchlists &amp; alerts</li>
-                  </ul>
-                </details>
-              </div>
+              </>
             ) : (
               <>
-                <Card className="border-cyan-500/20 bg-card/50 px-4 py-2">
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="h-4 w-4 text-cyan-300" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Credits</p>
-                      <p className="text-sm font-semibold text-foreground">{planMeta.creditsLabel}</p>
-                    </div>
-                  </div>
-                </Card>
                 {planMeta.tier === 'closer' ? (
                   <Button
                     variant="outline"
