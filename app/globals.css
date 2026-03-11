@@ -23,7 +23,7 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
-    --radius: 0.5rem;
+    --radius: 0.625rem;
     --page-bg-from: 230 58% 10%;
     --page-bg-to: 230 36% 17%;
     
@@ -79,38 +79,38 @@
 @layer utilities {
   .neon-cyan {
     color: hsl(var(--neon-cyan));
-    text-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.5), 0 0 20px hsl(var(--neon-cyan) / 0.3);
+    text-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.35), 0 0 22px hsl(var(--neon-cyan) / 0.18);
   }
   
   .neon-green {
     color: hsl(var(--neon-green));
-    text-shadow: 0 0 10px hsl(var(--neon-green) / 0.5), 0 0 20px hsl(var(--neon-green) / 0.3);
+    text-shadow: 0 0 10px hsl(var(--neon-green) / 0.35), 0 0 22px hsl(var(--neon-green) / 0.18);
   }
   
   .neon-blue {
     color: hsl(var(--neon-blue));
-    text-shadow: 0 0 10px hsl(var(--neon-blue) / 0.5), 0 0 20px hsl(var(--neon-blue) / 0.3);
+    text-shadow: 0 0 10px hsl(var(--neon-blue) / 0.35), 0 0 22px hsl(var(--neon-blue) / 0.18);
   }
   
   .neon-border {
-    border-color: hsl(var(--neon-cyan) / 0.3);
-    box-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.2);
+    border-color: hsl(var(--neon-cyan) / 0.22);
+    box-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.14);
   }
   
   .glow-effect {
-    box-shadow: 0 0 20px hsl(var(--neon-cyan) / 0.3), 0 0 40px hsl(var(--neon-cyan) / 0.1);
+    box-shadow: 0 0 18px hsl(var(--neon-cyan) / 0.22), 0 0 46px hsl(var(--neon-cyan) / 0.07);
   }
   
   .terminal-grid {
     background-image: 
-      linear-gradient(hsl(var(--neon-cyan) / 0.1) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--neon-cyan) / 0.1) 1px, transparent 1px);
-    background-size: 20px 20px;
+      linear-gradient(hsl(var(--neon-cyan) / 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--neon-cyan) / 0.045) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
   
   .bloomberg-font {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.25px;
   }
   
   .blur-sm {
