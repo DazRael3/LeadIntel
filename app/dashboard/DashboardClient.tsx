@@ -144,7 +144,7 @@ export function DashboardClient({
         <DashboardHeader />
 
       {/* Header */}
-      <DashboardHeaderSection isPro={isPro} creditsRemaining={creditsRemaining} />
+      <DashboardHeaderSection creditsRemaining={creditsRemaining} />
 
       {/* Debug Panel - Guarded behind NEXT_PUBLIC_ENABLE_DEBUG_UI */}
       {debugEnabled && showDebug && debugInfo && (
@@ -155,7 +155,6 @@ export function DashboardClient({
       <StatsBar 
         totalLeads={totalLeads} 
         eventsCount={events.length} 
-        tier={tier}
         debugEnabled={debugEnabled}
         onDebugClick={checkWhoami}
       />
