@@ -28,9 +28,9 @@ export default function LandingClient() {
 
   return (
     <div className="bg-background">
-      <main className="container mx-auto px-4 py-10">
-        <div className="space-y-16">
-          <section className="pt-4">
+      <main className="container mx-auto px-4 py-12 md:py-16">
+        <div className="space-y-20 md:space-y-24">
+          <section className="pt-2 md:pt-6">
             <div className="grid grid-cols-1 gap-8 items-start">
               <div className="max-w-4xl">
                 <h1 className="text-4xl md:text-5xl font-bold tracking-tight">{COPY.home.hero.headline}</h1>
@@ -63,7 +63,7 @@ export default function LandingClient() {
             </div>
           </section>
 
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start pt-12 md:pt-14 border-t border-border/30">
             <OneMinuteDemo />
             <div className="space-y-4">
               <div id="try-sample" className="scroll-mt-24">
@@ -97,18 +97,18 @@ export default function LandingClient() {
             </div>
           </section>
 
-          <section className="scroll-mt-24 space-y-6">
+          <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">
             <div>
               <h2 className="text-2xl font-bold">Why teams switch to LeadIntel</h2>
             </div>
             <WhySwitchCards />
           </section>
 
-          <section id="how-it-works" className="scroll-mt-24">
+          <section id="how-it-works" className="scroll-mt-24 pt-12 md:pt-14 border-t border-border/30">
             <WorkflowRail />
           </section>
 
-          <section className="scroll-mt-24 space-y-6">
+          <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">
             <div>
               <h2 className="text-2xl font-bold">Evidence, not hype</h2>
               <p className="mt-2 text-muted-foreground max-w-3xl">
@@ -119,19 +119,19 @@ export default function LandingClient() {
             <TrustFacts />
           </section>
 
-          <section className="scroll-mt-24 space-y-6">
+          <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">
             <ProofLayer />
           </section>
 
-          <section className="scroll-mt-24 space-y-6">
+          <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">
             <MigrationStories />
           </section>
 
-          <section className="scroll-mt-24">
+          <section className="scroll-mt-24 pt-12 md:pt-14 border-t border-border/30">
             <ProofYouCanInspect />
           </section>
 
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto pt-10 md:pt-12 border-t border-border/30">
             <BrandHero />
           </div>
         </div>
