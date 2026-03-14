@@ -162,11 +162,16 @@ async function withBrowser<T>(fn: (b: Browser) => Promise<T>): Promise<T> {
   }
 }
 
-async function newContext(browser: Browser, viewport: { width: number; height: number }): Promise<BrowserContext> {
+async function newContext(
+  browser: Browser,
+  viewport: { width: number; height: number },
+  storageStatePath?: string | null
+): Promise<BrowserContext> {
   return await browser.newContext({
     viewport,
     deviceScaleFactor: 1,
     ignoreHTTPSErrors: true,
+    storageState: storageStatePath ?? undefined,
   })
 }
 
@@ -196,6 +201,7 @@ async function main(): Promise<void> {
   const scope = (env('AUDIT_SCOPE', 'all') as AuditScope) ?? 'all'
   const email = env('AUDIT_EMAIL')
   const password = env('AUDIT_PASSWORD')
+  const storageStatePath = env('AUDIT_STORAGE_STATE')
   const outRoot = env('AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
 
   const now = new Date()
@@ -211,18 +217,18 @@ async function main(): Promise<void> {
   const runPublic = scope === 'public' || scope === 'all'
   const runAuthed = scope === 'authed' || scope === 'all'
 
-  if (runAuthed && (!email || !password)) {
-    throw new Error('AUDIT_EMAIL and AUDIT_PASSWORD are required for AUDIT_SCOPE=authed|all')
+  if (runAuthed && !storageStatePath && (!email || !password)) {
+    throw new Error('For AUDIT_SCOPE=authed|all, set AUDIT_STORAGE_STATE or (AUDIT_EMAIL + AUDIT_PASSWORD).')
   }
 
   const results: PageResult[] = []
 
   await withBrowser(async (browser) => {
     // Desktop pass
-    const ctxDesktop = await newContext(browser, { width: 1280, height: 800 })
+    const ctxDesktop = await newContext(browser, { width: 1280, height: 800 }, storageStatePath ?? null)
     const pageDesktop = await ctxDesktop.newPage()
 
-    if (runAuthed) {
+    if (runAuthed && !storageStatePath) {
       await login(pageDesktop, baseUrl, email!, password!)
     }
 
@@ -243,9 +249,9 @@ async function main(): Promise<void> {
     await ctxDesktop.close()
 
     // Mobile pass (screenshots only, reuse public/authed set)
-    const ctxMobile = await newContext(browser, { width: 390, height: 844 })
+    const ctxMobile = await newContext(browser, { width: 390, height: 844 }, storageStatePath ?? null)
     const pageMobile = await ctxMobile.newPage()
-    if (runAuthed) {
+    if (runAuthed && !storageStatePath) {
       await login(pageMobile, baseUrl, email!, password!)
     }
 
