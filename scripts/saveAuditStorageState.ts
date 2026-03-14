@@ -19,14 +19,31 @@ async function main(): Promise<void> {
 
   await ensureDir(path.dirname(outFile))
 
+  // eslint-disable-next-line no-console
+  console.log(`[audit:storage] Opening browser for manual login...`)
+  // eslint-disable-next-line no-console
+  console.log(`[audit:storage] Base URL: ${baseUrl}`)
+  // eslint-disable-next-line no-console
+  console.log(`[audit:storage] Will save storageState to: ${outFile}`)
+  // eslint-disable-next-line no-console
+  console.log(`[audit:storage] IMPORTANT: Do not close the browser window until this script prints "Saved storageState".`)
+
   const browser = await chromium.launch({ headless: false })
   const context = await browser.newContext({ ignoreHTTPSErrors: true })
   const page = await context.newPage()
 
   // You will complete login manually in the opened browser window.
   await page.goto(new URL('/login?mode=signin&redirect=%2Fdashboard', baseUrl).toString(), { waitUntil: 'domcontentloaded' })
-  // Wait until the session is live (dashboard reached).
-  await page.waitForURL('**/dashboard**', { timeout: 5 * 60_000 })
+  // Wait until the session is live.
+  // We accept ANY non-login route because some deployments redirect to onboarding or other start pages.
+  await page.waitForFunction(
+    () => {
+      const p = window.location.pathname
+      return !p.startsWith('/login') && !p.startsWith('/auth/')
+    },
+    undefined,
+    { timeout: 5 * 60_000 }
+  )
 
   await context.storageState({ path: outFile })
   await browser.close()
