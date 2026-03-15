@@ -58,6 +58,7 @@ node_modules
 
 # Owner-only admin exports (keep private; do not commit to public repos)
 /admin-reports/
+admin-reports/ai-site-audit/storageState.json
 
 # Supabase local artifacts
 supabase/.temp/

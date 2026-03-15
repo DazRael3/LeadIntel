@@ -1,43 +1,73 @@
-import { chromium } from 'playwright'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
-
-function env(name: string, fallback?: string): string | undefined {
-  const v = process.env[name]
-  if (typeof v === 'string' && v.trim().length > 0) return v.trim()
-  return fallback
-}
-
-function readArg(name: string): string | null {
-  const argv = process.argv.slice(2)
-  const exact = argv.find((a) => a === name)
-  if (exact) {
-    const idx = argv.indexOf(exact)
-    const next = argv[idx + 1]
-    return typeof next === 'string' && !next.startsWith('--') ? next : ''
-  }
-  const pref = `${name}=`
-  const hit = argv.find((a) => a.startsWith(pref))
-  if (hit) return hit.slice(pref.length)
-  return null
-}
-
-function argOrEnv(name: string, envName: string, fallback?: string): string | undefined {
-  const v = readArg(name)
-  if (v !== null && v.trim().length > 0) return v.trim()
-  return env(envName, fallback)
-}
+import { chromium } from 'playwright'
+import {
+  argOrEnv,
+  parseBaseUrl,
+  preflightPlaywrightChromium,
+  preflightWritableDir,
+  formatPlatformExamples,
+  npmCommand,
+} from './audit/tooling'
 
 async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true })
 }
 
 async function main(): Promise<void> {
-  const baseUrl = argOrEnv('--baseUrl', 'AUDIT_BASE_URL', 'http://localhost:3000')!
+  const rawBaseUrl = argOrEnv('--baseUrl', 'AUDIT_BASE_URL')
+  const examples = formatPlatformExamples()
+  if (!rawBaseUrl) {
+    // eslint-disable-next-line no-console
+    console.error('[audit:storage] Missing AUDIT_BASE_URL (or --baseUrl).')
+    // eslint-disable-next-line no-console
+    console.error('')
+    // eslint-disable-next-line no-console
+    console.error('[audit:storage] Example commands:')
+    // eslint-disable-next-line no-console
+    console.error(examples.storageCapture)
+    // eslint-disable-next-line no-console
+    console.error('')
+    // eslint-disable-next-line no-console
+    console.error(`[audit:storage] Note: On Windows PowerShell, "${npmCommand()}" is often safer than "npm" if npm.ps1 is blocked.`)
+    process.exitCode = 1
+    return
+  }
+
+  const parsed = parseBaseUrl(rawBaseUrl)
+  if (!parsed.ok) {
+    // eslint-disable-next-line no-console
+    console.error(`[audit:storage] ${parsed.error}`)
+    // eslint-disable-next-line no-console
+    console.error('')
+    // eslint-disable-next-line no-console
+    console.error('[audit:storage] Example commands:')
+    // eslint-disable-next-line no-console
+    console.error(examples.storageCapture)
+    process.exitCode = 1
+    return
+  }
+  const baseUrl = parsed.baseUrl
   const outDir = argOrEnv('--outputDir', 'AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
   const outFile = argOrEnv('--outFile', 'AUDIT_STORAGE_STATE_OUT', path.join(outDir, 'storageState.json'))!
 
   await ensureDir(path.dirname(outFile))
+
+  const pw = await preflightPlaywrightChromium()
+  if (!pw.ok) {
+    // eslint-disable-next-line no-console
+    console.error(pw.message)
+    process.exitCode = 1
+    return
+  }
+
+  const writable = await preflightWritableDir(path.dirname(outFile))
+  if (!writable.ok) {
+    // eslint-disable-next-line no-console
+    console.error(writable.message)
+    process.exitCode = 1
+    return
+  }
 
   // eslint-disable-next-line no-console
   console.log(`[audit:storage] Opening browser for manual login...`)
@@ -47,6 +77,8 @@ async function main(): Promise<void> {
   console.log(`[audit:storage] Will save storageState to: ${outFile}`)
   // eslint-disable-next-line no-console
   console.log(`[audit:storage] IMPORTANT: Do not close the browser window until this script prints "Saved storageState".`)
+  // eslint-disable-next-line no-console
+  console.log(`[audit:storage] After login, you may land on onboarding or another start page — that's OK.`)
 
   const browser = await chromium.launch({ headless: false })
   const context = await browser.newContext({ ignoreHTTPSErrors: true })
@@ -70,6 +102,8 @@ async function main(): Promise<void> {
 
   // eslint-disable-next-line no-console
   console.log(`Saved storageState to: ${outFile}`)
+  // eslint-disable-next-line no-console
+  console.log(`[audit:storage] Next: run the audit with AUDIT_STORAGE_STATE set to this file.`)
 }
 
 void main().catch((err: unknown) => {

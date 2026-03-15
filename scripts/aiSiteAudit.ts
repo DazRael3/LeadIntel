@@ -1,6 +1,14 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
+import {
+  formatPlatformExamples,
+  parseBaseUrl,
+  preflightPlaywrightChromium,
+  preflightWritableDir,
+  npmCommand,
+  isWindows,
+} from './audit/tooling'
 
 type AuditScope = 'public' | 'logged_in' | 'all'
 type RunMode = 'public' | 'logged_in'
@@ -460,18 +468,101 @@ async function auditOneRoute(args: {
 }
 
 async function main(): Promise<void> {
-  const baseUrl = argOrEnv('--baseUrl', 'AUDIT_BASE_URL', 'http://localhost:3000')!
+  const rawBaseUrl = argOrEnv('--baseUrl', 'AUDIT_BASE_URL')
   const scope = normalizeScope(argOrEnv('--scope', 'AUDIT_SCOPE', 'all'))
   const storageStatePath = argOrEnv('--storageState', 'AUDIT_STORAGE_STATE')
   const outRoot = argOrEnv('--outputDir', 'AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
   const maxRoutes = Number.parseInt(argOrEnv('--maxRoutes', 'AUDIT_MAX_ROUTES', '120') ?? '120', 10)
   const verbose = (argOrEnv('--verbose', 'AUDIT_VERBOSE', '1') ?? '1').trim().toLowerCase() !== '0'
 
+  const examples = formatPlatformExamples()
+  const usage = [
+    '[audit:ai] Usage:',
+    '  Required: AUDIT_BASE_URL (or --baseUrl)',
+    '  Optional: AUDIT_SCOPE=public|logged_in|all (or --scope)',
+    '  Optional: AUDIT_STORAGE_STATE=... (or --storageState) when scope is logged_in or all',
+    '',
+    '[audit:ai] Scope meaning:',
+    '  public    = crawl public pages (no login)',
+    '  logged_in = audit authenticated pages only (requires storageState)',
+    '  all       = run both public + logged_in',
+    '',
+    '[audit:ai] Example commands:',
+    '',
+    'Public-only audit:',
+    examples.publicAudit,
+    '',
+    'Storage capture (manual login, no passwords stored):',
+    examples.storageCapture,
+    '',
+    'Full audit (public + logged-in):',
+    examples.fullAudit,
+    '',
+    `[audit:ai] Note: On Windows PowerShell, "${npmCommand()}" is often safer than "npm" if npm.ps1 is blocked.`,
+  ].join('\n')
+
+  if (!rawBaseUrl) {
+    // eslint-disable-next-line no-console
+    console.error('[audit:ai] Missing AUDIT_BASE_URL (or --baseUrl).')
+    // eslint-disable-next-line no-console
+    console.error('')
+    // eslint-disable-next-line no-console
+    console.error(usage)
+    process.exitCode = 1
+    return
+  }
+
+  const parsedBase = parseBaseUrl(rawBaseUrl)
+  if (!parsedBase.ok) {
+    // eslint-disable-next-line no-console
+    console.error(`[audit:ai] ${parsedBase.error}`)
+    // eslint-disable-next-line no-console
+    console.error('')
+    // eslint-disable-next-line no-console
+    console.error(usage)
+    process.exitCode = 1
+    return
+  }
+  const baseUrl = parsedBase.baseUrl
+
   const runPublic = scope === 'public' || scope === 'all'
   const runLoggedIn = scope === 'logged_in' || scope === 'all'
 
   if (runLoggedIn && !storageStatePath) {
-    throw new Error('Logged-in audit requires AUDIT_STORAGE_STATE. Run `npm run audit:storage` first.')
+    // eslint-disable-next-line no-console
+    console.error('[audit:ai] Missing AUDIT_STORAGE_STATE for logged-in audit.')
+    // eslint-disable-next-line no-console
+    console.error('[audit:ai] Logged-in audit requires a manual login capture first (no passwords stored).')
+    // eslint-disable-next-line no-console
+    console.error('')
+    // eslint-disable-next-line no-console
+    console.error('[audit:ai] Run this first to create storageState.json:')
+    // eslint-disable-next-line no-console
+    console.error(examples.storageCapture)
+    // eslint-disable-next-line no-console
+    console.error('')
+    // eslint-disable-next-line no-console
+    console.error('[audit:ai] It will save by default to:')
+    // eslint-disable-next-line no-console
+    console.error('  admin-reports/ai-site-audit/storageState.json')
+    process.exitCode = 1
+    return
+  }
+
+  const pw = await preflightPlaywrightChromium()
+  if (!pw.ok) {
+    // eslint-disable-next-line no-console
+    console.error(pw.message)
+    process.exitCode = 1
+    return
+  }
+
+  const writable = await preflightWritableDir(outRoot)
+  if (!writable.ok) {
+    // eslint-disable-next-line no-console
+    console.error(writable.message)
+    process.exitCode = 1
+    return
   }
 
   const now = new Date()
@@ -515,7 +606,14 @@ async function main(): Promise<void> {
   const networkFailures: NetworkFailure[] = []
 
   // eslint-disable-next-line no-console
-  console.log(`[audit:ai] Starting audit`, { baseUrl, scope, maxRoutes, outputDir: outDir })
+  console.log(`[audit:ai] Starting audit`, {
+    baseUrl,
+    scope,
+    maxRoutes,
+    outputDir: outDir,
+    storageState: runLoggedIn ? storageStatePath : null,
+    platform: isWindows() ? 'windows' : process.platform,
+  })
 
   await withBrowser(async (browser) => {
     // Desktop contexts
@@ -527,7 +625,15 @@ async function main(): Promise<void> {
     if (runLoggedIn && pageAuthed) {
       await pageAuthed.goto(new URL('/dashboard', baseUrl).toString(), { waitUntil: 'domcontentloaded' })
       if (pageAuthed.url().includes('/login')) {
-        throw new Error('storageState is not authenticated (redirected to /login). Re-run `npm run audit:storage`.')
+        throw new Error(
+          [
+            'storageState is not authenticated (redirected to /login).',
+            'Re-run audit:storage to capture a fresh session.',
+            '',
+            'Command:',
+            examples.storageCapture,
+          ].join('\n')
+        )
       }
     }
 
@@ -850,6 +956,16 @@ async function main(): Promise<void> {
 
   // eslint-disable-next-line no-console
   console.log(`Audit complete. Output written to: ${outDir}`)
+  // eslint-disable-next-line no-console
+  console.log(`[audit:ai] Next: upload these to ChatGPT for review:`)
+  // eslint-disable-next-line no-console
+  console.log(`- ${path.join(outDir, 'REPORT.md')}`)
+  // eslint-disable-next-line no-console
+  console.log(`- ${path.join(outDir, 'screenshots')}${path.sep}`)
+  // eslint-disable-next-line no-console
+  console.log(`- ${path.join(outDir, 'console-errors.json')}`)
+  // eslint-disable-next-line no-console
+  console.log(`- ${path.join(outDir, 'network-failures.json')}`)
 }
 
 void main().catch((err: unknown) => {
