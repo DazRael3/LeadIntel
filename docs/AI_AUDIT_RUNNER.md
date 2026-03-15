@@ -4,6 +4,34 @@ This repo includes a **local audit runner** that generates an artifact bundle (s
 
 It is **not** a hosted service and does **not** give ChatGPT direct access to your app.
 
+## First-time setup (required)
+
+1) Install dependencies:
+
+```bash
+npm ci
+```
+
+2) Install Playwright browser binaries (first run only):
+
+```bash
+npx playwright install chromium
+```
+
+### Windows PowerShell note (npm.ps1 / npx.ps1 blocked)
+If PowerShell script execution is blocked (common with some antivirus policies), use `npm.cmd` / `npx.cmd` instead:
+
+```powershell
+& "C:\Program Files\nodejs\npx.cmd" playwright install chromium
+& "C:\Program Files\nodejs\npm.cmd" run audit:doctor
+```
+
+3) Optional but recommended: run the diagnostic checker:
+
+```bash
+npm run audit:doctor
+```
+
 ## What it produces
 Each run creates a timestamped folder:
 
@@ -22,19 +50,13 @@ Inside:
 
 ## A) Free public audit (zero cost)
 
-1) Install deps:
-
-```bash
-npm ci
-```
-
-2) Run public audit (cross-platform CLI flags — recommended):
+Run public audit (cross-platform CLI flags — recommended):
 
 ```bash
 npm run audit:ai -- --baseUrl="https://dazrael.com" --scope="public"
 ```
 
-2b) Run public audit (env vars — optional):
+Run public audit (env vars — optional):
 
 ```bash
 AUDIT_BASE_URL="https://dazrael.com" \
@@ -48,8 +70,8 @@ If your antivirus blocks PowerShell’s `npm.ps1`, run npm via `npm.cmd` or `cmd
 **PowerShell (preferred):**
 
 ```powershell
-$env:AUDIT_BASE_URL="https://dazrael.com"
-$env:AUDIT_SCOPE="public"
+$env:AUDIT_BASE_URL = "https://dazrael.com"
+$env:AUDIT_SCOPE = "public"
 & "C:\Program Files\nodejs\npm.cmd" run audit:ai
 ```
 
@@ -59,10 +81,10 @@ $env:AUDIT_SCOPE="public"
 cmd /c "set AUDIT_BASE_URL=https://dazrael.com&& set AUDIT_SCOPE=public&& npm run audit:ai"
 ```
 
-3) Find output under:
+Find output under:
 - `admin-reports/ai-site-audit/<timestamp>/`
 
-4) Upload to ChatGPT:
+Upload to ChatGPT:
 - `REPORT.md`
 - `screenshots/` (folder)
 - `console-errors.json`
@@ -90,11 +112,11 @@ npm run audit:storage
 **Windows PowerShell equivalent (no `npm.ps1`):**
 
 ```powershell
-$env:AUDIT_BASE_URL="https://dazrael.com"
+$env:AUDIT_BASE_URL = "https://dazrael.com"
 & "C:\Program Files\nodejs\npm.cmd" run audit:storage
 ```
 
-A browser opens. Log in manually. When you reach `/dashboard`, the script saves:
+A browser opens. Log in manually. The script will accept **any post-login page** (dashboard or onboarding) and then saves:
 
 `admin-reports/ai-site-audit/storageState.json`
 
@@ -116,9 +138,9 @@ npm run audit:ai
 **Windows PowerShell equivalent (no `npm.ps1`):**
 
 ```powershell
-$env:AUDIT_BASE_URL="https://dazrael.com"
-$env:AUDIT_SCOPE="all"
-$env:AUDIT_STORAGE_STATE="admin-reports/ai-site-audit/storageState.json"
+$env:AUDIT_BASE_URL = "https://dazrael.com"
+$env:AUDIT_SCOPE = "all"
+$env:AUDIT_STORAGE_STATE = "admin-reports/ai-site-audit/storageState.json"
 & "C:\Program Files\nodejs\npm.cmd" run audit:ai
 ```
 
@@ -137,6 +159,12 @@ npm run audit:ai
 
 ```bash
 rm -f "admin-reports/ai-site-audit/storageState.json"
+```
+
+- Windows PowerShell equivalent:
+
+```powershell
+Remove-Item -Force "admin-reports\ai-site-audit\storageState.json"
 ```
 
 - Audit output folders are already ignored by git (`admin-reports/` is in `.gitignore`).
