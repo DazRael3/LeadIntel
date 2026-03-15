@@ -22,7 +22,19 @@ export default async function SourcesSettingsPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/sources')
 
   const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok)
+    return (
+      <TeamUpgradeGate
+        heading="Sources"
+        subtitle="Source catalog and configuration health for the workspace."
+        whyLocked="Source governance is a Team feature because it controls shared ingestion and operational readiness across the workspace."
+        bullets={['Source catalog visibility', 'Configuration status and readiness signals', 'Workspace-wide governance controls']}
+        primaryCtaHref="/pricing?target=team"
+        primaryCtaLabel="Upgrade to Team"
+        secondaryCtaHref="/pricing"
+        secondaryCtaLabel="See pricing"
+      />
+    )
 
   return <SourcesSettingsClient />
 }

@@ -203,27 +203,50 @@ export function DashboardClient({
               {/* Primary column */}
               <div className="lg:col-span-3 space-y-6">
                 {/* Primary workflow: next step + generate */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <GettingStartedRail />
-                  <PitchGenerator
-                    initialUrl={initialCompanyInput}
-                    onCompanyContextChange={onCompanyContextChange}
-                    navigateToPitchOnGenerate
-                  />
-                </div>
+                {isStarter ? (
+                  <div className="space-y-6">
+                    <PitchGenerator
+                      initialUrl={initialCompanyInput}
+                      onCompanyContextChange={onCompanyContextChange}
+                      navigateToPitchOnGenerate
+                    />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <GettingStartedRail />
+                      <ActivationChecklist />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <GettingStartedRail />
+                    <PitchGenerator
+                      initialUrl={initialCompanyInput}
+                      onCompanyContextChange={onCompanyContextChange}
+                      navigateToPitchOnGenerate
+                    />
+                  </div>
+                )}
 
                 {/* Today / progress */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <ActivationChecklist />
+                  {isStarter ? null : <ActivationChecklist />}
                   <RecentActivityFeed />
                 </div>
 
                 {/* Secondary guidance */}
-                <ValueMomentsCard />
-                <ScoreExplainerCard />
-                <QuickTourActionsCard />
-                <ActivationGoalCard totalLeads={totalLeads} />
-                <UpgradeReasonsCard />
+                {isStarter ? (
+                  <>
+                    <ScoreExplainerCard />
+                    <UpgradeReasonsCard />
+                  </>
+                ) : (
+                  <>
+                    <ValueMomentsCard />
+                    <ScoreExplainerCard />
+                    <QuickTourActionsCard />
+                    <ActivationGoalCard totalLeads={totalLeads} />
+                    <UpgradeReasonsCard />
+                  </>
+                )}
 
                 {isStarter ? (
                   <Card className="border-cyan-500/20 bg-card/50">

@@ -32,6 +32,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
 
     // Prefer current workspace when available; otherwise attempt to bootstrap a personal workspace.
     let workspace = await getCurrentWorkspace({ supabase, userId: user.id })
+    let bootstrapUnavailable = false
     if (!workspace) {
       try {
         await ensurePersonalWorkspace({ supabase, userId: user.id })
@@ -50,30 +51,30 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
             requestId
           )
         }
-        return fail(
-          ErrorCode.SERVICE_UNAVAILABLE,
-          'Workspace context unavailable',
-          { hint: 'Please refresh and try again. If this persists, contact support.' },
-          { status: 503 },
-          bridge,
-          requestId
-        )
+        // Treat bootstrap failure as recoverable for valid users: return a typed, intentional state
+        // so the dashboard can render calmly instead of surfacing a generic 503.
+        bootstrapUnavailable = true
       }
       workspace = await getCurrentWorkspace({ supabase, userId: user.id })
     }
     if (!workspace) {
-      return fail(
-        ErrorCode.SERVICE_UNAVAILABLE,
-        'Workspace context unavailable',
-        { hint: 'Workspace could not be resolved for this user.' },
-        { status: 503 },
+      return ok(
+        {
+          workspace: null,
+          role: null,
+          state: bootstrapUnavailable ? 'bootstrap_unavailable' : 'missing',
+          hint: bootstrapUnavailable
+            ? 'Workspace setup is temporarily unavailable. Please refresh and try again. If this persists, contact support.'
+            : 'No workspace yet. Continue onboarding or refresh to retry workspace setup.',
+        },
+        undefined,
         bridge,
         requestId
       )
     }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-    return ok({ workspace, role: membership?.role ?? null }, undefined, bridge, requestId)
+    return ok({ workspace, role: membership?.role ?? null, state: 'ready' }, undefined, bridge, requestId)
   } catch (e) {
     return asHttpError(e, '/api/workspaces/current', userId, bridge, requestId)
   }

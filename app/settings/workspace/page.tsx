@@ -22,7 +22,19 @@ export default async function WorkspaceSettingsPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/workspace')
 
   const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok)
+    return (
+      <TeamUpgradeGate
+        heading="Workspace"
+        subtitle="Workspace policies and operational controls."
+        whyLocked="Workspace governance is a Team feature because it manages shared policies, rollout controls, and operational settings for the whole team."
+        bullets={['Workspace policies and governance', 'Operational controls for rollouts', 'Shared settings for admins and operators']}
+        primaryCtaHref="/pricing?target=team"
+        primaryCtaLabel="Upgrade to Team"
+        secondaryCtaHref="/pricing"
+        secondaryCtaLabel="See pricing"
+      />
+    )
 
   return <WorkspaceSettingsClient />
 }
