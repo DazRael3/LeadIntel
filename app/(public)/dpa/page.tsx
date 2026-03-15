@@ -10,6 +10,7 @@ import { buildMailto } from '@/lib/mailto'
 export const metadata: Metadata = {
   title: 'DPA | LeadIntel',
   description: 'A lightweight data processing addendum summary for LeadIntel.',
+  alternates: { canonical: 'https://dazrael.com/dpa' },
   openGraph: {
     title: 'DPA | LeadIntel',
     description: 'A lightweight data processing addendum summary for LeadIntel.',

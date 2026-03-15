@@ -62,6 +62,14 @@ This wave improves small-screen usability and adds bounded summary surfaces with
 - **Command Center** (`/dashboard/command-center`) is a daily operating console built from observed queue + approvals.
 - **Reporting governance** is configurable under `/settings/reporting` and enforced server-side for all reporting endpoints.
 
+## Audit-driven runtime polish notes
+
+Recent high-value runtime stabilization/polish notes live here:
+- `docs/RUNTIME_CLEANUP_NOTES.md`
+- `docs/PUBLIC_REQUEST_HYGIENE.md`
+- `docs/DASHBOARD_BOOTSTRAP_AND_WORKSPACE_RESOLUTION.md`
+- `docs/LOCKED_ROUTE_STANDARDS.md`
+
 ---
 
 ## Platform wave: assistants + conversational workflows

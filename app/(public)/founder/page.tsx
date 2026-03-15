@@ -6,6 +6,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'For founders | LeadIntel',
   description: 'Founder-led outbound with daily signals, prioritization, and consistent templates.',
+  alternates: { canonical: 'https://dazrael.com/founder' },
   openGraph: {
     title: 'For founders | LeadIntel',
     description: 'Founder-led outbound with daily signals, prioritization, and consistent templates.',

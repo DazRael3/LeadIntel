@@ -6,6 +6,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'For SDRs | LeadIntel',
   description: 'Daily “why now” signals and ready-to-send outreach for high-volume prospecting.',
+  alternates: { canonical: 'https://dazrael.com/sdr' },
   openGraph: {
     title: 'For SDRs | LeadIntel',
     description: 'Daily “why now” signals and ready-to-send outreach for high-volume prospecting.',

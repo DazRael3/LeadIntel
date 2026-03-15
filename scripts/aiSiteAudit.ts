@@ -579,6 +579,11 @@ async function main(): Promise<void> {
   const addRoute = (routeOrUrl: string, mode: RunMode, from: string) => {
     const normalized = normalizeRoute(routeOrUrl, baseUrl)
     if (!normalized) return
+    if (mode === 'public') {
+      const lower = normalized.toLowerCase()
+      // Public audits should stay on public surfaces; auth-gated shells are handled in logged-in mode.
+      if (lower.startsWith('/dashboard') || lower.startsWith('/settings') || lower.startsWith('/admin')) return
+    }
     if (isSkippableRoute(normalized)) return
     const key = `${mode}:${normalized}`
     if (seen.has(key)) {

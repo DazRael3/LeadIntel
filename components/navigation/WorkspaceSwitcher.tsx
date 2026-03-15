@@ -19,8 +19,14 @@ type DirectoryEnvelope =
   | { ok: false; error?: { message?: string } }
   | { success: false; error?: { message?: string } }
 type CurrentEnvelope =
-  | { ok: true; data: { workspace: { id: string; name: string }; role: string | null } }
-  | { success: true; data: { workspace: { id: string; name: string }; role: string | null } }
+  | {
+      ok: true
+      data: { workspace: { id: string; name: string } | null; role: string | null; state?: 'ready' | 'missing' | 'bootstrap_unavailable'; hint?: string }
+    }
+  | {
+      success: true
+      data: { workspace: { id: string; name: string } | null; role: string | null; state?: 'ready' | 'missing' | 'bootstrap_unavailable'; hint?: string }
+    }
   | { ok: false; error?: { message?: string } }
   | { success: false; error?: { message?: string } }
 
@@ -56,7 +62,17 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
             ? (curJson as any).error?.message
             : null
       if (!curRes.ok || !curJson || (!isOk(curJson) && !isSuccess(curJson))) throw new Error(curErr ?? 'Failed to load workspace context')
-      const data = (curJson as any).data as { workspace: { id: string; name: string }; role: string | null }
+      const data = (curJson as any).data as {
+        workspace: { id: string; name: string } | null
+        role: string | null
+        state?: 'ready' | 'missing' | 'bootstrap_unavailable'
+        hint?: string
+      }
+      if (!data.workspace) {
+        setCurrent(null)
+        setError(data.hint ?? 'Workspace setup in progress')
+        return
+      }
       setCurrent({ id: data.workspace.id, name: data.workspace.name, role: data.role ?? null })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to load workspace context'
@@ -128,7 +144,7 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
   )
 
   // Always render a stable badge; top chrome should never throw destructive UI for context fetch failures.
-  const badgeName = current?.name ?? 'Workspace'
+  const badgeName = current?.name ?? (error ? 'Workspace setup' : 'Workspace')
 
   return (
     <div className="flex items-center gap-3">
@@ -143,7 +159,7 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
           ) : null}
           <select
             className="h-9 rounded border border-cyan-500/20 bg-background/30 px-2 text-sm text-foreground"
-            disabled={loading || !current}
+            disabled={loading || !current || Boolean(error)}
             value={current?.id ?? ''}
             onFocus={() => {
               if (workspaces.length === 0 && !loading) void loadDirectory()

@@ -29,7 +29,19 @@ export default async function TemplatesSettingsPage() {
   }
 
   const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok)
+    return (
+      <TeamUpgradeGate
+        heading="Templates"
+        subtitle="Shared templates and approvals for consistent outbound."
+        whyLocked="Workspace template governance is a Team feature because it supports shared standards, approvals, and consistent execution across reps."
+        bullets={['Shared template library', 'Approvals and governance controls', 'Consistency across reps and segments']}
+        primaryCtaHref="/pricing?target=team"
+        primaryCtaLabel="Upgrade to Team"
+        secondaryCtaHref="/pricing"
+        secondaryCtaLabel="See pricing"
+      />
+    )
 
   return <TemplatesSettingsClient />
 }

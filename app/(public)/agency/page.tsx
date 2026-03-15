@@ -6,6 +6,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'For agencies | LeadIntel',
   description: 'Run repeatable outbound plays across client accounts using daily signals and templates.',
+  alternates: { canonical: 'https://dazrael.com/agency' },
   openGraph: {
     title: 'For agencies | LeadIntel',
     description: 'Run repeatable outbound plays across client accounts using daily signals and templates.',

@@ -10,6 +10,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'Support | LeadIntel',
   description: 'Get help with billing, upgrades, and using LeadIntel.',
+  alternates: { canonical: 'https://dazrael.com/support' },
   openGraph: {
     title: 'Support | LeadIntel',
     description: 'Get help with billing, upgrades, and using LeadIntel.',
@@ -48,7 +49,9 @@ export default function SupportPage() {
                 <Link href="/pricing">View pricing</Link>
               </Button>
               <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                <Link href="/dashboard">Go to dashboard</Link>
+                <Link href="/dashboard" prefetch={false}>
+                  Go to dashboard
+                </Link>
               </Button>
             </div>
             <div className="text-[11px] text-muted-foreground">
@@ -88,10 +91,14 @@ export default function SupportPage() {
             <div>Manage notification and digest preferences inside your account.</div>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                <Link href="/settings/notifications">Manage email preferences (in-app)</Link>
+                <Link href="/settings/notifications" prefetch={false}>
+                  Manage email preferences (in-app)
+                </Link>
               </Button>
               <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                <Link href="/login?mode=signin&redirect=/settings/notifications">Log in</Link>
+                <Link href="/login?mode=signin&redirect=/settings/notifications" prefetch={false}>
+                  Log in
+                </Link>
               </Button>
             </div>
           </CardContent>

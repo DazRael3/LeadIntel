@@ -8,6 +8,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'Acceptable Use | LeadIntel',
   description: 'Rules for using LeadIntel safely and responsibly.',
+  alternates: { canonical: 'https://dazrael.com/acceptable-use' },
   openGraph: {
     title: 'Acceptable Use | LeadIntel',
     description: 'Rules for using LeadIntel safely and responsibly.',

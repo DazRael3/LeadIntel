@@ -21,7 +21,23 @@ export default async function CommandCenterPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/dashboard/command-center')
 
   const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok)
+    return (
+      <TeamUpgradeGate
+        heading="Command Center"
+        subtitle="A team-level operating console for prioritization and action routing."
+        whyLocked="Command Center is a Team view because it rolls up shared workflow state across reps and destinations."
+        bullets={[
+          'Team-wide workflow summary and routing context',
+          'Operator visibility for planning and triage',
+          'Shared execution, not just individual inbox views',
+        ]}
+        primaryCtaHref="/pricing?target=team"
+        primaryCtaLabel="Upgrade to Team"
+        secondaryCtaHref="/pricing"
+        secondaryCtaLabel="See pricing"
+      />
+    )
 
   return <CommandCenterClient />
 }

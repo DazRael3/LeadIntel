@@ -7,6 +7,7 @@ import { getUseCasePlaybook } from '@/lib/use-cases/playbooks'
 export const metadata: Metadata = {
   title: 'Hiring spike outreach playbook | LeadIntel',
   description: 'Use hiring spikes as a “build phase” signal to time outbound before vendors are locked in.',
+  alternates: { canonical: 'https://dazrael.com/use-cases/hiring-spike' },
   openGraph: {
     title: 'Hiring spike outreach playbook | LeadIntel',
     description: 'Use hiring spikes as a “build phase” signal to time outbound before vendors are locked in.',

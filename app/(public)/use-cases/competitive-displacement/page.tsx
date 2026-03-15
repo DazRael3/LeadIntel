@@ -7,6 +7,7 @@ import { getUseCasePlaybook } from '@/lib/use-cases/playbooks'
 export const metadata: Metadata = {
   title: 'Competitive displacement playbook | LeadIntel',
   description: 'Use battlecard-style angles when an account is evaluating alternatives.',
+  alternates: { canonical: 'https://dazrael.com/use-cases/competitive-displacement' },
   openGraph: {
     title: 'Competitive displacement playbook | LeadIntel',
     description: 'Use battlecard-style angles when an account is evaluating alternatives.',

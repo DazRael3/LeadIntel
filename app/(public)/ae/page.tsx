@@ -6,6 +6,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'For AEs | LeadIntel',
   description: 'Prioritize the right accounts with a reasons-based score and battlecard-style outreach.',
+  alternates: { canonical: 'https://dazrael.com/ae' },
   openGraph: {
     title: 'For AEs | LeadIntel',
     description: 'Prioritize the right accounts with a reasons-based score and battlecard-style outreach.',

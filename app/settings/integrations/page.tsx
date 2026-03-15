@@ -29,7 +29,19 @@ export default async function IntegrationsSettingsPage() {
   }
 
   const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok)
+    return (
+      <TeamUpgradeGate
+        heading="Integrations"
+        subtitle="Exports and webhooks for operational handoff."
+        whyLocked="Integrations are a Team feature because they power shared delivery and governance across the workspace."
+        bullets={['Webhooks and destination exports', 'Delivery history and operational visibility', 'Shared configuration for the workspace']}
+        primaryCtaHref="/pricing?target=team"
+        primaryCtaLabel="Upgrade to Team"
+        secondaryCtaHref="/pricing"
+        secondaryCtaLabel="See pricing"
+      />
+    )
 
   return <IntegrationsSettingsClient />
 }

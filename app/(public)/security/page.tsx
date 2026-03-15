@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: 'Security | LeadIntel',
   description:
     'How LeadIntel handles authentication, billing, access controls, rate limiting, logging, and data handling.',
+  alternates: { canonical: 'https://dazrael.com/security' },
   openGraph: {
     title: 'Security | LeadIntel',
     description:
