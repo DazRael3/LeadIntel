@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { BuildInfo } from '@/lib/debug/buildInfo'
+import { createClient } from '@/lib/supabase/client'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 type Plan = 'free' | 'pro'
 type Tier = 'starter' | 'closer' | 'closer_plus' | 'team'
@@ -54,6 +56,26 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
+      // Public request hygiene: never call /api/plan unless we know we have an authenticated user.
+      // This prevents anonymous public pages from spamming 401s.
+      let authed = false
+      try {
+        const supabase = createClient()
+        const user = await getUserSafe(supabase)
+        authed = Boolean(user)
+      } catch {
+        authed = false
+      }
+      if (!authed) {
+        // Reset to safe public defaults.
+        setPlan('free')
+        setTier('starter')
+        setPlanId(null)
+        setIsHouseCloserOverride(false)
+        setTrial({ active: false, endsAt: null })
+        return
+      }
+
       const resp = await fetch('/api/plan', { method: 'GET', cache: 'no-store' })
       if (!resp.ok) return
       const text = await resp.text()

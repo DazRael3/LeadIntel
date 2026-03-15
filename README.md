@@ -167,7 +167,6 @@ POSTHOG_API_KEY=phc_...
 To use a real demo media asset on the homepage, add one of:
 
 - `public/demo.mp4` (preferred)
-- `public/demo.gif`
 
 If no asset exists, the homepage shows a terminal-style placeholder simulation.
 
