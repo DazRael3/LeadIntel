@@ -2,15 +2,26 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 type User = { id: string; email?: string }
+type WorkspaceRow = { id: string; name: string; owner_user_id: string; default_template_set_id: string | null; created_at: string }
 
 const mockUser: User = { id: 'user_1', email: 'u1@example.com' }
 
-const ensurePersonalWorkspace = vi.fn(async () => ({ id: 'ws_1', name: 'Workspace', owner_user_id: 'user_1', default_template_set_id: null, created_at: new Date().toISOString() }))
-const getCurrentWorkspace = vi.fn(async () => null)
-const getWorkspaceMembership = vi.fn(async () => ({ role: 'owner' as const }))
+const ensurePersonalWorkspace = vi.fn<() => Promise<WorkspaceRow>>(async () => ({
+  id: 'ws_1',
+  name: 'Workspace',
+  owner_user_id: 'user_1',
+  default_template_set_id: null,
+  created_at: new Date().toISOString(),
+}))
+const getCurrentWorkspace = vi.fn<() => Promise<WorkspaceRow | null>>(async () => null)
+const getWorkspaceMembership = vi.fn<() => Promise<{ role: 'owner' | 'admin' | 'manager' | 'rep' | 'viewer' } | null>>(
+  async () => ({ role: 'owner' })
+)
 
 vi.mock('@/lib/api/guard', () => ({
-  withApiGuard: (handler: any) => {
+  withApiGuard: (
+    handler: (req: NextRequest, ctx: { requestId: string; userId: string | null }) => Promise<Response> | Response
+  ) => {
     return (req: NextRequest) => handler(req, { requestId: 'req_1', userId: mockUser.id })
   },
 }))
@@ -24,12 +35,9 @@ vi.mock('@/lib/supabase/safe-auth', () => ({
 }))
 
 vi.mock('@/lib/team/workspace', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking module boundary for route tests
-  ensurePersonalWorkspace: (...args: any[]) => ensurePersonalWorkspace(...args),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking module boundary for route tests
-  getCurrentWorkspace: (...args: any[]) => getCurrentWorkspace(...args),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocking module boundary for route tests
-  getWorkspaceMembership: (...args: any[]) => getWorkspaceMembership(...args),
+  ensurePersonalWorkspace,
+  getCurrentWorkspace,
+  getWorkspaceMembership,
 }))
 
 describe('/api/workspaces/current', () => {
