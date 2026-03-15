@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { TrustChecklist } from '@/components/marketing/TrustChecklist'
 import { BuyerReadiness } from '@/components/marketing/BuyerReadiness'
 import { OperationalReadiness } from '@/components/marketing/OperationalReadiness'
-import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 
 export const metadata: Metadata = {
   title: 'Trust Center | LeadIntel',
@@ -48,7 +47,6 @@ export default function TrustCenterPage() {
   return (
     <MarketingPage title="Trust Center" subtitle="Security, privacy, and operational transparency for buyers who verify.">
       <PageViewTrack event="trust_center_viewed" props={{ page: 'trust' }} />
-      <AuthedSettingsStamp payload={{ trust_viewed_at: new Date().toISOString() }} sessionKey="trust_viewed" />
 
       <div className="grid grid-cols-1 gap-6">
         <Card className="border-cyan-500/20 bg-card/60">

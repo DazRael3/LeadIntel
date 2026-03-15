@@ -6,6 +6,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'Subprocessors | LeadIntel',
   description: 'Infrastructure providers used to operate LeadIntel.',
+  alternates: { canonical: 'https://dazrael.com/subprocessors' },
   openGraph: {
     title: 'Subprocessors | LeadIntel',
     description: 'Infrastructure providers used to operate LeadIntel.',

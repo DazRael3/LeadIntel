@@ -164,7 +164,7 @@ export function TopNav() {
                   variant="ghost"
                   className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
                 >
-                  <Link href="/login?mode=signin&redirect=/">
+                  <Link href="/login?mode=signin&redirect=/" prefetch={false}>
                     <LogIn className="h-4 w-4 mr-2" />
                     Log in
                   </Link>
@@ -173,7 +173,7 @@ export function TopNav() {
                   asChild
                   className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30"
                 >
-                  <Link href="/signup?redirect=/">
+                  <Link href="/signup?redirect=/" prefetch={false}>
                     <UserPlus className="h-4 w-4 mr-2" />
                     Sign up
                   </Link>

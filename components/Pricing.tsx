@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +14,6 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { COPY } from '@/lib/copy/leadintel'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { OutcomePricingIntro } from '@/components/marketing/OutcomePricingIntro'
-import { AuthedSettingsStamp } from '@/components/marketing/AuthedSettingsStamp'
 
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
@@ -133,7 +132,6 @@ export function Pricing() {
   const teamBasePrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.teamBaseMonthly) : PRICING.teamBaseMonthly
   const teamSeatPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.teamSeatMonthly) : PRICING.teamSeatMonthly
   const cadenceLabel = billingCycle === 'annual' ? '/year' : '/month'
-  const pricingViewedAt = useMemo(() => new Date().toISOString(), [])
 
   useEffect(() => {
     // Client-only query parsing (avoid useSearchParams() suspense requirement during prerender).
@@ -292,7 +290,6 @@ export function Pricing() {
 
   return (
     <div className="min-h-screen bg-background terminal-grid py-20">
-      <AuthedSettingsStamp payload={{ pricing_viewed_at: pricingViewedAt }} sessionKey="pricing_viewed" />
       <div className="container mx-auto px-6">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">{COPY.pricing.hero.headline}</h1>

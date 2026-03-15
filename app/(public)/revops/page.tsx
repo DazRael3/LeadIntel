@@ -6,6 +6,7 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'For RevOps | LeadIntel',
   description: 'A consistent outbound system: signals, scoring, templates, and measurable workflows.',
+  alternates: { canonical: 'https://dazrael.com/revops' },
   openGraph: {
     title: 'For RevOps | LeadIntel',
     description: 'A consistent outbound system: signals, scoring, templates, and measurable workflows.',

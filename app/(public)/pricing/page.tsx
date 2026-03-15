@@ -5,6 +5,7 @@ import PricingClientPage from './PricingClientPage'
 export const metadata: Metadata = {
   title: 'Pricing | LeadIntel',
   description: 'Choose the outbound workflow that fits your team.',
+  alternates: { canonical: 'https://dazrael.com/pricing' },
   openGraph: {
     title: 'Pricing | LeadIntel',
     description: 'Choose the outbound workflow that fits your team.',

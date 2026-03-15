@@ -7,6 +7,7 @@ import { getUseCasePlaybook } from '@/lib/use-cases/playbooks'
 export const metadata: Metadata = {
   title: 'Partnership announcement playbook | LeadIntel',
   description: 'Use partnership announcements as a precise wedge for timely outbound.',
+  alternates: { canonical: 'https://dazrael.com/use-cases/partnership-announcement' },
   openGraph: {
     title: 'Partnership announcement playbook | LeadIntel',
     description: 'Use partnership announcements as a precise wedge for timely outbound.',

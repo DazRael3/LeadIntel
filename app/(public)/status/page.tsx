@@ -11,6 +11,7 @@ import { StatusAutoRefresh } from './status-auto-refresh'
 export const metadata: Metadata = {
   title: 'Status | LeadIntel',
   description: 'Service status and basic health checks for LeadIntel.',
+  alternates: { canonical: 'https://dazrael.com/status' },
   openGraph: {
     title: 'Status | LeadIntel',
     description: 'Service status and basic health checks for LeadIntel.',

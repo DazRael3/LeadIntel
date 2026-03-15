@@ -7,6 +7,7 @@ import { getUseCasePlaybook } from '@/lib/use-cases/playbooks'
 export const metadata: Metadata = {
   title: 'Funding outreach playbook | LeadIntel',
   description: 'Turn fresh funding signals into timely outreach with a clear “why now” angle.',
+  alternates: { canonical: 'https://dazrael.com/use-cases/funding-outreach' },
   openGraph: {
     title: 'Funding outreach playbook | LeadIntel',
     description: 'Turn fresh funding signals into timely outreach with a clear “why now” angle.',

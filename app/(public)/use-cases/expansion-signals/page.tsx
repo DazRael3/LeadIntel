@@ -7,6 +7,7 @@ import { getUseCasePlaybook } from '@/lib/use-cases/playbooks'
 export const metadata: Metadata = {
   title: 'Expansion signals playbook | LeadIntel',
   description: 'Use expansion signals to time outreach around process change and scaling.',
+  alternates: { canonical: 'https://dazrael.com/use-cases/expansion-signals' },
   openGraph: {
     title: 'Expansion signals playbook | LeadIntel',
     description: 'Use expansion signals to time outreach around process change and scaling.',

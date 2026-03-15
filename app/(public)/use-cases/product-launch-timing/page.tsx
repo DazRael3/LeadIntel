@@ -7,6 +7,7 @@ import { getUseCasePlaybook } from '@/lib/use-cases/playbooks'
 export const metadata: Metadata = {
   title: 'Product launch timing playbook | LeadIntel',
   description: 'Use launch signals to time outreach around high-change periods.',
+  alternates: { canonical: 'https://dazrael.com/use-cases/product-launch-timing' },
   openGraph: {
     title: 'Product launch timing playbook | LeadIntel',
     description: 'Use launch signals to time outreach around high-change periods.',
