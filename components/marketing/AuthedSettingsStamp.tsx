@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 export function AuthedSettingsStamp(props: {
   /** Settings payload to POST to /api/settings (best-effort). */
@@ -25,12 +27,23 @@ export function AuthedSettingsStamp(props: {
       // ignore
     }
 
-    void fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(props.payload),
-      keepalive: true,
-    }).catch(() => {})
+    ;(async () => {
+      // Public request hygiene: only call /api/settings when authenticated.
+      try {
+        const supabase = createClient()
+        const user = await getUserSafe(supabase)
+        if (!user) return
+      } catch {
+        return
+      }
+
+      void fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(props.payload),
+        keepalive: true,
+      }).catch(() => {})
+    })()
   }, [props.payload, props.sessionKey])
 
   return null
