@@ -36,6 +36,23 @@ AUDIT_SCOPE="public" \
 npm run audit:ai
 ```
 
+### Windows PowerShell notes
+If your antivirus blocks PowerShell’s `npm.ps1`, run npm via `npm.cmd` or `cmd.exe`.
+
+**PowerShell (preferred):**
+
+```powershell
+$env:AUDIT_BASE_URL="https://dazrael.com"
+$env:AUDIT_SCOPE="public"
+& "C:\Program Files\nodejs\npm.cmd" run audit:ai
+```
+
+**Or via cmd.exe:**
+
+```powershell
+cmd /c "set AUDIT_BASE_URL=https://dazrael.com&& set AUDIT_SCOPE=public&& npm run audit:ai"
+```
+
 3) Find output under:
 - `admin-reports/ai-site-audit/<timestamp>/`
 
@@ -58,6 +75,13 @@ AUDIT_BASE_URL="https://dazrael.com" \
 npm run audit:storage
 ```
 
+**Windows PowerShell equivalent (no `npm.ps1`):**
+
+```powershell
+$env:AUDIT_BASE_URL="https://dazrael.com"
+& "C:\Program Files\nodejs\npm.cmd" run audit:storage
+```
+
 A browser opens. Log in manually. When you reach `/dashboard`, the script saves:
 
 `admin-reports/ai-site-audit/storageState.json`
@@ -69,6 +93,15 @@ AUDIT_BASE_URL="https://dazrael.com" \
 AUDIT_SCOPE="all" \
 AUDIT_STORAGE_STATE="admin-reports/ai-site-audit/storageState.json" \
 npm run audit:ai
+```
+
+**Windows PowerShell equivalent (no `npm.ps1`):**
+
+```powershell
+$env:AUDIT_BASE_URL="https://dazrael.com"
+$env:AUDIT_SCOPE="all"
+$env:AUDIT_STORAGE_STATE="admin-reports/ai-site-audit/storageState.json"
+& "C:\Program Files\nodejs\npm.cmd" run audit:ai
 ```
 
 If you only want authenticated pages:

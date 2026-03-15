@@ -445,6 +445,7 @@ async function main(): Promise<void> {
   const storageStatePath = env('AUDIT_STORAGE_STATE')
   const outRoot = env('AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
   const maxRoutes = Number.parseInt(env('AUDIT_MAX_ROUTES', '120') ?? '120', 10)
+  const verbose = (env('AUDIT_VERBOSE', '1') ?? '1').trim().toLowerCase() !== '0'
 
   const runPublic = scope === 'public' || scope === 'all'
   const runLoggedIn = scope === 'logged_in' || scope === 'all'
@@ -491,6 +492,9 @@ async function main(): Promise<void> {
   const consoleErrors: ConsoleError[] = []
   const networkFailures: NetworkFailure[] = []
 
+  // eslint-disable-next-line no-console
+  console.log(`[audit:ai] Starting audit`, { baseUrl, scope, maxRoutes, outputDir: outDir })
+
   await withBrowser(async (browser) => {
     // Desktop contexts
     const ctxPublic = runPublic ? await newContext(browser, { width: 1280, height: 800 }, null) : null
@@ -510,6 +514,14 @@ async function main(): Promise<void> {
       const page = item.mode === 'logged_in' ? pageAuthed : pagePublic
       if (!page) continue
 
+      const startedAt = Date.now()
+      if (verbose) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[audit:ai] (${captures.length + 1}/${maxRoutes}) auditing ${item.mode}:${item.route} (queue=${queue.length}, discovered=${routes.length})`
+        )
+      }
+
       const audited = await auditOneRoute({
         page,
         baseUrl,
@@ -528,6 +540,21 @@ async function main(): Promise<void> {
       captures.push(cap)
       consoleErrors.push(...audited.consoleErrors)
       networkFailures.push(...audited.networkFailures)
+
+      if (verbose) {
+        const took = Date.now() - startedAt
+        const status = cap.status ? ` HTTP ${cap.status}` : ''
+        const flags = [
+          cap.consoleErrorCount ? `consoleErrors=${cap.consoleErrorCount}` : null,
+          cap.failedRequestCount ? `failedReq=${cap.failedRequestCount}` : null,
+          cap.http4xx5xxCount ? `http4xx5xx=${cap.http4xx5xxCount}` : null,
+          cap.overflowX ? `overflowX=1` : null,
+        ].filter(Boolean)
+        // eslint-disable-next-line no-console
+        console.log(
+          `[audit:ai] done ${item.mode}:${item.route}${status} (${took}ms)${flags.length ? ` [${flags.join(', ')}]` : ''}`
+        )
+      }
 
       // Route discovery: bounded, same-origin internal links only.
       for (const href of cap.internalLinks) {
