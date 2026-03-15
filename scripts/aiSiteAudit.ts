@@ -69,6 +69,26 @@ function env(name: string, fallback?: string): string | undefined {
   return fallback
 }
 
+function readArg(name: string): string | null {
+  const argv = process.argv.slice(2)
+  const exact = argv.find((a) => a === name)
+  if (exact) {
+    const idx = argv.indexOf(exact)
+    const next = argv[idx + 1]
+    return typeof next === 'string' && !next.startsWith('--') ? next : ''
+  }
+  const pref = `${name}=`
+  const hit = argv.find((a) => a.startsWith(pref))
+  if (hit) return hit.slice(pref.length)
+  return null
+}
+
+function argOrEnv(name: string, envName: string, fallback?: string): string | undefined {
+  const v = readArg(name)
+  if (v !== null && v.trim().length > 0) return v.trim()
+  return env(envName, fallback)
+}
+
 function parseCsv(raw: string | undefined): string[] {
   if (!raw) return []
   return raw
@@ -440,12 +460,12 @@ async function auditOneRoute(args: {
 }
 
 async function main(): Promise<void> {
-  const baseUrl = env('AUDIT_BASE_URL', 'http://localhost:3000')!
-  const scope = normalizeScope(env('AUDIT_SCOPE'))
-  const storageStatePath = env('AUDIT_STORAGE_STATE')
-  const outRoot = env('AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
-  const maxRoutes = Number.parseInt(env('AUDIT_MAX_ROUTES', '120') ?? '120', 10)
-  const verbose = (env('AUDIT_VERBOSE', '1') ?? '1').trim().toLowerCase() !== '0'
+  const baseUrl = argOrEnv('--baseUrl', 'AUDIT_BASE_URL', 'http://localhost:3000')!
+  const scope = normalizeScope(argOrEnv('--scope', 'AUDIT_SCOPE', 'all'))
+  const storageStatePath = argOrEnv('--storageState', 'AUDIT_STORAGE_STATE')
+  const outRoot = argOrEnv('--outputDir', 'AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
+  const maxRoutes = Number.parseInt(argOrEnv('--maxRoutes', 'AUDIT_MAX_ROUTES', '120') ?? '120', 10)
+  const verbose = (argOrEnv('--verbose', 'AUDIT_VERBOSE', '1') ?? '1').trim().toLowerCase() !== '0'
 
   const runPublic = scope === 'public' || scope === 'all'
   const runLoggedIn = scope === 'logged_in' || scope === 'all'
@@ -480,9 +500,11 @@ async function main(): Promise<void> {
     queue.push({ route: normalized, mode, from })
   }
 
-  const publicSeed = parseCsv(env('AUDIT_PUBLIC_ROUTES')).length ? parseCsv(env('AUDIT_PUBLIC_ROUTES')) : defaultPublicSeed()
-  const loggedInSeed = parseCsv(env('AUDIT_LOGGED_IN_ROUTES')).length
-    ? parseCsv(env('AUDIT_LOGGED_IN_ROUTES'))
+  const publicSeed = parseCsv(argOrEnv('--publicRoutes', 'AUDIT_PUBLIC_ROUTES')).length
+    ? parseCsv(argOrEnv('--publicRoutes', 'AUDIT_PUBLIC_ROUTES'))
+    : defaultPublicSeed()
+  const loggedInSeed = parseCsv(argOrEnv('--loggedInRoutes', 'AUDIT_LOGGED_IN_ROUTES')).length
+    ? parseCsv(argOrEnv('--loggedInRoutes', 'AUDIT_LOGGED_IN_ROUTES'))
     : defaultLoggedInSeed()
 
   if (runPublic) for (const r of publicSeed) addRoute(r, 'public', 'seed')

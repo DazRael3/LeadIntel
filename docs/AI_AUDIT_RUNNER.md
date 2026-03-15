@@ -28,7 +28,13 @@ Inside:
 npm ci
 ```
 
-2) Run public audit:
+2) Run public audit (cross-platform CLI flags — recommended):
+
+```bash
+npm run audit:ai -- --baseUrl="https://dazrael.com" --scope="public"
+```
+
+2b) Run public audit (env vars — optional):
 
 ```bash
 AUDIT_BASE_URL="https://dazrael.com" \
@@ -68,7 +74,13 @@ Logged-in auditing is optional. It **does not** store passwords in code or env.
 
 ### Step 1 — Create a Playwright session once
 
-Run:
+Run (cross-platform CLI flags — recommended):
+
+```bash
+npm run audit:storage -- --baseUrl="https://dazrael.com"
+```
+
+Run (env vars — optional):
 
 ```bash
 AUDIT_BASE_URL="https://dazrael.com" \
@@ -87,6 +99,12 @@ A browser opens. Log in manually. When you reach `/dashboard`, the script saves:
 `admin-reports/ai-site-audit/storageState.json`
 
 ### Step 2 — Run the audit using storageState
+
+Cross-platform CLI flags (recommended):
+
+```bash
+npm run audit:ai -- --baseUrl="https://dazrael.com" --scope="all" --storageState="admin-reports/ai-site-audit/storageState.json"
+```
 
 ```bash
 AUDIT_BASE_URL="https://dazrael.com" \
@@ -127,4 +145,9 @@ rm -f "admin-reports/ai-site-audit/storageState.json"
 - `AUDIT_MAX_ROUTES=120` to cap how many routes are audited.
 - `AUDIT_PUBLIC_ROUTES="/,/pricing,/trust"` to override the public seed list.
 - `AUDIT_LOGGED_IN_ROUTES="/dashboard,/settings/workspace"` to override logged-in seed list.
+
+### CLI flag equivalents (cross-platform)
+- `--maxRoutes=120`
+- `--publicRoutes="/,/pricing,/trust"`
+- `--loggedInRoutes="/dashboard,/settings/workspace"`
 

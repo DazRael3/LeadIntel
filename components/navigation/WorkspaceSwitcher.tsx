@@ -13,10 +13,24 @@ type WorkspaceAccess = {
   source: 'direct' | 'delegated'
 }
 
-type DirectoryEnvelope = { success: true; data: { workspaces: WorkspaceAccess[] } } | { success: false; error?: { message?: string } }
-type CurrentEnvelope =
-  | { success: true; data: { workspace: { id: string; name: string }; role: string | null } }
+type DirectoryEnvelope =
+  | { ok: true; data: { workspaces: WorkspaceAccess[] } }
+  | { success: true; data: { workspaces: WorkspaceAccess[] } }
+  | { ok: false; error?: { message?: string } }
   | { success: false; error?: { message?: string } }
+type CurrentEnvelope =
+  | { ok: true; data: { workspace: { id: string; name: string }; role: string | null } }
+  | { success: true; data: { workspace: { id: string; name: string }; role: string | null } }
+  | { ok: false; error?: { message?: string } }
+  | { success: false; error?: { message?: string } }
+
+function isOk<T extends { ok?: unknown; success?: unknown }>(json: T | null | undefined): json is T & { ok: true } {
+  return Boolean(json && (json as any).ok === true)
+}
+
+function isSuccess<T extends { ok?: unknown; success?: unknown }>(json: T | null | undefined): json is T & { success: true } {
+  return Boolean(json && (json as any).success === true)
+}
 
 export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
   const router = useRouter()
@@ -35,9 +49,15 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
     try {
       const curRes = await fetch('/api/workspaces/current', { cache: 'no-store' })
       const curJson = (await curRes.json().catch(() => null)) as CurrentEnvelope | null
-      const curErr = curJson && curJson.success === false ? curJson.error?.message : null
-      if (!curRes.ok || !curJson || curJson.success !== true) throw new Error(curErr ?? 'Failed to load workspace context')
-      setCurrent({ id: curJson.data.workspace.id, name: curJson.data.workspace.name, role: curJson.data.role ?? null })
+      const curErr =
+        curJson && (curJson as any).ok === false
+          ? (curJson as any).error?.message
+          : curJson && (curJson as any).success === false
+            ? (curJson as any).error?.message
+            : null
+      if (!curRes.ok || !curJson || (!isOk(curJson) && !isSuccess(curJson))) throw new Error(curErr ?? 'Failed to load workspace context')
+      const data = (curJson as any).data as { workspace: { id: string; name: string }; role: string | null }
+      setCurrent({ id: data.workspace.id, name: data.workspace.name, role: data.role ?? null })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to load workspace context'
       // Avoid noisy toasts when this is mounted in top chrome; only surface errors in the explicit picker surface.
@@ -56,10 +76,16 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
     try {
       const res = await fetch('/api/workspaces/directory', { cache: 'no-store' })
       const json = (await res.json().catch(() => null)) as DirectoryEnvelope | null
-      const err = json && json.success === false ? json.error?.message : null
-      if (!res.ok || !json || json.success !== true) throw new Error(err ?? 'Failed to load workspaces')
-      setWorkspaces(json.data.workspaces ?? [])
-      track('workspace_switcher_viewed', { workspacesCount: (json.data.workspaces ?? []).length })
+      const err =
+        json && (json as any).ok === false
+          ? (json as any).error?.message
+          : json && (json as any).success === false
+            ? (json as any).error?.message
+            : null
+      if (!res.ok || !json || (!isOk(json) && !isSuccess(json))) throw new Error(err ?? 'Failed to load workspaces')
+      const data = (json as any).data as { workspaces: WorkspaceAccess[] }
+      setWorkspaces(data.workspaces ?? [])
+      track('workspace_switcher_viewed', { workspacesCount: (data.workspaces ?? []).length })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to load workspaces'
       toast({ title: 'Workspace list unavailable', description: message, variant: 'destructive' })
@@ -80,8 +106,13 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
       if (!workspaceId || workspaceId === current?.id) return
       try {
         const res = await fetch('/api/workspaces/switch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId }) })
-        const json = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null
-        if (!res.ok || !json || json.success !== true) throw new Error(json?.error?.message ?? 'Switch failed')
+        const json = (await res.json().catch(() => null)) as
+          | { ok: true }
+          | { success: true }
+          | { ok?: boolean; success?: boolean; error?: { message?: string } }
+          | null
+        const err = json && (json as any).ok === false ? (json as any).error?.message : json && (json as any).success === false ? (json as any).error?.message : null
+        if (!res.ok || !json || (!isOk(json as any) && !isSuccess(json as any))) throw new Error(err ?? 'Switch failed')
         track('workspace_switched', { workspaceId, fromPath: pathname })
         // Refresh current route; server components will resolve against the new current workspace.
         router.refresh()

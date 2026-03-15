@@ -8,14 +8,34 @@ function env(name: string, fallback?: string): string | undefined {
   return fallback
 }
 
+function readArg(name: string): string | null {
+  const argv = process.argv.slice(2)
+  const exact = argv.find((a) => a === name)
+  if (exact) {
+    const idx = argv.indexOf(exact)
+    const next = argv[idx + 1]
+    return typeof next === 'string' && !next.startsWith('--') ? next : ''
+  }
+  const pref = `${name}=`
+  const hit = argv.find((a) => a.startsWith(pref))
+  if (hit) return hit.slice(pref.length)
+  return null
+}
+
+function argOrEnv(name: string, envName: string, fallback?: string): string | undefined {
+  const v = readArg(name)
+  if (v !== null && v.trim().length > 0) return v.trim()
+  return env(envName, fallback)
+}
+
 async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true })
 }
 
 async function main(): Promise<void> {
-  const baseUrl = env('AUDIT_BASE_URL', 'http://localhost:3000')!
-  const outDir = env('AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
-  const outFile = env('AUDIT_STORAGE_STATE_OUT', path.join(outDir, 'storageState.json'))!
+  const baseUrl = argOrEnv('--baseUrl', 'AUDIT_BASE_URL', 'http://localhost:3000')!
+  const outDir = argOrEnv('--outputDir', 'AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
+  const outFile = argOrEnv('--outFile', 'AUDIT_STORAGE_STATE_OUT', path.join(outDir, 'storageState.json'))!
 
   await ensureDir(path.dirname(outFile))
 
