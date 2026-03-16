@@ -59,6 +59,7 @@ export function VerticalTemplateRail() {
                       <Link
                         key={t.slug}
                         href={`/templates/${t.slug}`}
+                        prefetch={false}
                         className="rounded border border-cyan-500/10 bg-background/60 px-3 py-2 hover:border-cyan-500/25 transition"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">

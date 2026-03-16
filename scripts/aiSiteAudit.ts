@@ -24,6 +24,7 @@ type RouteRecord = {
 type ConsoleError = { route: string; mode: RunMode; level: string; text: string; url: string | null }
 type NetworkFailure =
   | { route: string; mode: RunMode; kind: 'requestfailed'; url: string; method: string; failure: string | null }
+  | { route: string; mode: RunMode; kind: 'aborted_prefetch'; url: string; method: string; failure: string | null }
   | { route: string; mode: RunMode; kind: 'http_error'; url: string; method: string; status: number }
 
 type RouteCapture = {
@@ -44,6 +45,7 @@ type RouteCapture = {
   overflowX: boolean
   consoleErrorCount: number
   failedRequestCount: number
+  abortedPrefetchCount: number
   http4xx5xxCount: number
   durationMs: number
   screenshotDesktop: string
@@ -349,6 +351,7 @@ async function auditOneRoute(args: {
   const networkFailures: NetworkFailure[] = []
   let consoleErrorCount = 0
   let failedRequestCount = 0
+  let abortedPrefetchCount = 0
   let http4xx5xxCount = 0
 
   const events: Array<Record<string, unknown>> = []
@@ -367,10 +370,18 @@ async function auditOneRoute(args: {
     events.push({ type: 'pageerror', message: err.message })
   }
   const onRequestFailed = (req: any) => {
-    failedRequestCount += 1
     const method = (req?.method?.() ?? 'GET') as string
     const u = (req?.url?.() ?? '') as string
     const failure = (req?.failure?.()?.errorText ?? null) as string | null
+    const isAbortedPrefetch =
+      Boolean(failure && failure.includes('net::ERR_ABORTED')) && typeof u === 'string' && u.includes('_rsc=')
+    if (isAbortedPrefetch) {
+      abortedPrefetchCount += 1
+      events.push({ type: 'aborted_prefetch', method, url: u, failure })
+      networkFailures.push({ route: args.route, mode: args.mode, kind: 'aborted_prefetch', url: u, method, failure })
+      return
+    }
+    failedRequestCount += 1
     events.push({ type: 'requestfailed', method, url: u, failure })
     networkFailures.push({ route: args.route, mode: args.mode, kind: 'requestfailed', url: u, method, failure })
   }
@@ -456,6 +467,7 @@ async function auditOneRoute(args: {
       overflowX,
       consoleErrorCount,
       failedRequestCount,
+      abortedPrefetchCount,
       http4xx5xxCount,
       durationMs,
       htmlPath,
@@ -847,6 +859,9 @@ async function main(): Promise<void> {
   await writeJson(path.join(outDir, 'metadata.json'), captures)
   await writeJson(path.join(outDir, 'heuristics.json'), heuristicIssues)
 
+  const realNetworkFailures = networkFailures.filter((f) => f.kind !== 'aborted_prefetch')
+  const abortedPrefetches = networkFailures.filter((f) => f.kind === 'aborted_prefetch')
+
   const summary = {
     baseUrl,
     scope,
@@ -859,7 +874,8 @@ async function main(): Promise<void> {
       ok: captures.filter((c) => c.ok).length,
       failed: captures.filter((c) => !c.ok).length,
       consoleErrors: consoleErrors.length,
-      networkFailures: networkFailures.length,
+      networkFailures: realNetworkFailures.length,
+      abortedPrefetches: abortedPrefetches.length,
       overflowX: captures.filter((c) => c.overflowX).length,
     },
     top10Issues: top10,
@@ -920,6 +936,7 @@ async function main(): Promise<void> {
   lines.push(`## 7) Console/network failures`)
   lines.push(`- Console errors: **${summary.totals.consoleErrors}** (see \`console-errors.json\`)`)
   lines.push(`- Network failures: **${summary.totals.networkFailures}** (see \`network-failures.json\`)`)
+  lines.push(`- Aborted prefetches (noise): **${summary.totals.abortedPrefetches}** (included in \`network-failures.json\`)`)
   lines.push(``)
 
   lines.push(`## 8) Mobile/responsive observations`)
@@ -937,7 +954,7 @@ async function main(): Promise<void> {
     lines.push(`- Canonical: ${c.canonical ? `\`${c.canonical}\`` : '`(missing)`'}`)
     lines.push(`- Top CTAs: ${c.topCtas.length ? c.topCtas.map((t) => `\`${t}\``).join(', ') : '`(none detected)`'}`)
     lines.push(
-      `- Counts: consoleErrors=${c.consoleErrorCount}, failedRequests=${c.failedRequestCount}, http4xx5xx=${c.http4xx5xxCount}, overflowX=${c.overflowX}`
+      `- Counts: consoleErrors=${c.consoleErrorCount}, failedRequests=${c.failedRequestCount}, abortedPrefetches=${c.abortedPrefetchCount}, http4xx5xx=${c.http4xx5xxCount}, overflowX=${c.overflowX}`
     )
     lines.push(`- Desktop screenshot: \`${path.relative(process.cwd(), c.screenshotDesktop)}\``)
     lines.push(`- Mobile screenshot: \`${path.relative(process.cwd(), c.screenshotMobile)}\``)

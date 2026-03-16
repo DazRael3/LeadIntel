@@ -164,11 +164,7 @@ POSTHOG_API_KEY=phc_...
 
 ## Optional: 1-minute demo asset
 
-To use a real demo media asset on the homepage, add one of:
-
-- `public/demo.mp4` (preferred)
-
-If no asset exists, the homepage shows a terminal-style placeholder simulation.
+The homepage demo is intentionally implemented as an in-app `DemoLoop` preview to avoid referencing missing media assets in production builds.
 
 #### Optional: Third-Party Integrations
 
