@@ -8,11 +8,11 @@ import { TemplatesSettingsClient } from './TemplatesSettingsClient'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Templates | LeadIntel',
-  description: 'Shared templates and approvals.',
+  title: 'Team templates | LeadIntel',
+  description: 'Team templates and approvals.',
   openGraph: {
-    title: 'Templates | LeadIntel',
-    description: 'Shared templates and approvals.',
+    title: 'Team templates | LeadIntel',
+    description: 'Team templates and approvals.',
     url: 'https://dazrael.com/settings/templates',
   },
 }

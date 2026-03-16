@@ -1,9 +1,12 @@
 import type { Metadata } from 'next'
+import React from 'react'
+import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { LoginClient } from '../login/LoginClient'
 
 export const metadata: Metadata = {
   title: 'Sign up | LeadIntel',
   description: 'Create a LeadIntel account.',
+  alternates: { canonical: 'https://dazrael.com/signup' },
   openGraph: {
     title: 'Sign up | LeadIntel',
     description: 'Create a LeadIntel account.',
@@ -20,6 +23,10 @@ interface SignupPageProps {
 export default async function SignupPage({ searchParams }: SignupPageProps) {
   const sp = (await searchParams) ?? {}
   const redirectTo = sp.redirect ?? '/onboarding'
-  return <LoginClient initialMode="signup" redirectTo={redirectTo} />
+  return (
+    <MarketingPage title="Sign up" subtitle="Create your LeadIntel account.">
+      <LoginClient initialMode="signup" redirectTo={redirectTo} />
+    </MarketingPage>
+  )
 }
 
