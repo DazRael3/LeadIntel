@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import React from 'react'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { LoginClient } from '../login/LoginClient'
 

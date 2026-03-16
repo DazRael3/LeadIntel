@@ -6,6 +6,11 @@
 
 import { vi } from 'vitest'
 import '@testing-library/jest-dom'
+import React from 'react'
+
+// Some test transforms still expect React in the global scope.
+// Keep this test-only to avoid requiring explicit React imports in every JSX module.
+;(globalThis as unknown as { React?: typeof React }).React = React
 
 // Treat unit tests as "test-like" runtime with the E2E Supabase shim enabled.
 // This avoids requiring real Supabase env vars and keeps route handler tests deterministic.
