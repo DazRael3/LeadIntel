@@ -21,3 +21,7 @@ This repo includes a local Playwright audit runner that surfaced a small set of 
 ### 5) Locked pages are productized
 - Team-only surfaces render a premium locked-state with a real H1, a clear explanation, and a single primary upgrade CTA.
 
+### 6) Dashboard stats requests are deterministic
+- The Starter dashboard avoids `HEAD` count checks against leads on first load.
+- Stats now use a minimal `GET` with a tight select/limit to prevent requestfailed abort noise during rapid navigations.
+

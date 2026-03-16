@@ -17,7 +17,10 @@ export function useStats(): UseStatsReturn {
     try {
       const { count, error } = await supabase
         .from('leads')
-        .select('*', { count: 'exact', head: true })
+        // Avoid HEAD requests (they show up as requestfailed/aborted during rapid navigations).
+        // Keep payload minimal while still reading the count deterministically.
+        .select('id', { count: 'exact' })
+        .limit(1)
       
       if (error) {
         throw error

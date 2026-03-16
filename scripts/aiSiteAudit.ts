@@ -210,6 +210,11 @@ function defaultLoggedInSeed(): string[] {
   ]
 }
 
+function stripQuery(route: string): string {
+  const idx = route.indexOf('?')
+  return idx >= 0 ? route.slice(0, idx) : route
+}
+
 async function withBrowser<T>(fn: (b: Browser) => Promise<T>): Promise<T> {
   const browser = await chromium.launch({ headless: true })
   try {
@@ -837,6 +842,10 @@ async function main(): Promise<void> {
 
   for (const [title, arr] of titleMap.entries()) {
     if (arr.length <= 1) continue
+    // Ignore duplicates that are only query-param variants of the same path
+    // (e.g. /pricing vs /pricing?target=team) or public+logged_in captures of the same route.
+    const uniquePaths = new Set(arr.map((x) => stripQuery(x.route)))
+    if (uniquePaths.size <= 1) continue
     for (const a of arr) {
       heuristicIssues.push({
         route: a.route,
