@@ -67,7 +67,7 @@ export function DashboardHeader() {
               variant="ghost"
               className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
             >
-              <Link href="/dashboard/actions">
+              <Link href="/dashboard/actions" prefetch={false}>
                 <ListChecks className="h-4 w-4 mr-2" />
                 Actions
               </Link>
@@ -93,7 +93,7 @@ export function DashboardHeader() {
                 variant="ghost"
                 className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
               >
-                <Link href="/dashboard/history" data-tour="tour-saved-outputs">
+                <Link href="/dashboard/history" prefetch={false} data-tour="tour-saved-outputs">
                   <Sparkles className="h-4 w-4 mr-2" />
                   Saved outputs
                 </Link>

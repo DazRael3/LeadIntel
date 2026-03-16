@@ -70,6 +70,15 @@ Recent high-value runtime stabilization/polish notes live here:
 - `docs/DASHBOARD_BOOTSTRAP_AND_WORKSPACE_RESOLUTION.md`
 - `docs/LOCKED_ROUTE_STANDARDS.md`
 
+## Private route metadata policy
+
+Authenticated/private routes (dashboard + settings surfaces) are intentionally marked:
+- `robots: noindex, nofollow`
+
+Rationale:
+- These pages are user-specific and not meant for indexing.
+- Public pages should carry canonical metadata; private pages should not accidentally signal indexability.
+
 ---
 
 ## Platform wave: assistants + conversational workflows

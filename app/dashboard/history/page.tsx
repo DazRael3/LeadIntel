@@ -1,8 +1,15 @@
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { HistoryClient, HistoryLead } from '@/components/HistoryClient'
 import { getPlanDetails } from '@/lib/billing/plan'
 import { getEntitlements } from '@/lib/billing/entitlements'
+
+export const metadata: Metadata = {
+  title: 'Saved outputs | LeadIntel',
+  description: 'Your saved pitches and reports, with export access by plan.',
+  robots: { index: false, follow: false },
+}
 
 export default async function HistoryPage() {
   const supabase = await createClient()

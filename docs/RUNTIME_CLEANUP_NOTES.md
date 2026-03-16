@@ -25,3 +25,6 @@ This repo includes a local Playwright audit runner that surfaced a small set of 
 - The Starter dashboard avoids `HEAD` count checks against leads on first load.
 - Stats now use a minimal `GET` with a tight select/limit to prevent requestfailed abort noise during rapid navigations.
 
+### 7) Private route metadata is deliberate
+- Dashboard and settings layouts set `robots: noindex, nofollow` to avoid accidental indexing signals on authenticated pages.
+
