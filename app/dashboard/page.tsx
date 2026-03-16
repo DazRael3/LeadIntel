@@ -6,8 +6,15 @@ import { PlanProvider } from '@/components/PlanProvider'
 import { getBuildInfo } from '@/lib/debug/buildInfo'
 import { checkLifecycleForUser } from '@/lib/lifecycle/checkUser'
 import { isReviewMode } from '@/lib/review/server'
+import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Dashboard | LeadIntel',
+  description: 'Your workspace: generate, review, and route outbound work.',
+  robots: { index: false, follow: false },
+}
 
 let hasLoggedApiSchemaHint = false
 

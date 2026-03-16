@@ -1,10 +1,17 @@
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { buildCompetitiveReportNewUrl } from '@/lib/reports/reportLinks'
+
+export const metadata: Metadata = {
+  title: 'Pitch history | LeadIntel',
+  description: 'Your generated pitches, listed by time.',
+  robots: { index: false, follow: false },
+}
 
 type PitchHistoryLeadRow = {
   id: string

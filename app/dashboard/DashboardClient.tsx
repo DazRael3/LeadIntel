@@ -162,7 +162,11 @@ export function DashboardClient({
       {/* Main Content */}
       <div className="w-full" data-testid="dashboard-overflow-x">
         <main className="container mx-auto px-4 sm:px-6 py-6">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as DashboardTabKey)} className="space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as DashboardTabKey)}
+          className={isStarter ? 'space-y-5' : 'space-y-6'}
+        >
           <div className="max-w-full">
             <TabsList className="flex h-auto w-full flex-wrap items-center justify-start gap-1 bg-background/50 border border-cyan-500/20 p-1">
               {tabs
@@ -185,7 +189,7 @@ export function DashboardClient({
           </div>
 
           {activeTab === 'command' ? (
-            <TabsContent value="command" className="space-y-6">
+            <TabsContent value="command" className={isStarter ? 'space-y-5' : 'space-y-6'}>
             {tierAtLeast(tier, 'team') ? (
               <MobileShortlistView />
             ) : (
