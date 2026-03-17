@@ -18,6 +18,9 @@ type OverridesEnvelope =
         enabled?: boolean
         configured?: boolean
         misconfigReason?: string | null
+        actor?: { allowlisted?: boolean }
+        workspace?: { exists?: boolean; role?: 'owner_admin' | 'member' | 'unknown' }
+        api?: { ready?: boolean }
         overrides: Array<QaOverride>
       }
     }
@@ -48,6 +51,11 @@ export function QaOverridesClient(props: {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [overrides, setOverrides] = useState<QaOverride[]>([])
+  const [diag, setDiag] = useState<{
+    apiReady: boolean
+    workspaceExists: boolean
+    workspaceRole: 'owner_admin' | 'member' | 'unknown'
+  }>({ apiReady: false, workspaceExists: false, workspaceRole: 'unknown' })
   const [targetEmail, setTargetEmail] = useState('')
   const [tier, setTier] = useState<QaTier>('starter')
   const [expiresMinutes, setExpiresMinutes] = useState<number>(60 * 6)
@@ -64,12 +72,18 @@ export function QaOverridesClient(props: {
         throw new Error(msg)
       }
       setOverrides(json.data.overrides ?? [])
+      setDiag({
+        apiReady: Boolean(json.data.api?.ready),
+        workspaceExists: Boolean(json.data.workspace?.exists),
+        workspaceRole: (json.data.workspace?.role ?? 'unknown') as 'owner_admin' | 'member' | 'unknown',
+      })
     } catch (e) {
       toast({
         variant: 'destructive',
         title: 'Could not load QA overrides.',
         description: e instanceof Error ? e.message : 'Try again.',
       })
+      setDiag((d) => ({ ...d, apiReady: false }))
     } finally {
       setLoading(false)
     }
@@ -160,6 +174,43 @@ export function QaOverridesClient(props: {
           QA Override
         </Badge>
       </div>
+
+      <Card className="border-cyan-500/20 bg-card/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Diagnostics</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="border-cyan-500/30 text-cyan-300 bg-cyan-500/10">
+              {props.enabled ? 'Enabled' : 'Disabled'}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={props.configured ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-red-500/30 text-red-300 bg-red-500/10'}
+            >
+              {props.configured ? 'Configured' : 'Misconfigured'}
+            </Badge>
+            <Badge variant="outline" className="border-purple-500/30 text-purple-300 bg-purple-500/10">
+              Actor allowlisted
+            </Badge>
+            <Badge
+              variant="outline"
+              className={diag.apiReady ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-slate-700/60 text-muted-foreground bg-slate-900/40'}
+            >
+              {diag.apiReady ? 'API ready' : 'API not ready'}
+            </Badge>
+          </div>
+
+          <div className="text-xs">
+            Allowlists: actors={props.actorAllowlistCount}, targets={props.targetAllowlistCount}
+          </div>
+          <div className="text-xs">
+            Workspace: {diag.workspaceExists ? 'present' : 'none'}{diag.workspaceExists ? ` (${diag.workspaceRole})` : ''}.
+            {diag.workspaceExists ? null : ' Apply/Revoke requires a workspace (for audit scoping).'}
+          </div>
+          {!props.configured && props.misconfigReason ? <div className="text-xs text-red-200">{props.misconfigReason}</div> : null}
+        </CardContent>
+      </Card>
 
       {!props.enabled ? (
         <Card className="border-slate-700/60 bg-slate-900/40">

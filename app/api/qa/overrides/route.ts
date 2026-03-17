@@ -86,6 +86,26 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
     }
 
+    // Diagnostics only (no IDs returned): whether a workspace exists and whether actor is owner/admin there.
+    let workspaceStatus: { exists: boolean; role: 'owner_admin' | 'member' | 'unknown' } = { exists: false, role: 'unknown' }
+    try {
+      const ws = await getCurrentWorkspace({ supabase, userId: actor.id })
+      if (ws) {
+        const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: actor.id })
+        if (membership && (membership.role === 'owner' || membership.role === 'admin')) {
+          workspaceStatus = { exists: true, role: 'owner_admin' }
+        } else if (membership) {
+          workspaceStatus = { exists: true, role: 'member' }
+        } else {
+          workspaceStatus = { exists: true, role: 'unknown' }
+        }
+      } else {
+        workspaceStatus = { exists: false, role: 'unknown' }
+      }
+    } catch {
+      workspaceStatus = { exists: false, role: 'unknown' }
+    }
+
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const { data: rows } = await admin
       .from('qa_tier_overrides')
@@ -108,6 +128,9 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         enabled: cfg.enabled,
         configured: cfg.configured,
         misconfigReason: cfg.misconfigReason,
+        actor: { allowlisted: true },
+        workspace: workspaceStatus,
+        api: { ready: true },
         overrides: overrides.map((o) => ({
           ...o,
           target_email: byId.get(o.target_user_id) ?? null,

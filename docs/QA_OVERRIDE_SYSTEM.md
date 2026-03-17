@@ -21,6 +21,16 @@ This repo supports **internal-only QA tier overrides** so operators can test tie
 - Applying/revoking overrides **does** require a valid current workspace and an owner/admin role for audit scoping.
 - The API will return a clear `422` “Workspace required” error if the actor has no workspace selected/available.
 
+## Diagnostics panel
+`/settings/qa` includes a small diagnostics panel that shows:
+- Enabled / Disabled
+- Configured / Misconfigured
+- Actor allowlisted
+- Workspace presence (for apply/revoke)
+- API ready state
+
+This is intentionally metadata-only (no secret/env dumps).
+
 ## Enablement (env)
 Set in production/staging only when needed:
 - `ENABLE_QA_OVERRIDES=true`
