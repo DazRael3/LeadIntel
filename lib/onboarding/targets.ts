@@ -8,6 +8,14 @@ export type ParsedTarget = {
   name: string
 }
 
+function stripInvisibleAndTrim(input: string): string {
+  // Mobile keyboards and copy/paste can inject invisible characters that break naive validation.
+  // Keep this conservative: remove common zero-width / BOM / directionality marks.
+  return input
+    .replace(/[\u200B-\u200F\uFEFF]/g, '')
+    .trim()
+}
+
 function normalizeCompanyToken(s: string): string {
   return s
     .trim()
@@ -18,16 +26,18 @@ function normalizeCompanyToken(s: string): string {
 }
 
 function normalizeHostname(hostname: string): string | null {
-  const h = hostname.trim().toLowerCase().replace(/^www\./, '')
+  const h = stripInvisibleAndTrim(hostname).toLowerCase().replace(/^www\./, '')
   if (!h) return null
   // Very light validation: keep it conservative.
   if (!h.includes('.')) return null
   if (h.includes(' ')) return null
+  // Guard against accidental path/query fragments in hostname-like strings.
+  if (h.includes('/') || h.includes('?') || h.includes('#')) return null
   return h
 }
 
 export function parseTarget(input: string): ParsedTarget | null {
-  const raw = input.trim().replace(/[,\s]+$/g, '')
+  const raw = stripInvisibleAndTrim(input).replace(/[,\s]+$/g, '')
   if (!raw) return null
 
   // URL
@@ -45,9 +55,20 @@ export function parseTarget(input: string): ParsedTarget | null {
   // Domain
   const looksLikeDomain = raw.includes('.') && !raw.includes(' ')
   if (looksLikeDomain) {
-    const domain = normalizeHostname(raw)
-    if (!domain) return null
-    return { raw, domain, url: `https://${domain}`, name: domain }
+    // Common paste forms: "example.com/", "www.example.com/path?x=1"
+    const trimmed = raw.replace(/[)\].]+$/g, '') // light trailing punctuation cleanup
+    const direct = normalizeHostname(trimmed)
+    if (direct) {
+      return { raw, domain: direct, url: `https://${direct}`, name: direct }
+    }
+    try {
+      const u = new URL(`https://${trimmed}`)
+      const domain = normalizeHostname(u.hostname)
+      if (!domain) return null
+      return { raw, domain, url: `https://${domain}`, name: domain }
+    } catch {
+      return null
+    }
   }
 
   // Company name (no guessing beyond a stable token; domain remains null)
