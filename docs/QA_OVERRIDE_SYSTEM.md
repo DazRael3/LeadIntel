@@ -20,9 +20,25 @@ This repo supports **internal-only QA tier overrides** so operators can test tie
 Set in production/staging only when needed:
 - `ENABLE_QA_OVERRIDES=true`
 
-Optional allowlists (comma-separated emails). If unset, defaults to `@dazrael.com` only:
+### Required allowlists (production-safe)
+When `ENABLE_QA_OVERRIDES=true`, **both allowlists are required**. If either is missing/empty, the system **fails closed**:
+- the API rejects requests with a clear configuration error
+- overrides are not applied
+- `/settings/qa` is only visible to emails explicitly present in `QA_OVERRIDE_ACTOR_EMAILS`
+
+Set both as comma-separated email lists (case-insensitive, whitespace tolerated):
 - `QA_OVERRIDE_ACTOR_EMAILS` — who can apply/revoke overrides
 - `QA_OVERRIDE_TARGET_EMAILS` — which accounts can be overridden
+
+Example:
+
+```text
+ENABLE_QA_OVERRIDES=true
+QA_OVERRIDE_ACTOR_EMAILS=LeadIntel4Unity4All@dazrael.com
+QA_OVERRIDE_TARGET_EMAILS=qa-closer@dazrael.com,qa-closerplus@dazrael.com,qa-team@dazrael.com
+```
+
+If `ENABLE_QA_OVERRIDES=false`, the system is inert.
 
 ## UI location
 - `GET /settings/qa` (internal-only; requires auth + allowlist)

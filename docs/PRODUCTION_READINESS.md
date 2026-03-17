@@ -136,6 +136,14 @@ For each action below, verify behavior is identical when accessed from:
 For safe internal testing without billing mutation, see:
 - `docs/QA_OVERRIDE_SYSTEM.md`
 
+Production-safe setup (required when enabled):
+- `ENABLE_QA_OVERRIDES=true`
+- `QA_OVERRIDE_ACTOR_EMAILS=...` (comma-separated emails)
+- `QA_OVERRIDE_TARGET_EMAILS=...` (comma-separated emails)
+
+Fail-closed behavior:
+- If `ENABLE_QA_OVERRIDES=true` but either allowlist is missing/empty, overrides are disabled and the API returns a clear configuration error.
+
 
 ---
 

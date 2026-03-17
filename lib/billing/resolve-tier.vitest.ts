@@ -89,6 +89,7 @@ describe('resolveTierFromDb QA override', () => {
     vi.clearAllMocks()
     process.env.HOUSE_CLOSER_EMAILS = ''
     process.env.ENABLE_QA_OVERRIDES = 'true'
+    process.env.QA_OVERRIDE_ACTOR_EMAILS = 'actor@dazrael.com'
     process.env.QA_OVERRIDE_TARGET_EMAILS = 'qa@dazrael.com'
   })
 
