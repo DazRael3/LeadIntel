@@ -30,6 +30,13 @@ type ApiOk = {
 type ApiErr = { ok: false; error?: { message?: string } }
 type ApiEnvelope = ApiOk | ApiErr
 
+function getDeviceClass(): 'mobile' | 'desktop' | 'unknown' {
+  if (typeof window === 'undefined') return 'unknown'
+  const w = window.innerWidth
+  if (!Number.isFinite(w)) return 'unknown'
+  return w < 768 ? 'mobile' : 'desktop'
+}
+
 export function TrySampleDigest() {
   const [companyOrUrl, setCompanyOrUrl] = useState('')
   const [workEmail, setWorkEmail] = useState('')
@@ -127,6 +134,8 @@ export function TrySampleDigest() {
     const trimmed = parsedTarget.name
     const email = workEmail.trim()
     const wantsEmail = emailMe
+    const deviceClass = getDeviceClass()
+    const host = typeof window !== 'undefined' ? window.location.host : 'unknown'
 
     if (wantsEmail && !email) {
       setError({ title: COPY.validation.required, body: COPY.validation.required })
@@ -145,6 +154,8 @@ export function TrySampleDigest() {
       hasEmailRequested: wantsEmail,
       inputLen: trimmed.length,
       inputHasDot: trimmed.includes('.'),
+      deviceClass,
+      host,
     })
     track('sample_started', { source: 'landing_try_sample' })
     if (wantsEmail) track('landing_sample_email_requested')
@@ -178,7 +189,7 @@ export function TrySampleDigest() {
       }
 
       setResult(payload.data)
-      track('landing_sample_generated', { score: payload.data.sample.score })
+      track('landing_sample_generated', { score: payload.data.sample.score, deviceClass, host })
       track('sample_completed', { score: payload.data.sample.score })
       if (payload.data.email.requested && payload.data.email.sent) {
         track('landing_sample_email_sent')
@@ -203,6 +214,12 @@ export function TrySampleDigest() {
             id="sample_company"
             value={companyOrUrl}
             onChange={(e) => setCompanyOrUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void onGenerate()
+              }
+            }}
             placeholder="e.g., acme.com or Acme"
             autoCorrect="off"
             autoCapitalize="none"
