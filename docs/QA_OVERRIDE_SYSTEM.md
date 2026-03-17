@@ -63,7 +63,7 @@ If `ENABLE_QA_OVERRIDES=false`, the system is inert.
 2. Visit `/settings/qa`.
 3. Enter the **target test user email** (must be allowlisted).
 4. Select the desired **Override tier**.
-5. Set an expiry (minutes) and optional note.
+5. Set an expiry (use a short preset when possible) and optional note.
 6. Click **Apply override**.
 
 ## How to test tiers (fast checklist)
