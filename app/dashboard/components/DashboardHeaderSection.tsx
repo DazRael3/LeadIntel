@@ -24,12 +24,13 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
   const router = useRouter()
   const { openPortal } = useStripePortal()
   const [isPending, startTransition] = useTransition()
-  const { tier, isHouseCloserOverride, buildInfo, plan, planId } = usePlan()
+  const { tier, isHouseCloserOverride, isQaTierOverride, qaOverride, buildInfo, plan, planId } = usePlan()
   const planMeta = getDisplayPlanMeta({ tier })
   const isStarter = planMeta.tier === 'starter'
   const isCloser = planMeta.tier === 'closer'
   const isPaid = !isStarter
   const showHouseBadge = isCloser && Boolean(isHouseCloserOverride)
+  const showQaBadge = Boolean(isQaTierOverride && qaOverride)
   const supabase = useMemo(() => createClient(), [])
   const [username, setUsername] = useState<string>('Account')
 
@@ -92,6 +93,11 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
                       {formatTierLabel(planMeta.tier as Tier)}
                     </Badge>
                     {showHouseBadge ? <HouseCloserBadge /> : null}
+                    {showQaBadge ? (
+                      <Badge variant="outline" className="border-purple-500/30 text-purple-300 bg-purple-500/10">
+                        QA override
+                      </Badge>
+                    ) : null}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     {isStarter ? `Preview remaining: ${Math.max(0, creditsRemaining)}` : `Credits: ${planMeta.creditsLabel}`}

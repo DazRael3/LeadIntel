@@ -17,6 +17,8 @@ interface PlanContextValue {
   tier: Tier
   planId: string | null
   isHouseCloserOverride: boolean
+  isQaTierOverride: boolean
+  qaOverride: { tier: Tier; expiresAt: string | null } | null
   buildInfo: BuildInfo | null
   isPro: boolean
   trial: { active: boolean; endsAt: string | null }
@@ -31,6 +33,8 @@ const fallbackPlanValue: PlanContextValue = {
   tier: 'starter',
   planId: null,
   isHouseCloserOverride: false,
+  isQaTierOverride: false,
+  qaOverride: null,
   buildInfo: null,
   isPro: false,
   trial: { active: false, endsAt: null },
@@ -49,6 +53,8 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
   const [tier, setTier] = useState<Tier>('starter')
   const [planId, setPlanId] = useState<string | null>(null)
   const [isHouseCloserOverride, setIsHouseCloserOverride] = useState<boolean>(false)
+  const [isQaTierOverride, setIsQaTierOverride] = useState<boolean>(false)
+  const [qaOverride, setQaOverride] = useState<{ tier: Tier; expiresAt: string | null } | null>(null)
   const [buildInfo] = useState<BuildInfo | null>(initialBuildInfo)
   const [trial, setTrial] = useState<{ active: boolean; endsAt: string | null }>({ active: false, endsAt: null })
   const [loading, setLoading] = useState(false)
@@ -72,6 +78,8 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
         setTier('starter')
         setPlanId(null)
         setIsHouseCloserOverride(false)
+        setIsQaTierOverride(false)
+        setQaOverride(null)
         setTrial({ active: false, endsAt: null })
         return
       }
@@ -112,6 +120,19 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
       } else {
         setIsHouseCloserOverride(false)
       }
+      if (typeof payload?.isQaTierOverride === 'boolean') {
+        setIsQaTierOverride(payload.isQaTierOverride)
+      } else {
+        setIsQaTierOverride(false)
+      }
+      if (payload?.qaOverride && typeof payload.qaOverride === 'object') {
+        const q = payload.qaOverride as { tier?: unknown; expiresAt?: unknown }
+        const qt = (q.tier === 'starter' || q.tier === 'closer' || q.tier === 'closer_plus' || q.tier === 'team') ? q.tier : null
+        const exp = typeof q.expiresAt === 'string' ? q.expiresAt : null
+        setQaOverride(qt ? { tier: qt, expiresAt: exp } : null)
+      } else {
+        setQaOverride(null)
+      }
       if (payload?.trial && typeof payload.trial === 'object') {
         const nextTrial = payload.trial as { active?: unknown; endsAt?: unknown }
         setTrial({
@@ -140,13 +161,15 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
       tier,
       planId,
       isHouseCloserOverride,
+      isQaTierOverride,
+      qaOverride,
       buildInfo,
       isPro: computeIsPro(plan, tier),
       trial,
       loading,
       refresh,
     }),
-    [plan, tier, planId, isHouseCloserOverride, buildInfo, trial, loading, refresh]
+    [plan, tier, planId, isHouseCloserOverride, isQaTierOverride, qaOverride, buildInfo, trial, loading, refresh]
   )
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>

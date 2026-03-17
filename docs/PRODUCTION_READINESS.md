@@ -129,6 +129,13 @@ For each action below, verify behavior is identical when accessed from:
 ### Tier coherence (Starter / Closer / Closer+ / Team)
 - Nav items, locked states, upgrade messaging, and mobile behavior are coherent (no contradictory badges/labels).
 
+---
+
+## Internal QA tier overrides
+
+For safe internal testing without billing mutation, see:
+- `docs/QA_OVERRIDE_SYSTEM.md`
+
 
 ---
 

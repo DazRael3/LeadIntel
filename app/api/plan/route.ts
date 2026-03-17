@@ -152,6 +152,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const tier = resolved.tier
     const planId = resolved.planId
     const isHouseCloserOverride = Boolean(resolved.isHouseCloserOverride)
+    const isQaTierOverride = Boolean(resolved.isQaTierOverride)
+    const qaOverride = resolved.qaOverride
 
     // Trial display is best-effort and MUST NOT promote a user into paid tiers.
     const stripeTrialEnd = resolved.stripeTrialEnd
@@ -205,6 +207,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         tier,
         planId,
         isHouseCloserOverride,
+        isQaTierOverride,
+        qaOverride,
         trial,
       },
       undefined,
