@@ -1,8 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const mockGetCurrentWorkspace = vi.fn(async () => null)
-const mockGetWorkspaceMembership = vi.fn(async () => ({ role: 'owner' }))
+const mockGetCurrentWorkspace = vi.fn<(..._args: unknown[]) => Promise<{ id: string } | null>>(async () => null)
+const mockGetWorkspaceMembership = vi.fn<(..._args: unknown[]) => Promise<{ role: 'owner' | 'admin' | 'member' } | null>>(async () => ({
+  role: 'owner',
+}))
 
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
