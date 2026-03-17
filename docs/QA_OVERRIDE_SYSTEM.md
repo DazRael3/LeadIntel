@@ -16,6 +16,11 @@ This repo supports **internal-only QA tier overrides** so operators can test tie
   - the user does **not** have an active/trialing Stripe subscription
 - The UI shows a visible **“QA override”** badge when an override is active.
 
+## Workspace requirement (management only)
+- Viewing `/settings/qa` and listing overrides does **not** require a current workspace.
+- Applying/revoking overrides **does** require a valid current workspace and an owner/admin role for audit scoping.
+- The API will return a clear `422` “Workspace required” error if the actor has no workspace selected/available.
+
 ## Enablement (env)
 Set in production/staging only when needed:
 - `ENABLE_QA_OVERRIDES=true`

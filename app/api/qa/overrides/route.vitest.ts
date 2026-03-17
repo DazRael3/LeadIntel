@@ -14,7 +14,6 @@ vi.mock('@/lib/supabase/safe-auth', () => ({
 }))
 
 vi.mock('@/lib/team/workspace', () => ({
-  ensurePersonalWorkspace: vi.fn(async () => {}),
   getCurrentWorkspace: vi.fn(async () => ({ id: 'ws_1' })),
   getWorkspaceMembership: vi.fn(async () => ({ role: 'owner' })),
 }))
@@ -41,14 +40,14 @@ describe('/api/qa/overrides allowlist hardening', () => {
     process.env.ENABLE_QA_OVERRIDES = 'true'
   })
 
-  it('fails closed with clear error when allowlists missing', async () => {
+  it('returns ok envelope (configured=false) when allowlists missing', async () => {
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/qa/overrides', { method: 'GET' })
     const res = await GET(req)
-    expect(res.status).toBe(503)
+    expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.ok).toBe(false)
-    expect(json.error?.message).toContain('explicit allowlists')
+    expect(json.ok).toBe(true)
+    expect(json.data?.configured).toBe(false)
   })
 })
 

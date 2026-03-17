@@ -7,7 +7,7 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { getQaOverrideConfig, isQaActorAllowed, isQaTargetAllowed } from '@/lib/qa/overrides'
 import { logAudit } from '@/lib/audit/log'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,28 +34,38 @@ type OverrideRow = {
   note: string | null
 }
 
-async function assertActorAllowed(args: { request: NextRequest; userId: string; email: string; supabase: ReturnType<typeof createRouteClient> }) {
-  const cfg = getQaOverrideConfig()
-  if (!cfg.enabled) return { ok: false as const, reason: 'Not available', status: 404 as const }
-  if (!cfg.configured) {
-    return {
-      ok: false as const,
-      reason: 'QA overrides are enabled, but explicit allowlists are not configured.',
-      status: 503 as const,
-    }
+function configErrorResponse(args: {
+  cfg: ReturnType<typeof getQaOverrideConfig>
+  bridge: ReturnType<typeof createCookieBridge>
+  requestId: string
+}) {
+  if (!args.cfg.enabled) {
+    return ok(
+      {
+        enabled: false,
+        configured: false,
+        misconfigReason: null,
+        overrides: [],
+      },
+      undefined,
+      args.bridge,
+      args.requestId
+    )
   }
-  if (!isQaActorAllowed(args.email)) return { ok: false as const, reason: 'Access restricted', status: 403 as const }
-
-  await ensurePersonalWorkspace({ supabase: args.supabase, userId: args.userId })
-  const ws = await getCurrentWorkspace({ supabase: args.supabase, userId: args.userId })
-  if (!ws) return { ok: false as const, reason: 'Workspace unavailable', ws: null, status: 503 as const }
-
-  const membership = await getWorkspaceMembership({ supabase: args.supabase, workspaceId: ws.id, userId: args.userId })
-  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
-    return { ok: false as const, reason: 'Access restricted', ws, status: 403 as const }
+  if (!args.cfg.configured) {
+    return ok(
+      {
+        enabled: true,
+        configured: false,
+        misconfigReason: args.cfg.misconfigReason ?? 'Explicit allowlists are not configured.',
+        overrides: [],
+      },
+      undefined,
+      args.bridge,
+      args.requestId
+    )
   }
-
-  return { ok: true as const, ws }
+  return null
 }
 
 export const GET = withApiGuard(async (request: NextRequest, { requestId, userId }) => {
@@ -67,12 +77,14 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const actor = await getUserSafe(supabase)
     if (!actor || !actor.email) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const can = await assertActorAllowed({ request, userId: actor.id, email: actor.email, supabase })
-    if (!can.ok) {
-      const code = can.status === 503 ? ErrorCode.SERVICE_UNAVAILABLE : can.status === 404 ? ErrorCode.NOT_FOUND : ErrorCode.FORBIDDEN
-      return fail(code, can.reason, undefined, { status: can.status }, bridge, requestId)
+    const cfg = getQaOverrideConfig()
+    const cfgRes = configErrorResponse({ cfg, bridge, requestId })
+    if (cfgRes) return cfgRes
+
+    // Read access does not require a workspace. This page should load even if the actor has no current workspace yet.
+    if (!isQaActorAllowed(actor.email)) {
+      return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
     }
-    if (!can.ws) return fail(ErrorCode.SERVICE_UNAVAILABLE, 'Workspace unavailable', undefined, { status: 503 }, bridge, requestId)
 
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const { data: rows } = await admin
@@ -93,7 +105,9 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
 
     return ok(
       {
-        workspaceId: can.ws.id,
+        enabled: cfg.enabled,
+        configured: cfg.configured,
+        misconfigReason: cfg.misconfigReason,
         overrides: overrides.map((o) => ({
           ...o,
           target_email: byId.get(o.target_user_id) ?? null,
@@ -118,6 +132,24 @@ export const POST = withApiGuard(
       const actor = await getUserSafe(supabase)
       if (!actor || !actor.email) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
+      const cfg = getQaOverrideConfig()
+      if (!cfg.enabled) {
+        return fail(ErrorCode.NOT_FOUND, 'Not available', undefined, { status: 404 }, bridge, requestId)
+      }
+      if (!cfg.configured) {
+        return fail(
+          ErrorCode.SERVICE_UNAVAILABLE,
+          'QA overrides are enabled, but explicit allowlists are not configured.',
+          undefined,
+          { status: 503 },
+          bridge,
+          requestId
+        )
+      }
+      if (!isQaActorAllowed(actor.email)) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
+      }
+
       const parsed = UpsertSchema.safeParse(body)
       if (!parsed.success) {
         return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
@@ -134,12 +166,21 @@ export const POST = withApiGuard(
         )
       }
 
-      const can = await assertActorAllowed({ request, userId: actor.id, email: actor.email, supabase })
-      if (!can.ok) {
-        const code = can.status === 503 ? ErrorCode.SERVICE_UNAVAILABLE : can.status === 404 ? ErrorCode.NOT_FOUND : ErrorCode.FORBIDDEN
-        return fail(code, can.reason, undefined, { status: can.status }, bridge, requestId)
+      const ws = await getCurrentWorkspace({ supabase, userId: actor.id })
+      if (!ws) {
+        return fail(
+          ErrorCode.VALIDATION_ERROR,
+          'Workspace required',
+          { workspace: 'Create or select a workspace before managing QA overrides.' },
+          { status: 422 },
+          bridge,
+          requestId
+        )
       }
-      if (!can.ws) return fail(ErrorCode.SERVICE_UNAVAILABLE, 'Workspace unavailable', undefined, { status: 503 }, bridge, requestId)
+      const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: actor.id })
+      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
+      }
 
       const admin = createSupabaseAdminClient({ schema: 'api' })
       const targetEmail = parsed.data.targetEmail.toLowerCase()
@@ -172,7 +213,7 @@ export const POST = withApiGuard(
 
       await logAudit({
         supabase,
-        workspaceId: can.ws.id,
+        workspaceId: ws.id,
         actorUserId: actor.id,
         action: 'qa_override.set',
         targetType: 'user',
@@ -199,6 +240,24 @@ export const DELETE = withApiGuard(
       const actor = await getUserSafe(supabase)
       if (!actor || !actor.email) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
+      const cfg = getQaOverrideConfig()
+      if (!cfg.enabled) {
+        return fail(ErrorCode.NOT_FOUND, 'Not available', undefined, { status: 404 }, bridge, requestId)
+      }
+      if (!cfg.configured) {
+        return fail(
+          ErrorCode.SERVICE_UNAVAILABLE,
+          'QA overrides are enabled, but explicit allowlists are not configured.',
+          undefined,
+          { status: 503 },
+          bridge,
+          requestId
+        )
+      }
+      if (!isQaActorAllowed(actor.email)) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
+      }
+
       const parsed = RevokeSchema.safeParse(body)
       if (!parsed.success) {
         return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
@@ -215,12 +274,21 @@ export const DELETE = withApiGuard(
         )
       }
 
-      const can = await assertActorAllowed({ request, userId: actor.id, email: actor.email, supabase })
-      if (!can.ok) {
-        const code = can.status === 503 ? ErrorCode.SERVICE_UNAVAILABLE : can.status === 404 ? ErrorCode.NOT_FOUND : ErrorCode.FORBIDDEN
-        return fail(code, can.reason, undefined, { status: can.status }, bridge, requestId)
+      const ws = await getCurrentWorkspace({ supabase, userId: actor.id })
+      if (!ws) {
+        return fail(
+          ErrorCode.VALIDATION_ERROR,
+          'Workspace required',
+          { workspace: 'Create or select a workspace before managing QA overrides.' },
+          { status: 422 },
+          bridge,
+          requestId
+        )
       }
-      if (!can.ws) return fail(ErrorCode.SERVICE_UNAVAILABLE, 'Workspace unavailable', undefined, { status: 503 }, bridge, requestId)
+      const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: actor.id })
+      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
+      }
 
       const admin = createSupabaseAdminClient({ schema: 'api' })
       const targetEmail = parsed.data.targetEmail.toLowerCase()
@@ -240,7 +308,7 @@ export const DELETE = withApiGuard(
 
       await logAudit({
         supabase,
-        workspaceId: can.ws.id,
+        workspaceId: ws.id,
         actorUserId: actor.id,
         action: 'qa_override.revoked',
         targetType: 'user',

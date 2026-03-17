@@ -15,7 +15,9 @@ type OverridesEnvelope =
   | {
       ok: true
       data: {
-        workspaceId: string
+        enabled?: boolean
+        configured?: boolean
+        misconfigReason?: string | null
         overrides: Array<QaOverride>
       }
     }
