@@ -33,7 +33,15 @@ type QaOverride = {
   note: string | null
 }
 
-export function QaOverridesClient() {
+export function QaOverridesClient(props: {
+  actorEmail: string
+  enabled: boolean
+  configured: boolean
+  misconfigReason: string | null
+  actorAllowlisted: boolean
+  actorAllowlistCount: number
+  targetAllowlistCount: number
+}) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -142,11 +150,46 @@ export function QaOverridesClient() {
           <div className="mt-1 text-sm text-muted-foreground">
             Internal-only. App-side tier simulation only — no Stripe writes.
           </div>
+          <div className="mt-2 text-xs text-muted-foreground">
+            Signed in as <span className="text-foreground">{props.actorEmail}</span>
+          </div>
         </div>
         <Badge variant="outline" className="border-purple-500/30 text-purple-300 bg-purple-500/10">
           QA Override
         </Badge>
       </div>
+
+      {!props.enabled ? (
+        <Card className="border-slate-700/60 bg-slate-900/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">QA overrides are disabled</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-2">
+            <div>Set <span className="font-mono text-xs text-foreground">ENABLE_QA_OVERRIDES=true</span> to enable the system.</div>
+          </CardContent>
+        </Card>
+      ) : !props.configured ? (
+        <Card className="border-red-500/30 bg-red-500/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Configuration required</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-2">
+            <div className="text-foreground">
+              {props.misconfigReason ?? 'QA overrides are enabled, but explicit allowlists are not configured.'}
+            </div>
+            <div>
+              Set both env vars (comma-separated emails):
+              <div className="mt-2 font-mono text-xs text-foreground">
+                QA_OVERRIDE_ACTOR_EMAILS<br />
+                QA_OVERRIDE_TARGET_EMAILS
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Current allowlists: actors={props.actorAllowlistCount}, targets={props.targetAllowlistCount}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="border-cyan-500/20 bg-card/60">
         <CardHeader className="pb-3">
@@ -204,7 +247,7 @@ export function QaOverridesClient() {
           <div className="flex flex-col sm:flex-row gap-3">
             <Button
               onClick={() => void apply()}
-              disabled={saving || targetEmail.trim().length === 0}
+              disabled={saving || !props.enabled || !props.configured || targetEmail.trim().length === 0}
               className="w-full sm:w-auto min-h-10 neon-border hover:glow-effect"
             >
               {saving ? 'Saving…' : 'Apply override'}

@@ -1,7 +1,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
 import { isHouseCloserEmail } from '@/lib/billing/houseAccounts'
 import { planIdForTier, resolveTierFromStripePriceId } from '@/lib/billing/stripePriceMap'
-import { isQaOverrideUiEnabled, isQaTargetAllowed } from '@/lib/qa/overrides'
+import { getQaOverrideConfig, isQaTargetAllowed } from '@/lib/qa/overrides'
 
 export type Tier = 'starter' | 'closer' | 'closer_plus' | 'team'
 
@@ -135,7 +135,8 @@ export async function resolveTierFromDb(
   // - only enabled when ENABLE_QA_OVERRIDES is set
   // - only applies to allowlisted internal/test user emails
   // - never overrides an active/trialing Stripe subscription (handled above)
-  if (isQaOverrideUiEnabled()) {
+  const qaCfg = getQaOverrideConfig()
+  if (qaCfg.enabled && qaCfg.configured) {
     const allowTarget = isQaTargetAllowed(userEmailFromSession ?? null)
     if (allowTarget) {
       try {

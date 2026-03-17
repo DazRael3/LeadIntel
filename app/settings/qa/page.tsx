@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { isQaActorAllowed, isQaOverrideUiEnabled } from '@/lib/qa/overrides'
+import { getQaOverrideConfig, isQaActorAllowlisted, isQaOverrideUiEnabled } from '@/lib/qa/overrides'
 import { QaOverridesClient } from './qa-overrides-client'
 
 export const dynamic = 'force-dynamic'
@@ -13,8 +13,6 @@ export const metadata: Metadata = {
 }
 
 export default async function QaOverridesPage() {
-  if (!isQaOverrideUiEnabled()) notFound()
-
   const supabase = await createClient()
   const {
     data: { user },
@@ -22,8 +20,24 @@ export default async function QaOverridesPage() {
   } = await supabase.auth.getUser()
 
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/qa')
-  if (!isQaActorAllowed(user.email ?? null)) notFound()
+  const cfg = getQaOverrideConfig()
+  const actorEmail = (user.email ?? '').trim().toLowerCase()
 
-  return <QaOverridesClient />
+  // Page is internal-only: require an explicit actor allowlist entry to render anything.
+  // This avoids exposing QA surfaces to normal customer accounts.
+  if (!actorEmail || !isQaActorAllowlisted(actorEmail)) notFound()
+
+  const enabled = isQaOverrideUiEnabled()
+  return (
+    <QaOverridesClient
+      actorEmail={actorEmail}
+      enabled={enabled}
+      configured={cfg.configured}
+      misconfigReason={cfg.misconfigReason}
+      actorAllowlisted={true}
+      actorAllowlistCount={cfg.actorEmails.length}
+      targetAllowlistCount={cfg.targetEmails.length}
+    />
+  )
 }
 

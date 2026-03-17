@@ -5,7 +5,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { isQaActorAllowed, isQaOverrideUiEnabled, isQaTargetAllowed } from '@/lib/qa/overrides'
+import { getQaOverrideConfig, isQaActorAllowed, isQaTargetAllowed } from '@/lib/qa/overrides'
 import { logAudit } from '@/lib/audit/log'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 
@@ -35,16 +35,24 @@ type OverrideRow = {
 }
 
 async function assertActorAllowed(args: { request: NextRequest; userId: string; email: string; supabase: ReturnType<typeof createRouteClient> }) {
-  if (!isQaOverrideUiEnabled()) return { ok: false as const, reason: 'Not available' }
-  if (!isQaActorAllowed(args.email)) return { ok: false as const, reason: 'Access restricted' }
+  const cfg = getQaOverrideConfig()
+  if (!cfg.enabled) return { ok: false as const, reason: 'Not available', status: 404 as const }
+  if (!cfg.configured) {
+    return {
+      ok: false as const,
+      reason: 'QA overrides are enabled, but explicit allowlists are not configured.',
+      status: 503 as const,
+    }
+  }
+  if (!isQaActorAllowed(args.email)) return { ok: false as const, reason: 'Access restricted', status: 403 as const }
 
   await ensurePersonalWorkspace({ supabase: args.supabase, userId: args.userId })
   const ws = await getCurrentWorkspace({ supabase: args.supabase, userId: args.userId })
-  if (!ws) return { ok: false as const, reason: 'Workspace unavailable', ws: null }
+  if (!ws) return { ok: false as const, reason: 'Workspace unavailable', ws: null, status: 503 as const }
 
   const membership = await getWorkspaceMembership({ supabase: args.supabase, workspaceId: ws.id, userId: args.userId })
   if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
-    return { ok: false as const, reason: 'Access restricted', ws }
+    return { ok: false as const, reason: 'Access restricted', ws, status: 403 as const }
   }
 
   return { ok: true as const, ws }
@@ -60,7 +68,11 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     if (!actor || !actor.email) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
     const can = await assertActorAllowed({ request, userId: actor.id, email: actor.email, supabase })
-    if (!can.ok || !can.ws) return fail(ErrorCode.FORBIDDEN, can.reason, undefined, undefined, bridge, requestId)
+    if (!can.ok) {
+      const code = can.status === 503 ? ErrorCode.SERVICE_UNAVAILABLE : can.status === 404 ? ErrorCode.NOT_FOUND : ErrorCode.FORBIDDEN
+      return fail(code, can.reason, undefined, { status: can.status }, bridge, requestId)
+    }
+    if (!can.ws) return fail(ErrorCode.SERVICE_UNAVAILABLE, 'Workspace unavailable', undefined, { status: 503 }, bridge, requestId)
 
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const { data: rows } = await admin
@@ -115,7 +127,7 @@ export const POST = withApiGuard(
         return fail(
           ErrorCode.FORBIDDEN,
           'Access restricted',
-          { targetEmail: 'Target must be an internal test account.' },
+          { targetEmail: 'Target must be an allowlisted internal test account.' },
           undefined,
           bridge,
           requestId
@@ -123,7 +135,11 @@ export const POST = withApiGuard(
       }
 
       const can = await assertActorAllowed({ request, userId: actor.id, email: actor.email, supabase })
-      if (!can.ok || !can.ws) return fail(ErrorCode.FORBIDDEN, can.reason, undefined, undefined, bridge, requestId)
+      if (!can.ok) {
+        const code = can.status === 503 ? ErrorCode.SERVICE_UNAVAILABLE : can.status === 404 ? ErrorCode.NOT_FOUND : ErrorCode.FORBIDDEN
+        return fail(code, can.reason, undefined, { status: can.status }, bridge, requestId)
+      }
+      if (!can.ws) return fail(ErrorCode.SERVICE_UNAVAILABLE, 'Workspace unavailable', undefined, { status: 503 }, bridge, requestId)
 
       const admin = createSupabaseAdminClient({ schema: 'api' })
       const targetEmail = parsed.data.targetEmail.toLowerCase()
@@ -192,7 +208,7 @@ export const DELETE = withApiGuard(
         return fail(
           ErrorCode.FORBIDDEN,
           'Access restricted',
-          { targetEmail: 'Target must be an internal test account.' },
+          { targetEmail: 'Target must be an allowlisted internal test account.' },
           undefined,
           bridge,
           requestId
@@ -200,7 +216,11 @@ export const DELETE = withApiGuard(
       }
 
       const can = await assertActorAllowed({ request, userId: actor.id, email: actor.email, supabase })
-      if (!can.ok || !can.ws) return fail(ErrorCode.FORBIDDEN, can.reason, undefined, undefined, bridge, requestId)
+      if (!can.ok) {
+        const code = can.status === 503 ? ErrorCode.SERVICE_UNAVAILABLE : can.status === 404 ? ErrorCode.NOT_FOUND : ErrorCode.FORBIDDEN
+        return fail(code, can.reason, undefined, { status: can.status }, bridge, requestId)
+      }
+      if (!can.ws) return fail(ErrorCode.SERVICE_UNAVAILABLE, 'Workspace unavailable', undefined, { status: 503 }, bridge, requestId)
 
       const admin = createSupabaseAdminClient({ schema: 'api' })
       const targetEmail = parsed.data.targetEmail.toLowerCase()
