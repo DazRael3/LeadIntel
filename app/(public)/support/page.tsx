@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { buildMailto } from '@/lib/mailto'
 import { MarketingPage } from '@/components/marketing/MarketingPage'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { FeedbackCard } from '@/components/feedback/FeedbackCard'
+import { SupportContactActions } from '@/components/support/SupportContactActions'
 
 export const metadata: Metadata = {
   title: 'Support | LeadIntel',
@@ -41,19 +42,7 @@ export default function SupportPage() {
             <div className="text-sm text-muted-foreground">
               Email us at <span className="font-medium text-foreground">{SUPPORT_EMAIL}</span>.
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button asChild size="sm" className="w-full sm:w-auto neon-border hover:glow-effect">
-                <a href={mailto}>Email support</a>
-              </Button>
-              <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                <Link href="/pricing">View pricing</Link>
-              </Button>
-              <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-                <Link href="/dashboard" prefetch={false}>
-                  Go to dashboard
-                </Link>
-              </Button>
-            </div>
+            <SupportContactActions mailto={mailto} />
             <div className="text-[11px] text-muted-foreground">
               For the fastest help, include a screenshot and the URL you were on (no passwords or API keys).
             </div>
@@ -103,6 +92,12 @@ export default function SupportPage() {
             </div>
           </CardContent>
         </Card>
+
+        <FeedbackCard
+          surface="support"
+          title="Quick feedback"
+          prompt="Was this page helpful for resolving your question?"
+        />
       </div>
     </MarketingPage>
   )

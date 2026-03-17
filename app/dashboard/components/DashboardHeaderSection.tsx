@@ -14,6 +14,7 @@ import { useStripePortal } from '../hooks/useStripePortal'
 import { HouseCloserBadge } from './HouseCloserBadge'
 import { BuildDebugPanel } from './BuildDebugPanel'
 import { tierLabel as formatTierLabel, type Tier } from '@/lib/billing/tier'
+import { track } from '@/lib/analytics'
 
 interface DashboardHeaderSectionProps {
   creditsRemaining: number
@@ -54,6 +55,7 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
   const handleManageBilling = () => {
     startTransition(async () => {
       try {
+        track('billing_portal_clicked', { surface: 'dashboard_header', tier })
         await openPortal()
       } catch (err) {
         console.error('Error creating billing portal session', err)
@@ -103,8 +105,11 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
               <>
                 <Button
                   variant="outline"
-                  onClick={() => router.push('/pricing?target=closer')}
-                  className="neon-border hover:glow-effect"
+                  onClick={() => {
+                    track('dashboard_upgrade_clicked', { target: 'closer', surface: 'dashboard_header', tier })
+                    router.push('/pricing?target=closer')
+                  }}
+                  className="w-full sm:w-auto min-h-10 neon-border hover:glow-effect"
                 >
                   <DollarSign className="h-4 w-4 mr-2" />
                   Upgrade to Closer
@@ -115,7 +120,10 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
                 {planMeta.tier === 'closer' ? (
                   <Button
                     variant="outline"
-                    onClick={() => router.push('/pricing?target=closer_plus')}
+                    onClick={() => {
+                      track('dashboard_upgrade_clicked', { target: 'closer_plus', surface: 'dashboard_header', tier })
+                      router.push('/pricing?target=closer_plus')
+                    }}
                     className="neon-border hover:glow-effect"
                   >
                     <DollarSign className="h-4 w-4 mr-2" />
@@ -124,7 +132,10 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
                 ) : planMeta.tier === 'closer_plus' ? (
                   <Button
                     variant="outline"
-                    onClick={() => router.push('/pricing?target=team')}
+                    onClick={() => {
+                      track('dashboard_upgrade_clicked', { target: 'team', surface: 'dashboard_header', tier })
+                      router.push('/pricing?target=team')
+                    }}
                     className="neon-border hover:glow-effect"
                   >
                     <DollarSign className="h-4 w-4 mr-2" />
@@ -137,7 +148,7 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
                     variant="outline"
                     onClick={handleManageBilling}
                     disabled={isPending}
-                    className="neon-border hover:glow-effect"
+                    className="w-full sm:w-auto min-h-10 neon-border hover:glow-effect"
                   >
                     <Shield className="h-4 w-4 mr-2" />
                     Manage billing
@@ -148,8 +159,11 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push('/competitive-report')}
-              className="neon-border hover:glow-effect"
+              onClick={() => {
+                track('dashboard_reports_clicked', { surface: 'dashboard_header', tier })
+                router.push('/competitive-report')
+              }}
+              className="w-full sm:w-auto min-h-10 neon-border hover:glow-effect"
               data-testid="dashboard-reports-button"
             >
               Reports

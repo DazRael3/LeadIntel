@@ -42,6 +42,7 @@ import { ValueMomentsCard } from '@/components/dashboard/ValueMomentsCard'
 import { UpgradeReasonsCard } from '@/components/dashboard/UpgradeReasonsCard'
 import { ActionQueueCard } from '@/components/dashboard/ActionQueueCard'
 import { MobileShortlistView } from '@/components/mobile/MobileShortlistView'
+import { FeedbackCard } from '@/components/feedback/FeedbackCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -214,10 +215,7 @@ export function DashboardClient({
                       onCompanyContextChange={onCompanyContextChange}
                       navigateToPitchOnGenerate
                     />
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <GettingStartedRail />
-                      <ActivationChecklist />
-                    </div>
+                    <GettingStartedRail />
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -232,7 +230,7 @@ export function DashboardClient({
 
                 {/* Today / progress */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {isStarter ? null : <ActivationChecklist />}
+                  <ActivationChecklist />
                   <RecentActivityFeed />
                 </div>
 
@@ -260,15 +258,24 @@ export function DashboardClient({
                         You can generate preview pitches and reports, track a small set of accounts, and learn the workflow. Advanced signals and team operations unlock on paid tiers.
                       </div>
                       <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                        <Button asChild variant="outline" className="neon-border hover:glow-effect">
+                        <Button asChild variant="outline" className="w-full sm:w-auto min-h-10 neon-border hover:glow-effect">
                           <Link href="/pricing?target=closer">See what Closer unlocks</Link>
                         </Button>
-                        <Button asChild variant="outline">
+                        <Button asChild variant="outline" className="w-full sm:w-auto min-h-10">
                           <Link href="/trust">Verify trust posture</Link>
                         </Button>
                       </div>
                     </CardContent>
                   </Card>
+                ) : null}
+
+                {isStarter ? (
+                  <FeedbackCard
+                    surface="dashboard"
+                    title="Quick feedback"
+                    prompt="Anything confusing or blocking you right now?"
+                    className="border-cyan-500/20 bg-card/50"
+                  />
                 ) : null}
               </div>
 
