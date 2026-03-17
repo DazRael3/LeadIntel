@@ -66,6 +66,17 @@ If `ENABLE_QA_OVERRIDES=false`, the system is inert.
 5. Set an expiry (minutes) and optional note.
 6. Click **Apply override**.
 
+## How to test tiers (fast checklist)
+Use dedicated internal/test accounts (from `QA_OVERRIDE_TARGET_EMAILS`) and keep expiries short.
+
+1. **Sign in as the target user** (or switch sessions) and visit `/dashboard`.
+2. Confirm the header shows **QA override** and the app reflects the intended tier:
+   - **Starter**: preview/limited states visible
+   - **Closer / Closer+**: richer individual workflows unlock
+   - **Team**: team/governance surfaces unlock
+3. Validate key gating points for the tier you’re testing (locked routes should be premium and intentional).
+4. **Revoke** the override when done (or let it auto-expire).
+
 ### Revert
 - In “Active overrides”, click **Revoke** for the target email.
 

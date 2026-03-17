@@ -114,7 +114,13 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       .limit(100)
 
     const overrides = (rows ?? []) as unknown as OverrideRow[]
-    const ids = Array.from(new Set(overrides.map((r) => r.target_user_id)))
+    const ids = Array.from(
+      new Set(
+        overrides
+          .flatMap((r) => [r.target_user_id, r.created_by, r.revoked_by])
+          .filter((v): v is string => typeof v === 'string' && v.length > 0)
+      )
+    )
     const { data: users } = await admin.from('users').select('id,email').in('id', ids).limit(1000)
     const byId = new Map<string, string | null>()
     for (const u of (users ?? []) as unknown as Array<{ id?: unknown; email?: unknown }>) {
@@ -134,6 +140,20 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         overrides: overrides.map((o) => ({
           ...o,
           target_email: byId.get(o.target_user_id) ?? null,
+          created_by_email: typeof o.created_by === 'string' ? (byId.get(o.created_by) ?? null) : null,
+          created_by_display:
+            typeof o.created_by === 'string'
+              ? o.created_by === actor.id
+                ? 'You'
+                : (byId.get(o.created_by) ?? null)
+              : null,
+          revoked_by_email: typeof o.revoked_by === 'string' ? (byId.get(o.revoked_by) ?? null) : null,
+          revoked_by_display:
+            typeof o.revoked_by === 'string'
+              ? o.revoked_by === actor.id
+                ? 'You'
+                : (byId.get(o.revoked_by) ?? null)
+              : null,
         })),
       },
       undefined,
