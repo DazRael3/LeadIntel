@@ -102,6 +102,33 @@ LeadIntel includes a minimal feedback loop for low-ops product learning:
 - **API**: `POST /api/feedback` (rate-limited, origin-enforced)
 - **Surfaces**: Support page + Starter dashboard
 
+---
+
+## Verification matrix (lean)
+
+Keep verification lightweight and production-oriented. Validate the matrix below at least once per meaningful release.
+
+### Apex / www parity (must match)
+For each action below, verify behavior is identical when accessed from:
+- `https://dazrael.com`
+- `https://www.dazrael.com`
+
+**Key POST/actions**
+- Sample digest: `POST /api/sample-digest`
+- Feedback: `POST /api/feedback`
+- Analytics (best-effort): `POST /api/analytics/track`
+- Checkout start: `POST /api/checkout` (auth/plan-gated; should return correct 401/403 envelope, never blank 500)
+
+**Origin enforcement requirements**
+- Disallowed Origin returns a **proper error envelope** (not an empty-body 500).
+- Allowed Origin includes apex+www parity.
+
+### Mobile readiness (phone widths)
+- 320 / 360 / 390 / 430: public pages + logged-in dashboard first screen
+
+### Tier coherence (Starter / Closer / Closer+ / Team)
+- Nav items, locked states, upgrade messaging, and mobile behavior are coherent (no contradictory badges/labels).
+
 
 ---
 
