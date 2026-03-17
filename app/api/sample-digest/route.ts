@@ -7,6 +7,7 @@ import { checkPublicRateLimit } from '@/lib/rateLimit'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { serverEnv } from '@/lib/env'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { parseTarget } from '@/lib/onboarding/targets'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,21 +17,7 @@ const BodySchema = z.object({
     .trim()
     .min(2)
     .max(200)
-    .refine(
-      (v) => {
-        const trimmed = v.trim()
-        const hasScheme = trimmed.startsWith('http://') || trimmed.startsWith('https://')
-        if (!hasScheme) return true
-        try {
-          // eslint-disable-next-line no-new -- validation only
-          new URL(trimmed)
-          return true
-        } catch {
-          return false
-        }
-      },
-      { message: 'Enter a company name, or a valid URL including https://.' }
-    ),
+    .refine((v) => parseTarget(v) !== null, { message: 'Enter a company name or website, like Google or google.com.' }),
   email: z.string().trim().email().optional(),
   emailMe: z.boolean().optional(),
 })
@@ -58,7 +45,19 @@ export const POST = withApiGuard(
       }
 
       const parsed = body as z.infer<typeof BodySchema>
-      const sample = generateSampleDigest(parsed.companyOrUrl)
+      const target = parseTarget(parsed.companyOrUrl)
+      if (!target) {
+        return fail(
+          ErrorCode.VALIDATION_ERROR,
+          'Enter a company name or website, like Google or google.com.',
+          undefined,
+          { status: 400 },
+          bridge,
+          requestId
+        )
+      }
+
+      const sample = generateSampleDigest(target.name)
 
       const emailRequested = Boolean(parsed.emailMe) && typeof parsed.email === 'string' && parsed.email.length > 0
       let emailSent = false

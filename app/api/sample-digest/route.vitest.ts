@@ -34,6 +34,22 @@ describe('/api/sample-digest', () => {
     expect(json2.data.sample.triggers).toEqual(json.data.sample.triggers)
   })
 
+  it('accepts common mobile inputs (company name, domain, www, url)', async () => {
+    const { POST } = await import('./route')
+    const inputs = ['Google', 'Google.com', 'www.google.com', 'google.com/', ' https://www.google.com/ ']
+    for (const v of inputs) {
+      const req = new NextRequest('http://localhost:3000/api/sample-digest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+        body: JSON.stringify({ companyOrUrl: v }),
+      })
+      const res = await POST(req)
+      expect(res.status).toBe(200)
+      const json = await res.json()
+      expect(json.ok).toBe(true)
+    }
+  })
+
   it('rejects invalid body with 400', async () => {
     const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/sample-digest', {

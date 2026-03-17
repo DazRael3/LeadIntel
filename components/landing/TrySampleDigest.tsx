@@ -116,7 +116,15 @@ export function TrySampleDigest() {
 
   async function onGenerate() {
     if (!canSubmit) return
-    const trimmed = companyOrUrl.trim()
+    const parsedTarget = parseTarget(companyOrUrl)
+    if (!parsedTarget) {
+      setError({
+        title: 'Enter a company name or website.',
+        body: 'Try a company name like Google, or a website like google.com.',
+      })
+      return
+    }
+    const trimmed = parsedTarget.name
     const email = workEmail.trim()
     const wantsEmail = emailMe
 
@@ -160,7 +168,12 @@ export function TrySampleDigest() {
           setError({ title: COPY.rateLimit.title, body: COPY.rateLimit.body })
           return
         }
-        setError({ title: COPY.validation.invalidCompanyOrUrl, body: COPY.validation.invalidCompanyOrUrl })
+        const serverMsg =
+          payload && payload.ok === false && typeof payload.error?.message === 'string' ? payload.error.message : null
+        setError({
+          title: 'Enter a company name or website.',
+          body: serverMsg || 'Try a company name like Google, or a website like google.com.',
+        })
         return
       }
 
@@ -191,6 +204,9 @@ export function TrySampleDigest() {
             value={companyOrUrl}
             onChange={(e) => setCompanyOrUrl(e.target.value)}
             placeholder="e.g., acme.com or Acme"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             disabled={loading}
             className="bg-background"
           />
