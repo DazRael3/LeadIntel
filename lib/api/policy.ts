@@ -455,6 +455,20 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+
+  'POST:/api/feedback': {
+    tier: 'D',
+    maxBytes: 4096,
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 10,
+    },
+    originRequired: true,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/admin/site-report/run': {
     tier: 'D',
     maxBytes: 0,

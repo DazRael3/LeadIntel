@@ -14,13 +14,14 @@ export function MobileNavMenu() {
   const { tier } = usePlan()
   const showPaid = tier !== 'starter'
   const showTeam = tierAtLeast(tier, 'team')
+  const showActions = tierAtLeast(tier, 'team')
 
   return (
     <div className="md:hidden">
       <Button
         size="sm"
         variant="ghost"
-        className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+        className="min-h-10 min-w-10 text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
         onClick={() => setOpen(true)}
         aria-label="Open menu"
       >
@@ -53,9 +54,12 @@ export function MobileNavMenu() {
 
                 <nav className="grid grid-cols-2 gap-2">
                   <MenuLink href="/dashboard" label="Dashboard" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)} />
-                  <MenuLink href="/dashboard/actions" label="Actions" icon={<ListChecks className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  {showActions ? (
+                    <MenuLink href="/dashboard/actions" label="Actions" icon={<ListChecks className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  ) : null}
                   <MenuLink href="/competitive-report" label="Reports" icon={<Sparkles className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   <MenuLink href="/pricing" label="Pricing" icon={<DollarSign className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/support" label="Support" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   {showTeam ? (
                     <>
                       <MenuLink href="/dashboard/approvals" label="Approvals" icon={<ShieldCheck className="h-4 w-4" />} onClick={() => setOpen(false)} />
@@ -96,7 +100,7 @@ function MenuLink(props: { href: string; label: string; icon: React.ReactNode; o
     <Link
       href={props.href}
       onClick={props.onClick}
-      className="flex items-center gap-2 rounded border border-cyan-500/10 bg-background/40 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+      className="flex min-h-10 items-center gap-2 rounded border border-cyan-500/10 bg-background/40 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
     >
       {props.icon}
       <span className="font-medium">{props.label}</span>
