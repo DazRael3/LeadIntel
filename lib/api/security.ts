@@ -19,6 +19,26 @@ const LOCAL_ORIGINS = [
   'http://127.0.0.1:3001',
 ]
 
+function expandWwwVariants(origin: string): string[] {
+  try {
+    const u = new URL(origin)
+    const host = u.hostname
+    if (!host) return [origin]
+    if (host.startsWith('www.')) {
+      const noWww = host.slice('www.'.length)
+      if (!noWww) return [origin]
+      const alt = new URL(origin)
+      alt.hostname = noWww
+      return [origin, alt.origin]
+    }
+    const alt = new URL(origin)
+    alt.hostname = `www.${host}`
+    return [origin, alt.origin]
+  } catch {
+    return [origin]
+  }
+}
+
 /**
  * Check if an origin is a localhost origin
  */
@@ -46,13 +66,13 @@ function getAllowedOrigins(): string[] {
   
   // Add site URL if configured
   if (siteUrl) {
-    origins.push(siteUrl)
+    origins.push(...expandWwwVariants(siteUrl))
   }
   
   // Add origins from env var
   if (allowedOriginsEnv) {
     const envOrigins = allowedOriginsEnv.split(',').map(o => o.trim()).filter(Boolean)
-    origins.push(...envOrigins)
+    for (const o of envOrigins) origins.push(...expandWwwVariants(o))
   }
   
   // In development, allow localhost
@@ -60,7 +80,7 @@ function getAllowedOrigins(): string[] {
     origins.push(...LOCAL_ORIGINS)
   }
   
-  return origins
+  return Array.from(new Set(origins))
 }
 
 /**

@@ -135,10 +135,20 @@ export function withApiGuard(
     if (policy.originRequired && method !== 'GET') {
       const originError = validateOrigin(request, pathname)
       if (originError) {
-        // Add requestId to error response
-        const errorBody = await originError.json()
-        if (errorBody && typeof errorBody === 'object' && 'error' in errorBody) {
-          (errorBody.error as { requestId?: string }).requestId = requestId
+        // Avoid consuming the response body (calling `.json()` drains it and can cause empty error bodies).
+        // If we can parse the error envelope, re-emit it with requestId included.
+        try {
+          const cloned = originError.clone()
+          const body = (await cloned.json()) as unknown
+          if (body && typeof body === 'object' && 'error' in body) {
+            const b = body as { error?: { requestId?: string } }
+            if (b.error && typeof b.error === 'object') b.error.requestId = requestId
+            const res = NextResponse.json(body, { status: originError.status, headers: originError.headers })
+            res.headers.set('X-Request-ID', requestId)
+            return res
+          }
+        } catch {
+          // fall through: return original response with header only
         }
         originError.headers.set('X-Request-ID', requestId)
         return originError
