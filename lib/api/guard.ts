@@ -83,10 +83,11 @@ export function withApiGuard(
     const requestId = getRequestId(request)
 
     // Review mode: deny state-changing operations (read-only surface).
-    // Allowlist: analytics tracking (best-effort) only.
+    // Allowlist: non-destructive telemetry and feedback only.
     const reviewSession = getReviewSessionFromRequest(request)
     if (reviewSession && method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
-      if (pathname !== '/api/analytics/track') {
+      const reviewWriteAllowlist = new Set<string>(['/api/analytics/track', '/api/feedback'])
+      if (!reviewWriteAllowlist.has(pathname)) {
         return fail(
           ErrorCode.FORBIDDEN,
           'Read-only in Review Mode',

@@ -69,6 +69,9 @@ Recent high-value runtime stabilization/polish notes live here:
 - `docs/PUBLIC_REQUEST_HYGIENE.md`
 - `docs/DASHBOARD_BOOTSTRAP_AND_WORKSPACE_RESOLUTION.md`
 - `docs/LOCKED_ROUTE_STANDARDS.md`
+- `docs/MOBILE_READINESS.md`
+- `docs/ACTIVATION_AND_CONVERSION_NOTES.md`
+- `docs/SUPPORT_AND_FEEDBACK_LOOP.md`
 
 ## Private route metadata policy
 
@@ -89,6 +92,16 @@ This wave adds a **grounded assistant layer** without introducing fake autonomy:
 - **Assistant conversations** are workspace-scoped and (optionally) stored as object-attached threads.
 - **Assistant actions** are preview-first and require explicit confirmation to execute.
 - **No** automatic outreach sending, and no cross-workspace access.
+
+---
+
+## Lightweight feedback capture
+
+LeadIntel includes a minimal feedback loop for low-ops product learning:
+- **DB**: `api.feedback` (privacy-safe, short text only)
+- **API**: `POST /api/feedback` (rate-limited, origin-enforced)
+- **Surfaces**: Support page + Starter dashboard
+
 
 ---
 
