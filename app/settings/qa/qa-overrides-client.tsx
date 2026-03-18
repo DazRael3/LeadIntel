@@ -11,11 +11,21 @@ import { track } from '@/lib/analytics'
 
 type QaTier = 'starter' | 'closer' | 'closer_plus' | 'team'
 
+type ApiErrorEnvelope = {
+  ok?: boolean
+  error?: { message?: string; details?: unknown; code?: string }
+}
+
 type OverridesEnvelope =
   | {
       ok: true
       data: {
-        workspaceId: string
+        enabled?: boolean
+        configured?: boolean
+        misconfigReason?: string | null
+        actor?: { allowlisted?: boolean }
+        workspace?: { exists?: boolean; role?: 'owner_admin' | 'member' | 'unknown' }
+        api?: { ready?: boolean }
         overrides: Array<QaOverride>
       }
     }
@@ -29,8 +39,38 @@ type QaOverride = {
   expires_at: string | null
   created_at: string
   created_by: string
+  created_by_email?: string | null
+  created_by_display?: string | null
   revoked_at: string | null
+  revoked_by_email?: string | null
+  revoked_by_display?: string | null
   note: string | null
+}
+
+const TIER_LABELS: Record<QaTier, { label: string; hint: string }> = {
+  starter: { label: 'Starter', hint: 'Preview experience' },
+  closer: { label: 'Closer', hint: 'Full individual workflow' },
+  closer_plus: { label: 'Closer+', hint: 'More depth + more outputs' },
+  team: { label: 'Team', hint: 'Governance + shared rollout' },
+}
+
+function formatTier(t: QaTier): string {
+  return TIER_LABELS[t]?.label ?? t
+}
+
+function formatExpiry(expiresAtIso: string | null): { short: string; title: string } {
+  if (!expiresAtIso) return { short: 'No expiry', title: 'No expiry' }
+  const ts = Date.parse(expiresAtIso)
+  if (!Number.isFinite(ts)) return { short: 'Expiry unknown', title: expiresAtIso }
+  const ms = ts - Date.now()
+  const abs = new Date(ts).toLocaleString()
+  if (ms <= 0) return { short: 'Expired', title: abs }
+  const mins = Math.round(ms / 60000)
+  if (mins < 60) return { short: `In ${mins}m`, title: abs }
+  const hours = Math.round(mins / 60)
+  if (hours < 48) return { short: `In ${hours}h`, title: abs }
+  const days = Math.round(hours / 24)
+  return { short: `In ${days}d`, title: abs }
 }
 
 export function QaOverridesClient(props: {
@@ -46,10 +86,28 @@ export function QaOverridesClient(props: {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [overrides, setOverrides] = useState<QaOverride[]>([])
+  const [diag, setDiag] = useState<{
+    apiReady: boolean
+    workspaceExists: boolean
+    workspaceRole: 'owner_admin' | 'member' | 'unknown'
+  }>({ apiReady: false, workspaceExists: false, workspaceRole: 'unknown' })
   const [targetEmail, setTargetEmail] = useState('')
   const [tier, setTier] = useState<QaTier>('starter')
+  const [expiryPreset, setExpiryPreset] = useState<'30m' | '2h' | '6h' | '1d' | '7d' | 'custom'>('6h')
   const [expiresMinutes, setExpiresMinutes] = useState<number>(60 * 6)
   const [note, setNote] = useState('')
+
+  useEffect(() => {
+    if (expiryPreset === 'custom') return
+    const presetToMinutes: Record<Exclude<typeof expiryPreset, 'custom'>, number> = {
+      '30m': 30,
+      '2h': 120,
+      '6h': 360,
+      '1d': 60 * 24,
+      '7d': 60 * 24 * 7,
+    }
+    setExpiresMinutes(presetToMinutes[expiryPreset])
+  }, [expiryPreset])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -62,12 +120,18 @@ export function QaOverridesClient(props: {
         throw new Error(msg)
       }
       setOverrides(json.data.overrides ?? [])
+      setDiag({
+        apiReady: Boolean(json.data.api?.ready),
+        workspaceExists: Boolean(json.data.workspace?.exists),
+        workspaceRole: (json.data.workspace?.role ?? 'unknown') as 'owner_admin' | 'member' | 'unknown',
+      })
     } catch (e) {
       toast({
         variant: 'destructive',
         title: 'Could not load QA overrides.',
         description: e instanceof Error ? e.message : 'Try again.',
       })
+      setDiag((d) => ({ ...d, apiReady: false }))
     } finally {
       setLoading(false)
     }
@@ -86,6 +150,18 @@ export function QaOverridesClient(props: {
     })
   }, [overrides])
 
+  const parseApiError = (json: unknown): { message: string; hint?: string } => {
+    const env = json as ApiErrorEnvelope | null
+    const msg = typeof env?.error?.message === 'string' ? env.error.message : 'Request failed.'
+    const details = env?.error?.details
+    if (details && typeof details === 'object') {
+      const d = details as Record<string, unknown>
+      const first = Object.values(d).find((v) => typeof v === 'string' && v.length > 0)
+      if (typeof first === 'string') return { message: msg, hint: first }
+    }
+    return { message: msg }
+  }
+
   const apply = async () => {
     const email = targetEmail.trim().toLowerCase()
     if (!email) return
@@ -101,10 +177,13 @@ export function QaOverridesClient(props: {
           note: note.trim() || undefined,
         }),
       })
-      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: { message?: string } } | null
-      if (!res.ok || !json?.ok) throw new Error(json?.error?.message || 'Override failed.')
+      const json = (await res.json().catch(() => null)) as unknown
+      if (!res.ok || !(json && typeof json === 'object' && 'ok' in (json as Record<string, unknown>) && (json as { ok?: boolean }).ok)) {
+        const err = parseApiError(json)
+        throw new Error(err.hint ? `${err.message} ${err.hint}` : err.message)
+      }
       track('qa_override_applied', { tier })
-      toast({ title: 'QA override applied.', description: `${email} → ${tier}` })
+      toast({ title: 'QA override applied.', description: `${email} → ${formatTier(tier)}` })
       setNote('')
       await load()
     } catch (e) {
@@ -126,8 +205,11 @@ export function QaOverridesClient(props: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetEmail: email }),
       })
-      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: { message?: string } } | null
-      if (!res.ok || !json?.ok) throw new Error(json?.error?.message || 'Revoke failed.')
+      const json = (await res.json().catch(() => null)) as unknown
+      if (!res.ok || !(json && typeof json === 'object' && 'ok' in (json as Record<string, unknown>) && (json as { ok?: boolean }).ok)) {
+        const err = parseApiError(json)
+        throw new Error(err.hint ? `${err.message} ${err.hint}` : err.message)
+      }
       track('qa_override_revoked', {})
       toast({ title: 'QA override revoked.', description: email })
       await load()
@@ -158,6 +240,43 @@ export function QaOverridesClient(props: {
           QA Override
         </Badge>
       </div>
+
+      <Card className="border-cyan-500/20 bg-card/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Diagnostics</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="border-cyan-500/30 text-cyan-300 bg-cyan-500/10">
+              {props.enabled ? 'Enabled' : 'Disabled'}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={props.configured ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-red-500/30 text-red-300 bg-red-500/10'}
+            >
+              {props.configured ? 'Configured' : 'Misconfigured'}
+            </Badge>
+            <Badge variant="outline" className="border-purple-500/30 text-purple-300 bg-purple-500/10">
+              Actor allowlisted
+            </Badge>
+            <Badge
+              variant="outline"
+              className={diag.apiReady ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-slate-700/60 text-muted-foreground bg-slate-900/40'}
+            >
+              {diag.apiReady ? 'API ready' : 'API not ready'}
+            </Badge>
+          </div>
+
+          <div className="text-xs">
+            Allowlists: actors={props.actorAllowlistCount}, targets={props.targetAllowlistCount}
+          </div>
+          <div className="text-xs">
+            Workspace: {diag.workspaceExists ? 'present' : 'none'}{diag.workspaceExists ? ` (${diag.workspaceRole})` : ''}.
+            {diag.workspaceExists ? null : ' Apply/Revoke requires a workspace (for audit scoping).'}
+          </div>
+          {!props.configured && props.misconfigReason ? <div className="text-xs text-red-200">{props.misconfigReason}</div> : null}
+        </CardContent>
+      </Card>
 
       {!props.enabled ? (
         <Card className="border-slate-700/60 bg-slate-900/40">
@@ -196,47 +315,83 @@ export function QaOverridesClient(props: {
           <CardTitle className="text-lg">Apply override</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!diag.workspaceExists ? (
+            <div className="rounded border border-slate-700/60 bg-slate-900/40 p-3 text-sm text-muted-foreground">
+              Apply/Revoke requires a current workspace (for audit scoping). If you don’t have one yet, create/select a workspace first.
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="md:col-span-2 space-y-2">
-              <Label htmlFor="qa_target">Target user email (internal test accounts only)</Label>
+              <Label htmlFor="qa_target">Target user email</Label>
               <Input
                 id="qa_target"
                 value={targetEmail}
                 onChange={(e) => setTargetEmail(e.target.value)}
-                placeholder="you@dazrael.com"
+                placeholder="qa-team@dazrael.com"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
+                inputMode="email"
               />
+              <div className="text-xs text-muted-foreground">Must be allowlisted in `QA_OVERRIDE_TARGET_EMAILS`.</div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="qa_tier">Override tier</Label>
-              <select
-                id="qa_tier"
-                value={tier}
-                onChange={(e) => setTier(e.target.value as QaTier)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="starter">Starter</option>
-                <option value="closer">Closer</option>
-                <option value="closer_plus">Closer+</option>
-                <option value="team">Team</option>
-              </select>
+              <Label>Override tier</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.keys(TIER_LABELS) as QaTier[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTier(t)}
+                    className={[
+                      'min-h-10 rounded-md border px-3 py-2 text-left text-sm transition-colors',
+                      t === tier
+                        ? 'border-cyan-500/40 bg-cyan-500/10 text-foreground'
+                        : 'border-input bg-background text-muted-foreground hover:text-foreground',
+                    ].join(' ')}
+                    aria-pressed={t === tier}
+                  >
+                    <div className="font-medium">{TIER_LABELS[t].label}</div>
+                    <div className="text-xs opacity-80">{TIER_LABELS[t].hint}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="qa_expires">Expires (minutes)</Label>
-              <Input
-                id="qa_expires"
-                type="number"
-                min={5}
-                max={60 * 24 * 30}
-                value={expiresMinutes}
-                onChange={(e) => setExpiresMinutes(Number(e.target.value))}
-              />
+              <Label htmlFor="qa_expiry_preset">Expiry</Label>
+              <select
+                id="qa_expiry_preset"
+                value={expiryPreset}
+                onChange={(e) => setExpiryPreset(e.target.value as typeof expiryPreset)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="30m">30 minutes (safe quick test)</option>
+                <option value="2h">2 hours</option>
+                <option value="6h">6 hours</option>
+                <option value="1d">1 day</option>
+                <option value="7d">7 days</option>
+                <option value="custom">Custom…</option>
+              </select>
+              {expiryPreset === 'custom' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="qa_expires" className="text-xs text-muted-foreground">
+                    Custom (minutes)
+                  </Label>
+                  <Input
+                    id="qa_expires"
+                    type="number"
+                    min={5}
+                    max={60 * 24 * 30}
+                    value={expiresMinutes}
+                    onChange={(e) => setExpiresMinutes(Number(e.target.value))}
+                  />
+                </div>
+              ) : null}
+              <div className="text-xs text-muted-foreground">Keep it short; overrides should auto-expire.</div>
             </div>
             <div className="md:col-span-2 space-y-2">
               <Label htmlFor="qa_note">Note (optional)</Label>
@@ -272,19 +427,29 @@ export function QaOverridesClient(props: {
             <div className="space-y-2">
               {activeOverrides.map((o) => {
                 const email = o.target_email ?? o.target_user_id
+                const expiry = formatExpiry(o.expires_at)
                 return (
                   <div
                     key={o.id}
                     className="flex flex-col gap-2 rounded border border-cyan-500/10 bg-background/40 p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
-                      <div className="font-medium text-foreground truncate">{email}</div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">
-                        Tier: <span className="text-foreground">{o.override_tier}</span>
-                        {o.expires_at ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-medium text-foreground truncate">{email}</div>
+                        <Badge variant="outline" className="border-cyan-500/30 text-cyan-200 bg-cyan-500/10">
+                          {formatTier(o.override_tier)}
+                        </Badge>
+                        <Badge variant="outline" title={expiry.title} className="border-slate-700/60 text-muted-foreground bg-slate-900/40">
+                          {expiry.short}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Applied by <span className="text-foreground">{o.created_by_display ?? 'Unknown'}</span>
+                        {o.created_at ? (
                           <>
                             {' '}
-                            · Expires: <span className="text-foreground">{new Date(o.expires_at).toLocaleString()}</span>
+                            · Applied{' '}
+                            <span className="text-foreground">{new Date(o.created_at).toLocaleString()}</span>
                           </>
                         ) : null}
                       </div>

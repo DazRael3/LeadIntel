@@ -16,6 +16,21 @@ This repo supports **internal-only QA tier overrides** so operators can test tie
   - the user does **not** have an active/trialing Stripe subscription
 - The UI shows a visible **“QA override”** badge when an override is active.
 
+## Workspace requirement (management only)
+- Viewing `/settings/qa` and listing overrides does **not** require a current workspace.
+- Applying/revoking overrides **does** require a valid current workspace and an owner/admin role for audit scoping.
+- The API will return a clear `422` “Workspace required” error if the actor has no workspace selected/available.
+
+## Diagnostics panel
+`/settings/qa` includes a small diagnostics panel that shows:
+- Enabled / Disabled
+- Configured / Misconfigured
+- Actor allowlisted
+- Workspace presence (for apply/revoke)
+- API ready state
+
+This is intentionally metadata-only (no secret/env dumps).
+
 ## Enablement (env)
 Set in production/staging only when needed:
 - `ENABLE_QA_OVERRIDES=true`
@@ -48,8 +63,19 @@ If `ENABLE_QA_OVERRIDES=false`, the system is inert.
 2. Visit `/settings/qa`.
 3. Enter the **target test user email** (must be allowlisted).
 4. Select the desired **Override tier**.
-5. Set an expiry (minutes) and optional note.
+5. Set an expiry (use a short preset when possible) and optional note.
 6. Click **Apply override**.
+
+## How to test tiers (fast checklist)
+Use dedicated internal/test accounts (from `QA_OVERRIDE_TARGET_EMAILS`) and keep expiries short.
+
+1. **Sign in as the target user** (or switch sessions) and visit `/dashboard`.
+2. Confirm the header shows **QA override** and the app reflects the intended tier:
+   - **Starter**: preview/limited states visible
+   - **Closer / Closer+**: richer individual workflows unlock
+   - **Team**: team/governance surfaces unlock
+3. Validate key gating points for the tier you’re testing (locked routes should be premium and intentional).
+4. **Revoke** the override when done (or let it auto-expire).
 
 ### Revert
 - In “Active overrides”, click **Revoke** for the target email.
