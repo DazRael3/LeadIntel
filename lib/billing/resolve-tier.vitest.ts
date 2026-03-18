@@ -113,5 +113,28 @@ describe('resolveTierFromDb QA override', () => {
     expect(res.isQaTierOverride).toBe(true)
     expect(res.qaOverride?.tier).toBe('team')
   })
+
+  it('applies override when session email missing but api.users.email exists', async () => {
+    class OverrideQuery extends FakeQuery {
+      maybeSingle(): Promise<{ data: unknown; error: unknown }> {
+        if (((this as unknown) as { table?: string }).table === 'users') {
+          return Promise.resolve({ data: { subscription_tier: 'free', email: 'qa@dazrael.com' }, error: null })
+        }
+        if (((this as unknown) as { table?: string }).table === 'qa_tier_overrides') {
+          return Promise.resolve({ data: { override_tier: 'team', expires_at: null, revoked_at: null }, error: null })
+        }
+        return super.maybeSingle()
+      }
+    }
+
+    const admin = {
+      from: (table: string) => new OverrideQuery(table),
+      auth: { admin: { getUserById: vi.fn() } },
+    } as unknown as Parameters<typeof resolveTierFromDb>[0]
+
+    const res = await resolveTierFromDb(admin, 'user_1', null)
+    expect(res.tier).toBe('team')
+    expect(res.isQaTierOverride).toBe(true)
+  })
 })
 

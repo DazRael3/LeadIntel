@@ -10,6 +10,7 @@ import { logProductEvent } from '@/lib/services/analytics'
 import { logger } from '@/lib/observability/logger'
 import { resolveTierFromDb } from '@/lib/billing/resolve-tier'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { getQaOverrideConfig, isQaActorAllowlisted, isQaTargetAllowlisted } from '@/lib/qa/overrides'
 
 export const dynamic = 'force-dynamic'
 
@@ -148,12 +149,17 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     // This avoids coupling plan resolution correctness to RLS policy correctness.
     const sessionUser = await getUserSafe(supabase)
     const admin = createSupabaseAdminClient({ schema: 'api' })
-    const resolved = await resolveTierFromDb(admin as any, userId, sessionUser?.email ?? null)
+    const sessionEmail = sessionUser?.email ?? null
+    const resolved = await resolveTierFromDb(admin as any, userId, sessionEmail)
     const tier = resolved.tier
     const planId = resolved.planId
     const isHouseCloserOverride = Boolean(resolved.isHouseCloserOverride)
     const isQaTierOverride = Boolean(resolved.isQaTierOverride)
     const qaOverride = resolved.qaOverride
+    const qaCfg = getQaOverrideConfig()
+    const qaDebugEligible = Boolean(
+      sessionEmail && (isQaActorAllowlisted(sessionEmail) || isQaTargetAllowlisted(sessionEmail))
+    )
 
     // Trial display is best-effort and MUST NOT promote a user into paid tiers.
     const stripeTrialEnd = resolved.stripeTrialEnd
@@ -200,6 +206,91 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       isHouseCloserOverride,
     })
 
+    let debug:
+      | {
+          rawSubscriptionTier: string | null
+          effectiveTier: typeof tier
+          subscriptionStatus: string | null
+          stripeTrialEnd: string | null
+          qa: {
+            enabled: boolean
+            configured: boolean
+            targetAllowlisted: boolean
+            override: { tier: string | null; expiresAt: string | null; revokedAt: string | null } | null
+            active: boolean
+            blockedReason:
+              | 'disabled'
+              | 'misconfigured'
+              | 'target_not_allowlisted'
+              | 'stripe_active_or_trialing'
+              | 'no_override_set'
+              | 'revoked'
+              | 'expired'
+              | null
+          }
+        }
+      | null = null
+
+    if (qaDebugEligible) {
+      const { data: rawUser } = await admin.from('users').select('subscription_tier').eq('id', userId).maybeSingle()
+      const rawSubscriptionTier = (rawUser as { subscription_tier?: unknown } | null)?.subscription_tier
+      const rawTier = typeof rawSubscriptionTier === 'string' ? rawSubscriptionTier : null
+
+      const targetAllowlisted = isQaTargetAllowlisted(sessionEmail)
+      const stripeActiveOrTrialing = resolved.subscriptionStatus === 'active' || resolved.subscriptionStatus === 'trialing'
+
+      let overrideRow: { tier: string | null; expiresAt: string | null; revokedAt: string | null } | null = null
+      let overrideActive = false
+      let blockedReason:
+        | 'disabled'
+        | 'misconfigured'
+        | 'target_not_allowlisted'
+        | 'stripe_active_or_trialing'
+        | 'no_override_set'
+        | 'revoked'
+        | 'expired'
+        | null = null
+
+      if (!qaCfg.enabled) blockedReason = 'disabled'
+      else if (!qaCfg.configured) blockedReason = 'misconfigured'
+      else if (!targetAllowlisted) blockedReason = 'target_not_allowlisted'
+      else if (stripeActiveOrTrialing) blockedReason = 'stripe_active_or_trialing'
+      else {
+        const { data: o } = await admin
+          .from('qa_tier_overrides')
+          .select('override_tier, expires_at, revoked_at')
+          .eq('target_user_id', userId)
+          .maybeSingle()
+        const row = (o ?? null) as { override_tier?: unknown; expires_at?: unknown; revoked_at?: unknown } | null
+        const revokedAt = typeof row?.revoked_at === 'string' ? row.revoked_at : null
+        const expiresAt = typeof row?.expires_at === 'string' ? row.expires_at : null
+        const overrideTier = typeof row?.override_tier === 'string' ? row.override_tier : null
+        overrideRow = { tier: overrideTier, expiresAt, revokedAt }
+        if (!row) blockedReason = 'no_override_set'
+        else if (revokedAt) blockedReason = 'revoked'
+        else if (expiresAt && Number.isFinite(Date.parse(expiresAt)) && Date.parse(expiresAt) <= Date.now()) blockedReason = 'expired'
+        else {
+          overrideActive = Boolean(overrideTier)
+          blockedReason = null
+        }
+      }
+
+      debug = {
+        rawSubscriptionTier: rawTier,
+        effectiveTier: tier,
+        subscriptionStatus: resolved.subscriptionStatus ?? null,
+        stripeTrialEnd: resolved.stripeTrialEnd ?? null,
+        qa: {
+          enabled: qaCfg.enabled,
+          configured: qaCfg.configured,
+          targetAllowlisted,
+          override: overrideRow,
+          active: Boolean(isQaTierOverride && qaOverride),
+          blockedReason,
+        },
+      }
+    }
+
     return ok(
       {
         // Keep legacy `plan` (used by existing clients) but do NOT infer paid access from app-level trial.
@@ -210,6 +301,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         isQaTierOverride,
         qaOverride,
         trial,
+        qaDebugEligible,
+        debug,
       },
       undefined,
       bridge,

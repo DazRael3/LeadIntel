@@ -26,6 +26,7 @@ export default async function ExecutivePage() {
       <TeamUpgradeGate
         heading="Executive"
         subtitle="High-signal workflow summary for managers and executives."
+        currentTier={gate.tier}
         whyLocked="Executive reporting is a Team feature because it summarizes shared activity and outcomes across the workspace."
         bullets={[
           'Manager-grade visibility across workflows',

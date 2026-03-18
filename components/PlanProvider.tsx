@@ -19,6 +19,31 @@ interface PlanContextValue {
   isHouseCloserOverride: boolean
   isQaTierOverride: boolean
   qaOverride: { tier: Tier; expiresAt: string | null } | null
+  qaDebugEligible: boolean
+  debug:
+    | {
+        rawSubscriptionTier: string | null
+        effectiveTier: Tier
+        subscriptionStatus: string | null
+        stripeTrialEnd: string | null
+        qa: {
+          enabled: boolean
+          configured: boolean
+          targetAllowlisted: boolean
+          override: { tier: string | null; expiresAt: string | null; revokedAt: string | null } | null
+          active: boolean
+          blockedReason:
+            | 'disabled'
+            | 'misconfigured'
+            | 'target_not_allowlisted'
+            | 'stripe_active_or_trialing'
+            | 'no_override_set'
+            | 'revoked'
+            | 'expired'
+            | null
+        }
+      }
+    | null
   buildInfo: BuildInfo | null
   isPro: boolean
   trial: { active: boolean; endsAt: string | null }
@@ -35,6 +60,8 @@ const fallbackPlanValue: PlanContextValue = {
   isHouseCloserOverride: false,
   isQaTierOverride: false,
   qaOverride: null,
+  qaDebugEligible: false,
+  debug: null,
   buildInfo: null,
   isPro: false,
   trial: { active: false, endsAt: null },
@@ -55,6 +82,8 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
   const [isHouseCloserOverride, setIsHouseCloserOverride] = useState<boolean>(false)
   const [isQaTierOverride, setIsQaTierOverride] = useState<boolean>(false)
   const [qaOverride, setQaOverride] = useState<{ tier: Tier; expiresAt: string | null } | null>(null)
+  const [qaDebugEligible, setQaDebugEligible] = useState<boolean>(false)
+  const [debug, setDebug] = useState<PlanContextValue['debug']>(null)
   const [buildInfo] = useState<BuildInfo | null>(initialBuildInfo)
   const [trial, setTrial] = useState<{ active: boolean; endsAt: string | null }>({ active: false, endsAt: null })
   const [loading, setLoading] = useState(false)
@@ -80,6 +109,8 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
         setIsHouseCloserOverride(false)
         setIsQaTierOverride(false)
         setQaOverride(null)
+        setQaDebugEligible(false)
+        setDebug(null)
         setTrial({ active: false, endsAt: null })
         return
       }
@@ -133,6 +164,56 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
       } else {
         setQaOverride(null)
       }
+      setQaDebugEligible(Boolean(payload?.qaDebugEligible))
+      if (payload?.debug && typeof payload.debug === 'object') {
+        const d = payload.debug as Record<string, unknown>
+        const effectiveTier =
+          d.effectiveTier === 'starter' || d.effectiveTier === 'closer' || d.effectiveTier === 'closer_plus' || d.effectiveTier === 'team'
+            ? (d.effectiveTier as Tier)
+            : null
+        const qa = typeof d.qa === 'object' && d.qa !== null ? (d.qa as Record<string, unknown>) : null
+        const blockedReason = qa?.blockedReason
+        const allowedBlocked =
+          blockedReason === null ||
+          blockedReason === 'disabled' ||
+          blockedReason === 'misconfigured' ||
+          blockedReason === 'target_not_allowlisted' ||
+          blockedReason === 'stripe_active_or_trialing' ||
+          blockedReason === 'no_override_set' ||
+          blockedReason === 'revoked' ||
+          blockedReason === 'expired'
+            ? (blockedReason as PlanContextValue['debug'] extends { qa: { blockedReason: infer R } } ? R : never)
+            : null
+        setDebug({
+          rawSubscriptionTier: typeof d.rawSubscriptionTier === 'string' ? d.rawSubscriptionTier : null,
+          effectiveTier: effectiveTier ?? 'starter',
+          subscriptionStatus: typeof d.subscriptionStatus === 'string' ? d.subscriptionStatus : null,
+          stripeTrialEnd: typeof d.stripeTrialEnd === 'string' ? d.stripeTrialEnd : null,
+          qa: {
+            enabled: Boolean(qa?.enabled),
+            configured: Boolean(qa?.configured),
+            targetAllowlisted: Boolean(qa?.targetAllowlisted),
+            override:
+              qa && typeof qa.override === 'object' && qa.override !== null
+                ? {
+                    tier: typeof (qa.override as Record<string, unknown>).tier === 'string' ? ((qa.override as Record<string, unknown>).tier as string) : null,
+                    expiresAt:
+                      typeof (qa.override as Record<string, unknown>).expiresAt === 'string'
+                        ? ((qa.override as Record<string, unknown>).expiresAt as string)
+                        : null,
+                    revokedAt:
+                      typeof (qa.override as Record<string, unknown>).revokedAt === 'string'
+                        ? ((qa.override as Record<string, unknown>).revokedAt as string)
+                        : null,
+                  }
+                : null,
+            active: Boolean(qa?.active),
+            blockedReason: allowedBlocked ? allowedBlocked : null,
+          },
+        })
+      } else {
+        setDebug(null)
+      }
       if (payload?.trial && typeof payload.trial === 'object') {
         const nextTrial = payload.trial as { active?: unknown; endsAt?: unknown }
         setTrial({
@@ -163,13 +244,15 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
       isHouseCloserOverride,
       isQaTierOverride,
       qaOverride,
+      qaDebugEligible,
+      debug,
       buildInfo,
       isPro: computeIsPro(plan, tier),
       trial,
       loading,
       refresh,
     }),
-    [plan, tier, planId, isHouseCloserOverride, isQaTierOverride, qaOverride, buildInfo, trial, loading, refresh]
+    [plan, tier, planId, isHouseCloserOverride, isQaTierOverride, qaOverride, qaDebugEligible, debug, buildInfo, trial, loading, refresh]
   )
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>

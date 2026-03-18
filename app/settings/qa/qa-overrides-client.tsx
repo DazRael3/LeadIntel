@@ -16,6 +16,40 @@ type ApiErrorEnvelope = {
   error?: { message?: string; details?: unknown; code?: string }
 }
 
+type PlanEnvelope =
+  | {
+      ok: true
+      data: {
+        tier?: QaTier
+        isQaTierOverride?: boolean
+        qaOverride?: { tier?: QaTier; expiresAt?: string | null } | null
+        qaDebugEligible?: boolean
+        debug?: {
+          rawSubscriptionTier?: string | null
+          effectiveTier?: QaTier
+          subscriptionStatus?: string | null
+          stripeTrialEnd?: string | null
+          qa?: {
+            enabled?: boolean
+            configured?: boolean
+            targetAllowlisted?: boolean
+            override?: { tier?: string | null; expiresAt?: string | null; revokedAt?: string | null } | null
+            active?: boolean
+            blockedReason?:
+              | 'disabled'
+              | 'misconfigured'
+              | 'target_not_allowlisted'
+              | 'stripe_active_or_trialing'
+              | 'no_override_set'
+              | 'revoked'
+              | 'expired'
+              | null
+          }
+        } | null
+      }
+    }
+  | { ok: false; error?: { message?: string } }
+
 type OverridesEnvelope =
   | {
       ok: true
@@ -96,6 +130,31 @@ export function QaOverridesClient(props: {
   const [expiryPreset, setExpiryPreset] = useState<'30m' | '2h' | '6h' | '1d' | '7d' | 'custom'>('6h')
   const [expiresMinutes, setExpiresMinutes] = useState<number>(60 * 6)
   const [note, setNote] = useState('')
+  const [tierProof, setTierProof] = useState<{
+    loaded: boolean
+    effectiveTier: QaTier | null
+    rawSubscriptionTier: string | null
+    qaActive: boolean
+    qaOverrideTier: string | null
+    qaExpiresAt: string | null
+    blockedReason:
+      | 'disabled'
+      | 'misconfigured'
+      | 'target_not_allowlisted'
+      | 'stripe_active_or_trialing'
+      | 'no_override_set'
+      | 'revoked'
+      | 'expired'
+      | null
+  }>({
+    loaded: false,
+    effectiveTier: null,
+    rawSubscriptionTier: null,
+    qaActive: false,
+    qaOverrideTier: null,
+    qaExpiresAt: null,
+    blockedReason: null,
+  })
 
   useEffect(() => {
     if (expiryPreset === 'custom') return
@@ -125,6 +184,46 @@ export function QaOverridesClient(props: {
         workspaceExists: Boolean(json.data.workspace?.exists),
         workspaceRole: (json.data.workspace?.role ?? 'unknown') as 'owner_admin' | 'member' | 'unknown',
       })
+
+      // Tier proof (best-effort). Only returns details for QA actors/targets.
+      try {
+        const planRes = await fetch('/api/plan', { method: 'GET', cache: 'no-store' })
+        const planJson = (await planRes.json().catch(() => null)) as PlanEnvelope | null
+        if (planRes.ok && planJson && planJson.ok === true) {
+          const effectiveTier =
+            planJson.data?.tier === 'starter' ||
+            planJson.data?.tier === 'closer' ||
+            planJson.data?.tier === 'closer_plus' ||
+            planJson.data?.tier === 'team'
+              ? planJson.data.tier
+              : null
+          const dbg = planJson.data?.debug ?? null
+          const qa = dbg?.qa ?? null
+          setTierProof({
+            loaded: true,
+            effectiveTier,
+            rawSubscriptionTier: typeof dbg?.rawSubscriptionTier === 'string' ? dbg.rawSubscriptionTier : null,
+            qaActive: Boolean(planJson.data?.isQaTierOverride && planJson.data?.qaOverride),
+            qaOverrideTier: typeof qa?.override?.tier === 'string' ? qa.override.tier : null,
+            qaExpiresAt: typeof qa?.override?.expiresAt === 'string' ? qa.override.expiresAt : null,
+            blockedReason:
+              qa?.blockedReason === null ||
+              qa?.blockedReason === 'disabled' ||
+              qa?.blockedReason === 'misconfigured' ||
+              qa?.blockedReason === 'target_not_allowlisted' ||
+              qa?.blockedReason === 'stripe_active_or_trialing' ||
+              qa?.blockedReason === 'no_override_set' ||
+              qa?.blockedReason === 'revoked' ||
+              qa?.blockedReason === 'expired'
+                ? qa.blockedReason
+                : null,
+          })
+        } else {
+          setTierProof((p) => ({ ...p, loaded: true }))
+        }
+      } catch {
+        setTierProof((p) => ({ ...p, loaded: true }))
+      }
     } catch (e) {
       toast({
         variant: 'destructive',
@@ -275,6 +374,48 @@ export function QaOverridesClient(props: {
             {diag.workspaceExists ? null : ' Apply/Revoke requires a workspace (for audit scoping).'}
           </div>
           {!props.configured && props.misconfigReason ? <div className="text-xs text-red-200">{props.misconfigReason}</div> : null}
+
+          <div className="pt-2 border-t border-cyan-500/10">
+            <div className="text-xs font-semibold text-foreground">Tier proof (current session)</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Overrides only affect the account you’re signed in as. When auditing tiers, confirm your storageState/session matches the target email.
+            </div>
+            {!tierProof.loaded ? (
+              <div className="mt-2 text-xs text-muted-foreground">Loading tier diagnostics…</div>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Badge variant="outline" className="border-slate-700/60 text-muted-foreground bg-slate-900/40">
+                  Effective: {tierProof.effectiveTier ? formatTier(tierProof.effectiveTier) : 'Unknown'}
+                </Badge>
+                <Badge variant="outline" className="border-slate-700/60 text-muted-foreground bg-slate-900/40">
+                  Raw subscription_tier: {tierProof.rawSubscriptionTier ?? 'Unknown'}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={
+                    tierProof.qaActive ? 'border-purple-500/30 text-purple-300 bg-purple-500/10' : 'border-slate-700/60 text-muted-foreground bg-slate-900/40'
+                  }
+                >
+                  {tierProof.qaActive ? 'QA override active' : 'QA override inactive'}
+                </Badge>
+                {tierProof.qaOverrideTier ? (
+                  <Badge variant="outline" className="border-purple-500/30 text-purple-200 bg-purple-500/10">
+                    Override: {tierProof.qaOverrideTier}
+                  </Badge>
+                ) : null}
+                {tierProof.qaExpiresAt ? (
+                  <Badge variant="outline" className="border-purple-500/30 text-purple-200 bg-purple-500/10" title={new Date(tierProof.qaExpiresAt).toLocaleString()}>
+                    Expires: {formatExpiry(tierProof.qaExpiresAt).short}
+                  </Badge>
+                ) : null}
+                {tierProof.blockedReason ? (
+                  <Badge variant="outline" className="border-amber-500/30 text-amber-200 bg-amber-500/10">
+                    Blocked: {tierProof.blockedReason}
+                  </Badge>
+                ) : null}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

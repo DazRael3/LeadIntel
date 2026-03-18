@@ -77,6 +77,12 @@ Use dedicated internal/test accounts (from `QA_OVERRIDE_TARGET_EMAILS`) and keep
 3. Validate key gating points for the tier you’re testing (locked routes should be premium and intentional).
 4. **Revoke** the override when done (or let it auto-expire).
 
+### Common pitfall (audit runner / storageState)
+If your screenshots look “Starter-like” after applying an override, you are almost always auditing the **wrong session**:
+- Overrides apply to the **target account** only.
+- Make sure the Playwright `storageState.json` is captured **while logged in as the target email**, not the operator email.
+- `/settings/qa` now includes a compact “Tier proof (current session)” block to confirm what the app believes your effective tier is.
+
 ### Revert
 - In “Active overrides”, click **Revoke** for the target email.
 
