@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { tierLabel, type Tier } from '@/lib/billing/tier'
 
 export function TeamUpgradeGate(props: {
   heading?: string
@@ -11,6 +12,7 @@ export function TeamUpgradeGate(props: {
   primaryCtaLabel?: string
   secondaryCtaHref?: string
   secondaryCtaLabel?: string
+  currentTier?: Tier
 } = {}) {
   const heading = props.heading ?? 'Team features'
   const subtitle =
@@ -22,6 +24,7 @@ export function TeamUpgradeGate(props: {
   const primaryCtaLabel = props.primaryCtaLabel ?? 'Upgrade to Team'
   const secondaryCtaHref = props.secondaryCtaHref ?? '/pricing'
   const secondaryCtaLabel = props.secondaryCtaLabel ?? 'See pricing'
+  const lockedOn = tierLabel(props.currentTier ?? 'starter')
 
   return (
     <div className="min-h-screen bg-background terminal-grid">
@@ -33,7 +36,7 @@ export function TeamUpgradeGate(props: {
 
         <Card className="border-cyan-500/20 bg-card/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Locked on Starter</CardTitle>
+            <CardTitle className="text-base">Locked on {lockedOn}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <p>{whyLocked}</p>

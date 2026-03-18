@@ -19,5 +19,11 @@ describe('TeamUpgradeGate', () => {
     expect(screen.getByText('Locked on Starter')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Upgrade to Team' })).toHaveAttribute('href', '/pricing?target=team')
   })
+
+  it('renders locked tier based on effective tier', async () => {
+    const { TeamUpgradeGate } = await import('./TeamUpgradeGate')
+    render(<TeamUpgradeGate heading="Command Center" currentTier="closer_plus" />)
+    expect(screen.getByText('Locked on Closer+')).toBeInTheDocument()
+  })
 })
 

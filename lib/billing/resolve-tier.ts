@@ -33,10 +33,13 @@ export async function resolveTierFromDb(
   userId: string,
   userEmailFromSession?: string | null
 ): Promise<ResolvedTier> {
-  const loadUser = async (): Promise<{ userRow: { subscription_tier?: string | null } | null; userError: PostgrestError | null }> => {
+  const loadUser = async (): Promise<{
+    userRow: { subscription_tier?: string | null; email?: string | null } | null
+    userError: PostgrestError | null
+  }> => {
     const { data: userRow, error: userError } = await admin
       .from('users')
-      .select('subscription_tier')
+      .select('subscription_tier,email')
       .eq('id', userId)
       .maybeSingle()
 
@@ -47,7 +50,7 @@ export async function resolveTierFromDb(
     }
 
     warnNon42703('users', userError)
-    return { userRow: (userRow as { subscription_tier?: string | null } | null) ?? null, userError }
+    return { userRow: (userRow as { subscription_tier?: string | null; email?: string | null } | null) ?? null, userError }
   }
 
   const loadSubs = async (): Promise<{
@@ -137,7 +140,28 @@ export async function resolveTierFromDb(
   // - never overrides an active/trialing Stripe subscription (handled above)
   const qaCfg = getQaOverrideConfig()
   if (qaCfg.enabled && qaCfg.configured) {
-    const allowTarget = isQaTargetAllowed(userEmailFromSession ?? null)
+    // Prefer the session email when available, but fall back to api.users.email for SSR/server-gated paths
+    // where the session email can be missing.
+    let candidateEmail = (userEmailFromSession ?? userRow?.email ?? null) as string | null
+    if (!candidateEmail) {
+      // Final fallback: ask Supabase Auth (service role) for the user's email.
+      // This is only used when session + api.users.email are missing.
+      try {
+        const auth = admin.auth
+        const maybeAdmin = (auth as unknown as { admin?: { getUserById?: (id: string) => Promise<unknown> } }).admin
+        const getUserById = maybeAdmin?.getUserById
+        if (typeof getUserById === 'function') {
+          const res = (await getUserById(userId)) as
+            | { data?: { user?: { email?: string | null } | null } | null; error?: unknown }
+            | undefined
+          const email = res?.data?.user?.email ?? null
+          candidateEmail = typeof email === 'string' && email.trim().length > 0 ? email.trim() : null
+        }
+      } catch {
+        // fail-open
+      }
+    }
+    const allowTarget = isQaTargetAllowed(candidateEmail)
     if (allowTarget) {
       try {
         const { data: overrideRow } = await admin

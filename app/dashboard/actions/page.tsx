@@ -27,6 +27,7 @@ export default async function ActionsPage() {
       <TeamUpgradeGate
         heading="Actions"
         subtitle="Route follow-up work across your team with a shared action queue."
+        currentTier={gate.tier}
         whyLocked="Actions is a Team feature because it coordinates shared execution (routing, ownership, and operational handoff) across multiple reps."
         bullets={[
           'Shared action queue with clear ownership',
