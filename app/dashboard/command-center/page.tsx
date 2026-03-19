@@ -27,6 +27,7 @@ export default async function CommandCenterPage() {
         heading="Command Center"
         subtitle="A team-level operating console for prioritization and action routing."
         currentTier={gate.tier}
+        sessionEmail={user.email ?? null}
         whyLocked="Command Center is a Team view because it rolls up shared workflow state across reps and destinations."
         bullets={[
           'Team-wide workflow summary and routing context',

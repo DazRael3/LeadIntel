@@ -17,6 +17,8 @@ const planMock: {
   tier: 'starter' | 'closer' | 'closer_plus' | 'team'
   planId: string | null
   isHouseCloserOverride?: boolean
+  qaDebugEligible?: boolean
+  debug?: { rawSubscriptionTier?: string | null } | null
   buildInfo?: {
     repoSlug: string | null
     repoOwner: string | null
@@ -28,6 +30,8 @@ const planMock: {
   tier: 'starter',
   planId: null,
   isHouseCloserOverride: false,
+  qaDebugEligible: false,
+  debug: null,
   buildInfo: null,
 }
 vi.mock('@/components/PlanProvider', () => ({
@@ -89,12 +93,29 @@ describe('DashboardHeaderSection', () => {
     planMock.plan = 'pro'
     planMock.planId = 'team'
     planMock.isHouseCloserOverride = false
+    planMock.qaDebugEligible = false
+    planMock.debug = null
     planMock.buildInfo = null
     render(<DashboardHeaderSection creditsRemaining={9999} />)
     expect(screen.queryByRole('button', { name: /upgrade to closer\\+/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /upgrade to team/i })).toBeNull()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
     expect(screen.getByText(/team/i)).toBeTruthy()
+  })
+
+  it('shows tier proof chip when qaDebugEligible', () => {
+    planMock.tier = 'team'
+    planMock.plan = 'pro'
+    planMock.planId = 'team'
+    planMock.isHouseCloserOverride = false
+    planMock.qaDebugEligible = true
+    planMock.debug = { rawSubscriptionTier: 'team' }
+    planMock.buildInfo = null
+    render(<DashboardHeaderSection creditsRemaining={9999} />)
+    expect(screen.getByTestId('tier-proof-chip')).toBeTruthy()
+    expect(screen.getByText(/tier proof/i)).toBeTruthy()
+    expect(screen.getByText(/effective=team/i)).toBeTruthy()
+    expect(screen.getByText(/raw=team/i)).toBeTruthy()
   })
 
   it('house closer shows House Closer badge', () => {

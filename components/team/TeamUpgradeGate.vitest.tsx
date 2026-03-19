@@ -25,5 +25,12 @@ describe('TeamUpgradeGate', () => {
     render(<TeamUpgradeGate heading="Command Center" currentTier="closer_plus" />)
     expect(screen.getByText('Locked on Closer+')).toBeInTheDocument()
   })
+
+  it('renders session proof when email provided', async () => {
+    const { TeamUpgradeGate } = await import('./TeamUpgradeGate')
+    render(<TeamUpgradeGate heading="Templates" currentTier="starter" sessionEmail="qa-team@dazrael.com" />)
+    expect(screen.getByText(/signed in as/i)).toBeInTheDocument()
+    expect(screen.getByText(/qa-team@dazrael\.com/i)).toBeInTheDocument()
+  })
 })
 

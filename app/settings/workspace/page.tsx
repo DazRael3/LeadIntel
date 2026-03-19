@@ -28,6 +28,7 @@ export default async function WorkspaceSettingsPage() {
         heading="Workspace"
         subtitle="Workspace policies and operational controls."
         currentTier={gate.tier}
+        sessionEmail={user.email ?? null}
         whyLocked="Workspace governance is a Team feature because it manages shared policies, rollout controls, and operational settings for the whole team."
         bullets={['Workspace policies and governance', 'Operational controls for rollouts', 'Shared settings for admins and operators']}
         primaryCtaHref="/pricing?target=team"

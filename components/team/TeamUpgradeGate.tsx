@@ -13,6 +13,7 @@ export function TeamUpgradeGate(props: {
   secondaryCtaHref?: string
   secondaryCtaLabel?: string
   currentTier?: Tier
+  sessionEmail?: string | null
 } = {}) {
   const heading = props.heading ?? 'Team features'
   const subtitle =
@@ -40,6 +41,12 @@ export function TeamUpgradeGate(props: {
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <p>{whyLocked}</p>
+            {props.sessionEmail ? (
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs text-muted-foreground">
+                Signed in as <span className="text-foreground">{props.sessionEmail}</span> · Effective tier{' '}
+                <span className="text-foreground">{lockedOn}</span>
+              </div>
+            ) : null}
             <ul className="list-disc pl-5 space-y-1">
               {bullets.map((b) => (
                 <li key={b}>{b}</li>
