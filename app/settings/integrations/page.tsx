@@ -35,6 +35,7 @@ export default async function IntegrationsSettingsPage() {
         heading="Integrations"
         subtitle="Exports and webhooks for operational handoff."
         currentTier={gate.tier}
+        sessionEmail={user.email ?? null}
         whyLocked="Integrations are a Team feature because they power shared delivery and governance across the workspace."
         bullets={['Webhooks and destination exports', 'Delivery history and operational visibility', 'Shared configuration for the workspace']}
         primaryCtaHref="/pricing?target=team"

@@ -35,6 +35,7 @@ export default async function TemplatesSettingsPage() {
         heading="Templates"
         subtitle="Shared templates and approvals for consistent outbound."
         currentTier={gate.tier}
+        sessionEmail={user.email ?? null}
         whyLocked="Workspace template governance is a Team feature because it supports shared standards, approvals, and consistent execution across reps."
         bullets={['Shared template library', 'Approvals and governance controls', 'Consistency across reps and segments']}
         primaryCtaHref="/pricing?target=team"

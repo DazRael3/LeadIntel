@@ -20,29 +20,47 @@ interface DashboardHeaderSectionProps {
   creditsRemaining: number
 }
 
+function formatExpiryShort(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const ts = Date.parse(iso)
+  if (!Number.isFinite(ts)) return null
+  const ms = ts - Date.now()
+  if (ms <= 0) return 'expired'
+  const mins = Math.round(ms / 60000)
+  if (mins < 60) return `in ${mins}m`
+  const hours = Math.round(mins / 60)
+  if (hours < 48) return `in ${hours}h`
+  const days = Math.round(hours / 24)
+  return `in ${days}d`
+}
+
 export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSectionProps) {
   const router = useRouter()
   const { openPortal } = useStripePortal()
   const [isPending, startTransition] = useTransition()
-  const { tier, isHouseCloserOverride, isQaTierOverride, qaOverride, buildInfo, plan, planId } = usePlan()
+  const { tier, isHouseCloserOverride, isQaTierOverride, qaOverride, qaDebugEligible, debug, buildInfo, plan, planId } = usePlan()
   const planMeta = getDisplayPlanMeta({ tier })
   const isStarter = planMeta.tier === 'starter'
   const isCloser = planMeta.tier === 'closer'
   const isPaid = !isStarter
   const showHouseBadge = isCloser && Boolean(isHouseCloserOverride)
   const showQaBadge = Boolean(isQaTierOverride && qaOverride)
+  const proofEnabled = Boolean(qaDebugEligible || process.env.NEXT_PUBLIC_ENABLE_TIER_PROOF_UI === 'true')
   const supabase = useMemo(() => createClient(), [])
   const [username, setUsername] = useState<string>('Account')
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       const user = await getUserSafe(supabase)
       if (cancelled) return
+      const email = typeof user?.email === 'string' && user.email.trim() ? user.email.trim() : null
+      setSessionEmail(email)
       const display =
         (typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim()) ||
         (typeof user?.user_metadata?.name === 'string' && user.user_metadata.name.trim()) ||
-        (typeof user?.email === 'string' && user.email.trim()) ||
+        email ||
         (typeof user?.phone === 'string' && user.phone.trim()) ||
         'Account'
       setUsername(display)
@@ -102,6 +120,19 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     {isStarter ? `Preview remaining: ${Math.max(0, creditsRemaining)}` : `Credits: ${planMeta.creditsLabel}`}
                   </div>
+                  {proofEnabled ? (
+                    <div className="mt-1 text-[11px] text-muted-foreground" data-testid="tier-proof-chip">
+                      <span className="text-foreground/90">Tier proof:</span>{' '}
+                      <span>effective={formatTierLabel(planMeta.tier as Tier)}</span>
+                      {typeof debug?.rawSubscriptionTier === 'string' ? <span>{` · raw=${debug.rawSubscriptionTier}`}</span> : null}
+                      {sessionEmail ? <span>{` · user=${sessionEmail}`}</span> : null}
+                      {debug?.subscriptionStatus ? <span>{` · stripe=${debug.subscriptionStatus}`}</span> : null}
+                      {debug?.qa?.override?.tier ? <span>{` · qa=${debug.qa.override.tier}`}</span> : null}
+                      {debug?.qa?.override?.expiresAt ? (
+                        <span>{` · qa_exp=${formatExpiryShort(debug.qa.override.expiresAt) ?? '—'}`}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </Card>
