@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 export function AuthedSettingsStamp(props: {
-  /** Settings payload to POST to /api/settings (best-effort). */
+  /** Settings stamp payload to POST (best-effort). */
   payload: Record<string, unknown>
   /** Dedupe key for local sessionStorage (prevents rapid repeats). */
   sessionKey: string
@@ -37,7 +37,7 @@ export function AuthedSettingsStamp(props: {
         return
       }
 
-      void fetch('/api/settings', {
+      void fetch('/api/settings/stamp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(props.payload),
