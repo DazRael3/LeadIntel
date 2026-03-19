@@ -364,6 +364,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/settings/stamp': {
+    tier: 'WRITE',
+    maxBytes: 2048, // small view-stamp payload only
+    rateLimit: {
+      authPerMin: 60,
+      ipPerMin: 30,
+    },
+    originRequired: true,
+    authRequired: true,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/watchlist': {
     tier: 'WRITE',
     maxBytes: 16384, // 16KB
