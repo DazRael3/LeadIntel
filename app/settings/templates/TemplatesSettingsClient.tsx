@@ -35,8 +35,25 @@ type TemplateRow = {
   approved_at: string | null
 }
 
-type SetsEnvelope = { ok: true; data: { role: Role; workspace: { id: string; default_template_set_id: string | null }; sets: TemplateSet[] } }
-type TemplatesEnvelope = { ok: true; data: { role: Role; templates: TemplateRow[] } }
+type SetsEnvelope = {
+  ok: true
+  data: {
+    configured?: boolean
+    reason?: string
+    role: Role
+    workspace: { id: string; default_template_set_id: string | null }
+    sets: TemplateSet[]
+  }
+}
+type TemplatesEnvelope = {
+  ok: true
+  data: {
+    configured?: boolean
+    reason?: string
+    role: Role
+    templates: TemplateRow[]
+  }
+}
 
 export function TemplatesSettingsClient() {
   const { toast } = useToast()
@@ -89,6 +106,12 @@ export function TemplatesSettingsClient() {
       setSets(setsJson.data.sets ?? [])
       setDefaultSetId(setsJson.data.workspace.default_template_set_id ?? null)
       setTemplates(templatesJson.data.templates ?? [])
+      if (setsJson.data.configured === false) {
+        toast({
+          title: 'Workspace not configured',
+          description: 'Select or create a workspace to manage templates.',
+        })
+      }
       if (!activeSetId && (setsJson.data.workspace.default_template_set_id ?? null)) {
         setActiveSetId(setsJson.data.workspace.default_template_set_id ?? null)
       }

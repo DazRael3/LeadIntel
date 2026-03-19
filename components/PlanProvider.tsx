@@ -91,32 +91,60 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      // Public request hygiene: never call /api/plan unless we know we have an authenticated user.
-      // This prevents anonymous public pages from spamming 401s.
-      let authed = false
-      try {
-        const supabase = createClient()
-        const user = await getUserSafe(supabase)
-        authed = Boolean(user)
-      } catch {
-        authed = false
-      }
-      if (!authed) {
-        // Reset to safe public defaults.
-        setPlan('free')
-        setTier('starter')
-        setPlanId(null)
-        setIsHouseCloserOverride(false)
-        setIsQaTierOverride(false)
-        setQaOverride(null)
-        setQaDebugEligible(false)
-        setDebug(null)
-        setTrial({ active: false, endsAt: null })
-        return
+      // We avoid hitting /api/plan from anonymous public pages (noise + 401 spam).
+      // However, some authenticated sessions are cookie-only (no localStorage session),
+      // so Supabase JS may not detect "authed" even though /api/plan will succeed.
+      const path = typeof window !== 'undefined' ? window.location.pathname : ''
+      const isAuthedSurface =
+        path.startsWith('/dashboard') ||
+        path.startsWith('/settings') ||
+        path.startsWith('/pitch') ||
+        path.startsWith('/competitive-report') ||
+        path.startsWith('/reports') ||
+        path.startsWith('/success') ||
+        path.startsWith('/onboarding')
+
+      if (!isAuthedSurface) {
+        // Public request hygiene: only call /api/plan when Supabase JS confirms a user session.
+        let authed = false
+        try {
+          const supabase = createClient()
+          const user = await getUserSafe(supabase)
+          authed = Boolean(user)
+        } catch {
+          authed = false
+        }
+        if (!authed) {
+          // Reset to safe public defaults.
+          setPlan('free')
+          setTier('starter')
+          setPlanId(null)
+          setIsHouseCloserOverride(false)
+          setIsQaTierOverride(false)
+          setQaOverride(null)
+          setQaDebugEligible(false)
+          setDebug(null)
+          setTrial({ active: false, endsAt: null })
+          return
+        }
       }
 
       const resp = await fetch('/api/plan', { method: 'GET', cache: 'no-store' })
-      if (!resp.ok) return
+      if (!resp.ok) {
+        // If the user is no longer authenticated, reset to safe defaults.
+        if (resp.status === 401) {
+          setPlan('free')
+          setTier('starter')
+          setPlanId(null)
+          setIsHouseCloserOverride(false)
+          setIsQaTierOverride(false)
+          setQaOverride(null)
+          setQaDebugEligible(false)
+          setDebug(null)
+          setTrial({ active: false, endsAt: null })
+        }
+        return
+      }
       const text = await resp.text()
       if (!text || text.trim().length === 0) {
         console.warn('PlanProvider: Empty response from /api/plan')

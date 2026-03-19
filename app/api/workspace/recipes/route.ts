@@ -4,7 +4,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireTeamPlan } from '@/lib/team/gating'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { RecipeInputSchema, createActionRecipe, listActionRecipes } from '@/lib/services/action-recipes'
 import { logAudit } from '@/lib/audit/log'
 import { logProductEvent } from '@/lib/services/analytics'
@@ -22,9 +22,10 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!workspace) {
+      return ok({ configured: false, reason: 'workspace_missing', role: 'viewer', recipes: [] }, undefined, bridge, requestId)
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
@@ -50,9 +51,17 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
     const parsed = RecipeInputSchema.safeParse(body)
     if (!parsed.success) return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!workspace) {
+      return fail(
+        ErrorCode.VALIDATION_ERROR,
+        'Workspace required',
+        { workspace: 'Create or select a workspace before managing action recipes.' },
+        { status: 422 },
+        bridge,
+        requestId
+      )
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
     if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {

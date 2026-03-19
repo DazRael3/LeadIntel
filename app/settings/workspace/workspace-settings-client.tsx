@@ -13,7 +13,17 @@ import { track } from '@/lib/analytics'
 type Role = 'owner' | 'admin' | 'manager' | 'rep' | 'viewer'
 
 type Envelope =
-  | { ok: true; data: { workspace: { id: string; name: string }; role: Role; policies: WorkspacePolicies; updatedAt: string | null } }
+  | {
+      ok: true
+      data: {
+        configured?: boolean
+        reason?: string
+        workspace: { id: string; name: string }
+        role: Role
+        policies: WorkspacePolicies
+        updatedAt: string | null
+      }
+    }
   | { ok: false; error?: { message?: string } }
 
 function rolesLabel(roles: string[]): string {
@@ -50,6 +60,12 @@ export function WorkspaceSettingsClient() {
       setDomainsDraft((json.data.policies.invite.allowedDomains ?? []).join(', '))
       setRequireApproval(Boolean(json.data.policies.handoffs.requireApproval))
       setExportsRolesDraft((json.data.policies.exports.allowedRoles ?? []).join(', '))
+      if (json.data.configured === false) {
+        toast({
+          title: 'Workspace not configured',
+          description: 'Select or create a workspace to manage policies.',
+        })
+      }
     } finally {
       setLoading(false)
     }

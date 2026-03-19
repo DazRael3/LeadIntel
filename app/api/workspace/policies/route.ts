@@ -4,8 +4,9 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireTeamPlan } from '@/lib/team/gating'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { getWorkspacePolicies, updateWorkspacePolicies } from '@/lib/services/workspace-policies'
+import { defaultWorkspacePolicies } from '@/lib/domain/workspace-policies'
 import { logAudit } from '@/lib/audit/log'
 import { logProductEvent } from '@/lib/services/analytics'
 
@@ -22,9 +23,22 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const ws = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!ws) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!ws) {
+      return ok(
+        {
+          configured: false,
+          reason: 'workspace_missing',
+          workspace: { id: '', name: 'Workspace' },
+          role: 'viewer',
+          policies: defaultWorkspacePolicies(),
+          updatedAt: null,
+        },
+        undefined,
+        bridge,
+        requestId
+      )
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
@@ -50,9 +64,17 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
     const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const ws = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!ws) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!ws) {
+      return fail(
+        ErrorCode.VALIDATION_ERROR,
+        'Workspace required',
+        { workspace: 'Create or select a workspace before managing workspace policies.' },
+        { status: 422 },
+        bridge,
+        requestId
+      )
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
     if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {

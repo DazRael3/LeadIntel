@@ -4,7 +4,7 @@ import { ok, fail, ErrorCode, asHttpError, createCookieBridge } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireTeamPlan } from '@/lib/team/gating'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
 import { revenueIntelligenceEnabled } from '@/lib/services/revenue-governance'
 import { getCrmLinkageHealth } from '@/lib/services/crm-linkage-health'
@@ -23,16 +23,19 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const ws = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!ws) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!ws) {
+      return ok({ configured: false, reason: 'workspace_missing', workspaceId: null, health: null }, undefined, bridge, requestId)
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const { policies } = await getWorkspacePolicies({ supabase, workspaceId: ws.id })
     const enabled = revenueIntelligenceEnabled({ policies, role: membership.role })
-    if (!enabled.ok) return fail(ErrorCode.FORBIDDEN, enabled.reason, undefined, undefined, bridge, requestId)
+    if (!enabled.ok) {
+      return ok({ configured: false, reason: enabled.reason, workspaceId: ws.id, health: null }, undefined, bridge, requestId)
+    }
 
     const health = await getCrmLinkageHealth({ supabase, workspaceId: ws.id })
 

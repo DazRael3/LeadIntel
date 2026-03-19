@@ -5,7 +5,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireTeamPlan } from '@/lib/team/gating'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
 import { buildWeeklyPlanningSummary } from '@/lib/services/team-planning'
 import { logProductEvent } from '@/lib/services/analytics'
@@ -30,16 +30,47 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const parsed = QuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams.entries()))
     if (!parsed.success) return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const ws = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!ws) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!ws) {
+      return ok(
+        {
+          configured: false,
+          reason: 'workspace_missing',
+          workspace: { id: '', name: 'Workspace' },
+          role: 'viewer',
+          summary: {
+            workspaceId: 'missing',
+            computedAt: new Date().toISOString(),
+            buckets: { workNow: [], blocked: [], waitingOnReview: [], needsFollowThrough: [], deliveredRecently: [] },
+          },
+        },
+        undefined,
+        bridge,
+        requestId
+      )
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const { policies } = await getWorkspacePolicies({ supabase, workspaceId: ws.id })
     if (!policies.planning.planningIntelligenceEnabled) {
-      return fail(ErrorCode.FORBIDDEN, 'Planning intelligence is disabled for this workspace', undefined, undefined, bridge, requestId)
+      return ok(
+        {
+          configured: false,
+          reason: 'disabled_by_policy',
+          workspace: { id: ws.id, name: ws.name },
+          role: membership.role,
+          summary: {
+            workspaceId: ws.id,
+            computedAt: new Date().toISOString(),
+            buckets: { workNow: [], blocked: [], waitingOnReview: [], needsFollowThrough: [], deliveredRecently: [] },
+          },
+        },
+        undefined,
+        bridge,
+        requestId
+      )
     }
 
     const summary = await buildWeeklyPlanningSummary({ supabase, workspaceId: ws.id, viewerUserId: user.id, limit: parsed.data.limit })
