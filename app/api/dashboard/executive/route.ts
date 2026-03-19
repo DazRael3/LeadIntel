@@ -4,7 +4,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireTeamPlan } from '@/lib/team/gating'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { buildExecutiveSummary } from '@/lib/executive/engine'
 import { logProductEvent } from '@/lib/services/analytics'
 import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
@@ -22,14 +22,67 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const ws = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!ws) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!ws) {
+      return ok(
+        {
+          configured: false,
+          reason: 'workspace_missing',
+          workspace: { id: '', name: 'Workspace' },
+          role: 'viewer',
+          summary: {
+            workspaceId: 'missing',
+            computedAt: new Date().toISOString(),
+            metrics: {
+              actionQueueReady: 0,
+              actionQueueBlocked: 0,
+              approvalsPending: 0,
+              deliveriesFailed7d: 0,
+              strategicPrograms: 0,
+            },
+            highlights: [{ kind: 'positive', title: 'Not configured yet', detail: 'No workspace is selected for this session.' }],
+            risks: [],
+            limitationsNote:
+              'Executive summaries are derived from workspace workflow objects. This workspace is not configured yet (no workspace selected).',
+          },
+        },
+        undefined,
+        bridge,
+        requestId
+      )
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
     const { policies } = await getWorkspacePolicies({ supabase, workspaceId: ws.id })
-    if (!policies.reporting.executiveEnabled) return fail(ErrorCode.FORBIDDEN, 'Executive reporting is disabled for this workspace', undefined, undefined, bridge, requestId)
+    if (!policies.reporting.executiveEnabled) {
+      return ok(
+        {
+          configured: false,
+          reason: 'disabled_by_policy',
+          workspace: { id: ws.id, name: ws.name },
+          role: membership.role,
+          summary: {
+            workspaceId: ws.id,
+            computedAt: new Date().toISOString(),
+            metrics: {
+              actionQueueReady: 0,
+              actionQueueBlocked: 0,
+              approvalsPending: 0,
+              deliveriesFailed7d: 0,
+              strategicPrograms: 0,
+            },
+            highlights: [{ kind: 'positive', title: 'Disabled', detail: 'Executive reporting is disabled for this workspace by policy.' }],
+            risks: [],
+            limitationsNote:
+              'Executive summaries are derived from workspace workflow objects. Executive reporting is disabled by policy for this workspace.',
+          },
+        },
+        undefined,
+        bridge,
+        requestId
+      )
+    }
 
     const canView = policies.reporting.executiveViewerRoles.includes(membership.role)
     if (!canView) return fail(ErrorCode.FORBIDDEN, 'Manager access required', undefined, undefined, bridge, requestId)

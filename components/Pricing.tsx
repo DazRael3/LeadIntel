@@ -144,12 +144,8 @@ export function Pricing() {
     }
   }, [])
 
-  useEffect(() => {
-    // Default behavior: paid users are sent to dashboard.
-    if (isPro) {
-      router.replace('/dashboard')
-    }
-  }, [isPro, router, target])
+  // Note: We intentionally do NOT redirect paid users away from /pricing.
+  // Buyers often compare plans while signed in (and audits rely on /pricing rendering as-is).
 
   useEffect(() => {
     if (!target) return

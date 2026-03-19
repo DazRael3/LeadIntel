@@ -5,7 +5,7 @@ import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireTeamPlan } from '@/lib/team/gating'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { logAudit } from '@/lib/audit/log'
 
 export const dynamic = 'force-dynamic'
@@ -30,9 +30,10 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!workspace) {
+      return ok({ configured: false, reason: 'workspace_missing', workspace: { id: '', default_template_set_id: null }, role: 'viewer', sets: [] }, undefined, bridge, requestId)
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
@@ -69,9 +70,17 @@ export const POST = withApiGuard(
         return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
       }
 
-      await ensurePersonalWorkspace({ supabase, userId: user.id })
       const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
-      if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+      if (!workspace) {
+        return fail(
+          ErrorCode.VALIDATION_ERROR,
+          'Workspace required',
+          { workspace: 'Create or select a workspace before managing template sets.' },
+          { status: 422 },
+          bridge,
+          requestId
+        )
+      }
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
       if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {
@@ -128,9 +137,17 @@ export const PATCH = withApiGuard(
         return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
       }
 
-      await ensurePersonalWorkspace({ supabase, userId: user.id })
       const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
-      if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+      if (!workspace) {
+        return fail(
+          ErrorCode.VALIDATION_ERROR,
+          'Workspace required',
+          { workspace: 'Create or select a workspace before managing template sets.' },
+          { status: 422 },
+          bridge,
+          requestId
+        )
+      }
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
       if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {

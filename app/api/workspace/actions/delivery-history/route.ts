@@ -5,7 +5,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireTeamPlan } from '@/lib/team/gating'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { listDeliveryHistory } from '@/lib/services/delivery-history'
 import { logProductEvent } from '@/lib/services/analytics'
 
@@ -29,9 +29,10 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const parsed = QuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams.entries()))
     if (!parsed.success) return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!workspace) {
+      return ok({ history: [] }, undefined, bridge, requestId)
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)

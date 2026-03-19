@@ -20,7 +20,7 @@ type Health = {
 }
 
 type Envelope =
-  | { ok: true; data: { workspaceId: string; health: Health } }
+  | { ok: true; data: { configured?: boolean; reason?: string; workspaceId: string | null; health: Health | null } }
   | { ok: false; error?: { message?: string } }
 
 export function CrmSyncHealthCard() {
@@ -36,8 +36,10 @@ export function CrmSyncHealthCard() {
         setHealth(null)
         return
       }
-      setHealth(json.data.health)
-      track('crm_linkage_health_viewed', { workspaceId: json.data.workspaceId })
+      setHealth(json.data.health ?? null)
+      if (typeof json.data.workspaceId === 'string' && json.data.workspaceId) {
+        track('crm_linkage_health_viewed', { workspaceId: json.data.workspaceId })
+      }
     } finally {
       setLoading(false)
     }

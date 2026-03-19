@@ -5,7 +5,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireTeamPlan } from '@/lib/team/gating'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { buildCommandCenter } from '@/lib/services/command-center'
 import { logProductEvent } from '@/lib/services/analytics'
 import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
@@ -31,15 +31,50 @@ export const GET = withApiGuard(
       const parsed = QuerySchema.safeParse(query ?? {})
       if (!parsed.success) return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
 
-      await ensurePersonalWorkspace({ supabase, userId: user.id })
       const ws = await getCurrentWorkspace({ supabase, userId: user.id })
-      if (!ws) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+      if (!ws) {
+        return ok(
+          {
+            configured: false,
+            reason: 'workspace_missing',
+            workspace: { id: '', name: 'Workspace' },
+            role: 'viewer',
+            summary: {
+              workspaceId: 'missing',
+              computedAt: new Date().toISOString(),
+              lanes: { act_now: [], review_needed: [], blocked: [], waiting: [], stale: [] },
+              limitationsNote: 'Command Center is not configured yet (no workspace selected).',
+            },
+          },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: ws.id, userId: user.id })
       if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
       const { policies } = await getWorkspacePolicies({ supabase, workspaceId: ws.id })
-      if (!policies.reporting.commandCenterEnabled) return fail(ErrorCode.FORBIDDEN, 'Command Center is disabled for this workspace', undefined, undefined, bridge, requestId)
+      if (!policies.reporting.commandCenterEnabled) {
+        return ok(
+          {
+            configured: false,
+            reason: 'disabled_by_policy',
+            workspace: { id: ws.id, name: ws.name },
+            role: membership.role,
+            summary: {
+              workspaceId: ws.id,
+              computedAt: new Date().toISOString(),
+              lanes: { act_now: [], review_needed: [], blocked: [], waiting: [], stale: [] },
+              limitationsNote: 'Command Center is disabled for this workspace by policy.',
+            },
+          },
+          undefined,
+          bridge,
+          requestId
+        )
+      }
       if (!policies.reporting.commandViewerRoles.includes(membership.role)) {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }

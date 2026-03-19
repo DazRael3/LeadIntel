@@ -1,12 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 
+const replaceMock = vi.fn()
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace: replaceMock, push: vi.fn() }),
 }))
 
+let mockIsPro = false
 vi.mock('@/components/PlanProvider', () => ({
-  usePlan: () => ({ isPro: false, isHouseCloserOverride: false }),
+  usePlan: () => ({ isPro: mockIsPro, isHouseCloserOverride: false }),
 }))
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -16,6 +18,7 @@ vi.mock('@/lib/supabase/client', () => ({
 describe('Pricing (public)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockIsPro = false
     ;(globalThis as any).IntersectionObserver =
       (globalThis as any).IntersectionObserver ??
       class {
@@ -36,6 +39,13 @@ describe('Pricing (public)', () => {
 
     expect(fetchMock.mock.calls.some((c) => c[0] === '/api/settings')).toBe(false)
     fetchMock.mockRestore()
+  })
+
+  it('does not redirect paid users away from /pricing', async () => {
+    mockIsPro = true
+    const { Pricing } = await import('./Pricing')
+    render(<Pricing />)
+    expect(replaceMock).not.toHaveBeenCalled()
   })
 })
 
