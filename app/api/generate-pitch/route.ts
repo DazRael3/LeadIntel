@@ -353,6 +353,24 @@ export const POST = withApiGuard(
     })
     const usageAfter = await getPremiumGenerationUsage({ supabase, userId: user.id })
 
+    // Lifecycle marker: first successful output (best-effort, no blocking).
+    // Used by cron to send a one-time "first output" reinforcement email.
+    try {
+      const { data: ls } = await supabase.from('lifecycle_state').select('first_output_at').eq('user_id', user.id).maybeSingle()
+      const first = (ls as { first_output_at?: string | null } | null)?.first_output_at ?? null
+      if (!first) {
+        await supabase.from('lifecycle_state').upsert({ user_id: user.id }, { onConflict: 'user_id' })
+        await supabase
+          .from('lifecycle_state')
+          .update({ first_output_at: new Date().toISOString(), last_active_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+      } else {
+        await supabase.from('lifecycle_state').update({ last_active_at: new Date().toISOString() }).eq('user_id', user.id)
+      }
+    } catch {
+      // best-effort only
+    }
+
     const leadRow = (savedLead.data ?? null) as { id?: string; company_name?: string | null; company_domain?: string | null; company_url?: string | null } | null
     const baseResponse = {
       lead: leadRow

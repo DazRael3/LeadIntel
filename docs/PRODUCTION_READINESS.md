@@ -220,6 +220,15 @@ Fail-closed behavior:
 | `RESEND_FROM_EMAIL` | server-only | Default From address for outbound mail. | Use a verified sender/domain per environment. |
 | `RESEND_WEBHOOK_SECRET` | server-only | Secret for Resend webhook verification (if enabled). | Configure per webhook/environment. |
 
+### Lifecycle email automation (optional)
+| Name | Scope | Purpose | TEST vs LIVE |
+| --- | --- | --- | --- |
+| `LIFECYCLE_EMAILS_ENABLED` | server-only | Kill switch for lifecycle sends (defaults enabled). | Use `0` to disable without removing keys. |
+| `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED` | server-only | Enables internal/operator notification emails (defaults enabled). | Disable if too noisy. |
+| `LIFECYCLE_ADMIN_EMAILS` | server-only | Comma-separated operator recipients for internal notifications. | Set per environment. |
+| `FEEDBACK_NOTIFICATION_EMAILS` | server-only | Override recipients for feedback notifications (falls back to `LIFECYCLE_ADMIN_EMAILS`). | Set per environment. |
+| `ADMIN_TOKEN` | server-only | Token for manual admin send endpoint (`/api/admin/lifecycle/send`). | Keep secret; rotate if leaked. |
+
 ### Market data (optional live quotes)
 | Name | Scope | Purpose | TEST vs LIVE |
 | --- | --- | --- | --- |

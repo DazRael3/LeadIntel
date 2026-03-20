@@ -1,7 +1,6 @@
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { getAppUrl } from '@/lib/app-url'
 import { serverEnv } from '@/lib/env'
-import { sendEmailWithResend } from '@/lib/email/resend'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import {
   renderAccountsNudgeEmail,
@@ -9,8 +8,17 @@ import {
   renderValueRecapEmail,
   renderWinbackEmail,
   renderWelcomeEmail,
+  renderFirstOutputEmail,
+  renderStarterNearLimitEmail,
+  renderStarterExhaustedEmail,
+  renderFeedbackRequestEmail,
+  renderUpgradeConfirmationEmail,
+  renderSupportHelpEmail,
   type LifecycleEmailType,
 } from '@/lib/email/lifecycle'
+import { sendEmailDeduped } from '@/lib/email/send-deduped'
+import { FREE_MAX_PREMIUM_GENERATIONS } from '@/lib/billing/premium-generations'
+import { lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 
 type LifecycleRow = {
   user_id: string
@@ -21,6 +29,11 @@ type LifecycleRow = {
   nudge_pitch_sent_at?: string | null
   value_recap_sent_at?: string | null
   winback_sent_at?: string | null
+  first_output_sent_at?: string | null
+  starter_near_limit_sent_at?: string | null
+  starter_exhausted_sent_at?: string | null
+  feedback_request_sent_at?: string | null
+  upgrade_confirm_sent_at?: string | null
 }
 
 type UserSettingsRow = {
@@ -67,10 +80,17 @@ async function canTreatAsUpgraded(supabase: ReturnType<typeof createSupabaseAdmi
   }
 }
 
-async function sendLifecycleEmail(args: { toEmail: string; type: LifecycleEmailType; appUrl: string; meta: { accounts: number; pitches: number } }) {
+async function sendLifecycleEmail(args: {
+  supabase: ReturnType<typeof createSupabaseAdminClient>
+  userId: string
+  toEmail: string
+  type: LifecycleEmailType
+  appUrl: string
+  meta: { accounts: number; pitches: number; starterRemaining: number }
+}) {
   const hasKey = Boolean((serverEnv.RESEND_API_KEY ?? '').trim())
   const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
-  if (!hasKey || !from) return { sent: false as const, reason: 'resend_not_configured' }
+  if (!lifecycleEmailsEnabled() || !hasKey || !from) return { sent: false as const, reason: 'not_enabled' }
 
   const payload =
     args.type === 'welcome'
@@ -79,22 +99,39 @@ async function sendLifecycleEmail(args: { toEmail: string; type: LifecycleEmailT
         ? renderAccountsNudgeEmail({ appUrl: args.appUrl })
         : args.type === 'nudge_pitch'
           ? renderPitchNudgeEmail({ appUrl: args.appUrl })
-          : args.type === 'value_recap'
-            ? renderValueRecapEmail({
-                appUrl: args.appUrl,
-                accountsCount: args.meta.accounts,
-                pitchesCount: args.meta.pitches,
-                savedOutputsCount: args.meta.pitches,
-              })
-            : renderWinbackEmail({ appUrl: args.appUrl })
+          : args.type === 'first_output'
+            ? renderFirstOutputEmail({ appUrl: args.appUrl })
+            : args.type === 'starter_near_limit'
+              ? renderStarterNearLimitEmail({ appUrl: args.appUrl, remaining: args.meta.starterRemaining })
+              : args.type === 'starter_exhausted'
+                ? renderStarterExhaustedEmail({ appUrl: args.appUrl })
+                : args.type === 'feedback_request'
+                  ? renderFeedbackRequestEmail({ appUrl: args.appUrl })
+                  : args.type === 'upgrade_confirmation'
+                    ? renderUpgradeConfirmationEmail({ appUrl: args.appUrl })
+                    : args.type === 'support_help'
+                      ? renderSupportHelpEmail({ appUrl: args.appUrl })
+                      : args.type === 'value_recap'
+                        ? renderValueRecapEmail({
+                            appUrl: args.appUrl,
+                            accountsCount: args.meta.accounts,
+                            pitchesCount: args.meta.pitches,
+                            savedOutputsCount: args.meta.pitches,
+                          })
+                        : renderWinbackEmail({ appUrl: args.appUrl })
 
-  const res = await sendEmailWithResend({
-    from,
-    to: args.toEmail,
+  const dedupeKey = `lifecycle:${args.type}:${args.userId}`
+  const res = await sendEmailDeduped(args.supabase, {
+    dedupeKey,
+    userId: args.userId,
+    toEmail: args.toEmail,
+    fromEmail: from,
     replyTo: SUPPORT_EMAIL,
     subject: payload.subject,
     html: payload.html,
     text: payload.text,
+    kind: 'lifecycle',
+    template: args.type,
     tags: [
       { name: 'kind', value: 'lifecycle' },
       { name: 'source', value: 'lazy_cron' },
@@ -102,6 +139,7 @@ async function sendLifecycleEmail(args: { toEmail: string; type: LifecycleEmailT
     ],
   })
   if (!res.ok) return { sent: false as const, reason: 'send_failed' }
+  if (res.status !== 'sent') return { sent: false as const, reason: res.reason }
   return { sent: true as const }
 }
 
@@ -120,7 +158,9 @@ export async function checkLifecycleForUser(
 
   const { data: row } = await supabase
     .from('lifecycle_state')
-    .select('user_id, signup_at, last_checked_at, welcome_sent_at, nudge_accounts_sent_at, nudge_pitch_sent_at, value_recap_sent_at, winback_sent_at')
+    .select(
+      'user_id, signup_at, last_checked_at, welcome_sent_at, nudge_accounts_sent_at, nudge_pitch_sent_at, first_output_sent_at, starter_near_limit_sent_at, starter_exhausted_sent_at, feedback_request_sent_at, upgrade_confirm_sent_at, value_recap_sent_at, winback_sent_at'
+    )
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -150,8 +190,28 @@ export async function checkLifecycleForUser(
 
   const accountsCountRes = await supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', userId)
   const pitchesCountRes = await supabase.from('pitches').select('id', { count: 'exact', head: true }).eq('user_id', userId)
+  const usageCountRes = await supabase
+    .from('usage_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('status', 'complete')
+    .in('object_type', ['pitch', 'report'])
+  const firstUsageRes = await supabase
+    .from('usage_events')
+    .select('created_at')
+    .eq('user_id', userId)
+    .eq('status', 'complete')
+    .in('object_type', ['pitch', 'report'])
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
   const accountsCount = typeof accountsCountRes.count === 'number' ? accountsCountRes.count : 0
   const pitchesCount = typeof pitchesCountRes.count === 'number' ? pitchesCountRes.count : 0
+  const premiumUsed = typeof usageCountRes.count === 'number' ? usageCountRes.count : 0
+  const starterLimit = FREE_MAX_PREMIUM_GENERATIONS
+  const starterRemaining = Math.max(0, starterLimit - premiumUsed)
+  const premiumFirstAt = ((firstUsageRes.data as { created_at?: string | null } | null)?.created_at ?? null) || null
+  const premiumDays = premiumFirstAt ? daysSince(premiumFirstAt, nowMs) : null
   const activated = hasIcp(settings) && accountsCount >= 10 && pitchesCount >= 1
   const upgraded = await canTreatAsUpgraded(supabase, userId)
 
@@ -160,7 +220,14 @@ export async function checkLifecycleForUser(
 
   const maybeSend = async (type: LifecycleEmailType, field: keyof LifecycleRow) => {
     if ((lifecycle as any)[field]) return { sent: 0, skipped: 1, reason: 'already_sent' }
-    const res = await sendLifecycleEmail({ toEmail, type, appUrl, meta: { accounts: accountsCount, pitches: pitchesCount } })
+    const res = await sendLifecycleEmail({
+      supabase,
+      userId,
+      toEmail,
+      type,
+      appUrl,
+      meta: { accounts: accountsCount, pitches: pitchesCount, starterRemaining },
+    })
     if (!res.sent) return { sent: 0, skipped: 1, reason: res.reason }
     await supabase.from('lifecycle_state').update({ [field]: now.toISOString() }).eq('user_id', userId)
     return { sent: 1, skipped: 0 }
@@ -169,9 +236,14 @@ export async function checkLifecycleForUser(
   // Same priority as daily sweep.
   if (!lifecycle.welcome_sent_at) return await maybeSend('welcome', 'welcome_sent_at')
   if (hrs >= 6 && accountsCount < 10 && !lifecycle.nudge_accounts_sent_at) return await maybeSend('nudge_accounts', 'nudge_accounts_sent_at')
-  if (hrs >= 24 && pitchesCount < 1 && !lifecycle.nudge_pitch_sent_at) return await maybeSend('nudge_pitch', 'nudge_pitch_sent_at')
+  if (hrs >= 24 && pitchesCount < 1 && premiumUsed === 0 && !lifecycle.nudge_pitch_sent_at) return await maybeSend('nudge_pitch', 'nudge_pitch_sent_at')
+  if (!upgraded && premiumUsed >= starterLimit && !lifecycle.starter_exhausted_sent_at) return await maybeSend('starter_exhausted', 'starter_exhausted_sent_at')
+  if (!upgraded && premiumUsed === starterLimit - 1 && !lifecycle.starter_near_limit_sent_at) return await maybeSend('starter_near_limit', 'starter_near_limit_sent_at')
+  if (premiumUsed >= 1 && premiumDays !== null && premiumDays <= 7 && !lifecycle.first_output_sent_at) return await maybeSend('first_output', 'first_output_sent_at')
+  if (upgraded && !lifecycle.upgrade_confirm_sent_at) return await maybeSend('upgrade_confirmation', 'upgrade_confirm_sent_at')
   if (days >= 3 && activated && !upgraded && !lifecycle.value_recap_sent_at) return await maybeSend('value_recap', 'value_recap_sent_at')
   if (days >= 7 && !activated && !lifecycle.winback_sent_at) return await maybeSend('winback', 'winback_sent_at')
+  if (!upgraded && premiumUsed >= 1 && premiumDays !== null && premiumDays >= 2 && !lifecycle.feedback_request_sent_at) return await maybeSend('feedback_request', 'feedback_request_sent_at')
 
   return { sent: 0, skipped: 1, reason: 'not_due' }
 }

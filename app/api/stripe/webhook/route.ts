@@ -11,6 +11,12 @@ import { logger } from '@/lib/observability/logger'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { randomUUID } from 'crypto'
+import { getAppUrl } from '@/lib/app-url'
+import { renderUpgradeConfirmationEmail } from '@/lib/email/lifecycle'
+import { sendEmailDeduped } from '@/lib/email/send-deduped'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
+import { renderAdminNotificationEmail } from '@/lib/email/internal'
 
 /**
  * Stripe Webhook Handler
@@ -138,6 +144,77 @@ export const POST = withApiGuard(
             })
             recordCounter('webhook.stripe.error', 1, { stage: 'upsert_subscription' })
             captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
+          }
+
+          // Best-effort: send upgrade confirmation email (deduped) + mark lifecycle_state.
+          try {
+            const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
+            const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean(from)
+            if (hasResend && userId) {
+              const { data: userEmailRow } = await supabaseAdmin.from('users').select('email').eq('id', userId).maybeSingle()
+              const toEmail = ((userEmailRow as { email?: string | null } | null)?.email ?? '').trim()
+              if (toEmail) {
+                const appUrl = getAppUrl()
+                const payload = renderUpgradeConfirmationEmail({ appUrl })
+                await sendEmailDeduped(supabaseAdmin, {
+                  dedupeKey: `lifecycle:upgrade_confirmation:${userId}`,
+                  userId,
+                  toEmail,
+                  fromEmail: from,
+                  replyTo: SUPPORT_EMAIL,
+                  subject: payload.subject,
+                  html: payload.html,
+                  text: payload.text,
+                  kind: 'lifecycle',
+                  template: 'upgrade_confirmation',
+                  tags: [{ name: 'kind', value: 'lifecycle' }, { name: 'type', value: 'upgrade_confirmation' }],
+                  meta: { userId, stripeCustomerId: customerId, stripeSubscriptionId: subscription.id },
+                })
+                await supabaseAdmin.from('lifecycle_state').upsert({ user_id: userId, upgrade_confirm_sent_at: new Date().toISOString() }, { onConflict: 'user_id' })
+              }
+            }
+          } catch {
+            // best-effort only
+          }
+
+          // Optional: operator notification (deduped).
+          try {
+            const admins = getLifecycleAdminEmails()
+            const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
+            const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean(from)
+            if (adminNotificationsEnabled() && admins.length > 0 && hasResend && userId) {
+              const appUrl = getAppUrl()
+              const email = renderAdminNotificationEmail({
+                title: 'Upgrade completed',
+                appUrl,
+                lines: [
+                  `user_id: ${userId}`,
+                  `stripe_customer_id: ${customerId}`,
+                  `stripe_subscription_id: ${subscription.id}`,
+                  `status: ${subscription.status}`,
+                ],
+              })
+              await Promise.allSettled(
+                admins.map((toEmail) =>
+                  sendEmailDeduped(supabaseAdmin, {
+                    dedupeKey: `admin:upgrade:${subscription.id}:${toEmail}`,
+                    userId: null,
+                    toEmail,
+                    fromEmail: from,
+                    replyTo: SUPPORT_EMAIL,
+                    subject: email.subject,
+                    html: email.html,
+                    text: email.text,
+                    kind: 'internal',
+                    template: 'admin_upgrade',
+                    tags: [{ name: 'kind', value: 'internal' }, { name: 'type', value: 'upgrade' }],
+                    meta: { userId, stripeCustomerId: customerId, stripeSubscriptionId: subscription.id, status: subscription.status },
+                  })
+                )
+              )
+            }
+          } catch {
+            // best-effort
           }
         }
         break

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const insertMock = vi.fn(async () => ({ error: null }))
+const maybeSingleMock = vi.fn(async () => ({ data: { id: 'fb_1' }, error: null }))
+const selectMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }))
+const insertMock = vi.fn(() => ({ select: selectMock }))
 
 vi.mock('@/lib/supabase/route', () => ({
   createRouteClient: vi.fn(() => ({
