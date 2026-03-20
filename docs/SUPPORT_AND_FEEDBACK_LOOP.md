@@ -32,6 +32,7 @@ We do **not** store passwords, API keys, or page bodies. The UI prompts users no
   - accepts feedback from both anonymous and logged-in sessions
   - rate-limited and Origin-enforced via API guard policies
   - allowed in Review Mode (non-destructive exception)
+  - optional operator notification email (Resend) when configured (deduped)
 
 ### Where it appears
 - Support page: “Quick feedback”
@@ -57,4 +58,12 @@ limit 200;
 ## Cleanup / privacy
 - The feedback table is lightweight and can be truncated if needed.
 - Keep `ALLOWED_ORIGINS` correct so Origin enforcement doesn’t block legitimate feedback.
+
+## Optional operator notifications
+If you want new feedback to reach an operator inbox during launch, configure:
+- `LIFECYCLE_ADMIN_EMAILS` (or `FEEDBACK_NOTIFICATION_EMAILS`)
+- `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED=1`
+- Resend keys (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`)
+
+Notifications are deduped via `api.email_send_log` and never block the end-user feedback response.
 

@@ -24,6 +24,14 @@ Events are best-effort and privacy-safe (no secrets, no page content bodies).
 - `feedback_opened`
 - `feedback_submitted`
 
+## Lifecycle automation (email)
+LeadIntel uses a small, deduped lifecycle email set (Resend + cron) to reduce confusion and improve Starter→Closer conversion without spam:
+- welcome + first-value nudges
+- first-output reinforcement
+- Starter usage reminders tied to the real **3 preview generations** cap
+- calm upgrade framing (no fake urgency)
+- lightweight feedback requests
+
 ## What we intentionally did NOT add
 - multi-step onboarding flows
 - popups, countdowns, or manipulative urgency
