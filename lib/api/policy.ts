@@ -526,6 +526,19 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  'POST:/api/admin/lifecycle/send': {
+    tier: 'WRITE',
+    maxBytes: 4096,
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'GET:/api/admin/site-report/latest': {
     tier: 'D',
     maxBytes: 0,

@@ -116,6 +116,20 @@ const serverEnvSchema = z.object({
   RESEND_API_KEY: z.string().startsWith('re_', 'Invalid Resend API key format').optional(),
   RESEND_FROM_EMAIL: z.string().email('Invalid Resend from email').optional(),
   RESEND_WEBHOOK_SECRET: z.string().min(1, 'Resend webhook secret required').optional(),
+
+  // Lifecycle / launch automation (optional)
+  LIFECYCLE_EMAILS_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  // Comma-separated list of operator emails to notify (e.g. "owner@dazrael.com,ops@dazrael.com")
+  LIFECYCLE_ADMIN_EMAILS: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().optional().default('')),
+  // Optional override for feedback notifications; falls back to LIFECYCLE_ADMIN_EMAILS
+  FEEDBACK_NOTIFICATION_EMAILS: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().optional().default('')),
   
   // Observability (Sentry)
   // Allow empty string so test/dev can explicitly disable without failing validation.
@@ -331,6 +345,10 @@ function buildServerEnv(): ServerEnv {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+    LIFECYCLE_EMAILS_ENABLED: process.env.LIFECYCLE_EMAILS_ENABLED,
+    LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED: process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED,
+    LIFECYCLE_ADMIN_EMAILS: process.env.LIFECYCLE_ADMIN_EMAILS,
+    FEEDBACK_NOTIFICATION_EMAILS: process.env.FEEDBACK_NOTIFICATION_EMAILS,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
     CLEARBIT_REVEAL_API_KEY: process.env.CLEARBIT_REVEAL_API_KEY,

@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type EmailLogStatus = 'sent' | 'failed' | 'dry_run' | 'skipped'
 
+export type EmailLogKind = 'manual' | 'autopilot' | 'digest' | 'lifecycle' | 'internal' | 'sample_digest' | 'kpi_monitor'
+
 export type EmailLogInsert = {
   userId: string
   leadId?: string | null
@@ -13,7 +15,7 @@ export type EmailLogInsert = {
   error?: string | null
   resendMessageId?: string | null
   sequenceStep?: number | null
-  kind?: 'manual' | 'autopilot' | 'digest'
+  kind?: EmailLogKind
 }
 
 /**
