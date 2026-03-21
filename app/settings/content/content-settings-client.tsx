@@ -43,8 +43,12 @@ export function ContentSettingsClient() {
     try {
       const res = await fetch('/api/prospect-watch/queue?kind=content', { cache: 'no-store', credentials: 'include' })
       const json = (await res.json().catch(() => null)) as QueueEnvelope | null
-      if (!res.ok || !json || (json as any).ok !== true) {
-        toast({ variant: 'destructive', title: 'Could not load content drafts', description: (json as any)?.error?.message ?? 'Please try again.' })
+      if (!res.ok || !json || json.ok !== true) {
+        toast({
+          variant: 'destructive',
+          title: 'Could not load content drafts',
+          description: json && json.ok === false ? json.error?.message ?? 'Please try again.' : 'Please try again.',
+        })
         setItems([])
         return
       }

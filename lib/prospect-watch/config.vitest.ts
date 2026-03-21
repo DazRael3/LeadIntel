@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 describe('prospect watch config', () => {
   it('disabled by default', async () => {
     vi.resetModules()
-    vi.stubEnv('PROSPECT_WATCH_ENABLED', '')
+    delete process.env.PROSPECT_WATCH_ENABLED
     const { prospectWatchEnabled } = await import('./config')
     expect(prospectWatchEnabled()).toBe(false)
   })

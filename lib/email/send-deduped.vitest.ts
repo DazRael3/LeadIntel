@@ -20,8 +20,8 @@ function fakeSupabase(args: { insert: () => Promise<InsertResult>; update?: () =
 describe('sendEmailDeduped', () => {
   it('skips when Resend is not configured', async () => {
     vi.resetModules()
-    vi.stubEnv('RESEND_API_KEY', '')
-    vi.stubEnv('RESEND_FROM_EMAIL', '')
+    delete process.env.RESEND_API_KEY
+    delete process.env.RESEND_FROM_EMAIL
 
     const { sendEmailDeduped } = await import('./send-deduped')
     const resendMod = await import('./resend')

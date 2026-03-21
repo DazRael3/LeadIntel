@@ -12,6 +12,43 @@ const QuerySchema = z.object({
   kind: z.enum(['prospects', 'content']),
 })
 
+type ProspectRow = {
+  id: string
+  overall_score: number | null
+  status: string | null
+  updated_at: string | null
+  target_id: string
+  signal_id: string
+}
+
+type TargetRow = { id: string; company_name: string; company_domain: string | null }
+
+type SignalRow = { id: string; title: string; source_url: string; signal_type: string }
+
+type ScoreRow = { target_id: string; signal_id: string; reasons: unknown }
+
+type DraftRow = {
+  id: string
+  prospect_id: string
+  channel: string
+  status: string
+  subject: string | null
+  body: string
+  to_email: string | null
+}
+
+type ContentDraftRow = {
+  id: string
+  status: string
+  angle: string
+  body: string
+  cta: string | null
+  created_at: string
+  prospect_id: string
+}
+
+type ProspectLiteRow = { id: string; overall_score: number | null; target_id: string; signal_id: string }
+
 function isPrivileged(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'admin' || role === 'manager'
 }
@@ -51,9 +88,10 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         .order('overall_score', { ascending: false })
         .limit(60)
 
-      const ids = (prospects ?? []).map((p) => (p as any).id).filter(Boolean)
-      const targetIds = (prospects ?? []).map((p) => (p as any).target_id).filter(Boolean)
-      const signalIds = (prospects ?? []).map((p) => (p as any).signal_id).filter(Boolean)
+      const prospectRows = (prospects ?? []) as unknown as ProspectRow[]
+      const ids = prospectRows.map((p) => p.id).filter(Boolean)
+      const targetIds = prospectRows.map((p) => p.target_id).filter(Boolean)
+      const signalIds = prospectRows.map((p) => p.signal_id).filter(Boolean)
 
       const [targetsRes, signalsRes, scoresRes, draftsRes] = await Promise.all([
         client.from('prospect_watch_targets').select('id, company_name, company_domain').in('id', targetIds).limit(200),
@@ -62,27 +100,27 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         client.from('prospect_watch_outreach_drafts').select('id, prospect_id, channel, status, subject, body, to_email').in('prospect_id', ids).limit(400),
       ])
 
-      const targets = new Map<string, any>()
-      for (const t of (targetsRes.data ?? []) as any[]) targets.set(t.id, t)
-      const signals = new Map<string, any>()
-      for (const s of (signalsRes.data ?? []) as any[]) signals.set(s.id, s)
+      const targets = new Map<string, TargetRow>()
+      for (const t of (targetsRes.data ?? []) as unknown as TargetRow[]) targets.set(t.id, t)
+      const signals = new Map<string, SignalRow>()
+      for (const s of (signalsRes.data ?? []) as unknown as SignalRow[]) signals.set(s.id, s)
       const reasonsByPair = new Map<string, string[]>()
-      for (const r of (scoresRes.data ?? []) as any[]) {
+      for (const r of (scoresRes.data ?? []) as unknown as ScoreRow[]) {
         const key = `${r.target_id}:${r.signal_id}`
         const arr = Array.isArray(r.reasons) ? (r.reasons as string[]) : []
         reasonsByPair.set(key, arr)
       }
-      const draftsByProspect = new Map<string, any[]>()
-      for (const d of (draftsRes.data ?? []) as any[]) {
-        const pid = d.prospect_id as string
+      const draftsByProspect = new Map<string, DraftRow[]>()
+      for (const d of (draftsRes.data ?? []) as unknown as DraftRow[]) {
+        const pid = d.prospect_id
         const arr = draftsByProspect.get(pid) ?? []
         arr.push(d)
         draftsByProspect.set(pid, arr)
       }
 
-      const items = (prospects ?? []).map((p: any) => {
-        const t = targets.get(p.target_id) ?? {}
-        const s = signals.get(p.signal_id) ?? {}
+      const items = prospectRows.map((p) => {
+        const t = targets.get(p.target_id) ?? { id: p.target_id, company_name: 'Unknown', company_domain: null }
+        const s = signals.get(p.signal_id) ?? { id: p.signal_id, title: 'Signal', source_url: '#', signal_type: 'other' }
         const reasons = reasonsByPair.get(`${p.target_id}:${p.signal_id}`) ?? []
         return {
           id: p.id,
@@ -117,29 +155,31 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
       .order('created_at', { ascending: false })
       .limit(60)
 
-    const prospectIds = (drafts ?? []).map((d) => (d as any).prospect_id).filter(Boolean)
+    const draftRows = (drafts ?? []) as unknown as ContentDraftRow[]
+    const prospectIds = draftRows.map((d) => d.prospect_id).filter(Boolean)
     const { data: prospects } = await client
       .from('prospect_watch_prospects')
       .select('id, overall_score, target_id, signal_id')
       .in('id', prospectIds)
       .limit(120)
-    const targetIds = (prospects ?? []).map((p) => (p as any).target_id).filter(Boolean)
-    const signalIds = (prospects ?? []).map((p) => (p as any).signal_id).filter(Boolean)
+    const prospectRows = (prospects ?? []) as unknown as ProspectLiteRow[]
+    const targetIds = prospectRows.map((p) => p.target_id).filter(Boolean)
+    const signalIds = prospectRows.map((p) => p.signal_id).filter(Boolean)
     const [targetsRes, signalsRes] = await Promise.all([
       client.from('prospect_watch_targets').select('id, company_name').in('id', targetIds).limit(200),
       client.from('prospect_watch_signals').select('id, title, source_url').in('id', signalIds).limit(200),
     ])
-    const targets = new Map<string, any>()
-    for (const t of (targetsRes.data ?? []) as any[]) targets.set(t.id, t)
-    const signals = new Map<string, any>()
-    for (const s of (signalsRes.data ?? []) as any[]) signals.set(s.id, s)
-    const prospectMap = new Map<string, any>()
-    for (const p of (prospects ?? []) as any[]) prospectMap.set(p.id, p)
+    const targets = new Map<string, { id: string; company_name: string }>()
+    for (const t of (targetsRes.data ?? []) as unknown as Array<{ id: string; company_name: string }>) targets.set(t.id, t)
+    const signals = new Map<string, { id: string; title: string; source_url: string }>()
+    for (const s of (signalsRes.data ?? []) as unknown as Array<{ id: string; title: string; source_url: string }>) signals.set(s.id, s)
+    const prospectMap = new Map<string, ProspectLiteRow>()
+    for (const p of prospectRows) prospectMap.set(p.id, p)
 
-    const items = (drafts ?? []).map((d: any) => {
-      const p = prospectMap.get(d.prospect_id) ?? {}
-      const t = targets.get(p.target_id) ?? {}
-      const s = signals.get(p.signal_id) ?? {}
+    const items = draftRows.map((d) => {
+      const p = prospectMap.get(d.prospect_id)
+      const t = p ? targets.get(p.target_id) : undefined
+      const s = p ? signals.get(p.signal_id) : undefined
       return {
         id: d.id,
         status: d.status,
@@ -147,10 +187,10 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         body: d.body,
         cta: d.cta ?? null,
         created_at: d.created_at,
-        company_name: t.company_name ?? 'Unknown',
-        signal_title: s.title ?? 'Signal',
-        signal_url: s.source_url ?? '#',
-        overall_score: p.overall_score ?? 0,
+        company_name: t?.company_name ?? 'Unknown',
+        signal_title: s?.title ?? 'Signal',
+        signal_url: s?.source_url ?? '#',
+        overall_score: p?.overall_score ?? 0,
       }
     })
 

@@ -27,7 +27,7 @@ describe('prospect watch jobs', () => {
     vi.resetModules()
     vi.stubEnv('PROSPECT_WATCH_ENABLED', '1')
     vi.stubEnv('PROSPECT_WATCH_RSS_FEEDS', 'https://example.com/feed.xml')
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '')
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
 
     const { runProspectWatch } = await import('./job')
     const res = await runProspectWatch({})
@@ -59,30 +59,3 @@ describe('prospect watch jobs', () => {
     expect(res.summary).toEqual({ reason: 'no_review_emails_configured' })
   })
 })
-
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/supabase/admin', () => ({
-  createSupabaseAdminClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          order: vi.fn(() => ({
-            limit: vi.fn(async () => ({ data: [], error: null })),
-          })),
-        })),
-      })),
-    })),
-  })),
-}))
-
-describe('runProspectWatch', () => {
-  it('skips when disabled', async () => {
-    vi.resetModules()
-    vi.stubEnv('PROSPECT_WATCH_ENABLED', '0')
-    const { runProspectWatch } = await import('./job')
-    const res = await runProspectWatch({ dryRun: true })
-    expect(res.status).toBe('skipped')
-  })
-})
-

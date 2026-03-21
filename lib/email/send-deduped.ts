@@ -35,8 +35,7 @@ function isSchemaNotReady(err: PostgrestError | null): boolean {
 }
 
 export async function sendEmailDeduped(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase DB types are not generated in-repo; admin client touches multiple tables.
-  supabaseAdmin: SupabaseClient<any, 'api', any>,
+  supabaseAdmin: SupabaseClient,
   args: DedupedSendArgs
 ): Promise<DedupedSendResult> {
   const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean((serverEnv.RESEND_FROM_EMAIL ?? '').trim())
