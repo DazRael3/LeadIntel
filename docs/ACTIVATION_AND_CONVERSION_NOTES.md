@@ -26,6 +26,7 @@ Events are best-effort and privacy-safe (no secrets, no page content bodies).
 
 ## Lifecycle automation (email)
 LeadIntel uses a small, deduped lifecycle email set (Resend + cron) to reduce confusion and improve Starter→Closer conversion without spam:
+- it is **disabled by default** and requires `LIFECYCLE_EMAILS_ENABLED=1` + Resend configuration to send
 - welcome + first-value nudges
 - first-output reinforcement
 - Starter usage reminders tied to the real **3 preview generations** cap
