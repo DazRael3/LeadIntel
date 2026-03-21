@@ -2,10 +2,8 @@ import { serverEnv } from '@/lib/env'
 
 function flagEnabled(raw: string | undefined): boolean {
   const v = (raw ?? '').trim().toLowerCase()
-  if (!v) return true
-  if (v === '0' || v === 'false') return false
-  if (v === '1' || v === 'true') return true
-  return true
+  if (!v) return false
+  return v === '1' || v === 'true'
 }
 
 export function lifecycleEmailsEnabled(): boolean {

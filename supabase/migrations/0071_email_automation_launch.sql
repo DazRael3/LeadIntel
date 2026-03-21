@@ -72,9 +72,13 @@ using (user_id = auth.uid())
 with check (user_id = auth.uid());
 
 grant select, insert, update, delete on api.email_send_log to authenticated;
+grant select, insert, update, delete on api.email_send_log to service_role;
 
 -- Update the lifecycle batch RPC to include premium-generation usage signals.
 -- NOTE: we only return counts/timestamps, never content.
+-- This migration must apply on databases where an older version of the RPC already exists.
+-- Postgres cannot "CREATE OR REPLACE" a function if its return type changes, so we drop first.
+drop function if exists api.lifecycle_batch_context(int);
 create or replace function api.lifecycle_batch_context(p_limit int)
 returns table(
   user_id uuid,
@@ -183,6 +187,10 @@ as $$
   left join usage_counts uc on uc.user_id = b.user_id
   left join upgraded_users uu on uu.user_id = b.user_id;
 $$;
+
+revoke all on function api.lifecycle_batch_context(int) from public;
+grant execute on function api.lifecycle_batch_context(int) to authenticated;
+grant execute on function api.lifecycle_batch_context(int) to service_role;
 
 notify pgrst, 'reload schema';
 commit;

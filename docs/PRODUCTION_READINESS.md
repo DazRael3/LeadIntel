@@ -223,11 +223,23 @@ Fail-closed behavior:
 ### Lifecycle email automation (optional)
 | Name | Scope | Purpose | TEST vs LIVE |
 | --- | --- | --- | --- |
-| `LIFECYCLE_EMAILS_ENABLED` | server-only | Kill switch for lifecycle sends (defaults enabled). | Use `0` to disable without removing keys. |
-| `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED` | server-only | Enables internal/operator notification emails (defaults enabled). | Disable if too noisy. |
+| `LIFECYCLE_EMAILS_ENABLED` | server-only | Enables lifecycle sends. | Default **disabled**; set to `1` only when ready. |
+| `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED` | server-only | Enables internal/operator notification emails. | Default **disabled**; set to `1` only when ready. |
 | `LIFECYCLE_ADMIN_EMAILS` | server-only | Comma-separated operator recipients for internal notifications. | Set per environment. |
 | `FEEDBACK_NOTIFICATION_EMAILS` | server-only | Override recipients for feedback notifications (falls back to `LIFECYCLE_ADMIN_EMAILS`). | Set per environment. |
 | `ADMIN_TOKEN` | server-only | Token for manual admin send endpoint (`/api/admin/lifecycle/send`). | Keep secret; rotate if leaked. |
+
+### Prospect watch engine (optional, review-first)
+| Name | Scope | Purpose | TEST vs LIVE |
+| --- | --- | --- | --- |
+| `PROSPECT_WATCH_ENABLED` | server-only | Enables prospect watch jobs and review queues. | Keep `0` until you’ve configured feeds + recipients. |
+| `PROSPECT_WATCH_RSS_FEEDS` | server-only | Comma-separated approved RSS feeds for signals ingestion. | Use only approved/allowed feeds. |
+| `PROSPECT_WATCH_REVIEW_EMAILS` | server-only | Founder/operator recipients for prospect watch digests. | Set per environment. |
+| `PROSPECT_WATCH_DAILY_DIGEST_ENABLED` | server-only | Enables daily prospect digest email. | Default **disabled**; set to `1` only when ready. |
+| `PROSPECT_WATCH_CONTENT_DIGEST_ENABLED` | server-only | Enables daily content draft digest (LinkedIn posts). | Default **disabled**; set to `1` only when ready. |
+| `PROSPECT_WATCH_HIGH_PRIORITY_ENABLED` | server-only | Enables high-priority notifications. | Recommended off initially. |
+| `PROSPECT_WATCH_HIGH_PRIORITY_THRESHOLD` | server-only | Overall score threshold for high-priority notifications (0–100). | Default 92. |
+| `PROSPECT_WATCH_EXTERNAL_SEND_ENABLED` | server-only | Allows external send action after approval (still requires human action). | Default **off**; keep off unless you’re ready. |
 
 ### Market data (optional live quotes)
 | Name | Scope | Purpose | TEST vs LIVE |

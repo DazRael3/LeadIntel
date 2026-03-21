@@ -45,6 +45,12 @@ Runs lifecycle eligibility checks and sends at most **one email per user per run
 ### `job=digest_lite` (optional)
 Sends the daily digest email only for users who have enabled digest emails in settings.
 
+### `job=prospect_watch` (optional)
+Runs the **prospect watch** ingestion + scoring + draft generation loop (review-first).
+
+### `job=prospect_watch_digest` (optional)
+Sends the daily internal digest for the founder/operator review queues.
+
 ### `job=kpi_monitor` (optional)
 Monitors funnel KPI drops (PostHog) and emails an operator alert if configured.
 
@@ -68,11 +74,16 @@ Required for cron:
 - `CRON_SECRET` (or `EXTERNAL_CRON_SECRET`)
 
 Optional launch controls:
-- `LIFECYCLE_EMAILS_ENABLED` (`1|0|true|false`) — kill switch (default enabled)
-- `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED` (`1|0|true|false`) — operator notifications (default enabled)
+- `LIFECYCLE_EMAILS_ENABLED` (`1|0|true|false`) — lifecycle email send enable (default **disabled**)
+- `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED` (`1|0|true|false`) — operator notifications enable (default **disabled**)
 - `LIFECYCLE_ADMIN_EMAILS` — comma-separated operator recipients
 - `FEEDBACK_NOTIFICATION_EMAILS` — optional override recipient list for feedback notifications
 - `ADMIN_TOKEN` — required for manual admin send endpoint below
+
+## Migration notes
+
+- `0071_email_automation_launch.sql` drops and recreates `api.lifecycle_batch_context(int)` before changing its return shape.
+  - Reason: Postgres cannot `CREATE OR REPLACE` a function when the return type changes.
 
 ## Manual operator send (support/help)
 

@@ -15,7 +15,7 @@ import { getAppUrl } from '@/lib/app-url'
 import { renderUpgradeConfirmationEmail } from '@/lib/email/lifecycle'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
-import { adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
+import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
 
 /**
@@ -150,7 +150,7 @@ export const POST = withApiGuard(
           try {
             const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
             const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean(from)
-            if (hasResend && userId) {
+            if (lifecycleEmailsEnabled() && hasResend && userId) {
               const { data: userEmailRow } = await supabaseAdmin.from('users').select('email').eq('id', userId).maybeSingle()
               const toEmail = ((userEmailRow as { email?: string | null } | null)?.email ?? '').trim()
               if (toEmail) {
