@@ -9,7 +9,7 @@ import { sendEmailWithResend } from '@/lib/email/resend'
 import { renderWelcomeEmail } from '@/lib/email/lifecycle'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
+import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
 
@@ -59,7 +59,14 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId }) => 
     const hasResendKey = Boolean((serverEnv.RESEND_API_KEY ?? '').trim())
     const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
     const toEmail = (user.email ?? '').trim()
-    if (tipsOptIn && hasResendKey && from && toEmail && !(existing as { welcome_sent_at?: string | null } | null)?.welcome_sent_at) {
+    if (
+      lifecycleEmailsEnabled() &&
+      tipsOptIn &&
+      hasResendKey &&
+      from &&
+      toEmail &&
+      !(existing as { welcome_sent_at?: string | null } | null)?.welcome_sent_at
+    ) {
       const appUrl = getAppUrl()
       const email = renderWelcomeEmail({ appUrl })
       const sendRes = await sendEmailWithResend({

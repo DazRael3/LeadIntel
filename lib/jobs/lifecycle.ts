@@ -196,7 +196,7 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
       | 'value_recap_sent_at'
       | 'winback_sent_at'
     >) => {
-      if ((r as any)[field]) return false
+      if (r[field]) return false
       const res = await sendLifecycleEmail({
         supabase,
         userId: r.user_id,

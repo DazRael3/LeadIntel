@@ -3,7 +3,6 @@ import type { PostgrestError } from '@supabase/supabase-js'
 import { serverEnv } from '@/lib/env'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { insertEmailLog, type EmailLogKind } from '@/lib/email/email-logs'
-import { lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { captureServerEvent } from '@/lib/analytics/posthog-server'
 
 export type DedupedSendArgs = {
@@ -23,19 +22,25 @@ export type DedupedSendArgs = {
 
 export type DedupedSendResult =
   | { ok: true; status: 'sent'; messageId: string }
-  | { ok: true; status: 'skipped'; reason: 'deduped' | 'not_enabled' }
+  | { ok: true; status: 'skipped'; reason: 'deduped' | 'not_enabled' | 'schema_not_ready' }
   | { ok: false; status: 'failed'; error: string }
 
 function isUniqueViolation(err: PostgrestError | null): boolean {
   return Boolean(err && err.code === '23505')
 }
 
+function isSchemaNotReady(err: PostgrestError | null): boolean {
+  // Common Postgres codes surfaced via PostgREST when a migration hasn't applied yet.
+  return Boolean(err && (err.code === '42P01' /* undefined_table */ || err.code === '42703' /* undefined_column */))
+}
+
 export async function sendEmailDeduped(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase DB types are not generated in-repo; admin client touches multiple tables.
   supabaseAdmin: SupabaseClient<any, 'api', any>,
   args: DedupedSendArgs
 ): Promise<DedupedSendResult> {
   const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean((serverEnv.RESEND_FROM_EMAIL ?? '').trim())
-  if (!lifecycleEmailsEnabled() || !hasResend) {
+  if (!hasResend) {
     if (args.userId) {
       void captureServerEvent({
         distinctId: args.userId,
@@ -70,6 +75,9 @@ export async function sendEmailDeduped(
     }
     return { ok: true, status: 'skipped', reason: 'deduped' }
   }
+  if (isSchemaNotReady(insertErr)) {
+    return { ok: true, status: 'skipped', reason: 'schema_not_ready' }
+  }
   if (insertErr) {
     return { ok: false, status: 'failed', error: insertErr.message || 'email_send_log_insert_failed' }
   }
@@ -101,10 +109,14 @@ export async function sendEmailDeduped(
   }
 
   if (!send.ok) {
-    await supabaseAdmin
-      .from('email_send_log')
-      .update({ status: 'failed', error: send.errorMessage ?? 'send_failed' })
-      .eq('dedupe_key', args.dedupeKey)
+    try {
+      await supabaseAdmin
+        .from('email_send_log')
+        .update({ status: 'failed', error: send.errorMessage ?? 'send_failed' })
+        .eq('dedupe_key', args.dedupeKey)
+    } catch {
+      // best-effort
+    }
     if (args.userId) {
       void captureServerEvent({
         distinctId: args.userId,
@@ -115,10 +127,14 @@ export async function sendEmailDeduped(
     return { ok: false, status: 'failed', error: send.errorMessage || 'send_failed' }
   }
 
-  await supabaseAdmin
-    .from('email_send_log')
-    .update({ status: 'sent', sent_at: new Date().toISOString(), provider_message_id: send.messageId })
-    .eq('dedupe_key', args.dedupeKey)
+  try {
+    await supabaseAdmin
+      .from('email_send_log')
+      .update({ status: 'sent', sent_at: new Date().toISOString(), provider_message_id: send.messageId })
+      .eq('dedupe_key', args.dedupeKey)
+  } catch {
+    // best-effort
+  }
 
   if (args.userId) {
     void captureServerEvent({

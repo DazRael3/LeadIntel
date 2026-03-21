@@ -6,6 +6,7 @@ import { runKpiMonitor } from '@/lib/jobs/kpiMonitor'
 import { runContentAudit } from '@/lib/jobs/contentAudit'
 import { runGrowthCycle } from '@/lib/jobs/growthCycle'
 import { runSourcesRefresh } from '@/lib/jobs/sourcesRefresh'
+import { runProspectWatch, runProspectWatchDigests } from '@/lib/prospect-watch/job'
 
 export async function runJob(
   job: JobName,
@@ -40,6 +41,14 @@ export async function runJob(
       summary = res.summary as Record<string, unknown>
     } else if (job === 'sources_refresh') {
       const res = await runSourcesRefresh({ dryRun, limit: opts.limit })
+      status = res.status
+      summary = res.summary as Record<string, unknown>
+    } else if (job === 'prospect_watch') {
+      const res = await runProspectWatch({ dryRun, limitTargets: opts.limit })
+      status = res.status
+      summary = res.summary as Record<string, unknown>
+    } else if (job === 'prospect_watch_digest') {
+      const res = await runProspectWatchDigests({ dryRun })
       status = res.status
       summary = res.summary as Record<string, unknown>
     } else {

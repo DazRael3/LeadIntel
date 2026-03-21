@@ -130,6 +130,40 @@ const serverEnvSchema = z.object({
   LIFECYCLE_ADMIN_EMAILS: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().optional().default('')),
   // Optional override for feedback notifications; falls back to LIFECYCLE_ADMIN_EMAILS
   FEEDBACK_NOTIFICATION_EMAILS: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().optional().default('')),
+
+  // Prospect watch engine (optional, internal/review-first)
+  PROSPECT_WATCH_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  PROSPECT_WATCH_REVIEW_EMAILS: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().optional().default('')),
+  PROSPECT_WATCH_DAILY_DIGEST_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  PROSPECT_WATCH_CONTENT_DIGEST_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  PROSPECT_WATCH_HIGH_PRIORITY_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
+  PROSPECT_WATCH_HIGH_PRIORITY_THRESHOLD: z.preprocess(
+    (v) => {
+      if (typeof v !== 'string') return v
+      const n = Number.parseInt(v, 10)
+      return Number.isFinite(n) ? n : undefined
+    },
+    z.number().int().min(0).max(100).optional()
+  ),
+  // Comma-separated RSS feeds allowed for ingestion (approved source list).
+  PROSPECT_WATCH_RSS_FEEDS: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().optional().default('')),
+  // External send is OFF by default; requires explicit opt-in + admin-token send route.
+  PROSPECT_WATCH_EXTERNAL_SEND_ENABLED: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    z.enum(['0', '1', 'true', 'false']).optional()
+  ),
   
   // Observability (Sentry)
   // Allow empty string so test/dev can explicitly disable without failing validation.
@@ -349,6 +383,14 @@ function buildServerEnv(): ServerEnv {
     LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED: process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED,
     LIFECYCLE_ADMIN_EMAILS: process.env.LIFECYCLE_ADMIN_EMAILS,
     FEEDBACK_NOTIFICATION_EMAILS: process.env.FEEDBACK_NOTIFICATION_EMAILS,
+    PROSPECT_WATCH_ENABLED: process.env.PROSPECT_WATCH_ENABLED,
+    PROSPECT_WATCH_REVIEW_EMAILS: process.env.PROSPECT_WATCH_REVIEW_EMAILS,
+    PROSPECT_WATCH_DAILY_DIGEST_ENABLED: process.env.PROSPECT_WATCH_DAILY_DIGEST_ENABLED,
+    PROSPECT_WATCH_CONTENT_DIGEST_ENABLED: process.env.PROSPECT_WATCH_CONTENT_DIGEST_ENABLED,
+    PROSPECT_WATCH_HIGH_PRIORITY_ENABLED: process.env.PROSPECT_WATCH_HIGH_PRIORITY_ENABLED,
+    PROSPECT_WATCH_HIGH_PRIORITY_THRESHOLD: process.env.PROSPECT_WATCH_HIGH_PRIORITY_THRESHOLD,
+    PROSPECT_WATCH_RSS_FEEDS: process.env.PROSPECT_WATCH_RSS_FEEDS,
+    PROSPECT_WATCH_EXTERNAL_SEND_ENABLED: process.env.PROSPECT_WATCH_EXTERNAL_SEND_ENABLED,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
     CLEARBIT_REVEAL_API_KEY: process.env.CLEARBIT_REVEAL_API_KEY,
