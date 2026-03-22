@@ -69,6 +69,7 @@ These are controlled by env and deduped via `api.email_send_log`.
 Required to actually send mail:
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
+- `RESEND_REPLY_TO_EMAIL` (recommended; defaults to `leadintel@dazrael.com`)
 
 Required for cron:
 - `CRON_SECRET` (or `EXTERNAL_CRON_SECRET`)
@@ -76,9 +77,16 @@ Required for cron:
 Optional launch controls:
 - `LIFECYCLE_EMAILS_ENABLED` (`1|0|true|false`) — lifecycle email send enable (default **disabled**)
 - `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED` (`1|0|true|false`) — operator notifications enable (default **disabled**)
-- `LIFECYCLE_ADMIN_EMAILS` — comma-separated operator recipients
-- `FEEDBACK_NOTIFICATION_EMAILS` — optional override recipient list for feedback notifications
+- `LIFECYCLE_ADMIN_EMAILS` — comma-separated operator recipients (recommended: `leadintel@dazrael.com`)
+- `FEEDBACK_NOTIFICATION_EMAILS` — optional override recipient list for feedback notifications (recommended: `leadintel@dazrael.com`)
 - `ADMIN_TOKEN` — required for manual admin send endpoint below
+
+## Production routing (recommended values)
+
+Given your production inbox is `leadintel@dazrael.com` (Namecheap Private Email), the intended routing is:
+- **Reply-To**: `RESEND_REPLY_TO_EMAIL="leadintel@dazrael.com"`
+- **Operator notifications**: `LIFECYCLE_ADMIN_EMAILS="leadintel@dazrael.com"`
+- **Feedback notifications**: `FEEDBACK_NOTIFICATION_EMAILS="leadintel@dazrael.com"` (or omit to fall back to `LIFECYCLE_ADMIN_EMAILS`)
 
 ## Migration notes
 
@@ -127,5 +135,27 @@ Run a small real batch (after setting Resend env vars):
 curl -sS \
   -H "Authorization: Bearer $CRON_SECRET" \
   "http://localhost:3000/api/cron/run?job=lifecycle&limit=50"
+```
+
+## Production cron schedule (recommended)
+
+Infrastructure reality:
+- **1 Vercel cron** available
+- **4 external cron jobs** available
+
+Recommended split:
+- **Vercel cron (daily backstop)**: lifecycle
+  - `GET /api/cron/run?job=lifecycle&limit=200`
+
+- **External cron (twice daily)**:
+  - morning: `job=prospect_watch` + `job=prospect_watch_digest`
+  - afternoon: `job=prospect_watch` + `job=prospect_watch_digest`
+
+Example request:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $EXTERNAL_CRON_SECRET" \
+  "https://dazrael.com/api/cron/run?job=prospect_watch&limit=50"
 ```
 

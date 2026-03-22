@@ -3,6 +3,7 @@ import { getAppUrl } from '@/lib/app-url'
 import { serverEnv } from '@/lib/env'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 import {
   renderWelcomeEmail,
   renderAccountsNudgeEmail,
@@ -99,7 +100,7 @@ async function sendLifecycleEmail(args: {
   const res = await sendEmailWithResend({
     from,
     to: args.toEmail,
-    replyTo: SUPPORT_EMAIL,
+    replyTo: getResendReplyToEmail(),
     subject: args.payload.subject,
     html: args.payload.html,
     text: args.payload.text,

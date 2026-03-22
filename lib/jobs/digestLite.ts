@@ -4,6 +4,7 @@ import { sendEmailWithResend } from '@/lib/email/resend'
 import { buildUserDigest } from '@/lib/services/digest'
 import { renderDailyDigestEmailHtml, renderDailyDigestEmailText } from '@/lib/email/templates'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 export async function runDigestLiteSend(args: { dryRun?: boolean }) {
   const hasKey = Boolean((serverEnv.RESEND_API_KEY ?? '').trim())
@@ -66,7 +67,7 @@ export async function runDigestLiteSend(args: { dryRun?: boolean }) {
     const res = await sendEmailWithResend({
       from: fromEmail,
       to: toEmail,
-      replyTo: SUPPORT_EMAIL,
+      replyTo: getResendReplyToEmail(),
       subject,
       html,
       text,

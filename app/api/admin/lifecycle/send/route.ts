@@ -9,6 +9,7 @@ import { getAppUrl } from '@/lib/app-url'
 import { renderSupportHelpEmail, type LifecycleEmailType } from '@/lib/email/lifecycle'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,7 +54,7 @@ export const POST = withApiGuard(
         userId: parsed.data.userId ?? null,
         toEmail: parsed.data.toEmail,
         fromEmail: from,
-        replyTo: SUPPORT_EMAIL,
+        replyTo: getResendReplyToEmail(),
         subject: payload.subject,
         html: payload.html,
         text: payload.text,

@@ -10,6 +10,7 @@ import { adminNotificationsEnabled, getFeedbackNotificationEmails } from '@/lib/
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 const FeedbackSchema = z.object({
   route: z.string().min(1).max(512),
@@ -95,7 +96,7 @@ export const POST = withApiGuard(
                 userId: null,
                 toEmail,
                 fromEmail: from,
-                replyTo: SUPPORT_EMAIL,
+                replyTo: getResendReplyToEmail(),
                 subject: email.subject,
                 html: email.html,
                 text: email.text,

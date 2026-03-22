@@ -12,6 +12,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,7 +73,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId }) => 
       const sendRes = await sendEmailWithResend({
         from,
         to: toEmail,
-        replyTo: SUPPORT_EMAIL,
+        replyTo: getResendReplyToEmail(),
         subject: email.subject,
         html: email.html,
         text: email.text,
@@ -107,7 +108,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId }) => 
               userId: null,
               toEmail: to,
               fromEmail: from,
-              replyTo: SUPPORT_EMAIL,
+              replyTo: getResendReplyToEmail(),
               subject: email.subject,
               html: email.html,
               text: email.text,

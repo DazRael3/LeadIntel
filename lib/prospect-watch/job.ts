@@ -10,6 +10,7 @@ import { ingestRssSignals } from '@/lib/prospect-watch/rss'
 import { scoreProspect } from '@/lib/prospect-watch/scoring'
 import { generateLinkedInPostDraft, generateOutreachDrafts } from '@/lib/prospect-watch/drafts'
 import type { ProspectSignalType } from '@/lib/prospect-watch/classify'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 type TargetRow = {
   id: string
@@ -282,7 +283,7 @@ export async function runProspectWatch(args: { dryRun?: boolean; limitTargets?: 
                 userId: null,
                 toEmail,
                 fromEmail: from,
-                replyTo: SUPPORT_EMAIL,
+                replyTo: getResendReplyToEmail(),
                 subject: email.subject,
                 html: email.html,
                 text: email.text,
@@ -420,7 +421,7 @@ export async function runProspectWatchDigests(args: { dryRun?: boolean }) {
         userId: null,
         toEmail,
         fromEmail: from,
-        replyTo: SUPPORT_EMAIL,
+        replyTo: getResendReplyToEmail(),
         subject: email.subject,
         html: email.html,
         text: email.text,
