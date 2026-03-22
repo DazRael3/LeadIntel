@@ -50,7 +50,13 @@ export function DashboardHeader() {
           <div className="flex items-center space-x-2 md:space-x-3">
             <MobileNavMenu />
             <div className="hidden md:block">
-              <AssistantLauncher source="dashboard_header" onOpen={() => setAssistantOpen(true)} />
+              <AssistantLauncher
+                source="dashboard_header"
+                onOpen={() => setAssistantOpen(true)}
+                disabled={!showTeamNav}
+                label={showTeamNav ? 'Assistant' : 'Assistant (Team)'}
+                title={showTeamNav ? undefined : 'Upgrade to Team to use the Assistant.'}
+              />
             </div>
             <Button
               asChild

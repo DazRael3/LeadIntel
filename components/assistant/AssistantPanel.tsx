@@ -12,15 +12,15 @@ import { useToast } from '@/components/ui/use-toast'
 
 type PromptEnvelope =
   | { ok: true; data: { scope: AssistantScopeType; prompts: Array<{ label: string; prompt: string }> } }
-  | { ok: false; error?: { message?: string } }
+  | { ok: false; error: { code: string; message: string; details?: unknown } }
 
 type ChatEnvelope =
   | { ok: true; data: { threadId: string; answer: AssistantAnswer } }
-  | { ok: false; error?: { message?: string } }
+  | { ok: false; error: { code: string; message: string; details?: unknown } }
 
 type ActionEnvelope =
   | { ok: true; data: { kind: string; preview?: unknown; result?: unknown; requiresConfirmation?: boolean } }
-  | { ok: false; error?: { message?: string } }
+  | { ok: false; error: { code: string; message: string; details?: unknown } }
 
 type Msg = { id: string; role: 'user' | 'assistant'; content: string; answer?: AssistantAnswer }
 
@@ -36,21 +36,44 @@ export function AssistantPanel(props: {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Msg[]>([])
   const [sending, setSending] = useState(false)
+  const [locked, setLocked] = useState<{ code: string; message: string } | null>(null)
   const [actionPreview, setActionPreview] = useState<{ action: AssistantSuggestedAction; preview: unknown } | null>(null)
   const [actionConfirming, setActionConfirming] = useState(false)
 
   const scopeKey = useMemo(() => `${props.scope.type}:${props.scope.id ?? 'none'}`, [props.scope.id, props.scope.type])
 
+  const lockFromError = useCallback((err: { code: string; message: string } | null | undefined) => {
+    if (!err) return
+    const code = err.code
+    const message =
+      code === 'ASSISTANT_PLAN_REQUIRED'
+        ? 'Upgrade required to use the Assistant in workspace scope.'
+        : code === 'ASSISTANT_WORKSPACE_REQUIRED'
+          ? 'Workspace setup required to use the Assistant.'
+          : code === 'ASSISTANT_INSUFFICIENT_PERMISSIONS'
+            ? 'Insufficient permissions for this workspace.'
+            : code === 'ASSISTANT_DISABLED'
+              ? err.message
+              : code === 'UNAUTHORIZED'
+                ? 'Please sign in again to use the Assistant.'
+                : err.message || 'Assistant unavailable.'
+    setLocked({ code, message })
+  }, [])
+
   const loadPrompts = useCallback(async () => {
     try {
+      if (locked) return
       const res = await fetch(`/api/assistant/suggested-prompts?scope=${encodeURIComponent(props.scope.type)}`, { cache: 'no-store' })
       const json = (await res.json().catch(() => null)) as PromptEnvelope | null
-      if (!res.ok || !json || json.ok !== true) return
+      if (!res.ok || !json || json.ok !== true) {
+        if (json && 'error' in json) lockFromError(json.error)
+        return
+      }
       setPrompts(json.data.prompts ?? [])
     } catch {
       // ignore
     }
-  }, [props.scope.type])
+  }, [lockFromError, locked, props.scope.type])
 
   useEffect(() => {
     if (!props.open) return
@@ -58,11 +81,13 @@ export function AssistantPanel(props: {
     setInput('')
     setThreadId(null)
     setActionPreview(null)
+    setLocked(null)
     void loadPrompts()
   }, [props.open, scopeKey, loadPrompts])
 
   const send = useCallback(
     async (prompt?: string) => {
+      if (locked) return
       const msg = (prompt ?? input).trim()
       if (!msg) return
       setSending(true)
@@ -78,7 +103,8 @@ export function AssistantPanel(props: {
         })
         const json = (await res.json().catch(() => null)) as ChatEnvelope | null
         if (!res.ok || !json || json.ok !== true) {
-          toast({ variant: 'destructive', title: 'Assistant unavailable', description: json && 'error' in json ? json.error?.message : 'Please try again.' })
+          if (json && 'error' in json) lockFromError(json.error)
+          toast({ variant: 'destructive', title: 'Assistant unavailable', description: json && 'error' in json ? json.error.message : 'Please try again.' })
           return
         }
         setThreadId(json.data.threadId)
@@ -88,7 +114,7 @@ export function AssistantPanel(props: {
         setSending(false)
       }
     },
-    [input, props.scope, threadId, toast]
+    [input, lockFromError, locked, props.scope, threadId, toast]
   )
 
   const previewAction = useCallback(
@@ -97,6 +123,7 @@ export function AssistantPanel(props: {
         window.location.href = action.href
         return
       }
+      if (locked) return
       setActionPreview(null)
       const body =
         action.kind === 'prepare_crm_handoff'
@@ -112,13 +139,14 @@ export function AssistantPanel(props: {
       const res = await fetch('/api/assistant/actions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       const json = (await res.json().catch(() => null)) as ActionEnvelope | null
       if (!res.ok || !json || json.ok !== true) {
-        toast({ variant: 'destructive', title: 'Action unavailable', description: json && 'error' in json ? json.error?.message : 'Please try again.' })
+        if (json && 'error' in json) lockFromError(json.error)
+        toast({ variant: 'destructive', title: 'Action unavailable', description: json && 'error' in json ? json.error.message : 'Please try again.' })
         return
       }
       setActionPreview({ action, preview: json.data.preview ?? null })
       track('assistant_action_suggested', { kind: action.kind })
     },
-    [toast]
+    [locked, lockFromError, toast]
   )
 
   const confirmAction = useCallback(async () => {
@@ -153,10 +181,19 @@ export function AssistantPanel(props: {
 
   const panelContent = (
     <div className="space-y-3 text-sm text-muted-foreground">
+      {locked ? (
+        <div className="rounded border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
+          <div className="font-semibold text-foreground">Assistant unavailable</div>
+          <div className="mt-1">{locked.message}</div>
+          {locked.code === 'ASSISTANT_PLAN_REQUIRED' ? (
+            <div className="mt-2 text-muted-foreground">This surface requires a Team plan.</div>
+          ) : null}
+        </div>
+      ) : null}
       {prompts.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {prompts.slice(0, 6).map((p) => (
-            <Button key={p.label} size="sm" variant="outline" className="h-8 text-xs" disabled={sending} onClick={() => void send(p.prompt)}>
+            <Button key={p.label} size="sm" variant="outline" className="h-8 text-xs" disabled={sending || Boolean(locked)} onClick={() => void send(p.prompt)}>
               {p.label}
             </Button>
           ))}
@@ -188,12 +225,18 @@ export function AssistantPanel(props: {
       </div>
 
       <div className="rounded border border-cyan-500/10 bg-card/30 p-3 space-y-2">
-        <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask… (grounded to this scope)" className="min-h-[70px]" />
+        <Textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={locked ? 'Assistant is unavailable in this scope.' : 'Ask… (grounded to this scope)'}
+          className="min-h-[70px]"
+          disabled={sending || Boolean(locked)}
+        />
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={props.onClose} disabled={sending}>
             Close
           </Button>
-          <Button className="neon-border hover:glow-effect" onClick={() => void send()} disabled={sending || input.trim().length === 0}>
+          <Button className="neon-border hover:glow-effect" onClick={() => void send()} disabled={sending || Boolean(locked) || input.trim().length === 0}>
             {sending ? 'Sending…' : 'Send'}
           </Button>
         </div>
