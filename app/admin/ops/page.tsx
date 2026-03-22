@@ -11,6 +11,9 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { AdminKpiMonitorPanelClient } from './AdminKpiMonitorPanelClient'
 import { computeOpsHealth, type OpsHealthCheckStatus } from '@/lib/ops/opsHealth'
 import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { readLatestJobRuns } from '@/lib/jobs/persist'
+import { lifecycleEmailsEnabled, adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
+import { prospectWatchEnabled, prospectDailyDigestEnabled, contentDailyDigestEnabled, getReviewEmails } from '@/lib/prospect-watch/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,6 +63,26 @@ function CheckStatusBadge(props: { status: OpsHealthCheckStatus }) {
   return <Badge variant={variant as 'outline' | 'secondary' | 'destructive'}>{props.status}</Badge>
 }
 
+type JobRunRow = {
+  job_name: string
+  status: string
+  started_at: string
+  finished_at: string
+  summary: unknown
+  error_text: string | null
+}
+
+function formatWhen(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const ms = Date.parse(iso)
+  if (!Number.isFinite(ms)) return '—'
+  return new Date(ms).toLocaleString()
+}
+
+function lastByJob(runs: JobRunRow[], job: string): JobRunRow | null {
+  return runs.find((r) => r.job_name === job) ?? null
+}
+
 export default async function AdminOpsPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = (await props.searchParams) ?? {}
   const token = typeof sp.token === 'string' ? sp.token : null
@@ -67,6 +90,32 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
 
   const opsHealth = await computeOpsHealth().catch(() => null)
   const env = runEnvDoctor()
+  const jobRuns = await readLatestJobRuns(30).catch(() => ({ enabled: false, runs: [] as Array<Record<string, unknown>> }))
+  const runs = (jobRuns.runs as unknown as JobRunRow[]).filter((r) => r && typeof r.job_name === 'string')
+
+  const lifecycleRun = lastByJob(runs, 'lifecycle')
+  const prospectWatchRun = lastByJob(runs, 'prospect_watch')
+  const prospectDigestRun = lastByJob(runs, 'prospect_watch_digest')
+
+  let prospectReviewCount: number | null = null
+  let contentDraftCount: number | null = null
+  try {
+    const admin = createSupabaseAdminClient({ schema: 'api' })
+    const prospectsRes = await admin
+      .from('prospect_watch_prospects')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['new', 'reviewed'])
+    prospectReviewCount = typeof prospectsRes.count === 'number' ? prospectsRes.count : 0
+
+    const contentRes = await admin
+      .from('prospect_watch_content_drafts')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'draft')
+    contentDraftCount = typeof contentRes.count === 'number' ? contentRes.count : 0
+  } catch {
+    prospectReviewCount = null
+    contentDraftCount = null
+  }
 
   let report: ContentAuditReportRow | null = null
   try {
@@ -188,6 +237,68 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
               ) : null}
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card className="border-cyan-500/20 bg-card/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Automation status</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Lifecycle emails: {lifecycleEmailsEnabled() ? 'Enabled' : 'Disabled'}</Badge>
+            <Badge variant="outline">Operator notifications: {adminNotificationsEnabled() ? 'Enabled' : 'Disabled'}</Badge>
+            <Badge variant="outline">Prospect watch: {prospectWatchEnabled() ? 'Enabled' : 'Disabled'}</Badge>
+            <Badge variant="outline">Prospect digests: {prospectDailyDigestEnabled() ? 'Enabled' : 'Disabled'}</Badge>
+            <Badge variant="outline">Content digests: {contentDailyDigestEnabled() ? 'Enabled' : 'Disabled'}</Badge>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+              <div className="text-xs font-medium text-foreground">Last lifecycle run</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <StatusBadge status={lifecycleRun?.status ?? (jobRuns.enabled ? 'none' : 'unavailable')} />
+                <div className="text-xs">Finished {formatWhen(lifecycleRun?.finished_at ?? null)}</div>
+              </div>
+              {lifecycleRun?.error_text ? <div className="mt-2 text-xs text-amber-200">Error: {lifecycleRun.error_text}</div> : null}
+            </div>
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+              <div className="text-xs font-medium text-foreground">Last prospect watch run</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <StatusBadge status={prospectWatchRun?.status ?? (jobRuns.enabled ? 'none' : 'unavailable')} />
+                <div className="text-xs">Finished {formatWhen(prospectWatchRun?.finished_at ?? null)}</div>
+              </div>
+              {prospectWatchRun?.error_text ? <div className="mt-2 text-xs text-amber-200">Error: {prospectWatchRun.error_text}</div> : null}
+            </div>
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+              <div className="text-xs font-medium text-foreground">Last digest run</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <StatusBadge status={prospectDigestRun?.status ?? (jobRuns.enabled ? 'none' : 'unavailable')} />
+                <div className="text-xs">Finished {formatWhen(prospectDigestRun?.finished_at ?? null)}</div>
+              </div>
+              {prospectDigestRun?.error_text ? <div className="mt-2 text-xs text-amber-200">Error: {prospectDigestRun.error_text}</div> : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant="outline">Prospects awaiting review: {prospectReviewCount === null ? '—' : prospectReviewCount}</Badge>
+            <Badge variant="outline">Content drafts awaiting review: {contentDraftCount === null ? '—' : contentDraftCount}</Badge>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/prospects">Open prospect queue</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/content">Open content queue</Link>
+            </Button>
+          </div>
+
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+            <div className="text-xs font-medium text-foreground">Routing</div>
+            <div className="mt-1 text-xs">Operator inboxes:</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              <div>Lifecycle admin emails: {getLifecycleAdminEmails().length > 0 ? getLifecycleAdminEmails().join(', ') : '—'}</div>
+              <div>Prospect watch review emails: {getReviewEmails().length > 0 ? getReviewEmails().join(', ') : '—'}</div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -218,6 +218,7 @@ Fail-closed behavior:
 | --- | --- | --- | --- |
 | `RESEND_API_KEY` | server-only | Enables sending emails via Resend. | Use the right Resend key for the environment. |
 | `RESEND_FROM_EMAIL` | server-only | Default From address for outbound mail. | Use a verified sender/domain per environment. |
+| `RESEND_REPLY_TO_EMAIL` | server-only | Default Reply-To address for outbound mail. | Recommended: `leadintel@dazrael.com` |
 | `RESEND_WEBHOOK_SECRET` | server-only | Secret for Resend webhook verification (if enabled). | Configure per webhook/environment. |
 
 ### Lifecycle email automation (optional)
@@ -225,16 +226,64 @@ Fail-closed behavior:
 | --- | --- | --- | --- |
 | `LIFECYCLE_EMAILS_ENABLED` | server-only | Enables lifecycle sends. | Default **disabled**; set to `1` only when ready. |
 | `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED` | server-only | Enables internal/operator notification emails. | Default **disabled**; set to `1` only when ready. |
-| `LIFECYCLE_ADMIN_EMAILS` | server-only | Comma-separated operator recipients for internal notifications. | Set per environment. |
-| `FEEDBACK_NOTIFICATION_EMAILS` | server-only | Override recipients for feedback notifications (falls back to `LIFECYCLE_ADMIN_EMAILS`). | Set per environment. |
+| `LIFECYCLE_ADMIN_EMAILS` | server-only | Comma-separated operator recipients for internal notifications. | Recommended: `leadintel@dazrael.com` |
+| `FEEDBACK_NOTIFICATION_EMAILS` | server-only | Override recipients for feedback notifications (falls back to `LIFECYCLE_ADMIN_EMAILS`). | Recommended: `leadintel@dazrael.com` |
 | `ADMIN_TOKEN` | server-only | Token for manual admin send endpoint (`/api/admin/lifecycle/send`). | Keep secret; rotate if leaked. |
+
+## Automation ops (production)
+
+### Where founder/operator emails go
+
+Intended default inbox: **`leadintel@dazrael.com`**.
+
+Recommended routing env (production):
+- `RESEND_REPLY_TO_EMAIL="leadintel@dazrael.com"`
+- `LIFECYCLE_ADMIN_EMAILS="leadintel@dazrael.com"`
+- `FEEDBACK_NOTIFICATION_EMAILS="leadintel@dazrael.com"` (or omit to fall back)
+- `PROSPECT_WATCH_REVIEW_EMAILS="leadintel@dazrael.com"`
+
+### Enable order (safe)
+
+1) Deploy with everything **off** (safe default)\n
+2) Configure Resend + routing\n
+3) Enable lifecycle (then watch)\n
+
+Suggested steps:
+- Set `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_REPLY_TO_EMAIL`\n
+- Set cron secrets (`CRON_SECRET`, `EXTERNAL_CRON_SECRET`)\n
+- Enable lifecycle:\n
+  - `LIFECYCLE_EMAILS_ENABLED=1`\n
+  - optionally `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED=1`\n
+- Enable prospect watch ingestion (review-first):\n
+  - `PROSPECT_WATCH_ENABLED=1`\n
+  - `PROSPECT_WATCH_RSS_FEEDS="...approved feeds..."`\n
+  - `PROSPECT_WATCH_REVIEW_EMAILS="leadintel@dazrael.com"`\n
+- Enable digests (optional):\n
+  - `PROSPECT_WATCH_DAILY_DIGEST_ENABLED=1`\n
+  - `PROSPECT_WATCH_CONTENT_DIGEST_ENABLED=1`\n
+
+### Cron schedule (given: 1 Vercel cron + 4 external jobs)
+
+Vercel cron (daily backstop):
+- `GET https://dazrael.com/api/cron/run?job=lifecycle&limit=200` with `Authorization: Bearer $CRON_SECRET`
+
+External cron jobs:
+- Morning\n
+  1) `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50` with `Authorization: Bearer $EXTERNAL_CRON_SECRET`\n
+  2) `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest` with `Authorization: Bearer $EXTERNAL_CRON_SECRET`\n
+- Afternoon\n
+  3) `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50`\n
+  4) `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest`\n
+
+Notes:
+- `prospect_watch_digest` is deduped by day+recipient via `api.email_send_log`, so a second daily run will safely skip.
 
 ### Prospect watch engine (optional, review-first)
 | Name | Scope | Purpose | TEST vs LIVE |
 | --- | --- | --- | --- |
 | `PROSPECT_WATCH_ENABLED` | server-only | Enables prospect watch jobs and review queues. | Keep `0` until you’ve configured feeds + recipients. |
 | `PROSPECT_WATCH_RSS_FEEDS` | server-only | Comma-separated approved RSS feeds for signals ingestion. | Use only approved/allowed feeds. |
-| `PROSPECT_WATCH_REVIEW_EMAILS` | server-only | Founder/operator recipients for prospect watch digests. | Set per environment. |
+| `PROSPECT_WATCH_REVIEW_EMAILS` | server-only | Founder/operator recipients for prospect watch digests. | Recommended: `leadintel@dazrael.com` |
 | `PROSPECT_WATCH_DAILY_DIGEST_ENABLED` | server-only | Enables daily prospect digest email. | Default **disabled**; set to `1` only when ready. |
 | `PROSPECT_WATCH_CONTENT_DIGEST_ENABLED` | server-only | Enables daily content draft digest (LinkedIn posts). | Default **disabled**; set to `1` only when ready. |
 | `PROSPECT_WATCH_HIGH_PRIORITY_ENABLED` | server-only | Enables high-priority notifications. | Recommended off initially. |

@@ -3,6 +3,7 @@ import { serverEnv } from '@/lib/env'
 import { getAppUrl } from '@/lib/app-url'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 import { listPublishables, seedPublishQueue, type PublishQueueType, type Publishable } from '@/lib/growth/seedPublishQueue'
 import { TEMPLATE_LIBRARY } from '@/lib/templates/registry'
 import { COMPARE_PAGES } from '@/lib/compare/registry'
@@ -394,7 +395,7 @@ export async function runGrowthCycle(args: { dryRun?: boolean; limit?: number })
             const res = await sendEmailWithResend({
               from: (serverEnv.RESEND_FROM_EMAIL ?? '').trim(),
               to: emails,
-              replyTo: SUPPORT_EMAIL,
+              replyTo: getResendReplyToEmail(),
               subject,
               text,
               html,

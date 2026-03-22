@@ -20,6 +20,7 @@ import { FREE_MAX_PREMIUM_GENERATIONS } from '@/lib/billing/premium-generations'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 type BatchRow = {
   user_id: string
@@ -109,7 +110,7 @@ async function sendLifecycleEmail(args: {
     userId: args.userId,
     toEmail: args.toEmail,
     fromEmail: from,
-    replyTo: SUPPORT_EMAIL,
+    replyTo: getResendReplyToEmail(),
     subject: payload.subject,
     html: payload.html,
     text: payload.text,
@@ -241,7 +242,7 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
                   userId: null,
                   toEmail: to,
                   fromEmail: from,
-                  replyTo: SUPPORT_EMAIL,
+                  replyTo: getResendReplyToEmail(),
                   subject: email.subject,
                   html: email.html,
                   text: email.text,

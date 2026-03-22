@@ -103,8 +103,8 @@ Auth:
 - `Authorization: Bearer $CRON_SECRET` (or `EXTERNAL_CRON_SECRET`)
 
 Recommended schedule (safe default):
-- daily `prospect_watch` (ingest + score + drafts)
-- daily `prospect_watch_digest`
+- 2× daily `prospect_watch` (ingest + score + drafts)
+- 2× daily `prospect_watch_digest`
 
 ## Environment variables
 
@@ -113,17 +113,27 @@ Core:
 - `PROSPECT_WATCH_RSS_FEEDS="https://example.com/feed.xml,https://another.com/rss"`
 
 Internal review recipients:
-- `PROSPECT_WATCH_REVIEW_EMAILS="founder@dazrael.com"`
+- `PROSPECT_WATCH_REVIEW_EMAILS="leadintel@dazrael.com"` (recommended)
 
 Digests / notifications:
-- `PROSPECT_WATCH_DAILY_DIGEST_ENABLED=1` (default **disabled**)
-- `PROSPECT_WATCH_CONTENT_DIGEST_ENABLED=1` (default **disabled**)
+- `PROSPECT_WATCH_DAILY_DIGEST_ENABLED=1` (default **disabled**; enable after routing is configured)
+- `PROSPECT_WATCH_CONTENT_DIGEST_ENABLED=1` (default **disabled**; enable after routing is configured)
 - `PROSPECT_WATCH_HIGH_PRIORITY_ENABLED=0|1`
 - `PROSPECT_WATCH_HIGH_PRIORITY_THRESHOLD=92` (default 92)
 
 Email delivery:
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
+- `RESEND_REPLY_TO_EMAIL` (recommended; defaults to `leadintel@dazrael.com`)
+
+## Production routing (recommended values)
+
+Founder/operator review is intended to run through:
+- **Inbox**: `leadintel@dazrael.com`
+- **Queues**: `/settings/prospects` and `/settings/content`
+
+Recommended env:
+- `PROSPECT_WATCH_REVIEW_EMAILS="leadintel@dazrael.com"`
 
 External sending (disabled by default):
 - `PROSPECT_WATCH_EXTERNAL_SEND_ENABLED=0|1` (default 0)

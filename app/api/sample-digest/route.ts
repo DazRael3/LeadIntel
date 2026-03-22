@@ -8,6 +8,7 @@ import { sendEmailWithResend } from '@/lib/email/resend'
 import { serverEnv } from '@/lib/env'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { parseTarget } from '@/lib/onboarding/targets'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,7 +107,7 @@ export const POST = withApiGuard(
           const send = await sendEmailWithResend({
             from,
             to,
-            replyTo: SUPPORT_EMAIL,
+            replyTo: getResendReplyToEmail(),
             subject,
             html,
             text: lines.join('\n'),

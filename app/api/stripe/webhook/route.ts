@@ -17,6 +17,7 @@ import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 /**
  * Stripe Webhook Handler
@@ -161,7 +162,7 @@ export const POST = withApiGuard(
                   userId,
                   toEmail,
                   fromEmail: from,
-                  replyTo: SUPPORT_EMAIL,
+                  replyTo: getResendReplyToEmail(),
                   subject: payload.subject,
                   html: payload.html,
                   text: payload.text,
@@ -201,7 +202,7 @@ export const POST = withApiGuard(
                     userId: null,
                     toEmail,
                     fromEmail: from,
-                    replyTo: SUPPORT_EMAIL,
+                    replyTo: getResendReplyToEmail(),
                     subject: email.subject,
                     html: email.html,
                     text: email.text,

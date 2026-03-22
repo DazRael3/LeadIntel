@@ -12,6 +12,7 @@ import { sendEmailWithResend } from '@/lib/email/resend'
 import { insertEmailLog } from '@/lib/email/email-logs'
 import { captureServerEvent } from '@/lib/analytics/posthog-server'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { getResendReplyToEmail } from '@/lib/email/routing'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,7 +138,7 @@ export const POST = withApiGuard(
           const sendRes = await sendEmailWithResend({
             from: fromEmail,
             to: toEmail,
-            replyTo: SUPPORT_EMAIL,
+            replyTo: getResendReplyToEmail(),
             subject,
             html,
             text,
