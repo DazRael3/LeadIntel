@@ -363,6 +363,14 @@ export async function runProspectWatchDigests(args: { dryRun?: boolean }) {
         .limit(25)
     : { data: [], error: null }
 
+  const sendReadyRes =
+    prospectDailyDigestEnabled() || contentDailyDigestEnabled()
+      ? await admin
+          .from('prospect_watch_outreach_drafts')
+          .select('id', { count: 'exact', head: true })
+          .eq('send_ready', true)
+      : { count: 0, error: null }
+
   const draftsRes = contentDailyDigestEnabled()
     ? await admin
         .from('prospect_watch_content_drafts')
@@ -378,16 +386,21 @@ export async function runProspectWatchDigests(args: { dryRun?: boolean }) {
   if (draftsRes.error) {
     return { status: 'error' as const, summary: { error: 'content_query_failed', message: draftsRes.error.message } }
   }
+  if (sendReadyRes.error) {
+    return { status: 'error' as const, summary: { error: 'send_ready_query_failed', message: sendReadyRes.error.message } }
+  }
 
   const prospects = (prospectsRes.data ?? []) as unknown as DigestProspect[]
   const drafts = (draftsRes.data ?? []) as unknown as DigestContent[]
 
   const prospectCount = prospects.length
   const contentCount = drafts.length
+  const sendReadyCount = typeof sendReadyRes.count === 'number' ? sendReadyRes.count : 0
 
   const bodyLines: string[] = []
   bodyLines.push(`Prospects needing review: ${prospectCount}`)
   bodyLines.push(`Content drafts needing review: ${contentCount}`)
+  bodyLines.push(`Send-ready outreach drafts: ${sendReadyCount}`)
   bodyLines.push('')
   bodyLines.push(`Review links:`)
   bodyLines.push(`- Prospects: ${appUrl}/settings/prospects`)

@@ -80,6 +80,43 @@ Drafts are deterministic templates grounded in the stored signal title/snippet:
 
 No external sending happens automatically.
 
+## Contact → recipient review → send-ready
+
+Prospect watch now supports a minimal contact workflow layer so drafts can become **send-ready** without auto-sending.
+
+### Contact candidates
+
+Stored in:
+- `api.prospect_watch_contacts`
+
+Allowed sources (review-first):
+- `manual` (primary in-product workflow)
+- `csv` (future; not enabled by default)
+- `provider` (future; only if a real provider is integrated)
+- `pattern` (future; must remain clearly unverified)
+
+Email status meanings:
+- `unknown`: no email or unknown validity
+- `candidate`: provided/guessed but **not verified**
+- `verified`: verified by a real provider (not implemented by default)
+- `invalid`: known bad
+- `manually_confirmed`: human reviewed and approved for sending
+
+### Send-ready rules (outreach drafts)
+
+Send-ready state is tracked on `api.prospect_watch_outreach_drafts`:
+- `contact_id`
+- `recipient_reviewed` (+ timestamps)
+- `send_ready` (+ timestamps)
+
+Rules:
+- A draft cannot be marked **send-ready** unless:
+  - a contact is selected, and
+  - the contact has a real email, and
+  - `email_status` is `verified` or `manually_confirmed`
+- Marking send-ready mirrors `to_email` from the selected contact.
+- Send-ready does **not** send anything externally.
+
 ## Founder digests + notifications (Resend)
 
 ### Daily digest
