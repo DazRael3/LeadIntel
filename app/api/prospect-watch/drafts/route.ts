@@ -14,6 +14,10 @@ const PatchSchema = z.object({
   subject: z.string().max(200).nullable().optional(),
   body: z.string().max(4000).optional(),
   toEmail: z.string().email().nullable().optional(),
+  // Recipient workflow (review-first, no external send)
+  contactId: z.string().uuid().nullable().optional(),
+  recipientReviewed: z.boolean().optional(),
+  sendReady: z.boolean().optional(),
 })
 
 function isPrivileged(role: string | null | undefined): boolean {
@@ -48,6 +52,79 @@ export const PATCH = withApiGuard(
       if (parsed.data.subject !== undefined) patch.subject = parsed.data.subject
       if (parsed.data.body !== undefined) patch.body = parsed.data.body
       if (parsed.data.toEmail !== undefined) patch.to_email = parsed.data.toEmail
+      if (parsed.data.contactId !== undefined) patch.contact_id = parsed.data.contactId
+
+      // Recipient review / send-ready validation:
+      // - cannot mark send-ready unless a contact is selected and email is verified/manually_confirmed,
+      //   unless recipientReviewed is explicitly false (i.e., resetting state).
+      const nowIso = new Date().toISOString()
+      if (parsed.data.recipientReviewed !== undefined) {
+        patch.recipient_reviewed = parsed.data.recipientReviewed
+        patch.recipient_reviewed_at = parsed.data.recipientReviewed ? nowIso : null
+        patch.recipient_reviewed_by = parsed.data.recipientReviewed ? user.id : null
+      }
+      if (parsed.data.sendReady !== undefined) {
+        if (parsed.data.sendReady) {
+          // Ensure we have a contact id either in patch or existing row.
+          const contactId =
+            (parsed.data.contactId ?? null) ??
+            (
+              await supabase
+                .schema('api')
+                .from('prospect_watch_outreach_drafts')
+                .select('contact_id')
+                .eq('workspace_id', ws.id)
+                .eq('id', parsed.data.id)
+                .maybeSingle()
+            ).data?.contact_id ??
+            null
+
+          if (!contactId) {
+            return fail(
+              ErrorCode.VALIDATION_ERROR,
+              'Recipient contact required before marking send-ready.',
+              { reason: 'contact_required' },
+              { status: 422 },
+              bridge,
+              requestId
+            )
+          }
+
+          const { data: contactRow } = await supabase
+            .schema('api')
+            .from('prospect_watch_contacts')
+            .select('email, email_status')
+            .eq('workspace_id', ws.id)
+            .eq('id', contactId)
+            .maybeSingle()
+          const email = ((contactRow as { email?: string | null } | null)?.email ?? '').trim()
+          const emailStatus = (contactRow as { email_status?: string | null } | null)?.email_status ?? 'unknown'
+          const okStatus = emailStatus === 'verified' || emailStatus === 'manually_confirmed'
+          if (!email || !okStatus) {
+            return fail(
+              ErrorCode.VALIDATION_ERROR,
+              'Recipient email must be verified or manually confirmed before marking send-ready.',
+              { reason: 'email_not_confirmed', emailStatus },
+              { status: 422 },
+              bridge,
+              requestId
+            )
+          }
+
+          // Always mirror to_email from contact when send-ready is set.
+          patch.to_email = email
+          patch.recipient_reviewed = true
+          patch.recipient_reviewed_at = nowIso
+          patch.recipient_reviewed_by = user.id
+          patch.send_ready = true
+          patch.send_ready_at = nowIso
+          patch.send_ready_by = user.id
+        } else {
+          patch.send_ready = false
+          patch.send_ready_at = null
+          patch.send_ready_by = null
+        }
+      }
 
       const client = supabase.schema('api')
       const { error: updErr } = await client

@@ -28,6 +28,13 @@ vi.mock('@/lib/supabase/admin', () => {
     createSupabaseAdminClient: vi.fn(() => ({
       from: vi.fn((table: string) => {
         if (table === 'prospect_watch_prospects') return makeProspectsQuery()
+        if (table === 'prospect_watch_outreach_drafts') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(async () => ({ count: 0, error: null })),
+            })),
+          }
+        }
         if (table === 'prospect_watch_content_drafts') return makeContentDraftsQuery()
         throw new Error(`unexpected table: ${table}`)
       }),

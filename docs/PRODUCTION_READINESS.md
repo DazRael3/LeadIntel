@@ -278,6 +278,23 @@ External cron jobs:
 Notes:
 - `prospect_watch_digest` is deduped by day+recipient via `api.email_send_log`, so a second daily run will safely skip.
 
+### Prospect watch contact workflow (migration)
+
+If you are using the contact → recipient review → send-ready workflow, ensure migration is applied:
+- `supabase/migrations/0073_prospect_watch_contacts_and_send_ready.sql`
+
+### Contact workflow (prospect → contact → recipient review → send-ready)
+
+Prospect watch includes a review-first contact layer:
+- Contacts are stored in `api.prospect_watch_contacts` (workspace-scoped, RLS)
+- “Send-ready” is tracked on `api.prospect_watch_outreach_drafts`
+
+Send-ready rules:
+- a send-ready draft must have a selected contact (`contact_id`)
+- contact must have a real email
+- `email_status` must be `verified` or `manually_confirmed`
+- send-ready never auto-sends externally; external send remains controlled by `PROSPECT_WATCH_EXTERNAL_SEND_ENABLED`
+
 ### Prospect watch engine (optional, review-first)
 | Name | Scope | Purpose | TEST vs LIVE |
 | --- | --- | --- | --- |

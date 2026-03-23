@@ -35,6 +35,11 @@ type DraftRow = {
   subject: string | null
   body: string
   to_email: string | null
+  contact_id?: string | null
+  recipient_reviewed?: boolean | null
+  send_ready?: boolean | null
+  recipient_reviewed_at?: string | null
+  send_ready_at?: string | null
 }
 
 type ContentDraftRow = {
@@ -97,8 +102,18 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         client.from('prospect_watch_targets').select('id, company_name, company_domain').in('id', targetIds).limit(200),
         client.from('prospect_watch_signals').select('id, title, source_url, signal_type').in('id', signalIds).limit(200),
         client.from('prospect_watch_scores').select('signal_id, target_id, reasons').in('signal_id', signalIds).limit(400),
-        client.from('prospect_watch_outreach_drafts').select('id, prospect_id, channel, status, subject, body, to_email').in('prospect_id', ids).limit(400),
+        client
+          .from('prospect_watch_outreach_drafts')
+          .select('id, prospect_id, channel, status, subject, body, to_email, contact_id, recipient_reviewed, recipient_reviewed_at, send_ready, send_ready_at')
+          .in('prospect_id', ids)
+          .limit(400),
       ])
+      const { data: contacts } = await client
+        .from('prospect_watch_contacts')
+        .select('id, prospect_id, full_name, title, linkedin_url, email, email_status, confidence_score, selected_for_outreach, reviewer_notes, reviewed_at, reviewed_by')
+        .eq('workspace_id', ws.id)
+        .in('prospect_id', ids)
+        .limit(500)
 
       const targets = new Map<string, TargetRow>()
       for (const t of (targetsRes.data ?? []) as unknown as TargetRow[]) targets.set(t.id, t)
@@ -117,6 +132,14 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
         arr.push(d)
         draftsByProspect.set(pid, arr)
       }
+      const contactsByProspect = new Map<string, unknown[]>()
+      for (const c of (contacts ?? []) as unknown as Array<Record<string, unknown>>) {
+        const pid = typeof c.prospect_id === 'string' ? c.prospect_id : null
+        if (!pid) continue
+        const arr = contactsByProspect.get(pid) ?? []
+        arr.push(c)
+        contactsByProspect.set(pid, arr)
+      }
 
       const items = prospectRows.map((p) => {
         const t = targets.get(p.target_id) ?? { id: p.target_id, company_name: 'Unknown', company_domain: null }
@@ -133,6 +156,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
           signal_url: s.source_url ?? '#',
           signal_type: s.signal_type ?? 'other',
           reasons,
+          contacts: contactsByProspect.get(p.id) ?? [],
           drafts: (draftsByProspect.get(p.id) ?? []).map((d) => ({
             id: d.id,
             channel: d.channel,
@@ -140,6 +164,9 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
             subject: d.subject ?? null,
             body: d.body ?? '',
             to_email: d.to_email ?? null,
+            contact_id: d.contact_id ?? null,
+            recipient_reviewed: Boolean(d.recipient_reviewed),
+            send_ready: Boolean(d.send_ready),
           })),
         }
       })
