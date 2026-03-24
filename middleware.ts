@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/proxy'
-import { applySecurityHeaders } from '@/lib/api/security'
+import { applySecurityHeadersEdge } from '@/lib/api/security-edge'
 import { getOrCreateRequestId, setRequestIdHeader } from '@/lib/observability/request-id'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { getDbSchema } from '@/lib/supabase/schema'
@@ -31,8 +31,21 @@ export async function middleware(request: NextRequest) {
   // Generate or get request ID for correlation
   const requestId = getOrCreateRequestId(request)
   
-  // Update Supabase session (handles cookie passthrough)
-  const response = await updateSession(request)
+  // Update Supabase session (handles cookie passthrough).
+  // IMPORTANT: middleware must never hard-crash the site if optional config is missing.
+  // If session refresh fails, we fail-open with NextResponse.next() so public routes stay up.
+  let response: NextResponse
+  try {
+    response = await updateSession(request)
+  } catch (error: unknown) {
+    // Best-effort log (no secrets). Avoid per-request spam by letting updateSession manage logging when possible.
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[middleware] updateSession failed (fail-open)', {
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+    response = NextResponse.next()
+  }
 
   // Enforce Review Mode expiration:
   // if the shared demo reviewer user is still authenticated but the review session cookie is missing,
@@ -72,7 +85,7 @@ export async function middleware(request: NextRequest) {
   setRequestIdHeader(response, requestId)
   
   // Apply security headers to all responses
-  return applySecurityHeaders(response, request)
+  return applySecurityHeadersEdge(response, request)
 }
 
 export const config = {

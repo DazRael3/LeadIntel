@@ -101,7 +101,7 @@ export async function updateSession(request: NextRequest) {
     if (error instanceof AuthApiError && error.message?.includes('refresh_token_not_found')) {
       // Only log once per process lifetime to avoid spam
       if (!refreshWarningLogged && process.env.NODE_ENV === 'development') {
-        console.debug('[supabase] refresh_token_not_found (treating as unauthenticated). This is normal on first visit or after logout. To fix: clear localhost cookies or use incognito.')
+        console.log('[supabase] refresh_token_not_found (treating as unauthenticated). This is normal on first visit or after logout. To fix: clear localhost cookies or use incognito.')
         refreshWarningLogged = true
       }
       // Clear all Supabase auth cookies silently - treat as unauthenticated
