@@ -5,7 +5,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { serverEnv } from '@/lib/env'
 import { fail, ErrorCode } from './http'
 
 /**
@@ -60,7 +59,9 @@ function isLocalhostOrigin(origin: string): boolean {
 function getAllowedOrigins(): string[] {
   // Get from env or use site URL as default
   const allowedOriginsEnv = process.env.ALLOWED_ORIGINS
-  const siteUrl = serverEnv.NEXT_PUBLIC_SITE_URL
+  // IMPORTANT: keep this module safe to import from middleware/edge.
+  // Do not use strict env validation helpers here; rely on raw env reads.
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim()
   
   const origins: string[] = []
   
@@ -76,7 +77,7 @@ function getAllowedOrigins(): string[] {
   }
   
   // In development, allow localhost
-  if (serverEnv.NODE_ENV === 'development') {
+  if ((process.env.NODE_ENV ?? 'development') === 'development') {
     origins.push(...LOCAL_ORIGINS)
   }
   
@@ -109,7 +110,7 @@ export function validateOrigin(
   const referer = request.headers.get('referer')
   
   // In development, be more lenient
-  if (serverEnv.NODE_ENV === 'development') {
+  if ((process.env.NODE_ENV ?? 'development') === 'development') {
     // Allow requests without origin in development (e.g., Postman, curl)
     if (!origin && !referer) {
       return null
@@ -121,7 +122,7 @@ export function validateOrigin(
   
   // If no allowed origins configured, skip validation (but log warning in production)
   if (allowedOrigins.length === 0) {
-    if (serverEnv.NODE_ENV === 'production') {
+    if ((process.env.NODE_ENV ?? 'development') === 'production') {
       console.warn('[security] No ALLOWED_ORIGINS configured. Origin validation disabled.')
     }
     return null
@@ -140,7 +141,7 @@ export function validateOrigin(
   
   // If still no origin, reject in production
   if (!requestOrigin) {
-    if (serverEnv.NODE_ENV === 'production') {
+    if ((process.env.NODE_ENV ?? 'development') === 'production') {
       return fail(
         ErrorCode.FORBIDDEN,
         'Missing Origin header',
@@ -236,7 +237,7 @@ export function getSecurityHeaders(request: NextRequest): HeadersInit {
   ].join(', ')
   
   // HSTS: Only in production and for HTTPS
-  if (serverEnv.NODE_ENV === 'production') {
+  if ((process.env.NODE_ENV ?? 'development') === 'production') {
     const forwardedProto = request.headers.get('x-forwarded-proto')
     const protocol = (forwardedProto ?? request.nextUrl.protocol.replace(':', '')).toLowerCase()
     if (protocol === 'https') {
