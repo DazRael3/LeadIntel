@@ -113,6 +113,27 @@ Body:
 
 This endpoint is deduped by default to **at most once per day** per recipient+type (override with `dedupeKey` if needed).
 
+## Email Lab (preview + test-send)
+
+LeadIntel includes an internal-only **Email Lab** so operators can preview and QA templates before broad enablement.
+
+- **UI**: `/admin/email?token=$ADMIN_TOKEN`
+- **Linked from**: `/admin/ops?token=$ADMIN_TOKEN`
+
+Capabilities:
+- Preview rendered **subject + HTML + plain text**
+- Run lightweight **template QA checks** (missing subject/body, missing prefs link, missing support mailto, etc.)
+- **Test-send** to operator inboxes only (restricted to env allowlist) with daily dedupe per template+recipient
+
+APIs (admin-token gated):
+- `POST /api/admin/email/preview`
+- `POST /api/admin/email/test-send`
+
+Test-send recipient safety:
+- Allowed recipients come from the operator allowlist:
+  - `PROSPECT_WATCH_REVIEW_EMAILS`, `LIFECYCLE_ADMIN_EMAILS`, `FEEDBACK_NOTIFICATION_EMAILS`
+- If the allowlist is set, `toEmail` must be in it (external addresses are rejected).
+
 ## Dedupe/idempotency rules
 
 - Cron sends use a stable dedupe key: `lifecycle:<type>:<userId>`
