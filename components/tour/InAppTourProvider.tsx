@@ -137,7 +137,7 @@ export function InAppTourProvider(props: {
     track('tour_completed', { source: startMeta?.source ?? 'in_app' })
     // Best-effort server persistence (requires user session).
     try {
-      await fetch('/api/settings', {
+      await fetch('/api/settings/stamp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tour_completed_at: new Date().toISOString(), onboarding_completed: true }),

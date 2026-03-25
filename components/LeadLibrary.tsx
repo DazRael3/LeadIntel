@@ -521,7 +521,7 @@ function StarterLimitNudge() {
     setVisible(true)
     track('upgrade_nudge_viewed', { location: 'lead_library', reason: 'starter_accounts_limit' })
     markUpgradeNudgeShown({ key: 'upgrade_accounts_limit' })
-    void fetch('/api/settings', {
+    void fetch('/api/settings/stamp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ last_upgrade_nudge_shown_at: new Date().toISOString(), onboarding_completed: true }),

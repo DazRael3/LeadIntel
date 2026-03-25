@@ -34,7 +34,8 @@ type SampleTarget = { leadId: string; companyName: string | null; companyDomain:
 
 async function saveSettings(payload: Record<string, unknown>): Promise<boolean> {
   try {
-    const res = await fetch('/api/settings', {
+    // Onboarding progress is non-critical; use the fail-open stamp endpoint.
+    const res = await fetch('/api/settings/stamp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
