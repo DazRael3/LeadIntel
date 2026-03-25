@@ -16,6 +16,7 @@ import { lifecycleEmailsEnabled, adminNotificationsEnabled, getLifecycleAdminEma
 import { prospectWatchEnabled, prospectDailyDigestEnabled, contentDailyDigestEnabled, getReviewEmails } from '@/lib/prospect-watch/config'
 import { getAppUrl } from '@/lib/app-url'
 import { qaAllEmailTemplates } from '@/lib/email/qa'
+import { runProspectWatch } from '@/lib/prospect-watch/job'
 import { generateLearningAgentReport } from '@/lib/ops/learningAgent'
 
 export const dynamic = 'force-dynamic'
@@ -142,6 +143,11 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
     error: emailQa.filter((r) => r.severity === 'error').length,
   }
   const learning = await generateLearningAgentReport({ windowDays: 7 }).catch(() => null)
+
+  // Prospect watch diagnostics (truthful, no side effects).
+  // We call the job in dry-run mode so it can explain configuration blockers and ingestion stats
+  // without writing to DB or sending notifications.
+  const prospectDiag = await runProspectWatch({ dryRun: true, limitTargets: 5 }).catch(() => null)
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10 space-y-6">
@@ -331,6 +337,33 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
               </Button>
               <div className="text-xs text-muted-foreground">Use Email Lab to preview/test-send (operator allowlist only, deduped).</div>
             </div>
+          </div>
+
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-medium text-foreground">Prospect watch diagnostics</div>
+                <div className="mt-1 text-xs text-muted-foreground">Dry-run summary for why queues are empty (no writes, no sends).</div>
+              </div>
+              <Badge variant="outline">{prospectDiag ? prospectDiag.status : 'unavailable'}</Badge>
+            </div>
+            {prospectDiag ? (
+              <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                <div className="rounded border border-cyan-500/10 bg-background/30 p-2">
+                  <div className="text-foreground font-medium">Summary</div>
+                  <div className="mt-1 whitespace-pre-wrap">
+                    {JSON.stringify(prospectDiag.summary ?? {}, null, 2)}
+                  </div>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Common blockers: `PROSPECT_WATCH_ENABLED=1`, `PROSPECT_WATCH_RSS_FEEDS` set, Supabase service role configured, and at least one active watch target.
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 text-xs text-muted-foreground">
+                Unavailable on this deployment (likely missing Supabase service role configuration).
+              </div>
+            )}
           </div>
 
           <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
