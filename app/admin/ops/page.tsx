@@ -14,6 +14,8 @@ import { isValidAdminToken } from '@/lib/admin/admin-token'
 import { readLatestJobRuns } from '@/lib/jobs/persist'
 import { lifecycleEmailsEnabled, adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
 import { prospectWatchEnabled, prospectDailyDigestEnabled, contentDailyDigestEnabled, getReviewEmails } from '@/lib/prospect-watch/config'
+import { getAppUrl } from '@/lib/app-url'
+import { qaAllEmailTemplates } from '@/lib/email/qa'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,6 +134,12 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
   }
 
   const failures = asFailures(report?.failures)
+  const emailQa = qaAllEmailTemplates({ appUrl: getAppUrl() })
+  const emailQaCounts = {
+    ok: emailQa.filter((r) => r.severity === 'ok').length,
+    warn: emailQa.filter((r) => r.severity === 'warn').length,
+    error: emailQa.filter((r) => r.severity === 'error').length,
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10 space-y-6">
@@ -161,6 +169,9 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href={`/admin/support?token=${encodeURIComponent(token ?? '')}`}>Support</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/email?token=${encodeURIComponent(token ?? '')}`}>Email Lab</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/status">Status</Link>
@@ -297,6 +308,26 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
             <div className="mt-1 text-xs text-muted-foreground">
               <div>Lifecycle admin emails: {getLifecycleAdminEmails().length > 0 ? getLifecycleAdminEmails().join(', ') : '—'}</div>
               <div>Prospect watch review emails: {getReviewEmails().length > 0 ? getReviewEmails().join(', ') : '—'}</div>
+            </div>
+          </div>
+
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-medium text-foreground">Email template health</div>
+                <div className="mt-1 text-xs text-muted-foreground">Baseline QA on registry templates (subject/body/CTA/prefs link).</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">OK: {emailQaCounts.ok}</Badge>
+                <Badge variant="outline">Warn: {emailQaCounts.warn}</Badge>
+                <Badge variant={emailQaCounts.error > 0 ? 'destructive' : 'outline'}>Error: {emailQaCounts.error}</Badge>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/admin/email?token=${encodeURIComponent(token ?? '')}`}>Open Email Lab</Link>
+              </Button>
+              <div className="text-xs text-muted-foreground">Use Email Lab to preview/test-send (operator allowlist only, deduped).</div>
             </div>
           </div>
         </CardContent>
