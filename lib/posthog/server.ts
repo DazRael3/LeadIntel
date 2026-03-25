@@ -69,3 +69,8 @@ export async function queryHogQL(args: { config: PostHogApiConfig; query: string
   return 0
 }
 
+export function isPosthogRateLimitedError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : ''
+  return /^posthog_query_failed_429$/.test(msg)
+}
+

@@ -1,6 +1,6 @@
 import { serverEnv } from '@/lib/env'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { queryHogQL, getPostHogApiConfig } from '@/lib/posthog/server'
+import { isPosthogRateLimitedError, queryHogQL, getPostHogApiConfig } from '@/lib/posthog/server'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { getResendReplyToEmail } from '@/lib/email/routing'
@@ -95,9 +95,8 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
 
   const to = (process.env.ALERT_EMAIL_TO ?? '').trim()
   const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean((serverEnv.RESEND_FROM_EMAIL ?? '').trim())
-  if (!to) {
-    return { status: 'skipped' as const, summary: { reason: 'alert_email_to_not_configured' } }
-  }
+  // KPI monitor should remain useful even when alert email routing isn't configured yet.
+  // We only require ALERT_EMAIL_TO when actually attempting to send alert emails.
 
   const dropPct24 = numEnv('ALERT_DROP_PCT_24H', 30)
   const dropPct7d = numEnv('ALERT_DROP_PCT_7D', 20)
@@ -161,6 +160,12 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
       })
     }
   } catch (err) {
+    if (isPosthogRateLimitedError(err)) {
+      return {
+        status: 'error' as const,
+        summary: { error: 'posthog_rate_limited', host: cfg.host, projectId: cfg.projectId },
+      }
+    }
     const message = err instanceof Error ? err.message : 'unknown_error'
     const m = /^posthog_query_failed_(\d+)$/.exec(message)
     if (m) {
@@ -182,9 +187,11 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
       ? 'no_actionable_alerts'
       : !hasResend
         ? 'resend_not_configured'
-        : args.dryRun
-          ? 'dry_run'
-          : 'alerts_sent'
+        : !to
+          ? 'alert_email_to_not_configured'
+          : args.dryRun
+            ? 'dry_run'
+            : 'alerts_sent'
 
   // Persist KPI snapshots (best-effort, service-role only). Never fail the job for persistence.
   // Persist all rows (including insufficient/no-baseline) so trends are reliable.
@@ -247,7 +254,7 @@ export async function runKpiMonitor(args: { dryRun?: boolean }) {
     }
   }
 
-  if (!hasResend) {
+  if (!hasResend || !to) {
     return {
       status: 'skipped' as const,
       summary: {
