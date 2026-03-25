@@ -4,6 +4,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, createCookieBridge } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { methodNotAllowed } from '@/lib/api/method'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,4 +87,20 @@ export const POST = withApiGuard(
   },
   { bodySchema: StampSchema }
 )
+
+export function GET(request: NextRequest) {
+  return methodNotAllowed(request, ['POST'])
+}
+
+export function PUT(request: NextRequest) {
+  return methodNotAllowed(request, ['POST'])
+}
+
+export function PATCH(request: NextRequest) {
+  return methodNotAllowed(request, ['POST'])
+}
+
+export function DELETE(request: NextRequest) {
+  return methodNotAllowed(request, ['POST'])
+}
 

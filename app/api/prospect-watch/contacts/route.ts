@@ -6,6 +6,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { requireTeamPlan } from '@/lib/team/gating'
 import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { captureServerEvent } from '@/lib/analytics/posthog-server'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,6 +131,11 @@ export const POST = withApiGuard(
       if (error || !data) return fail(ErrorCode.DATABASE_ERROR, 'Create failed', { message: error?.message ?? 'insert_failed' }, { status: 500 }, bridge, requestId)
 
       void captureServerEvent({ distinctId: authed.user.id, event: 'prospect_contact_created', properties: { workspaceId: authed.workspaceId, prospectId: p.prospectId } })
+      void logProductEvent({
+        userId: authed.user.id,
+        eventName: 'prospect_contact_created',
+        eventProps: { workspaceId: authed.workspaceId, prospectId: p.prospectId },
+      })
       return ok({ created: true, id: (data as { id: string }).id }, { status: 201 }, bridge, requestId)
     } catch (e) {
       return asHttpError(e, '/api/prospect-watch/contacts', undefined, bridge, requestId)
@@ -171,6 +177,11 @@ export const PATCH = withApiGuard(
       if (error) return fail(ErrorCode.DATABASE_ERROR, 'Update failed', { message: error.message }, { status: 500 }, bridge, requestId)
 
       void captureServerEvent({ distinctId: authed.user.id, event: 'prospect_contact_updated', properties: { workspaceId: authed.workspaceId, contactId: parsed.data.id } })
+      void logProductEvent({
+        userId: authed.user.id,
+        eventName: 'prospect_contact_updated',
+        eventProps: { workspaceId: authed.workspaceId, contactId: parsed.data.id },
+      })
       return ok({ updated: true }, undefined, bridge, requestId)
     } catch (e) {
       return asHttpError(e, '/api/prospect-watch/contacts', undefined, bridge, requestId)
@@ -197,6 +208,11 @@ export const PUT = withApiGuard(
       }
 
       void captureServerEvent({ distinctId: authed.user.id, event: 'prospect_contact_selected', properties: { workspaceId: authed.workspaceId, contactId: parsed.data.id } })
+      void logProductEvent({
+        userId: authed.user.id,
+        eventName: 'prospect_contact_selected',
+        eventProps: { workspaceId: authed.workspaceId, contactId: parsed.data.id },
+      })
       return ok({ selected: true }, undefined, bridge, requestId)
     } catch (e) {
       return asHttpError(e, '/api/prospect-watch/contacts', undefined, bridge, requestId)

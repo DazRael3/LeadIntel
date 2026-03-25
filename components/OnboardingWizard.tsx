@@ -113,7 +113,7 @@ export function OnboardingWizard({ onComplete, onClose, initialStep }: Onboardin
   }, [supabase])
 
   async function saveSettings(payload: Record<string, unknown>): Promise<void> {
-    const res = await fetch('/api/settings', {
+    const res = await fetch('/api/settings/stamp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

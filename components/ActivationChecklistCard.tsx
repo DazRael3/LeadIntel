@@ -254,7 +254,7 @@ function UpgradeInlineNudge(props: { show: boolean }) {
       track('upgrade_nudge_viewed', { location: 'dashboard', reason: 'checklist_completed' })
       markUpgradeNudgeShown({ key: 'upgrade_after_checklist' })
       // Best-effort server-side record.
-      void fetch('/api/settings', {
+      void fetch('/api/settings/stamp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ last_upgrade_nudge_shown_at: new Date().toISOString(), onboarding_completed: true }),

@@ -4,6 +4,8 @@ import { serverEnv } from '@/lib/env'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { insertEmailLog, type EmailLogKind } from '@/lib/email/email-logs'
 import { captureServerEvent } from '@/lib/analytics/posthog-server'
+import { qaEmailTemplate } from '@/lib/email/qa'
+import { isEmailTemplateId } from '@/lib/email/registry'
 
 export type DedupedSendArgs = {
   dedupeKey: string
@@ -48,6 +50,33 @@ export async function sendEmailDeduped(
       })
     }
     return { ok: true, status: 'skipped', reason: 'not_enabled' }
+  }
+
+  // Template quality guardrail: never hard-fail sending, but record QA issues for ops review.
+  // This avoids shipping broken templates while keeping production resilient.
+  try {
+    const templateId = isEmailTemplateId(args.template) ? args.template : null
+    if (!templateId) {
+      // Unknown template name (legacy callers). Skip QA rather than misclassifying.
+      // Still safe: send will proceed and meta can be added by callers if desired.
+    } else {
+      const qaIssues = qaEmailTemplate({
+        templateId,
+        rendered: {
+          subject: args.subject,
+          html: args.html,
+          text: args.text ?? '',
+          templateName: args.template,
+          kind: args.kind === 'lifecycle' ? 'lifecycle' : args.kind === 'internal' ? 'internal' : 'internal',
+        },
+      })
+      if (qaIssues.length > 0) {
+        // Attach to meta so it’s queryable in email_send_log without logging content.
+        args.meta = { ...(args.meta ?? {}), qa: { issues: qaIssues.map((i) => i.code) } }
+      }
+    }
+  } catch {
+    // ignore
   }
 
   // 1) Insert idempotency row (unique on dedupe_key).
