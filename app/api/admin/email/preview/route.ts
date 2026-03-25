@@ -7,6 +7,7 @@ import { getAppUrl } from '@/lib/app-url'
 import { getEmailTemplate, type EmailTemplateId } from '@/lib/email/registry'
 import { qaEmailTemplate } from '@/lib/email/qa'
 import { methodNotAllowed } from '@/lib/api/method'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,12 @@ export const POST = withApiGuard(
       const appUrl = parsed.data.appUrl ?? getAppUrl()
       const rendered = entry.render({ appUrl })
       const issues = qaEmailTemplate({ templateId: entry.meta.id, rendered })
+
+      void logProductEvent({
+        userId: null,
+        eventName: 'email_lab_previewed',
+        eventProps: { templateId: entry.meta.id, qaIssueCount: issues.length },
+      })
 
       return ok(
         {

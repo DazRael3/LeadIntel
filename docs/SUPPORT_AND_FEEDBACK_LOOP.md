@@ -12,6 +12,12 @@ We capture short, privacy-safe feedback to understand:
 - whether support/help pages resolve issues
 - what’s confusing on Starter/locked surfaces
 
+We also capture **metadata-only analytics events** (optional) to understand:
+- activation bottlenecks (onboarding progress + first outputs)
+- conversion friction (pricing/upgrade clicks)
+- entitlement friction (Assistant blocked reasons)
+- operator workflow throughput (prospect/contact/send-ready review)
+
 ### Storage
 Feedback is stored in Supabase under:
 - **Table**: `api.feedback`

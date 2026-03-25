@@ -16,6 +16,7 @@ import { lifecycleEmailsEnabled, adminNotificationsEnabled, getLifecycleAdminEma
 import { prospectWatchEnabled, prospectDailyDigestEnabled, contentDailyDigestEnabled, getReviewEmails } from '@/lib/prospect-watch/config'
 import { getAppUrl } from '@/lib/app-url'
 import { qaAllEmailTemplates } from '@/lib/email/qa'
+import { generateLearningAgentReport } from '@/lib/ops/learningAgent'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,6 +141,7 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
     warn: emailQa.filter((r) => r.severity === 'warn').length,
     error: emailQa.filter((r) => r.severity === 'error').length,
   }
+  const learning = await generateLearningAgentReport({ windowDays: 7 }).catch(() => null)
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10 space-y-6">
@@ -329,6 +331,46 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
               </Button>
               <div className="text-xs text-muted-foreground">Use Email Lab to preview/test-send (operator allowlist only, deduped).</div>
             </div>
+          </div>
+
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-medium text-foreground">Learning agent (internal)</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Recommendations from privacy-safe signals (feedback, automation health, queue throughput). No autonomous changes.
+                </div>
+              </div>
+              <Badge variant="outline">{learning ? `${learning.recommendations.length} recs` : 'unavailable'}</Badge>
+            </div>
+            {learning ? (
+              <div className="mt-3 space-y-2">
+                {learning.recommendations.slice(0, 4).map((r) => (
+                  <div key={r.id} className="rounded border border-cyan-500/10 bg-background/30 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="text-sm font-medium text-foreground">{r.title}</div>
+                      <Badge variant={r.severity === 'error' ? 'destructive' : r.severity === 'warn' ? 'secondary' : 'outline'}>
+                        {r.severity}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">{r.summary}</div>
+                    {r.actions.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {r.actions.slice(0, 2).map((a) => (
+                          <Button key={a.label} asChild size="sm" variant="outline">
+                            <Link href={a.href.replace('{ADMIN_TOKEN}', encodeURIComponent(token ?? ''))}>{a.label}</Link>
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 text-xs text-muted-foreground">
+                Unavailable on this deployment (likely missing Supabase service role configuration).
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

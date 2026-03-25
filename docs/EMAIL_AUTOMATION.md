@@ -133,6 +133,12 @@ Test-send recipient safety:
 - Allowed recipients come from the operator allowlist:
   - `PROSPECT_WATCH_REVIEW_EMAILS`, `LIFECYCLE_ADMIN_EMAILS`, `FEEDBACK_NOTIFICATION_EMAILS`
 - If the allowlist is set, `toEmail` must be in it (external addresses are rejected).
+ 
+Analytics (optional; best-effort):
+- `POST /api/analytics/track` records:
+  - `email_lab_previewed`
+  - `email_lab_test_send_clicked`
+  - `email_lab_test_send_result`
 
 ## Dedupe/idempotency rules
 

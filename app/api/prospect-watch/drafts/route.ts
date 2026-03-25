@@ -6,6 +6,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { requireTeamPlan } from '@/lib/team/gating'
 import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { captureServerEvent } from '@/lib/analytics/posthog-server'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -135,6 +136,18 @@ export const PATCH = withApiGuard(
       if (updErr) return fail(ErrorCode.DATABASE_ERROR, 'Update failed', { message: updErr.message }, { status: 500 }, bridge, requestId)
 
       void captureServerEvent({ distinctId: user.id, event: 'outreach_draft_saved', properties: { draftId: parsed.data.id, workspaceId: ws.id } })
+      void logProductEvent({
+        userId: user.id,
+        eventName: 'outreach_draft_saved',
+        eventProps: { draftId: parsed.data.id, workspaceId: ws.id },
+      })
+      if (parsed.data.sendReady !== undefined) {
+        void logProductEvent({
+          userId: user.id,
+          eventName: 'outreach_draft_send_ready_set',
+          eventProps: { draftId: parsed.data.id, workspaceId: ws.id, sendReady: Boolean(parsed.data.sendReady) },
+        })
+      }
       return ok({ updated: true }, undefined, bridge, requestId)
     } catch (error) {
       return asHttpError(error, '/api/prospect-watch/drafts', undefined, bridge, requestId)

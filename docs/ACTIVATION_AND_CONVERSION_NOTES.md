@@ -23,6 +23,9 @@ Events are best-effort and privacy-safe (no secrets, no page content bodies).
 - `billing_portal_clicked`
 - `feedback_opened`
 - `feedback_submitted`
+- `assistant_blocked` (reason + scope; indicates users are encountering entitlement/workspace friction)
+- `prospect_contact_created` / `prospect_contact_selected` (Team workflow throughput)
+- `outreach_draft_send_ready_set` (send-ready approval funnel)
 
 ## Lifecycle automation (email)
 LeadIntel uses a small, deduped lifecycle email set (Resend + cron) to reduce confusion and improve Starter→Closer conversion without spam:

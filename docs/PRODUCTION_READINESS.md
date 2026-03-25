@@ -104,6 +104,21 @@ LeadIntel includes a minimal feedback loop for low-ops product learning:
 
 ---
 
+## Email quality + operator preview (internal)
+
+LeadIntel includes an internal-only **Email Lab** so operators can review automation emails safely before broad enablement:
+- **UI**: `/admin/email?token=$ADMIN_TOKEN` (token-gated, noindex)
+- **APIs**:
+  - `POST /api/admin/email/preview`
+  - `POST /api/admin/email/test-send`
+
+Safety properties:
+- Test-send is restricted to operator allowlist (derived from `PROSPECT_WATCH_REVIEW_EMAILS` / `LIFECYCLE_ADMIN_EMAILS` / `FEEDBACK_NOTIFICATION_EMAILS`)
+- Test-sends are deduped per template+recipient+day
+- Templates are QA-checked for baseline structure (subject/html/text + prefs/support links)
+
+---
+
 ## Verification matrix (lean)
 
 Keep verification lightweight and production-oriented. Validate the matrix below at least once per meaningful release.

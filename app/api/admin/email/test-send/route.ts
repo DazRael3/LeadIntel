@@ -11,6 +11,7 @@ import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { serverEnv } from '@/lib/env'
 import { getResendReplyToEmail } from '@/lib/email/routing'
 import { parseEmailCsv } from '@/lib/lifecycle/config'
+import { logProductEvent } from '@/lib/services/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,11 @@ export const POST = withApiGuard(
       const day = new Date().toISOString().slice(0, 10)
       const dedupeKey = `test_send:${entry.meta.id}:${toEmail}:${day}`
       if (parsed.data.dryRun) {
+        void logProductEvent({
+          userId: null,
+          eventName: 'email_lab_test_send_result',
+          eventProps: { templateId: entry.meta.id, status: 'skipped', reason: 'dry_run' },
+        })
         return ok({ sent: false, status: 'skipped', reason: 'dry_run', qa: { issues } }, undefined, bridge, requestId)
       }
 
@@ -107,6 +113,16 @@ export const POST = withApiGuard(
           { name: 'audience', value: entry.meta.audience },
         ],
         meta: { tool: 'admin_email_test_send', templateId: entry.meta.id },
+      })
+
+      void logProductEvent({
+        userId: null,
+        eventName: 'email_lab_test_send_result',
+        eventProps: {
+          templateId: entry.meta.id,
+          status: res.ok ? res.status : 'failed',
+          reason: res.ok ? (res.status === 'skipped' ? res.reason : undefined) : undefined,
+        },
       })
 
       return ok(

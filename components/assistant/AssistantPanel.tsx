@@ -66,30 +66,36 @@ export function AssistantPanel(props: {
       const mapped = mapApiErrorToClient({ res, json })
       if (mapped.code === 'plan_required') {
         setLocked({ code: 'ASSISTANT_PLAN_REQUIRED', message: 'Upgrade required to use the Assistant in workspace scope.' })
+        track('assistant_blocked', { reason: 'plan_required', scope: props.scope.type })
         return
       }
       if (mapped.code === 'workspace_required') {
         setLocked({ code: 'ASSISTANT_WORKSPACE_REQUIRED', message: 'Workspace setup required to use the Assistant.' })
+        track('assistant_blocked', { reason: 'workspace_required', scope: props.scope.type })
         return
       }
       if (mapped.code === 'auth_required') {
         setLocked({ code: 'UNAUTHORIZED', message: 'Please sign in again to use the Assistant.' })
+        track('assistant_blocked', { reason: 'auth_required', scope: props.scope.type })
         return
       }
       if (mapped.code === 'invalid_method') {
         setLocked({ code: 'ASSISTANT_DISABLED', message: 'Assistant temporarily unavailable. Please try again later.' })
+        track('assistant_blocked', { reason: 'invalid_method', scope: props.scope.type })
         return
       }
       if (mapped.code === 'forbidden') {
         setLocked({ code: 'ASSISTANT_INSUFFICIENT_PERMISSIONS', message: 'Insufficient permissions for this workspace.' })
+        track('assistant_blocked', { reason: 'forbidden', scope: props.scope.type })
         return
       }
       if (mapped.code === 'temporary_unavailable') {
         setLocked({ code: 'ASSISTANT_DISABLED', message: 'Assistant temporarily unavailable. Please try again later.' })
+        track('assistant_blocked', { reason: 'temporary_unavailable', scope: props.scope.type })
         return
       }
     },
-    [setLocked]
+    [props.scope.type, setLocked]
   )
 
   const loadPrompts = useCallback(async () => {
