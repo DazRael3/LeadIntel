@@ -186,6 +186,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Is enterprise trust maturity a procurement requirement right now?',
       'Do you already have strong templates/playbooks, or do you need the system to provide them?',
       'What does success in week 1 look like for your team?',
+      'Do you need approvals/audit trails for team execution?',
+      'Do you want the system to generate drafts tied to why-now signals, or just surface signals?',
     ],
     migrationSteps: [
       'Define your ICP (who you want, who you don’t).',
@@ -454,6 +456,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Do you want to start focused and expand, or start broad?',
       'Do you need workflow automation beyond push/export?',
       'What is the simplest path to measurable execution?',
+      'Do you need send-ready drafts for reps, or just an orchestrated signal graph?',
+      'Do you need a rep-facing workflow that can run without custom integration work?',
     ],
     migrationSteps: [
       'Define ICP and your target account list.',
@@ -585,6 +589,8 @@ export const COMPARE_PAGES: ComparePage[] = [
       'Do you want to evaluate without a long sales cycle?',
       'Is database breadth a core buying criterion?',
       'What does week-1 success look like?',
+      'Do you need the system to generate drafts tied to why-now signals, or just data?',
+      'Do you need approvals/audit trails for team execution?',
     ],
     migrationSteps: [
       'Start with ICP and a target account list.',

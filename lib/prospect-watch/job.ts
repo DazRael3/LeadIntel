@@ -11,6 +11,7 @@ import { scoreProspect } from '@/lib/prospect-watch/scoring'
 import { generateLinkedInPostDraft, generateOutreachDrafts } from '@/lib/prospect-watch/drafts'
 import type { ProspectSignalType } from '@/lib/prospect-watch/classify'
 import { getResendReplyToEmail } from '@/lib/email/routing'
+import { bumpReject, createIngestStats, type ProspectWatchIngestStats } from '@/lib/prospect-watch/ingest-stats'
 
 type TargetRow = {
   id: string
@@ -91,6 +92,7 @@ export async function runProspectWatch(args: { dryRun?: boolean; limitTargets?: 
   let draftsUpserted = 0
   let contentUpserted = 0
   let highPriorityNotified = 0
+  const ingest = createIngestStats({ feedsAttempted: feeds.length })
 
   for (const t of rows) {
     const companyName = (t.company_name ?? '').trim()
@@ -101,6 +103,16 @@ export async function runProspectWatch(args: { dryRun?: boolean; limitTargets?: 
       target: { companyName, companyDomain: (t.company_domain ?? null) as string | null },
       maxItems: 10,
     })
+    // Aggregate ingestion stats across targets.
+    ingest.feedsFetchedOk += ingested.stats.feedsFetchedOk
+    ingest.feedsParsedOk += ingested.stats.feedsParsedOk
+    ingest.itemsScanned += ingested.stats.itemsScanned
+    ingest.itemsMatched += ingested.stats.itemsMatched
+    ingest.signalsProposed += ingested.stats.signalsProposed
+    for (const [k, v] of Object.entries(ingested.stats.rejected)) {
+      ingest.rejected[k as keyof ProspectWatchIngestStats['rejected']] =
+        (ingest.rejected[k as keyof ProspectWatchIngestStats['rejected']] ?? 0) + (v ?? 0)
+    }
 
     for (const s of ingested.signals) {
       // Insert signal (deduped by unique constraint on (workspace_id, source_url))
@@ -120,6 +132,10 @@ export async function runProspectWatch(args: { dryRun?: boolean; limitTargets?: 
         })
         if (!ins.error) {
           signalsInserted += 1
+          ingest.signalsInserted += 1
+        } else if (ins.error.code === '23505') {
+          ingest.signalsDeduped += 1
+          bumpReject(ingest, 'duplicate_signal')
         }
       } else {
         signalsInserted += 1
@@ -315,6 +331,7 @@ export async function runProspectWatch(args: { dryRun?: boolean; limitTargets?: 
       draftsUpserted,
       contentUpserted,
       highPriorityNotified,
+      ingest,
       dryRun,
     },
   }

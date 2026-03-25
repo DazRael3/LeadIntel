@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
+import { track } from '@/lib/analytics'
 
 type EmailTemplateId = string
 
@@ -47,6 +48,7 @@ export function AdminEmailLabClient(props: {
     if (!templateId) return
     setLoading(true)
     try {
+      track('email_lab_previewed', { templateId })
       const res = await fetch('/api/admin/email/preview', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-admin-token': props.token },
@@ -72,6 +74,7 @@ export function AdminEmailLabClient(props: {
     if (!templateId) return
     setLoading(true)
     try {
+      track('email_lab_test_send_clicked', { templateId, dryRun })
       const res = await fetch('/api/admin/email/test-send', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-admin-token': props.token },
@@ -79,6 +82,7 @@ export function AdminEmailLabClient(props: {
       })
       const json = (await res.json().catch(() => null)) as SendEnvelope | null
       if (!res.ok || !json || json.ok !== true) {
+        track('email_lab_test_send_result', { templateId, dryRun, ok: false })
         toast({
           variant: 'destructive',
           title: dryRun ? 'Dry run failed' : 'Test send failed',
@@ -86,6 +90,7 @@ export function AdminEmailLabClient(props: {
         })
         return
       }
+      track('email_lab_test_send_result', { templateId, dryRun, ok: true, status: json.data.status, sent: json.data.sent, reason: json.data.reason ?? null })
       toast({
         title: dryRun ? 'Dry run complete' : json.data.sent ? 'Test email sent' : 'Test email skipped',
         description: json.data.reason ? `Reason: ${json.data.reason}` : `Status: ${json.data.status}`,

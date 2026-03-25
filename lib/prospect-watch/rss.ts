@@ -1,5 +1,6 @@
 import Parser from 'rss-parser'
 import { classifySignal, type ClassifiedSignal } from '@/lib/prospect-watch/classify'
+import { bumpReject, createIngestStats, type ProspectWatchIngestStats } from '@/lib/prospect-watch/ingest-stats'
 
 export type RssItemSignal = {
   sourceUrl: string
@@ -64,11 +65,12 @@ export async function ingestRssSignals(args: {
   feedUrls: string[]
   target: { companyName: string; companyDomain: string | null }
   maxItems: number
-}): Promise<{ signals: RssItemSignal[]; scanned: number; matched: number }> {
+}): Promise<{ signals: RssItemSignal[]; scanned: number; matched: number; stats: ProspectWatchIngestStats }> {
   const parser = new Parser()
   const out: RssItemSignal[] = []
   let scanned = 0
   let matched = 0
+  const stats = createIngestStats({ feedsAttempted: args.feedUrls.length })
 
   for (const raw of args.feedUrls) {
     if (out.length >= args.maxItems) break
@@ -76,23 +78,41 @@ export async function ingestRssSignals(args: {
     if (!feedUrl) continue
 
     const res = await fetchTextWithTimeout(feedUrl, 10_000)
-    if (!res.ok) continue
+    if (!res.ok) {
+      bumpReject(stats, 'feed_fetch_failed')
+      continue
+    }
+    stats.feedsFetchedOk += 1
 
     let feed: Parser.Output<any>
     try {
       feed = await parser.parseString(res.text)
     } catch {
+      bumpReject(stats, 'feed_parse_failed')
       continue
     }
+    stats.feedsParsedOk += 1
 
     const sourceName = typeof feed.title === 'string' ? feed.title : null
     for (const item of feed.items ?? []) {
       if (out.length >= args.maxItems) break
       scanned += 1
+      stats.itemsScanned += 1
       const title = typeof item.title === 'string' ? item.title.trim() : ''
       const link = typeof item.link === 'string' ? item.link.trim() : ''
+      if (!title) {
+        bumpReject(stats, 'item_missing_title')
+        continue
+      }
+      if (!link) {
+        bumpReject(stats, 'item_missing_link')
+        continue
+      }
       const urlOk = safeUrl(link)
-      if (!title || !urlOk) continue
+      if (!urlOk) {
+        bumpReject(stats, 'item_invalid_link')
+        continue
+      }
       const snippet =
         typeof (item as any).contentSnippet === 'string'
           ? ((item as any).contentSnippet as string)
@@ -102,9 +122,13 @@ export async function ingestRssSignals(args: {
       const blob = `${title} ${snippet ?? ''} ${urlOk}`
       const domain = args.target.companyDomain
       const pass = matchesTarget(blob, args.target) || (domain ? linkHostMatches(urlOk, domain) : false)
-      if (!pass) continue
+      if (!pass) {
+        bumpReject(stats, 'target_no_match')
+        continue
+      }
 
       matched += 1
+      stats.itemsMatched += 1
       const occurredAt =
         typeof (item as any).isoDate === 'string'
           ? new Date((item as any).isoDate)
@@ -113,10 +137,11 @@ export async function ingestRssSignals(args: {
             : null
       const occurred = occurredAt && Number.isFinite(occurredAt.getTime()) ? occurredAt : null
       const classified = classifySignal({ title, snippet, url: urlOk })
+      stats.signalsProposed += 1
       out.push({ sourceUrl: urlOk, sourceName, title, snippet, occurredAt: occurred, classified })
     }
   }
 
-  return { signals: out, scanned, matched }
+  return { signals: out, scanned, matched, stats }
 }
 
