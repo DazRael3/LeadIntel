@@ -149,6 +149,20 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  // Tier B: Admin utilities (token-gated inside handler; no user auth required)
+  'POST:/api/admin/auth/bootstrap': {
+    tier: 'ADMIN',
+    maxBytes: 32768,
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 10,
+    },
+    originRequired: true,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/reveal': {
     tier: 'AI_GENERATION',
     maxBytes: 65536, // 64KB
