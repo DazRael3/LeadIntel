@@ -23,13 +23,14 @@ type ContentRow = {
 }
 
 type QueueEnvelope =
-  | { ok: true; data: { workspaceId: string; role: string; items: ContentRow[] } }
-  | { ok: false; error?: { message?: string } }
+  | { ok: true; data: { workspaceId: string | null; role: string | null; items: ContentRow[]; reason?: string; configured?: boolean } }
+  | { ok: false; error?: { message?: string; code?: string }; details?: unknown }
 
 export function ContentSettingsClient() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<ContentRow[]>([])
+  const [queueMeta, setQueueMeta] = useState<{ workspaceId: string | null; role: string | null; reason?: string; configured?: boolean } | null>(null)
   const [filter, setFilter] = useState<'draft' | 'all'>('draft')
   const [saving, setSaving] = useState<string | null>(null)
 
@@ -50,12 +51,15 @@ export function ContentSettingsClient() {
           description: json && json.ok === false ? json.error?.message ?? 'Please try again.' : 'Please try again.',
         })
         setItems([])
+        setQueueMeta(null)
         return
       }
       setItems(json.data.items ?? [])
+      setQueueMeta({ workspaceId: json.data.workspaceId ?? null, role: json.data.role ?? null, reason: json.data.reason, configured: json.data.configured })
     } catch {
       toast({ variant: 'destructive', title: 'Load failed', description: 'Please try again.' })
       setItems([])
+      setQueueMeta(null)
     } finally {
       setLoading(false)
     }
@@ -141,7 +145,16 @@ export function ContentSettingsClient() {
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? <div className="text-sm text-muted-foreground">Loading…</div> : null}
-            {!loading && visible.length === 0 ? <div className="text-sm text-muted-foreground">No content drafts.</div> : null}
+            {!loading && visible.length === 0 ? (
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">No content drafts yet.</div>
+                <div className="rounded border border-cyan-500/10 bg-background/30 p-3 text-xs text-muted-foreground space-y-1">
+                  <div className="font-semibold text-foreground">Diagnostics</div>
+                  <div>Workspace: {queueMeta?.workspaceId ? 'resolved' : queueMeta?.reason === 'workspace_missing' ? 'missing' : 'unknown'}</div>
+                  <div>Configured feeds: {queueMeta?.configured === false ? 'no / disabled' : queueMeta?.configured === true ? 'yes' : 'unknown'}</div>
+                </div>
+              </div>
+            ) : null}
 
             {visible.map((c) => (
               <div key={c.id} className="rounded border border-cyan-500/10 bg-background/40 p-4 space-y-3">
