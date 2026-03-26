@@ -7,7 +7,6 @@
  *   (CHECKOUT_NOT_CONFIGURED), while plan resolution should fall back to "closer"
  *   for unknown paid price IDs.
  */
-import { serverEnv } from '@/lib/env'
 
 export type BillingCycle = 'monthly' | 'annual'
 export { planIdForTier, tierAtLeast, tierLabel, type PaidPlanId, type PaidTier, type Tier } from '@/lib/billing/tier'
@@ -28,12 +27,12 @@ function envPrice(...candidates: Array<string | null | undefined>): string | nul
 
 export function getPriceIdsFromEnv() {
   return {
-    closerMonthly: envPrice(serverEnv.STRIPE_PRICE_ID_PRO, serverEnv.STRIPE_PRICE_ID),
+    closerMonthly: envPrice(process.env.STRIPE_PRICE_ID_PRO, process.env.STRIPE_PRICE_ID),
     closerAnnual: envPrice(process.env.STRIPE_PRICE_ID_CLOSER_ANNUAL),
     closerPlusMonthly: envPrice(process.env.STRIPE_PRICE_ID_CLOSER_PLUS),
     closerPlusAnnual: envPrice(process.env.STRIPE_PRICE_ID_CLOSER_PLUS_ANNUAL),
     // Team: support either a single price (legacy) or base+seat split.
-    teamMonthly: envPrice(serverEnv.STRIPE_PRICE_ID_TEAM),
+    teamMonthly: envPrice(process.env.STRIPE_PRICE_ID_TEAM),
     teamAnnual: envPrice(process.env.STRIPE_PRICE_ID_TEAM_ANNUAL),
     teamBaseMonthly: envPrice(process.env.STRIPE_PRICE_ID_TEAM_BASE),
     teamBaseAnnual: envPrice(process.env.STRIPE_PRICE_ID_TEAM_BASE_ANNUAL),

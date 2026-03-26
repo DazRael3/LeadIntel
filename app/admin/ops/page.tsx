@@ -93,7 +93,13 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
   requireAdminToken(token)
 
   const opsHealth = await computeOpsHealth().catch(() => null)
-  const env = runEnvDoctor()
+  const env = (() => {
+    try {
+      return runEnvDoctor()
+    } catch {
+      return { subsystems: [], missingKeys: [] }
+    }
+  })()
   const jobRuns = await readLatestJobRuns(30).catch(() => ({ enabled: false, runs: [] as Array<Record<string, unknown>> }))
   const runs = (jobRuns.runs as unknown as JobRunRow[]).filter((r) => r && typeof r.job_name === 'string')
 

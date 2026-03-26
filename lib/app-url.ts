@@ -1,10 +1,8 @@
-import { serverEnv } from '@/lib/env'
-
 export function getAppUrl(): string {
-  const fromAppUrl = (serverEnv.APP_URL ?? '').trim()
+  const fromAppUrl = (process.env.APP_URL ?? '').trim()
   if (fromAppUrl) return fromAppUrl.replace(/\/$/, '')
 
-  const fromSite = (serverEnv.NEXT_PUBLIC_SITE_URL ?? '').trim()
+  const fromSite = (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim()
   if (fromSite) return fromSite.replace(/\/$/, '')
 
   return 'https://dazrael.com'
