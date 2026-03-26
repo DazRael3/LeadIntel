@@ -57,3 +57,7 @@ export function assertSupabaseServiceRoleConfigured(): void {
   })
 }
 
+export function hasSupabaseServiceRoleConfigured(): boolean {
+  return Boolean(SUPABASE_SERVICE_ROLE_KEY)
+}
+

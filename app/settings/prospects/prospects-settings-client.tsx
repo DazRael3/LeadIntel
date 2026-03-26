@@ -56,13 +56,14 @@ function emailStatusBadge(status: ContactRow['email_status']): { label: string; 
 }
 
 type QueueEnvelope =
-  | { ok: true; data: { workspaceId: string; role: string; items: ProspectRow[] } }
-  | { ok: false; error?: { message?: string } }
+  | { ok: true; data: { workspaceId: string | null; role: string | null; items: ProspectRow[]; configured?: boolean; reason?: string } }
+  | { ok: false; error?: { message?: string; code?: string }; data?: unknown }
 
 export function ProspectsSettingsClient() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<ProspectRow[]>([])
+  const [queueMeta, setQueueMeta] = useState<{ workspaceId: string | null; role: string | null; reason?: string; configured?: boolean } | null>(null)
   const [filter, setFilter] = useState<'review' | 'all'>('review')
   const [saving, setSaving] = useState<string | null>(null)
   const [newTarget, setNewTarget] = useState({ companyName: '', companyDomain: '', icpFitScore: 70, icpNotes: '' })
@@ -86,12 +87,15 @@ export function ProspectsSettingsClient() {
           description: json && json.ok === false ? json.error?.message ?? 'Please try again.' : 'Please try again.',
         })
         setItems([])
+        setQueueMeta(null)
         return
       }
       setItems(json.data.items ?? [])
+      setQueueMeta({ workspaceId: json.data.workspaceId ?? null, role: json.data.role ?? null, configured: json.data.configured, reason: json.data.reason })
     } catch {
       toast({ variant: 'destructive', title: 'Load failed', description: 'Please try again.' })
       setItems([])
+      setQueueMeta(null)
     } finally {
       setLoading(false)
     }
@@ -276,6 +280,12 @@ export function ProspectsSettingsClient() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!loading && queueMeta && queueMeta.workspaceId == null ? (
+              <div className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+                Workspace not ready for this account yet. Queue is unavailable until a workspace exists.
+              </div>
+            ) : null}
+
             <div className="rounded border border-cyan-500/10 bg-background/30 p-3 space-y-2">
               <div className="text-xs font-semibold text-foreground">Add watch target</div>
               <div className="grid gap-2 md:grid-cols-3">
@@ -342,7 +352,22 @@ export function ProspectsSettingsClient() {
             </div>
 
             {loading ? <div className="text-sm text-muted-foreground">Loading…</div> : null}
-            {!loading && visible.length === 0 ? <div className="text-sm text-muted-foreground">No prospects in queue.</div> : null}
+            {!loading && visible.length === 0 ? (
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">No prospects in queue yet.</div>
+                <div className="rounded border border-cyan-500/10 bg-background/30 p-3 text-xs text-muted-foreground space-y-1">
+                  <div className="font-semibold text-foreground">Diagnostics</div>
+                  <div>Workspace: {queueMeta?.workspaceId ? 'resolved' : queueMeta?.reason === 'workspace_missing' ? 'missing' : 'unknown'}</div>
+                  <div>Configured feeds: {queueMeta?.configured === false ? 'no / disabled' : queueMeta?.configured === true ? 'yes' : 'unknown'}</div>
+                  <div>
+                    Next step:{' '}
+                    {queueMeta?.reason === 'workspace_missing'
+                      ? 'create/join a workspace, then return to this queue.'
+                      : 'add a watch target above, then run the prospect_watch cron to ingest signals.'}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {visible.map((p) => (
               <div key={p.id} className="rounded border border-cyan-500/10 bg-background/40 p-4 space-y-3">
