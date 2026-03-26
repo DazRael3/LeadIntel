@@ -5,7 +5,6 @@ import { ok, fail, ErrorCode, createCookieBridge, asHttpError } from '@/lib/api/
 import type { InstrumentDefinition, InstrumentKind } from '@/lib/market/instruments'
 import type { InstrumentQuote } from '@/lib/market/prices'
 import { generateMockInstrumentQuotes } from '@/lib/market/prices'
-import { getServerEnv } from '@/lib/env'
 import { fetchQuotesForSymbols } from '@/lib/market/liveProvider'
 import { allQuotesAreUsd, toMarketQuote } from '@/lib/market/quotes'
 import { logger } from '@/lib/observability/logger'
@@ -52,6 +51,24 @@ type LiveLikeQuote = { price: number | null; changePct: number | null; updatedAt
 
 function isValidPrice(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function getRuntimeEnv(): {
+  NODE_ENV: 'development' | 'production' | 'test'
+  MARKET_DATA_PROVIDER: string
+  MARKET_DATA_API_KEY: string
+  FINNHUB_API_KEY: string
+} {
+  const nodeEnv = (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test' ? process.env.NODE_ENV : 'development') as
+    | 'development'
+    | 'production'
+    | 'test'
+  return {
+    NODE_ENV: nodeEnv,
+    MARKET_DATA_PROVIDER: (process.env.MARKET_DATA_PROVIDER ?? '').trim(),
+    MARKET_DATA_API_KEY: (process.env.MARKET_DATA_API_KEY ?? '').trim(),
+    FINNHUB_API_KEY: (process.env.FINNHUB_API_KEY ?? '').trim(),
+  }
 }
 
 function shouldLogOnce(flag: boolean): boolean {
@@ -197,7 +214,7 @@ export const POST = withApiGuard(
       }
 
       const defs = toInstrumentDefs(instruments)
-      const env = getServerEnv()
+      const env = getRuntimeEnv()
       const provider = env.MARKET_DATA_PROVIDER
       const apiKey = env.MARKET_DATA_API_KEY
 
@@ -239,9 +256,10 @@ export const POST = withApiGuard(
 
       // STOCKS: live provider (Finnhub/Polygon) => USD by default for US equities.
       const stockSymbols = instruments.filter((i) => i.kind === 'stock').map((i) => i.symbol)
-      if (provider && provider !== 'none' && apiKey && stockSymbols.length > 0) {
+      const liveProvider = provider === 'finnhub' || provider === 'polygon' ? provider : null
+      if (liveProvider && apiKey && stockSymbols.length > 0) {
         const live = await fetchQuotesForSymbols({
-          provider,
+          provider: liveProvider,
           apiKey,
           symbols: stockSymbols,
           debug: debugEnabled,

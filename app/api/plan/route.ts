@@ -3,7 +3,6 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { hasEverHadTrial, isEligibleForNewTrial, type SubscriptionTrialRow, type UserTrialRow } from '@/lib/billing/entitlements'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
-import { serverEnv } from '@/lib/env'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createHash } from 'crypto'
 import { logProductEvent } from '@/lib/services/analytics'
@@ -13,6 +12,12 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { getQaOverrideConfig, isQaActorAllowlisted, isQaTargetAllowlisted } from '@/lib/qa/overrides'
 
 export const dynamic = 'force-dynamic'
+
+function flagEnabled(raw: string | undefined): boolean {
+  const v = (raw ?? '').trim().toLowerCase()
+  if (!v) return false
+  return v === '1' || v === 'true'
+}
 
 export const GET = withApiGuard(async (request: NextRequest, { requestId, userId }) => {
   const bridge = createCookieBridge()
@@ -26,7 +31,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     }
 
     // Optional app-level trial initialization (flagged; no Stripe changes).
-    const enableAppTrial = serverEnv.ENABLE_APP_TRIAL === '1' || serverEnv.ENABLE_APP_TRIAL === 'true'
+    const enableAppTrial = flagEnabled(process.env.ENABLE_APP_TRIAL)
     if (enableAppTrial) {
       try {
         const { data: userRow } = await supabase
@@ -40,8 +45,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         const needsInit = !userRow || !(userTrial as { trial_ends_at?: string | null })?.trial_ends_at
         const tier = (userRow as { subscription_tier?: string | null } | null)?.subscription_tier ?? 'free'
         if (needsInit && tier !== 'pro' && tier !== 'team') {
-          const fingerprintingEnabled =
-            serverEnv.ENABLE_TRIAL_FINGERPRINTING === '1' || serverEnv.ENABLE_TRIAL_FINGERPRINTING === 'true'
+          const fingerprintingEnabled = flagEnabled(process.env.ENABLE_TRIAL_FINGERPRINTING)
           const userAgent = request.headers.get('user-agent') || ''
           const uaHash = userAgent ? createHash('sha256').update(userAgent).digest('hex') : null
           const forwardedFor = request.headers.get('x-forwarded-for') || ''
@@ -145,12 +149,16 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       }
     }
 
-    // Tier resolution reads canonical billing sources in `api` using the service role.
-    // This avoids coupling plan resolution correctness to RLS policy correctness.
+    // Tier resolution:
+    // - Prefer service-role reads for correctness when configured.
+    // - Fail-soft to request-scoped reads when service role is missing, so plan surfaces never 500.
     const sessionUser = await getUserSafe(supabase)
-    const admin = createSupabaseAdminClient({ schema: 'api' })
     const sessionEmail = sessionUser?.email ?? null
-    const resolved = await resolveTierFromDb(admin as any, userId, sessionEmail)
+    const hasServiceRole =
+      Boolean((process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()) &&
+      Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
+    const tierClient = hasServiceRole ? (createSupabaseAdminClient({ schema: 'api' }) as any) : (supabase.schema('api') as any)
+    const resolved = await resolveTierFromDb(tierClient as any, userId, sessionEmail)
     const tier = resolved.tier
     const planId = resolved.planId
     const isHouseCloserOverride = Boolean(resolved.isHouseCloserOverride)
@@ -186,7 +194,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     }
 
     // Product analytics (best-effort; behind env flag).
-    if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
+    if (flagEnabled(process.env.ENABLE_PRODUCT_ANALYTICS)) {
       void logProductEvent({
         userId,
         eventName: 'plan_checked',
@@ -231,8 +239,10 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         }
       | null = null
 
-    if (qaDebugEligible) {
-      const { data: rawUser } = await admin.from('users').select('subscription_tier').eq('id', userId).maybeSingle()
+    // QA debug panel requires privileged reads (service role). Fail-soft when not configured.
+    if (qaDebugEligible && hasServiceRole) {
+      const adminForDebug = createSupabaseAdminClient({ schema: 'api' })
+      const { data: rawUser } = await adminForDebug.from('users').select('subscription_tier').eq('id', userId).maybeSingle()
       const rawSubscriptionTier = (rawUser as { subscription_tier?: unknown } | null)?.subscription_tier
       const rawTier = typeof rawSubscriptionTier === 'string' ? rawSubscriptionTier : null
 
@@ -256,7 +266,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       else if (!targetAllowlisted) blockedReason = 'target_not_allowlisted'
       else if (stripeActiveOrTrialing) blockedReason = 'stripe_active_or_trialing'
       else {
-        const { data: o } = await admin
+        const { data: o } = await adminForDebug
           .from('qa_tier_overrides')
           .select('override_tier, expires_at, revoked_at')
           .eq('target_user_id', userId)
