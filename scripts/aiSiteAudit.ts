@@ -421,11 +421,19 @@ async function auditOneRoute(args: {
   let ok = true
   let status: number | null = null
   try {
-    const resp = await args.page.goto(url, { waitUntil: 'networkidle', timeout: 60_000 })
+    // IMPORTANT: Do not use networkidle as the primary pass/fail signal.
+    // Some app shells legitimately keep background requests running (e.g. live tickers),
+    // which can cause false "FAIL" due to Playwright timing out.
+    const resp = await args.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     status = resp?.status() ?? null
     if (status && status >= 400) ok = false
-  } catch {
+    // Best-effort: try to reach a quiescent state, but never fail the route if it doesn't happen.
+    await args.page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
+      events.push({ type: 'networkidle_timeout', url })
+    })
+  } catch (e) {
     ok = false
+    events.push({ type: 'goto_error', url, message: e instanceof Error ? e.message : String(e) })
   }
 
   await args.page.waitForTimeout(550)
