@@ -10,6 +10,29 @@ import {
   isWindows,
 } from './audit/tooling'
 import { classifyRequestFailed } from './audit/network'
+import { fetchSitemapRoutes } from './audit/sitemap'
+import { normalizeRoute } from './audit/url'
+
+type FlowStep = {
+  id: string
+  mode: RunMode
+  name: string
+  route: string
+}
+
+type FlowResult = {
+  id: string
+  mode: RunMode
+  name: string
+  route: string
+  ok: boolean
+  notes: string[]
+  screenshotDesktop: string | null
+  screenshotMobile: string | null
+  htmlPath: string | null
+  eventsPath: string | null
+  durationMs: number
+}
 
 type AuditScope = 'public' | 'logged_in' | 'all'
 type RunMode = 'public' | 'logged_in'
@@ -148,27 +171,6 @@ function safeFileStem(s: string): string {
     .replaceAll('=', '_')
     .replaceAll('#', '_')
     .replace(/^_+/, '') || 'root'
-}
-
-function normalizeRoute(routeOrUrl: string, baseUrl: string): string | null {
-  try {
-    const u = new URL(routeOrUrl, baseUrl)
-    const base = new URL(baseUrl)
-    if (u.origin !== base.origin) return null
-    const pathname = u.pathname || '/'
-    const search = u.search || ''
-    // Normalize trailing slash except root.
-    const p = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
-    // Strip obviously sensitive token-y params.
-    const sp = new URLSearchParams(search)
-    if (sp.has('token') || sp.has('access_token') || sp.has('refresh_token')) {
-      return p
-    }
-    const qs = sp.toString()
-    return qs ? `${p}?${qs}` : p
-  } catch {
-    return null
-  }
 }
 
 function isSkippableRoute(route: string): boolean {
@@ -494,6 +496,179 @@ async function auditOneRoute(args: {
   }
 }
 
+async function snapshotForFlow(args: {
+  page: Page
+  baseUrl: string
+  mode: RunMode
+  route: string
+  outHtmlDir: string
+  outShotsDir: string
+  label: string
+  viewportLabel: 'desktop' | 'mobile'
+}): Promise<{ screenshotPath: string | null; htmlPath: string | null; eventsPath: string | null }> {
+  const stem = safeFileStem(`flow_${args.mode}_${args.label}_${args.route}_${args.viewportLabel}`)
+  const screenshotPath = path.join(args.outShotsDir, `${stem}.png`)
+  const htmlPath = path.join(args.outHtmlDir, `${stem}.html`)
+  const eventsPath = path.join(args.outHtmlDir, `${stem}.events.json`)
+  try {
+    await args.page.waitForLoadState('domcontentloaded', { timeout: 15_000 })
+  } catch {
+    // ignore
+  }
+  try {
+    const html = await args.page.content()
+    await fs.writeFile(htmlPath, html, 'utf8')
+  } catch {
+    // ignore
+  }
+  try {
+    const events = {
+      url: args.page.url(),
+      ts: new Date().toISOString(),
+      label: args.label,
+      mode: args.mode,
+      route: args.route,
+    }
+    await writeJson(eventsPath, events)
+  } catch {
+    // ignore
+  }
+  try {
+    await args.page.screenshot({ path: screenshotPath, fullPage: true })
+    return { screenshotPath, htmlPath, eventsPath }
+  } catch {
+    return { screenshotPath: null, htmlPath, eventsPath }
+  }
+}
+
+async function runFlows(args: {
+  browser: Browser
+  baseUrl: string
+  runPublic: boolean
+  runLoggedIn: boolean
+  storageStatePath: string | undefined
+  outDir: string
+  outShotsDir: string
+  outHtmlDir: string
+}): Promise<FlowResult[]> {
+  const results: FlowResult[] = []
+  const steps: FlowStep[] = []
+  if (args.runPublic) {
+    steps.push({ id: 'public_sample_digest', mode: 'public', name: 'Sample digest submit (public)', route: '/' })
+  }
+  if (args.runLoggedIn) {
+    steps.push({ id: 'logged_in_dashboard_open', mode: 'logged_in', name: 'Dashboard load', route: '/dashboard' })
+    steps.push({ id: 'logged_in_pricing_open', mode: 'logged_in', name: 'Pricing load (logged-in)', route: '/pricing' })
+  }
+
+  // Desktop contexts first
+  const ctxPublic = args.runPublic ? await newContext(args.browser, { width: 1280, height: 800 }, null) : null
+  const pagePublic = ctxPublic ? await ctxPublic.newPage() : null
+  const ctxAuthed = args.runLoggedIn ? await newContext(args.browser, { width: 1280, height: 800 }, args.storageStatePath ?? null) : null
+  const pageAuthed = ctxAuthed ? await ctxAuthed.newPage() : null
+
+  // Validate storageState for flows too.
+  if (args.runLoggedIn && pageAuthed) {
+    await pageAuthed.goto(new URL('/dashboard', args.baseUrl).toString(), { waitUntil: 'domcontentloaded' })
+    if (pageAuthed.url().includes('/login')) {
+      throw new Error('storageState is not authenticated (redirected to /login). Re-run audit:storage.')
+    }
+  }
+
+  for (const step of steps) {
+    const page = step.mode === 'logged_in' ? pageAuthed : pagePublic
+    if (!page) continue
+    const startedAt = Date.now()
+    const notes: string[] = []
+    let ok = true
+    try {
+      await page.goto(new URL(step.route, args.baseUrl).toString(), { waitUntil: 'domcontentloaded' })
+      if (step.id === 'public_sample_digest') {
+        // Best-effort: find a digest input and submit once. Never loops.
+        const input = page.locator('input[name="company"], input[name="companyUrl"], input[type="url"], input[placeholder*="company" i], input[placeholder*="website" i]').first()
+        if (await input.count()) {
+          await input.fill('dell.com')
+          const btn = page.locator('button:has-text("Generate"), button:has-text("Try"), button:has-text("Create"), button:has-text("Submit")').first()
+          if (await btn.count()) {
+            await btn.click({ timeout: 5_000 }).catch(() => undefined)
+            notes.push('attempted_submit=true')
+          } else {
+            ok = false
+            notes.push('submit_button_not_found')
+          }
+        } else {
+          ok = false
+          notes.push('digest_input_not_found')
+        }
+      }
+    } catch (e) {
+      ok = false
+      notes.push(`error:${e instanceof Error ? e.message : String(e)}`)
+    }
+
+    const snap = await snapshotForFlow({
+      page,
+      baseUrl: args.baseUrl,
+      mode: step.mode,
+      route: step.route,
+      outHtmlDir: args.outHtmlDir,
+      outShotsDir: args.outShotsDir,
+      label: step.id,
+      viewportLabel: 'desktop',
+    })
+
+    results.push({
+      id: step.id,
+      mode: step.mode,
+      name: step.name,
+      route: step.route,
+      ok,
+      notes,
+      screenshotDesktop: snap.screenshotPath,
+      screenshotMobile: null,
+      htmlPath: snap.htmlPath,
+      eventsPath: snap.eventsPath,
+      durationMs: Date.now() - startedAt,
+    })
+  }
+
+  if (ctxPublic) await ctxPublic.close()
+  if (ctxAuthed) await ctxAuthed.close()
+
+  // Mobile screenshots for each step
+  const ctxPublicMobile = args.runPublic ? await newContext(args.browser, { width: 390, height: 844 }, null) : null
+  const pagePublicMobile = ctxPublicMobile ? await ctxPublicMobile.newPage() : null
+  const ctxAuthedMobile = args.runLoggedIn ? await newContext(args.browser, { width: 390, height: 844 }, args.storageStatePath ?? null) : null
+  const pageAuthedMobile = ctxAuthedMobile ? await ctxAuthedMobile.newPage() : null
+
+  for (const r of results) {
+    const page = r.mode === 'logged_in' ? pageAuthedMobile : pagePublicMobile
+    if (!page) continue
+    try {
+      await page.goto(new URL(r.route, args.baseUrl).toString(), { waitUntil: 'domcontentloaded' })
+    } catch {
+      // ignore
+    }
+    const snap = await snapshotForFlow({
+      page,
+      baseUrl: args.baseUrl,
+      mode: r.mode,
+      route: r.route,
+      outHtmlDir: args.outHtmlDir,
+      outShotsDir: args.outShotsDir,
+      label: r.id,
+      viewportLabel: 'mobile',
+    })
+    r.screenshotMobile = snap.screenshotPath
+  }
+
+  if (ctxPublicMobile) await ctxPublicMobile.close()
+  if (ctxAuthedMobile) await ctxAuthedMobile.close()
+
+  await writeJson(path.join(args.outDir, 'flows.json'), results)
+  return results
+}
+
 async function main(): Promise<void> {
   const rawBaseUrl = argOrEnv('--baseUrl', 'AUDIT_BASE_URL')
   const scope = normalizeScope(argOrEnv('--scope', 'AUDIT_SCOPE', 'all'))
@@ -501,6 +676,9 @@ async function main(): Promise<void> {
   const outRoot = argOrEnv('--outputDir', 'AUDIT_OUTPUT_DIR', path.join(process.cwd(), 'admin-reports', 'ai-site-audit'))!
   const maxRoutes = Number.parseInt(argOrEnv('--maxRoutes', 'AUDIT_MAX_ROUTES', '120') ?? '120', 10)
   const verbose = (argOrEnv('--verbose', 'AUDIT_VERBOSE', '1') ?? '1').trim().toLowerCase() !== '0'
+  const useSitemap = (argOrEnv('--useSitemap', 'AUDIT_USE_SITEMAP', '0') ?? '0').trim().toLowerCase() === '1'
+  const maxSitemapUrls = Number.parseInt(argOrEnv('--maxSitemapUrls', 'AUDIT_MAX_SITEMAP_URLS', '300') ?? '300', 10)
+  const flowsEnabled = (argOrEnv('--flows', 'AUDIT_FLOWS', '0') ?? '0').trim().toLowerCase() === '1'
 
   const examples = formatPlatformExamples()
   const usage = [
@@ -633,6 +811,20 @@ async function main(): Promise<void> {
   if (runPublic) for (const r of publicSeed) addRoute(r, 'public', 'seed')
   if (runLoggedIn) for (const r of loggedInSeed) addRoute(r, 'logged_in', 'seed')
 
+  if (runPublic && useSitemap) {
+    const s = await fetchSitemapRoutes({ baseUrl, maxUrls: Math.max(10, maxSitemapUrls), timeoutMs: 10_000 })
+    if (s.ok) {
+      for (const r of s.routes) addRoute(r, 'public', s.source)
+      if (verbose) {
+        // eslint-disable-next-line no-console
+        console.log(`[audit:ai] sitemap discovery enabled`, { source: s.source, added: s.routes.length })
+      }
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn(`[audit:ai] sitemap discovery failed: ${s.error}`)
+    }
+  }
+
   const captures: RouteCapture[] = []
   const consoleErrors: ConsoleError[] = []
   const networkFailures: NetworkFailure[] = []
@@ -648,6 +840,26 @@ async function main(): Promise<void> {
   })
 
   await withBrowser(async (browser) => {
+    // Optional: run a small interaction suite first (captures flows.json + screenshots/html).
+    // This is intentionally small and non-destructive.
+    if (flowsEnabled) {
+      try {
+        await runFlows({
+          browser,
+          baseUrl,
+          runPublic,
+          runLoggedIn,
+          storageStatePath: storageStatePath ?? undefined,
+          outDir,
+          outShotsDir: outShots,
+          outHtmlDir: outHtml,
+        })
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[audit:ai] flows failed (continuing with crawl):', e instanceof Error ? e.message : String(e))
+      }
+    }
+
     // Desktop contexts
     const ctxPublic = runPublic ? await newContext(browser, { width: 1280, height: 800 }, null) : null
     const pagePublic = ctxPublic ? await ctxPublic.newPage() : null
