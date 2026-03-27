@@ -10,6 +10,7 @@ import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices
 import { InstrumentLogo } from '@/components/InstrumentLogo'
 import { getQuotePriceDecimals } from '@/lib/market/quotes'
 import { getUpdateText } from '@/lib/time/relativeUpdateText'
+import { useDocumentVisibility } from '@/app/hooks/useDocumentVisibility'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -22,6 +23,7 @@ function toQuoteMap(quotes: InstrumentQuote[]): QuoteMap {
 export function MarketPulse() {
   const { isPro } = usePlan()
   const { allInstruments, yourWatchlist, starredKeys } = useMarketWatchlist()
+  const visible = useDocumentVisibility()
 
   const quoteUniverse = useMemo(() => {
     // For Market Pulse, always show the full universe (defaults + your custom).
@@ -37,6 +39,7 @@ export function MarketPulse() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!visible) return
     let cancelled = false
     const refresh = async () => {
       try {
@@ -56,7 +59,7 @@ export function MarketPulse() {
       cancelled = true
       clearInterval(t)
     }
-  }, [quoteUniverse])
+  }, [quoteUniverse, visible])
 
   useEffect(() => {
     const t = setInterval(() => setClockTick((x) => x + 1), 15_000)

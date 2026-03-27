@@ -15,6 +15,7 @@ import { InstrumentLogo } from '@/components/InstrumentLogo'
 import { ProGate } from '@/components/ProGate'
 import { getQuotePriceDecimals } from '@/lib/market/quotes'
 import { getUpdateText } from '@/lib/time/relativeUpdateText'
+import { useDocumentVisibility } from '@/app/hooks/useDocumentVisibility'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -27,6 +28,7 @@ function toQuoteMap(quotes: InstrumentQuote[]): QuoteMap {
 export function MarketSidebar() {
   const { isPro } = usePlan()
   const { allInstruments, yourWatchlist, starredKeys, add, remove, loading: watchlistLoading } = useMarketWatchlist()
+  const visible = useDocumentVisibility()
 
   const [quotes, setQuotes] = useState<QuoteMap>({})
   const [quoteError, setQuoteError] = useState<string | null>(null)
@@ -45,6 +47,7 @@ export function MarketSidebar() {
   }, [allInstruments, yourWatchlist])
 
   useEffect(() => {
+    if (!visible) return
     let cancelled = false
     const refresh = async () => {
       try {
@@ -64,7 +67,7 @@ export function MarketSidebar() {
       cancelled = true
       clearInterval(interval)
     }
-  }, [quoteUniverse])
+  }, [quoteUniverse, visible])
 
   // Keep the "Updated X minutes ago" label fresh even between fetch intervals.
   useEffect(() => {

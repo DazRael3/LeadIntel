@@ -11,6 +11,7 @@ import { fetchInstrumentQuotes, type InstrumentQuote } from '@/lib/market/prices
 import { InstrumentLogo } from '@/components/InstrumentLogo'
 import { getQuotePriceDecimals } from '@/lib/market/quotes'
 import { getUpdateText } from '@/lib/time/relativeUpdateText'
+import { useDocumentVisibility } from '@/app/hooks/useDocumentVisibility'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -28,10 +29,12 @@ export function MarketWatchlistTab() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [, setClockTick] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const visible = useDocumentVisibility()
 
   const quoteUniverse = useMemo(() => yourWatchlist, [yourWatchlist])
 
   useEffect(() => {
+    if (!visible) return
     let cancelled = false
     const refresh = async () => {
       try {
@@ -51,7 +54,7 @@ export function MarketWatchlistTab() {
       cancelled = true
       clearInterval(t)
     }
-  }, [quoteUniverse])
+  }, [quoteUniverse, visible])
 
   useEffect(() => {
     const t = setInterval(() => setClockTick((x) => x + 1), 15_000)

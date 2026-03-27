@@ -8,6 +8,8 @@ import { InstrumentLogo } from '@/components/InstrumentLogo'
 import type { InstrumentDefinition } from '@/lib/market/instruments'
 import { getQuotePriceDecimals } from '@/lib/market/quotes'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { useDocumentVisibility } from '@/app/hooks/useDocumentVisibility'
 
 type QuoteMap = Record<string, InstrumentQuote>
 
@@ -26,6 +28,8 @@ export interface MarketTickerBarProps {
   starredInstruments?: MarketTickerInstrument[]
   dataSourceLabel?: string | null
 }
+
+const LS_HIDE_MARKET_TICKER = 'li_pref_hide_market_ticker'
 
 export function computeTickerDuration(symbolCount: number): number {
   const count = Math.max(0, Math.floor(symbolCount))
@@ -63,9 +67,20 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
   const [error, setError] = useState<string | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
   const [reviewMode, setReviewMode] = useState(false)
+  const [hidden, setHidden] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem(LS_HIDE_MARKET_TICKER) === '1'
+    } catch {
+      return false
+    }
+  })
+  const visible = useDocumentVisibility()
 
   useEffect(() => {
     if (mergedInstruments.length === 0) return
+    if (!visible) return
+    if (hidden) return
     let cancelled = false
 
     const refresh = async () => {
@@ -87,7 +102,7 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
       cancelled = true
       clearInterval(interval)
     }
-  }, [mergedInstruments])
+  }, [mergedInstruments, visible, hidden])
 
   useEffect(() => {
     if (typeof document === 'undefined') return
@@ -101,6 +116,38 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
   if (mergedInstruments.length === 0) return null
 
   const suffix = typeof dataSourceLabel === 'string' && dataSourceLabel.trim().length > 0 ? dataSourceLabel.trim() : null
+
+  if (hidden) {
+    return (
+      <div
+        className="w-full border-b border-cyan-500/20 bg-background/90 backdrop-blur-sm"
+        data-testid="market-ticker-hidden"
+        aria-label="Market ticker hidden"
+      >
+        <div className="flex items-center justify-between px-4 sm:px-6 py-2 text-xs text-muted-foreground">
+          <span>Market ticker hidden</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            onClick={() => {
+              const next = false
+              setHidden(next)
+              try {
+                window.localStorage.setItem(LS_HIDE_MARKET_TICKER, next ? '1' : '0')
+              } catch {
+                // ignore: preference is optional
+              }
+            }}
+            aria-label="Show market ticker"
+          >
+            Show
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -197,6 +244,24 @@ export function MarketTickerBar({ instruments, starredInstruments, dataSourceLab
           >
             Data by CoinGecko{suffix ? ` / ${suffix}` : ''}
           </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+            onClick={() => {
+              const next = !hidden
+              setHidden(next)
+              try {
+                window.localStorage.setItem(LS_HIDE_MARKET_TICKER, next ? '1' : '0')
+              } catch {
+                // ignore: preference is optional
+              }
+            }}
+            aria-label={hidden ? 'Show market ticker' : 'Hide market ticker'}
+          >
+            {hidden ? 'Show' : 'Hide'}
+          </Button>
         </div>
       </div>
     </div>
