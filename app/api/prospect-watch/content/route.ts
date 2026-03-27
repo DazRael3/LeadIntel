@@ -6,6 +6,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { requireTeamPlan } from '@/lib/team/gating'
 import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { captureServerEvent } from '@/lib/analytics/posthog-server'
+import { logOutboundEvent } from '@/lib/outbound/events'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +71,23 @@ export const PATCH = withApiGuard(
 
       if (parsed.data.status) {
         void captureServerEvent({ distinctId: user.id, event: `linkedin_post_${parsed.data.status}`, properties: { draftId: parsed.data.id, workspaceId: ws.id } })
+        void logOutboundEvent({
+          supabase,
+          workspaceId: ws.id,
+          actorUserId: user.id,
+          subjectType: 'content_draft',
+          subjectId: parsed.data.id,
+          eventType:
+            parsed.data.status === 'approved'
+              ? 'approved'
+              : parsed.data.status === 'exported'
+                ? 'exported'
+                : parsed.data.status === 'rejected' || parsed.data.status === 'archived'
+                  ? 'approval_revoked'
+                  : 'approval_revoked',
+          channel: 'linkedin_post',
+          meta: { status: parsed.data.status, via: 'api/prospect-watch/content' },
+        })
       }
       return ok({ updated: true }, undefined, bridge, requestId)
     } catch (error) {

@@ -112,7 +112,7 @@ export function AssistantPanel(props: {
     } catch {
       // ignore
     }
-  }, [lockFromError, locked, props.scope.type])
+  }, [lockFromError, lockFromResponse, locked, props.scope.type])
 
   useEffect(() => {
     if (!props.open) return
@@ -154,7 +154,7 @@ export function AssistantPanel(props: {
         setSending(false)
       }
     },
-    [input, lockFromError, locked, props.scope, threadId, toast]
+    [input, lockFromError, lockFromResponse, locked, props.scope, threadId, toast]
   )
 
   const previewAction = useCallback(
@@ -187,7 +187,7 @@ export function AssistantPanel(props: {
       setActionPreview({ action, preview: json.data.preview ?? null })
       track('assistant_action_suggested', { kind: action.kind })
     },
-    [locked, lockFromError, toast]
+    [locked, lockFromError, lockFromResponse, toast]
   )
 
   const confirmAction = useCallback(async () => {
@@ -219,7 +219,7 @@ export function AssistantPanel(props: {
     } finally {
       setActionConfirming(false)
     }
-  }, [actionPreview, toast])
+  }, [actionPreview, lockFromResponse, toast])
 
   const panelContent = (
     <div className="space-y-3 text-sm text-muted-foreground">
