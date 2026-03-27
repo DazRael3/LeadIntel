@@ -109,6 +109,8 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
 
   let prospectReviewCount: number | null = null
   let contentDraftCount: number | null = null
+  let sendReadyCount: number | null = null
+  let outboundEvents24h: number | null = null
   try {
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const prospectsRes = await admin
@@ -122,9 +124,24 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
       .select('id', { count: 'exact', head: true })
       .eq('status', 'draft')
     contentDraftCount = typeof contentRes.count === 'number' ? contentRes.count : 0
+
+    const sendReadyRes = await admin
+      .from('prospect_watch_outreach_drafts')
+      .select('id', { count: 'exact', head: true })
+      .eq('send_ready', true)
+    sendReadyCount = typeof sendReadyRes.count === 'number' ? sendReadyRes.count : 0
+
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const eventsRes = await admin
+      .from('outbound_events')
+      .select('id', { count: 'exact', head: true })
+      .gte('occurred_at', since)
+    outboundEvents24h = typeof eventsRes.count === 'number' ? eventsRes.count : 0
   } catch {
     prospectReviewCount = null
     contentDraftCount = null
+    sendReadyCount = null
+    outboundEvents24h = null
   }
 
   let report: ContentAuditReportRow | null = null
@@ -308,6 +325,8 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant="outline">Prospects awaiting review: {prospectReviewCount === null ? '—' : prospectReviewCount}</Badge>
             <Badge variant="outline">Content drafts awaiting review: {contentDraftCount === null ? '—' : contentDraftCount}</Badge>
+            <Badge variant="outline">Send-ready drafts: {sendReadyCount === null ? '—' : sendReadyCount}</Badge>
+            <Badge variant="outline">Outbound events (24h): {outboundEvents24h === null ? '—' : outboundEvents24h}</Badge>
             <Button asChild variant="outline" size="sm">
               <Link href="/settings/prospects">Open prospect queue</Link>
             </Button>

@@ -9,8 +9,13 @@ const getWorkspaceMembership = vi.fn(async () => ({ role: 'owner' }))
 
 vi.mock('@/lib/api/guard', () => ({
   withApiGuard: (handler: (req: NextRequest, ctx: { requestId: string; body?: unknown }) => Promise<Response> | Response) => {
-    return (req: NextRequest) => handler(req, { requestId: 'req_1', body: { id: 'draft_1', sendReady: true } })
+    return (req: NextRequest) => handler(req, { requestId: 'req_1', body: { id: '11111111-1111-1111-1111-111111111111', sendReady: true } })
   },
+}))
+
+const logOutboundEvent = vi.fn(async (_args: unknown) => undefined)
+vi.mock('@/lib/outbound/events', () => ({
+  logOutboundEvent: (args: unknown) => logOutboundEvent(args),
 }))
 
 vi.mock('@/lib/supabase/route', () => ({
@@ -67,11 +72,11 @@ describe('/api/prospect-watch/drafts', () => {
     const { PATCH } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/prospect-watch/drafts', { method: 'PATCH' })
     const res = await PATCH(req)
-    // Payload fails schema validation first (id must be uuid), so this is a 400.
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(422)
     const json = await res.json()
     expect(json.ok).toBe(false)
     expect(json.error.code).toBe('VALIDATION_ERROR')
+    expect(json.error.details).toMatchObject({ reason: 'contact_required' })
   })
 })
 

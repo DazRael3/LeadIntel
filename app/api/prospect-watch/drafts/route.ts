@@ -7,6 +7,7 @@ import { requireTeamPlan } from '@/lib/team/gating'
 import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { captureServerEvent } from '@/lib/analytics/posthog-server'
 import { logProductEvent } from '@/lib/services/analytics'
+import { logOutboundEvent } from '@/lib/outbound/events'
 
 export const dynamic = 'force-dynamic'
 
@@ -146,6 +147,28 @@ export const PATCH = withApiGuard(
           userId: user.id,
           eventName: 'outreach_draft_send_ready_set',
           eventProps: { draftId: parsed.data.id, workspaceId: ws.id, sendReady: Boolean(parsed.data.sendReady) },
+        })
+        void logOutboundEvent({
+          supabase,
+          workspaceId: ws.id,
+          actorUserId: user.id,
+          subjectType: 'outreach_draft',
+          subjectId: parsed.data.id,
+          eventType: parsed.data.sendReady ? 'send_ready_set' : 'send_ready_unset',
+          channel: null,
+          meta: { via: 'api/prospect-watch/drafts' },
+        })
+      }
+      if (parsed.data.recipientReviewed !== undefined) {
+        void logOutboundEvent({
+          supabase,
+          workspaceId: ws.id,
+          actorUserId: user.id,
+          subjectType: 'outreach_draft',
+          subjectId: parsed.data.id,
+          eventType: 'recipient_reviewed',
+          channel: null,
+          meta: { recipientReviewed: Boolean(parsed.data.recipientReviewed), via: 'api/prospect-watch/drafts' },
         })
       }
       return ok({ updated: true }, undefined, bridge, requestId)
