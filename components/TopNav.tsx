@@ -9,7 +9,7 @@ import { LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { Badge } from '@/components/ui/badge'
-import { MobileNavMenu } from '@/components/navigation/MobileNavMenu'
+import { PublicMobileNavMenu } from '@/components/navigation/PublicMobileNavMenu'
 
 export function TopNav() {
   const router = useRouter()
@@ -86,7 +86,7 @@ export function TopNav() {
 
           {/* Center/Right: Primary nav + auth buttons */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            <MobileNavMenu />
+            <PublicMobileNavMenu isLoggedIn={isLoggedIn && !supabaseError} />
             <Button
               asChild
               variant="ghost"

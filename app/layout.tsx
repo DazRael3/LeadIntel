@@ -5,13 +5,14 @@ import { ThemeProvider } from '@/components/ThemeProvider'
 import { AnalyticsBootstrap } from '@/components/AnalyticsBootstrap'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://dazrael.com'),
+  // Prefer configured canonical host; fall back to apex.
+  metadataBase: new URL((process.env.NEXT_PUBLIC_SITE_URL ?? process.env.APP_URL ?? 'https://dazrael.com').trim() || 'https://dazrael.com'),
   title: 'LeadIntel - B2B Lead Intelligence Portal',
   description: 'Daily “why now” signals, deterministic scoring, and outreach templates for outbound teams.',
   openGraph: {
     title: 'LeadIntel',
     description: 'Trigger-based account alerts and instant pitch drafts.',
-    url: 'https://dazrael.com',
+    url: ((process.env.NEXT_PUBLIC_SITE_URL ?? process.env.APP_URL ?? 'https://dazrael.com').trim() || 'https://dazrael.com'),
     images: [{ url: '/api/og?title=LeadIntel&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches', width: 1200, height: 630 }],
   },
   icons: {

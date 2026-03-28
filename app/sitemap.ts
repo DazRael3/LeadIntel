@@ -49,9 +49,12 @@ const ROUTES: string[] = [
 ]
 
 function baseUrl(): string {
-  const raw = (process.env.APP_URL ?? '').trim()
-  const url = raw.length > 0 ? raw : DEFAULT_BASE_URL
-  return url.replace(/\/$/, '')
+  // Sitemap should always point at the canonical public host to avoid splitting SEO across apex/www.
+  // Use NEXT_PUBLIC_SITE_URL or APP_URL only if they are set to the canonical apex host.
+  const rawApp = (process.env.APP_URL ?? '').trim().replace(/\/$/, '')
+  const rawSite = (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim().replace(/\/$/, '')
+  const candidate = rawSite || rawApp || DEFAULT_BASE_URL
+  return candidate.replace(/\/$/, '')
 }
 
 function normalizePath(p: string): string {
