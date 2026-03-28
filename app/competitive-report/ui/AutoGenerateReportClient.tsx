@@ -67,6 +67,7 @@ export function AutoGenerateReportClient() {
     toastHandleRef.current = toast({
       title: initialTitle,
       description: initialDesc,
+      duration: Infinity,
       action: (
         <ToastAction altText={minimized ? 'Expand' : 'Minimize'} onClick={() => setMinimized((v) => !v)}>
           {minimized ? 'Expand' : 'Minimize'}
@@ -84,6 +85,7 @@ export function AutoGenerateReportClient() {
       toastHandleRef.current?.update({
         title: 'Generating report…',
         description: desc,
+        duration: Infinity,
         action: (
           <ToastAction altText={minimized ? 'Expand' : 'Minimize'} onClick={() => setMinimized((v) => !v)}>
             {minimized ? 'Expand' : 'Minimize'}
