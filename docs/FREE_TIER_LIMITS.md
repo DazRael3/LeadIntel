@@ -9,6 +9,14 @@
 
 These limits are tracked **separately** (not a combined cap).
 
+## Reports hub (single landing page)
+
+- **All report entry points should land on** `/competitive-report`.
+- To auto-generate a report (prefilled from pitch/company context), use:
+  - `/competitive-report?auto=1&company=...&url=...&ticker=...`
+- The hub will generate (if `auto=1` and no `id`) and then redirect to:
+  - `/competitive-report?id=<reportId>`
+
 After the 3rd successful generation of a given type is recorded, additional requests of that type are blocked until upgrade.
 
 ## What counts
