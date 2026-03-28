@@ -19,7 +19,7 @@ const WEBSITE_HOST = (() => {
   }
 })()
 
-const COMPETITIVE_REPORT_URL = `${getAppUrl()}/competitive-report/new?auto=1`
+const COMPETITIVE_REPORT_URL = `${getAppUrl()}/competitive-report?auto=1`
 const COMPETITIVE_REPORT_CTA = `Generate a sourced competitive report here: ${COMPETITIVE_REPORT_URL}`
 
 import { serverEnv } from './env'
@@ -384,6 +384,7 @@ End with a clear link to ${COMPETITIVE_REPORT_URL} encouraging them to generate 
       .replace(/^View your\s+.*report.*here.*$/gim, ctaLine)
       .replace(/^View it here:\s*https?:\/\/\S+.*$/gim, ctaLine)
       .replace(/specifi\w+/gi, 'specific')
+      .replace(/https?:\/\/dazrael\.com\/competitive-report\/new\S*/gi, COMPETITIVE_REPORT_URL)
       .replace(/https?:\/\/dazrael\.com\/competitive-report(?!\/new)\S*/gi, COMPETITIVE_REPORT_URL)
       .replace(/https?:\/\/dazrael\.com(?!\/competitive-report)\S*/gi, getAppUrl())
 

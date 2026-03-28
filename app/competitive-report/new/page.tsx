@@ -18,16 +18,11 @@ export default async function CompetitiveReportNewPage() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect('/login?mode=signin&redirect=/competitive-report/new')
+    redirect('/login?mode=signin&redirect=/competitive-report')
   }
 
-  return (
-    <div className="min-h-screen bg-background terminal-grid">
-      <TopNav />
-      <main className="container mx-auto px-6 py-10">
-        <CompetitiveReportNewClient />
-      </main>
-    </div>
-  )
+  // Backward compatibility: `/competitive-report/new` is deprecated.
+  // The single landing page is `/competitive-report` (hub), which can auto-generate.
+  redirect('/competitive-report')
 }
 

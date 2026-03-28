@@ -13,7 +13,7 @@ import { useExperiment } from '@/lib/experiments/useExperiment'
 function stepHref(stepId: string): string {
   if (stepId === 'target_accounts_added') return '/onboarding'
   if (stepId === 'first_pitch_preview_generated') return '/pitch'
-  if (stepId === 'first_report_preview_generated') return '/competitive-report/new'
+  if (stepId === 'first_report_preview_generated') return '/competitive-report?auto=1'
   if (stepId === 'first_scoring_explainer_viewed') return '/how-scoring-works'
   if (stepId === 'templates_viewed') return '/templates'
   if (stepId === 'account_brief_saved') return '/dashboard'

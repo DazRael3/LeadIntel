@@ -190,7 +190,7 @@ export function OnboardingFlow(props: {
     }
     if (workflow === 'report') {
       track('first_report_preview_generated', { source: 'onboarding' })
-      router.push(`/competitive-report/new?auto=1&url=${encodeURIComponent(input)}`)
+      router.push(`/competitive-report?auto=1&url=${encodeURIComponent(input)}`)
       return
     }
 
@@ -357,7 +357,7 @@ export function OnboardingFlow(props: {
                   size="sm"
                   className="neon-border hover:glow-effect"
                   onClick={() => {
-                    if (workflow === 'report') router.push('/competitive-report/new')
+                    if (workflow === 'report') router.push('/competitive-report')
                     else router.push('/pitch')
                   }}
                 >
@@ -419,7 +419,7 @@ export function OnboardingFlow(props: {
               Pitch
             </Link>{' '}
             or{' '}
-            <Link className="text-cyan-400 hover:underline" href="/competitive-report/new">
+            <Link className="text-cyan-400 hover:underline" href="/competitive-report">
               Reports
             </Link>
             .

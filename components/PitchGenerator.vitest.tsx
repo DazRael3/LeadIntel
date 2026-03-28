@@ -141,7 +141,7 @@ describe('PitchGenerator', () => {
             ok: true,
             data: {
               pitch: 'Hello from pitch https://dazrael.com/competitive-report',
-              reportCtaHref: '/competitive-report/new?company=Acme&auto=1',
+              reportCtaHref: '/competitive-report?company=Acme&auto=1',
               warnings: [],
             },
           }),
@@ -163,7 +163,7 @@ describe('PitchGenerator', () => {
     })
 
     const link = await screen.findByRole('link', { name: /generate competitive report/i })
-    expect(link).toHaveAttribute('href', '/competitive-report/new?company=Acme&auto=1')
+    expect(link).toHaveAttribute('href', '/competitive-report?company=Acme&auto=1')
   })
 
   it('clicking a saved company chip loads latest pitch for that company', async () => {

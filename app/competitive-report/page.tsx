@@ -11,6 +11,7 @@ import { DownloadMarkdownButton } from './ui/DownloadMarkdownButton'
 import { SourcesFreshnessPanelClient } from './ui/SourcesFreshnessPanelClient'
 import { ReportQualityBadge } from './ui/ReportQualityBadge'
 import { LegacyCitationBannerClient } from './ui/LegacyCitationBannerClient'
+import { AutoGenerateReportClient } from './ui/AutoGenerateReportClient'
 import { SourceQualitySummary } from '@/components/report/SourceQualitySummary'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -142,6 +143,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
     <div className="min-h-screen bg-background terminal-grid">
       <TopNav />
       <main className="container mx-auto px-6 py-10">
+        <AutoGenerateReportClient />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold bloomberg-font neon-cyan">Reports</h1>
@@ -149,7 +151,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
           </div>
           <div className="flex items-center gap-2">
             <Button asChild size="sm" className="neon-border hover:glow-effect">
-              <Link href="/competitive-report/new">New report</Link>
+              <Link href={buildCompetitiveReportNewUrl({ auto: false })}>New report</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href="/dashboard">Dashboard</Link>
@@ -230,7 +232,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                     </div>
                     <div className="flex flex-col gap-2">
                       <Button asChild size="sm" className="neon-border hover:glow-effect">
-                        <Link href="/competitive-report/new">New report</Link>
+                        <Link href={buildCompetitiveReportNewUrl({ auto: false })}>New report</Link>
                       </Button>
                       {hasQueryCta ? (
                         <Button asChild size="sm" variant="outline">
@@ -345,7 +347,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                   <div className="space-y-3">
                     <div className="text-sm text-muted-foreground">Choose a report from the list, or generate a new one.</div>
                     <Button asChild size="sm" className="neon-border hover:glow-effect w-fit">
-                      <Link href="/competitive-report/new">New report</Link>
+                      <Link href={buildCompetitiveReportNewUrl({ auto: false })}>New report</Link>
                     </Button>
                   </div>
                 )}

@@ -164,7 +164,7 @@ export function FirstPartyIntentCard(props: {
               </Button>
             ) : (
               <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                <Link href="/competitive-report/new">Generate competitive report</Link>
+                <Link href="/competitive-report?auto=1">Generate competitive report</Link>
               </Button>
             )}
           </div>

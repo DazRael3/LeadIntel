@@ -30,7 +30,7 @@ Steps (UI labels are user-facing; stored values are keys):
    - Report workflow
    - Daily shortlist workflow
 4. **First result**
-   - Routes to `/pitch?auto=1&url=...` or `/competitive-report/new?auto=1&url=...`
+   - Routes to `/pitch?auto=1&url=...` or `/competitive-report?auto=1&url=...`
 5. **Next best action**
    - Encourage repeat generation + saving + action layer usage
    - Provide calm links to pricing and trust center
