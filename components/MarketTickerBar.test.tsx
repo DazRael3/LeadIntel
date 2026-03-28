@@ -45,7 +45,25 @@ describe('MarketTickerBar helpers', () => {
 })
 
 describe('MarketTickerBar', () => {
+  it('respects user preference to hide ticker (localStorage)', async () => {
+    window.localStorage.setItem('li_pref_hide_market_ticker', '1')
+    render(
+      <MarketTickerBar
+        instruments={[{ symbol: 'AAPL', kind: 'stock', name: 'Apple', order: 1, defaultVisible: true }] as any}
+        starredInstruments={[]}
+      />
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('market-ticker-hidden')).toBeTruthy()
+    expect(fetchInstrumentQuotes).not.toHaveBeenCalled()
+  })
+
   it('renders ticker container and symbols when instruments present', async () => {
+    window.localStorage.removeItem('li_pref_hide_market_ticker')
     fetchInstrumentQuotes.mockResolvedValueOnce([
       {
         symbol: 'AAPL',
@@ -74,6 +92,52 @@ describe('MarketTickerBar', () => {
     expect(screen.getByTestId('market-ticker')).toBeTruthy()
     // Symbol appears at least once (it will be doubled for seamless marquee)
     expect(screen.getAllByText('AAPL').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('allows hiding and showing ticker', async () => {
+    window.localStorage.removeItem('li_pref_hide_market_ticker')
+    fetchInstrumentQuotes.mockResolvedValueOnce([
+      {
+        symbol: 'AAPL',
+        kind: 'stock',
+        price: 189.12,
+        changePct: 1.23,
+        lastPrice: 189.12,
+        changePercent: 1.23,
+        change: 2.31,
+        currency: 'USD',
+        source: 'provider',
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+    render(
+      <MarketTickerBar
+        instruments={[{ symbol: 'AAPL', kind: 'stock', name: 'Apple', order: 1, defaultVisible: true }] as any}
+        starredInstruments={[]}
+      />
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('market-ticker')).toBeTruthy()
+
+    // Hide -> renders hidden banner
+    const hide = screen.getByLabelText('Hide market ticker')
+    await act(async () => {
+      hide.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(screen.getByTestId('market-ticker-hidden')).toBeTruthy()
+    expect(window.localStorage.getItem('li_pref_hide_market_ticker')).toBe('1')
+
+    // Show -> returns to ticker
+    const show = screen.getByLabelText('Show market ticker')
+    await act(async () => {
+      show.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(screen.getByTestId('market-ticker')).toBeTruthy()
+    expect(window.localStorage.getItem('li_pref_hide_market_ticker')).toBe('0')
   })
 
   it('formats crypto with more decimals than stocks', async () => {

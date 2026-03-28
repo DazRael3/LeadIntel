@@ -87,6 +87,12 @@ function lastByJob(runs: JobRunRow[], job: string): JobRunRow | null {
   return runs.find((r) => r.job_name === job) ?? null
 }
 
+function flagEnabled(raw: string | undefined): boolean {
+  const v = (raw ?? '').trim().toLowerCase()
+  if (!v) return false
+  return v === '1' || v === 'true' || v === 'yes'
+}
+
 export default async function AdminOpsPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = (await props.searchParams) ?? {}
   const token = typeof sp.token === 'string' ? sp.token : null
@@ -171,6 +177,13 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
   // We call the job in dry-run mode so it can explain configuration blockers and ingestion stats
   // without writing to DB or sending notifications.
   const prospectDiag = await runProspectWatch({ dryRun: true, limitTargets: 5 }).catch(() => null)
+
+  const appUrl = getAppUrl()
+  const cronSecretConfigured = Boolean((process.env.CRON_SECRET ?? '').trim())
+  const vercelCronSuggested = '/api/cron/lifecycle'
+  const externalCronSuggested = '/api/cron/run?job=prospect_watch&dryRun=0&limit=50'
+  const externalDigestSuggested = '/api/cron/run?job=prospect_watch_digest&dryRun=0&limit=50'
+  const externalSend = (process.env.PROSPECT_WATCH_EXTERNAL_SEND_ENABLED ?? '').trim()
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10 space-y-6">
@@ -279,6 +292,79 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
               ) : null}
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card className="border-cyan-500/20 bg-card/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Operator quick actions</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={cronSecretConfigured ? 'outline' : 'destructive'}>
+              Cron secret: {cronSecretConfigured ? 'Configured' : 'Missing'}
+            </Badge>
+            <Badge variant={flagEnabled(process.env.PROSPECT_WATCH_ENABLED) ? 'outline' : 'secondary'}>
+              PROSPECT_WATCH_ENABLED={flagEnabled(process.env.PROSPECT_WATCH_ENABLED) ? '1' : '0'}
+            </Badge>
+            <Badge variant={flagEnabled(process.env.PROSPECT_WATCH_DAILY_DIGEST_ENABLED) ? 'outline' : 'secondary'}>
+              PROSPECT_WATCH_DAILY_DIGEST_ENABLED={flagEnabled(process.env.PROSPECT_WATCH_DAILY_DIGEST_ENABLED) ? '1' : '0'}
+            </Badge>
+            <Badge variant={flagEnabled(process.env.PROSPECT_WATCH_CONTENT_DIGEST_ENABLED) ? 'outline' : 'secondary'}>
+              PROSPECT_WATCH_CONTENT_DIGEST_ENABLED={flagEnabled(process.env.PROSPECT_WATCH_CONTENT_DIGEST_ENABLED) ? '1' : '0'}
+            </Badge>
+            <Badge variant={flagEnabled(process.env.PROSPECT_WATCH_EXTERNAL_SEND_ENABLED) ? 'destructive' : 'outline'}>
+              External send: {flagEnabled(process.env.PROSPECT_WATCH_EXTERNAL_SEND_ENABLED) ? 'ON' : 'OFF'}
+            </Badge>
+          </div>
+
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+            <div className="text-xs font-medium text-foreground">Cron endpoints (copy/paste)</div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded border border-cyan-500/10 bg-background/30 p-3 space-y-2">
+                <div className="text-xs font-medium text-foreground">Vercel backstop</div>
+                <div className="text-[11px] text-muted-foreground">Runs lifecycle once daily.</div>
+                <div className="rounded border border-cyan-500/10 bg-background/60 p-2">
+                  <div className="text-[11px] break-all">{appUrl}{vercelCronSuggested}</div>
+                </div>
+                <CopyTextButton text={`${appUrl}${vercelCronSuggested}`} />
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/30 p-3 space-y-2">
+                <div className="text-xs font-medium text-foreground">Prospect watch run</div>
+                <div className="text-[11px] text-muted-foreground">Morning + afternoon. Review-first; no external send by default.</div>
+                <div className="rounded border border-cyan-500/10 bg-background/60 p-2">
+                  <div className="text-[11px] break-all">{appUrl}{externalCronSuggested}</div>
+                </div>
+                <CopyTextButton text={`${appUrl}${externalCronSuggested}`} />
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/30 p-3 space-y-2">
+                <div className="text-xs font-medium text-foreground">Digest run</div>
+                <div className="text-[11px] text-muted-foreground">Email digest to operator inbox.</div>
+                <div className="rounded border border-cyan-500/10 bg-background/60 p-2">
+                  <div className="text-[11px] break-all">{appUrl}{externalDigestSuggested}</div>
+                </div>
+                <CopyTextButton text={`${appUrl}${externalDigestSuggested}`} />
+              </div>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Cron auth header: send <span className="text-foreground font-medium">x-cron-secret</span> with your configured secret. (Never put the secret in URLs.)
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/prospects">Review prospects</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/content">Review content</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/pricing">Pricing</Link>
+            </Button>
+            <div className="text-[11px] text-muted-foreground">
+              External send stays off unless explicitly enabled via `PROSPECT_WATCH_EXTERNAL_SEND_ENABLED` (currently: {externalSend || 'unset'}).
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -14,6 +14,7 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { COPY } from '@/lib/copy/leadintel'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { OutcomePricingIntro } from '@/components/marketing/OutcomePricingIntro'
+import { useStripePortal } from '@/app/dashboard/hooks/useStripePortal'
 
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
@@ -121,7 +122,8 @@ export function Pricing() {
   const supabase = createClient()
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
-  const { isPro, isHouseCloserOverride } = usePlan()
+  const { tier, isPro, isHouseCloserOverride } = usePlan()
+  const { openPortal } = useStripePortal()
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [teamSeats, setTeamSeats] = useState<number>(5)
   const upgradeRef = useRef<HTMLDivElement | null>(null)
@@ -143,6 +145,30 @@ export function Pricing() {
       setTarget(null)
     }
   }, [])
+
+  const currentPlanLabel =
+    tier === 'team' ? 'Team' : tier === 'closer_plus' ? 'Closer+' : tier === 'closer' ? 'Closer' : 'Starter'
+
+  const recommendedTarget: PaidPlanId | null =
+    tier === 'starter' ? 'pro' : tier === 'closer' ? 'closer_plus' : tier === 'closer_plus' ? 'team' : null
+
+  const recommendedLabel =
+    recommendedTarget === 'pro'
+      ? 'Upgrade to Closer'
+      : recommendedTarget === 'closer_plus'
+        ? 'Upgrade to Closer+'
+        : recommendedTarget === 'team'
+          ? 'Upgrade to Team'
+          : null
+
+  const recommendedAnchor =
+    recommendedTarget === 'pro'
+      ? '#plan-closer'
+      : recommendedTarget === 'closer_plus'
+        ? '#plan-closer-plus'
+        : recommendedTarget === 'team'
+          ? '#plan-team'
+          : null
 
   // Note: We intentionally do NOT redirect paid users away from /pricing.
   // Buyers often compare plans while signed in (and audits rely on /pricing rendering as-is).
@@ -287,6 +313,60 @@ export function Pricing() {
   return (
     <div className="min-h-screen bg-background terminal-grid py-20">
       <div className="container mx-auto px-6">
+        {/* Signed-in conversion helper: show current plan + clear next action (mobile-friendly) */}
+        <div className="mx-auto mb-6 max-w-6xl">
+          <div className="rounded-lg border border-cyan-500/10 bg-card/40 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Your plan</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
+                    {currentPlanLabel}
+                  </Badge>
+                  <div className="text-xs text-muted-foreground">
+                    {tier === 'starter'
+                      ? 'Preview mode — upgrade to unlock full saved outputs and reusable workflow.'
+                      : 'You can compare plans here anytime.'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {tier !== 'starter' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-10"
+                    onClick={() => {
+                      track('billing_portal_clicked', { surface: 'pricing_banner', tier })
+                      void openPortal()
+                    }}
+                  >
+                    Manage billing
+                  </Button>
+                ) : null}
+                {recommendedTarget && recommendedLabel && recommendedAnchor ? (
+                  <Button
+                    type="button"
+                    className="min-h-10 neon-border hover:glow-effect"
+                    onClick={() => {
+                      track('pricing_recommended_cta_clicked', { tier, target: recommendedTarget })
+                      try {
+                        const el = document.querySelector(recommendedAnchor)
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        else window.location.hash = recommendedAnchor
+                      } catch {
+                        window.location.hash = recommendedAnchor
+                      }
+                    }}
+                  >
+                    {recommendedLabel}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">{COPY.pricing.hero.headline}</h1>
           <p className="text-muted-foreground text-lg">{COPY.pricing.hero.subhead}</p>

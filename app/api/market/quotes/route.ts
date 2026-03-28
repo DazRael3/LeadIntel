@@ -210,7 +210,18 @@ export const POST = withApiGuard(
       const now = Date.now()
       const hit = cache.get(cacheKey)
       if (hit && now - hit.at < CACHE_TTL_MS) {
-        return ok({ quotes: hit.quotes }, undefined, bridge, requestId)
+        return ok(
+          { quotes: hit.quotes },
+          {
+            headers: {
+              // Client-side polling exists, but this allows CDN/browser reuse and reduces burst load.
+              // (Never cache for long: pricing changes frequently.)
+              'Cache-Control': 'private, max-age=10, stale-while-revalidate=30',
+            },
+          },
+          bridge,
+          requestId
+        )
       }
 
       const defs = toInstrumentDefs(instruments)
@@ -393,7 +404,16 @@ export const POST = withApiGuard(
           requestId
         )
       }
-      return ok({ quotes: normalized }, undefined, bridge, requestId)
+      return ok(
+        { quotes: normalized },
+        {
+          headers: {
+            'Cache-Control': 'private, max-age=10, stale-while-revalidate=30',
+          },
+        },
+        bridge,
+        requestId
+      )
     } catch (err) {
       return asHttpError(err, '/api/market/quotes', undefined, bridge, requestId)
     }
