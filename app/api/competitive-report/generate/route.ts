@@ -106,7 +106,7 @@ export const POST = withApiGuard(
                 isBlurred: true,
                 lockedSections: ['report_markdown'] as const,
                 usage: usageAfter,
-                upgradeRequired: capabilities.tier === 'starter' && usageAfter.used >= usageAfter.limit,
+                upgradeRequired: capabilities.tier === 'starter' && (usageAfter.remainingByType?.report ?? 0) <= 0,
                 reused: true,
               }
             : {
@@ -126,22 +126,23 @@ export const POST = withApiGuard(
       }
 
       if (capabilities.tier === 'starter') {
-        if (usageBefore.used >= usageBefore.limit) {
+        const allowed = usageBefore.remainingByType.report > 0
+        if (!allowed) {
           return fail(
             'FREE_TIER_GENERATION_LIMIT_REACHED',
-            'Free plan: 3 preview generations total. Upgrade to continue.',
+            'Starter limit reached: 3 report previews. Upgrade to continue.',
             { usage: usageBefore, upgradeRequired: true },
             { status: 429 },
             bridge,
             requestId
           )
         }
-        const reserved = await reservePremiumGeneration({ supabase, capabilities })
+        const reserved = await reservePremiumGeneration({ supabase, capabilities, objectType: 'report' })
         if (!reserved.ok || !reserved.reservationId) {
           const usage = await getPremiumGenerationUsage({ supabase, userId: user.id })
           return fail(
             'FREE_TIER_GENERATION_LIMIT_REACHED',
-            'Free plan: 3 preview generations total. Upgrade to continue.',
+            'Starter limit reached: 3 report previews. Upgrade to continue.',
             { usage, upgradeRequired: true },
             { status: 429 },
             bridge,
@@ -420,7 +421,7 @@ export const POST = withApiGuard(
               isBlurred: true,
               lockedSections: ['report_markdown'] as const,
               usage: usageAfter,
-              upgradeRequired: true,
+              upgradeRequired: capabilities.tier === 'starter' && (usageAfter.remainingByType?.report ?? 0) <= 0,
             }
           : {
               reportId: inserted.id,

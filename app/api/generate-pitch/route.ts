@@ -187,22 +187,22 @@ export const POST = withApiGuard(
     }
 
     if (capabilities.tier === 'starter') {
-      if (usageBefore.used >= usageBefore.limit) {
+      if ((usageBefore.byType?.pitch ?? 0) >= (usageBefore.limitsByType?.pitch ?? 3)) {
         return fail(
           'FREE_TIER_GENERATION_LIMIT_REACHED',
-          'Free plan: 3 preview generations total. Upgrade to continue.',
+          'Starter: 3 pitch previews. Upgrade to continue.',
           { usage: usageBefore, upgradeRequired: true },
           { status: 429 },
           bridge,
           requestId
         )
       }
-      const reserved = await reservePremiumGeneration({ supabase, capabilities })
+      const reserved = await reservePremiumGeneration({ supabase, capabilities, objectType: 'pitch' })
       if (!reserved.ok || !reserved.reservationId) {
         const usage = await getPremiumGenerationUsage({ supabase, userId: user.id })
         return fail(
           'FREE_TIER_GENERATION_LIMIT_REACHED',
-          'Free plan: 3 preview generations total. Upgrade to continue.',
+          'Starter: 3 pitch previews. Upgrade to continue.',
           { usage, upgradeRequired: true },
           { status: 429 },
           bridge,
@@ -393,7 +393,7 @@ export const POST = withApiGuard(
       hasTriggerEvent,
       warnings,
       usage: usageAfter,
-      upgradeRequired: capabilities.tier === 'starter' && usageAfter.used >= usageAfter.limit,
+      upgradeRequired: capabilities.tier === 'starter' && (usageAfter.remainingByType?.pitch ?? 0) <= 0,
     }
 
     const response =
