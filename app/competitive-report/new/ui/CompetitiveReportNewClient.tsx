@@ -17,7 +17,11 @@ import { track } from '@/lib/analytics'
 type GenerateResponse =
   | {
       ok: true
-      data: { reportId: string; isBlurred?: boolean; usage?: { used: number; limit: number; remaining: number } }
+      data: {
+        reportId: string
+        isBlurred?: boolean
+        usage?: { used: number; limit: number; remaining: number; remainingByType?: { report?: number } }
+      }
     }
   | { ok: false; error: { code: string; message: string; details?: { tips?: string[] } ; requestId?: string } }
 
@@ -45,7 +49,14 @@ export function CompetitiveReportNewClient() {
   const [ticker, setTicker] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inlineError, setInlineError] = useState<{ title: string; tips: string[] } | null>(null)
-  const [usage, setUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null)
+  const [usage, setUsage] = useState<{
+    used: number
+    limit: number
+    remaining: number
+    remainingByType?: { report?: number }
+    byType?: { report?: number }
+    limitsByType?: { report?: number }
+  } | null>(null)
   const [freeCopy, setFreeCopy] = useState<{ label: string; helper: string; scope: string; locked: string } | null>(null)
 
   const websiteRef = useRef<HTMLInputElement | null>(null)
@@ -67,7 +78,7 @@ export function CompetitiveReportNewClient() {
               freeUsageScopeLabel?: string | null
               lockedHelper?: string | null
             }
-            usage?: { used: number; limit: number; remaining: number }
+            usage?: { used: number; limit: number; remaining: number; remainingByType?: { report?: number } }
           }
         }
         if (!json?.ok) return
@@ -126,7 +137,7 @@ export function CompetitiveReportNewClient() {
     try {
       // Only enforce the preview cap for Starter (freeCopy is only set when tier === 'starter').
       // Paid tiers must not be blocked by a stale/misleading usage meter.
-      if (freeCopy && usage && usage.remaining <= 0) {
+      if (freeCopy && usage && (usage.remainingByType?.report ?? usage.remaining) <= 0) {
         setInlineError({
           title: 'You’ve used all 3 preview generations.',
           tips: ['Upgrade to unlock unlimited generation and full report access.'],
@@ -167,7 +178,7 @@ export function CompetitiveReportNewClient() {
         if (res.status === 429 && json.error?.code === 'FREE_TIER_GENERATION_LIMIT_REACHED') {
           const used = Number((json as any)?.error?.details?.usage?.used ?? usage?.used ?? 3) || 3
           const limit = Number((json as any)?.error?.details?.usage?.limit ?? usage?.limit ?? 3) || 3
-          setUsage({ used, limit, remaining: 0 })
+          setUsage({ used, limit, remaining: 0, remainingByType: { report: 0 } })
           setInlineError({
             title: json.error.message || 'Report limit reached.',
             tips: [
@@ -273,7 +284,7 @@ export function CompetitiveReportNewClient() {
                 </ul>
               </div>
             ) : null}
-            {freeCopy && usage && usage.remaining <= 0 ? (
+            {freeCopy && usage && (usage.remainingByType?.report ?? usage.remaining) <= 0 ? (
               <UpgradeExplainer target="closer" reason="free_limit_reached" source="competitive_report_new" compact />
             ) : null}
 
@@ -320,7 +331,7 @@ export function CompetitiveReportNewClient() {
             <Button
               type="submit"
               className="neon-border hover:glow-effect"
-              disabled={isSubmitting || !canSubmit || (Boolean(freeCopy) && (usage?.remaining ?? 1) <= 0)}
+              disabled={isSubmitting || !canSubmit || (Boolean(freeCopy) && (usage?.remainingByType?.report ?? 1) <= 0)}
             >
               {isSubmitting ? 'Generating…' : 'Generate report'}
             </Button>

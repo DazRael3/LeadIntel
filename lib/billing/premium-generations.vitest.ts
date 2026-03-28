@@ -13,15 +13,15 @@ describe('premium generations capabilities (presentation-safe)', () => {
     const caps = await getPremiumGenerationCapabilities({ supabase: {} as any, userId: 'u', sessionEmail: 'x@example.com' })
 
     expect(caps.maxPremiumGenerations).toBe(3)
-    expect(caps.usageScope).toBe('shared_across_pitches_and_reports')
+    expect(caps.usageScope).toBe('separate_pitch_and_report_caps')
     expect(caps.previewOnlyOnFree).toBe(true)
     expect(caps.blurPremiumSections).toBe(true)
     expect(caps.allowFullPitchAccessOnFree).toBe(false)
     expect(caps.allowFullReportAccessOnFree).toBe(false)
 
-    expect(caps.freeGenerationLabel).toBe('Free plan: 3 preview generations total')
-    expect(caps.freeGenerationHelper).toBe('Generate up to 3 pitch/report previews on Free.')
-    expect(caps.freeUsageScopeLabel).toBe('Usage is shared across pitches and reports.')
+    expect(caps.freeGenerationLabel).toBe('Starter: 3 pitch previews + 3 report previews')
+    expect(caps.freeGenerationHelper).toBe('Generate up to 3 pitch previews and up to 3 report previews on Starter.')
+    expect(caps.freeUsageScopeLabel).toBe('Pitch and report preview limits are tracked separately.')
     expect(caps.lockedHelper).toBe('Full premium content stays locked until you upgrade.')
   })
 

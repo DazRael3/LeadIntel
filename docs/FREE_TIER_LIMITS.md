@@ -2,14 +2,14 @@
 
 ## Rule (production)
 
-**Free (Starter) users can complete a maximum of 3 total preview generations** across:
+**Starter users can complete a maximum of 3 pitch previews and 3 report previews**:
 
 - **Generated pitches**
 - **Generated reports** (competitive reports; other report kinds may also count when marked as premium generation)
 
-This is a **combined cap** shared across pitches and reports (not 3 each).
+These limits are tracked **separately** (not a combined cap).
 
-After the 3rd successful generation is recorded, additional generation requests are blocked until upgrade.
+After the 3rd successful generation of a given type is recorded, additional requests of that type are blocked until upgrade.
 
 ## What counts
 
@@ -28,7 +28,7 @@ A generation is counted **only when it successfully completes** and is recorded 
 
 ## Enforcement (server-side)
 
-All generation routes enforce the cap server-side. When the free cap is reached, routes return:
+All generation routes enforce caps server-side. When a Starter cap is reached, routes return:
 
 - **HTTP 429**
 - `error.code = "FREE_TIER_GENERATION_LIMIT_REACHED"`
@@ -52,8 +52,9 @@ Free users can generate previews, but **full premium content stays locked**:
 ## How to verify
 
 1) Sign in as a Free (Starter) user.
-2) Generate 3 total assets across pitch/report.
-3) Attempt a 4th generation:
+2) Generate 3 pitch previews, then attempt a 4th pitch preview:
    - should return `FREE_TIER_GENERATION_LIMIT_REACHED` (429)
-4) Confirm responses for Free do **not** include full premium text.
+3) Generate 3 report previews, then attempt a 4th report preview:
+   - should return `FREE_TIER_GENERATION_LIMIT_REACHED` (429)
+4) Confirm Starter responses do **not** include full premium text.
 

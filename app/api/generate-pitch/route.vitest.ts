@@ -22,9 +22,11 @@ vi.mock('@/lib/billing/premium-generations', () => ({
   })),
   getPremiumGenerationUsage: vi.fn(async () => ({
     used: mockUsed,
-    limit: 3,
-    remaining: Math.max(0, 3 - mockUsed),
+    limit: 6,
+    remaining: Math.max(0, 6 - mockUsed),
     byType: { pitch: mockUsed, report: 0 },
+    limitsByType: { pitch: 3, report: 3 },
+    remainingByType: { pitch: Math.max(0, 3 - mockUsed), report: 3 },
   })),
   reservePremiumGeneration: vi.fn(async () => (mockReservedOk ? { ok: true, reservationId: 'res_1' } : { ok: false })),
   completePremiumGeneration: vi.fn(async () => {}),

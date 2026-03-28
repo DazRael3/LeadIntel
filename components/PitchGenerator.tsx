@@ -643,8 +643,8 @@ export function PitchGenerator({
           (errorData as any)?.error?.code ??
           null
         if (response.status === 429 && code === 'FREE_TIER_GENERATION_LIMIT_REACHED') {
-          const used = Number((errorData as any)?.error?.details?.usage?.used ?? (errorData as any)?.usage?.used ?? 3) || 3
-          const limit = Number((errorData as any)?.error?.details?.usage?.limit ?? (errorData as any)?.usage?.limit ?? 3) || 3
+          const used = Number((errorData as any)?.error?.details?.usage?.byType?.pitch ?? (errorData as any)?.usage?.byType?.pitch ?? (errorData as any)?.usage?.used ?? 3) || 3
+          const limit = Number((errorData as any)?.error?.details?.usage?.limitsByType?.pitch ?? (errorData as any)?.usage?.limitsByType?.pitch ?? (errorData as any)?.usage?.limit ?? 3) || 3
           const msg =
             (errorData as any)?.error?.message ??
             (errorData as any)?.message ??
@@ -871,7 +871,7 @@ export function PitchGenerator({
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const isFreeLimitReached = isStarter && (premiumUsage?.remaining ?? 1) <= 0
+  const isFreeLimitReached = isStarter && ((premiumUsage as any)?.remainingByType?.pitch ?? premiumUsage?.remaining ?? 1) <= 0
 
   return (
     <div className="space-y-6">

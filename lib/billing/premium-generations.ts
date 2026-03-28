@@ -3,14 +3,17 @@ import { getUserTierForGating } from '@/lib/team/gating'
 import type { Tier } from '@/lib/billing/resolve-tier'
 
 export const FREE_MAX_PREMIUM_GENERATIONS = 3 as const
+export const FREE_MAX_PREMIUM_GENERATIONS_PER_TYPE = 3 as const
 
-export type PremiumGenerationUsageScope = 'shared_across_pitches_and_reports'
+export type PremiumGenerationUsageScope = 'shared_across_pitches_and_reports' | 'separate_pitch_and_report_caps'
 
 export type PremiumGenerationUsage = {
   used: number
   limit: number
   remaining: number
   byType: { pitch: number; report: number }
+  limitsByType: { pitch: number; report: number }
+  remainingByType: { pitch: number; report: number }
 }
 
 export type PremiumGenerationCapabilities = {
@@ -47,17 +50,17 @@ export async function getPremiumGenerationCapabilities(args: {
   if (tier === 'starter') {
     return {
       tier,
-      maxPremiumGenerations: FREE_MAX_PREMIUM_GENERATIONS,
-      usageScope: 'shared_across_pitches_and_reports',
+      maxPremiumGenerations: FREE_MAX_PREMIUM_GENERATIONS_PER_TYPE,
+      usageScope: 'separate_pitch_and_report_caps',
       previewOnlyOnFree: true,
       blurPremiumSections: true,
       allowPremiumExport: false,
       allowFullCopy: false,
       allowFullPitchAccessOnFree: false,
       allowFullReportAccessOnFree: false,
-      freeGenerationLabel: 'Free plan: 3 preview generations total',
-      freeGenerationHelper: 'Generate up to 3 pitch/report previews on Free.',
-      freeUsageScopeLabel: 'Usage is shared across pitches and reports.',
+      freeGenerationLabel: 'Starter: 3 pitch previews + 3 report previews',
+      freeGenerationHelper: 'Generate up to 3 pitch previews and up to 3 report previews on Starter.',
+      freeUsageScopeLabel: 'Pitch and report preview limits are tracked separately.',
       lockedHelper: 'Full premium content stays locked until you upgrade.',
     }
   }
@@ -108,24 +111,33 @@ export async function getPremiumGenerationUsage(args: {
   const pitch = typeof pitchRes.count === 'number' ? pitchRes.count : 0
   const report = typeof reportRes.count === 'number' ? reportRes.count : 0
   const used = pitch + report
-  const limit = FREE_MAX_PREMIUM_GENERATIONS
+  const limitsByType = { pitch: FREE_MAX_PREMIUM_GENERATIONS_PER_TYPE, report: FREE_MAX_PREMIUM_GENERATIONS_PER_TYPE }
+  const remainingByType = {
+    pitch: Math.max(0, limitsByType.pitch - pitch),
+    report: Math.max(0, limitsByType.report - report),
+  }
+  const limit = limitsByType.pitch + limitsByType.report
   const remaining = Math.max(0, limit - used)
 
-  return { used, limit, remaining, byType: { pitch, report } }
+  return { used, limit, remaining, byType: { pitch, report }, limitsByType, remainingByType }
 }
 
 export function canGeneratePremiumAsset(args: {
   capabilities: PremiumGenerationCapabilities
   usage: PremiumGenerationUsage
+  objectType: 'pitch' | 'report'
 }): { ok: true } | { ok: false; reason: 'FREE_TIER_GENERATION_LIMIT_REACHED' } {
   if (!isFreeTier(args.capabilities.tier)) return { ok: true }
-  if (args.usage.used >= args.usage.limit) return { ok: false, reason: 'FREE_TIER_GENERATION_LIMIT_REACHED' }
+  const usedForType = args.objectType === 'pitch' ? args.usage.byType.pitch : args.usage.byType.report
+  const limitForType = args.objectType === 'pitch' ? args.usage.limitsByType.pitch : args.usage.limitsByType.report
+  if (usedForType >= limitForType) return { ok: false, reason: 'FREE_TIER_GENERATION_LIMIT_REACHED' }
   return { ok: true }
 }
 
 export async function reservePremiumGeneration(args: {
   supabase: SupabaseClient
   capabilities: PremiumGenerationCapabilities
+  objectType: 'pitch' | 'report'
 }): Promise<{ ok: true; reservationId: string | null } | { ok: false }> {
   if (!isFreeTier(args.capabilities.tier)) return { ok: true, reservationId: null }
   const client =
@@ -133,7 +145,7 @@ export async function reservePremiumGeneration(args: {
       ? (args.supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('api')
       : args.supabase
 
-  const { data, error } = await client.rpc('reserve_premium_generation', { expires_seconds: 900 })
+  const { data, error } = await client.rpc('reserve_premium_generation', { expires_seconds: 900, p_object_type: args.objectType })
 
   if (error) return { ok: false }
   const id = typeof data === 'string' ? data : null
