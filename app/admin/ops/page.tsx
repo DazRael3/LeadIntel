@@ -117,6 +117,8 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
   let contentDraftCount: number | null = null
   let sendReadyCount: number | null = null
   let outboundEvents24h: number | null = null
+  let leadCaptures24h: number | null = null
+  let leadCaptures7d: number | null = null
   try {
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const prospectsRes = await admin
@@ -143,11 +145,27 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
       .select('id', { count: 'exact', head: true })
       .gte('occurred_at', since)
     outboundEvents24h = typeof eventsRes.count === 'number' ? eventsRes.count : 0
+
+    const leadSince24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const leadSince7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const lead24hRes = await admin
+      .from('lead_captures')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', leadSince24h)
+    leadCaptures24h = typeof lead24hRes.count === 'number' ? lead24hRes.count : 0
+
+    const lead7dRes = await admin
+      .from('lead_captures')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', leadSince7d)
+    leadCaptures7d = typeof lead7dRes.count === 'number' ? lead7dRes.count : 0
   } catch {
     prospectReviewCount = null
     contentDraftCount = null
     sendReadyCount = null
     outboundEvents24h = null
+    leadCaptures24h = null
+    leadCaptures7d = null
   }
 
   let report: ContentAuditReportRow | null = null
@@ -413,6 +431,8 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
             <Badge variant="outline">Content drafts awaiting review: {contentDraftCount === null ? '—' : contentDraftCount}</Badge>
             <Badge variant="outline">Send-ready drafts: {sendReadyCount === null ? '—' : sendReadyCount}</Badge>
             <Badge variant="outline">Outbound events (24h): {outboundEvents24h === null ? '—' : outboundEvents24h}</Badge>
+            <Badge variant="outline">Lead captures (24h): {leadCaptures24h === null ? '—' : leadCaptures24h}</Badge>
+            <Badge variant="outline">Lead captures (7d): {leadCaptures7d === null ? '—' : leadCaptures7d}</Badge>
             <Button asChild variant="outline" size="sm">
               <Link href="/settings/prospects">Open prospect queue</Link>
             </Button>

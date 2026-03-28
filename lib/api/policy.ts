@@ -497,6 +497,21 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     webhookSignatureRequired: false,
   },
 
+  // Public lead capture (acquisition). Anonymous allowed; origin-validated; rate limited.
+  'POST:/api/lead-capture': {
+    tier: 'D',
+    maxBytes: 8192,
+    rateLimit: {
+      authPerMin: 30,
+      ipPerMin: 6,
+    },
+    originRequired: true,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
+
   'GET:/api/qa/overrides': {
     tier: 'D',
     maxBytes: 0,
