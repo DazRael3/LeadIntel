@@ -117,6 +117,55 @@ describe('PitchGenerator', () => {
     )
   })
 
+  it('renders a clickable competitive report CTA after pitch generation', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u.startsWith('/api/pitch/latest')) {
+        return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
+      }
+      if (u === '/api/usage/premium-generations') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              capabilities: { tier: 'closer' },
+              usage: { used: 0, limit: 3, remaining: 3 },
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      if (u === '/api/generate-pitch') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              pitch: 'Hello from pitch https://dazrael.com/competitive-report',
+              reportCtaHref: '/competitive-report/new?company=Acme&auto=1',
+              warnings: [],
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock as any)
+    tierMock = 'closer'
+
+    render(<PitchGenerator />)
+
+    fireEvent.change(screen.getByTestId('pitch-input'), { target: { value: 'Acme' } })
+    fireEvent.click(screen.getByTestId('pitch-generate'))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const link = await screen.findByRole('link', { name: /generate competitive report/i })
+    expect(link).toHaveAttribute('href', '/competitive-report/new?company=Acme&auto=1')
+  })
+
   it('clicking a saved company chip loads latest pitch for that company', async () => {
     const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 

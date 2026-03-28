@@ -4,6 +4,7 @@
  */
 
 import OpenAI from 'openai'
+import { getAppUrl } from '@/lib/app-url'
 
 const DEFAULT_WEBSITE_URL = 'https://leadintel.com'
 const WEBSITE_URL =
@@ -18,8 +19,8 @@ const WEBSITE_HOST = (() => {
   }
 })()
 
-const COMPETITIVE_REPORT_URL = 'https://dazrael.com/competitive-report'
-const COMPETITIVE_REPORT_CTA = `View more about our intelligence platform here: ${COMPETITIVE_REPORT_URL}`
+const COMPETITIVE_REPORT_URL = `${getAppUrl()}/competitive-report/new?auto=1`
+const COMPETITIVE_REPORT_CTA = `Generate a sourced competitive report here: ${COMPETITIVE_REPORT_URL}`
 
 import { serverEnv } from './env'
 import { isE2E, isTestEnv } from './runtimeFlags'
@@ -326,7 +327,7 @@ export async function generatePitch(
 ): Promise<string> {
   // In E2E/test mode, return deterministic mock response instantly
   if (isE2E() || isTestEnv()) {
-    return `Hi ${ceoName || 'there'}, I've created a competitive intelligence report for ${companyName} based on your recent ${triggerEvent || 'activity'}.\n\n${COMPETITIVE_REPORT_CTA}`
+    return `Hi ${ceoName || 'there'}, I put together a sourced competitive intelligence report for ${companyName} based on your recent ${triggerEvent || 'activity'}.\n\n${COMPETITIVE_REPORT_CTA}`
   }
 
   try {
@@ -351,13 +352,13 @@ Reference their recent ${triggerEvent} specifically.
 
 If relevant, incorporate up to 1-2 of the "Why now" points below into the email (no bullet lists in the final email; weave them naturally). Never invent events.
 
-The tone should convey: "I've already generated a competitive intelligence report for you. View it here."
+The tone should convey: "I’ve put together a sourced competitive intelligence report you can generate now."
 
 ${companyInfo ? `Additional context: ${companyInfo}` : ''}
 ${userSettings?.whatYouSell ? `We sell: ${userSettings.whatYouSell}` : ''}
 ${userSettings?.idealCustomer ? `Our ideal customer: ${userSettings.idealCustomer}` : ''}${whyNowText}
 
-End with a clear link to ${COMPETITIVE_REPORT_URL} encouraging them to sign up for Instant Intelligence.`,
+End with a clear link to ${COMPETITIVE_REPORT_URL} encouraging them to generate the report.`,
         },
       ],
       temperature: 0.7,
@@ -383,7 +384,8 @@ End with a clear link to ${COMPETITIVE_REPORT_URL} encouraging them to sign up f
       .replace(/^View your\s+.*report.*here.*$/gim, ctaLine)
       .replace(/^View it here:\s*https?:\/\/\S+.*$/gim, ctaLine)
       .replace(/specifi\w+/gi, 'specific')
-      .replace(/https?:\/\/dazrael\.com(?!\/competitive-report)\S*/gi, COMPETITIVE_REPORT_URL)
+      .replace(/https?:\/\/dazrael\.com\/competitive-report(?!\/new)\S*/gi, COMPETITIVE_REPORT_URL)
+      .replace(/https?:\/\/dazrael\.com(?!\/competitive-report)\S*/gi, getAppUrl())
 
     if (!pitch.includes(COMPETITIVE_REPORT_URL)) {
       pitch = `${pitch.trim()}\n\n${ctaLine}`
@@ -407,7 +409,7 @@ End with a clear link to ${COMPETITIVE_REPORT_URL} encouraging them to sign up f
   } catch (error) {
     captureException(error, { route: 'lib/ai-logic.generatePitch' })
     // Fallback pitch
-    return `Hi ${ceoName || 'there'}, I've already generated a competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${COMPETITIVE_REPORT_CTA}`
+    return `Hi ${ceoName || 'there'}, I put together a sourced competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${COMPETITIVE_REPORT_CTA}`
   }
 }
 

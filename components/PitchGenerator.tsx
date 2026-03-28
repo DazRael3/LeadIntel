@@ -20,6 +20,8 @@ import { formatRelativeDate, formatSignalType } from '@/lib/domain/explainabilit
 import { UsageMeter } from '@/components/billing/UsageMeter'
 import { UpgradeExplainer } from '@/components/billing/UpgradeExplainer'
 import { BlurredPremiumSection } from '@/components/gating/BlurredPremiumSection'
+import Link from 'next/link'
+import { buildCompetitiveReportNewUrl, parseCompanyFromPitchInput } from '@/lib/reports/reportLinks'
 
 interface PitchGeneratorProps {
   initialUrl?: string
@@ -57,6 +59,7 @@ type GeneratePitchPayload = {
   emailSequence?: unknown
   battleCard?: unknown
   lead?: unknown
+  reportCtaHref?: unknown
   triggerEvent?: unknown
 }
 
@@ -104,6 +107,31 @@ type ExplainabilityEnvelope =
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function LinkifiedText({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s)]+|www\.[^\s)]+)/g)
+  return (
+    <>
+      {parts.map((p, idx) => {
+        const raw = p.trim()
+        const isUrl = /^https?:\/\//i.test(raw) || /^www\./i.test(raw)
+        if (!isUrl) return <span key={idx}>{p}</span>
+        const href = raw.startsWith('http') ? raw : `https://${raw}`
+        return (
+          <a
+            key={idx}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="text-cyan-300 underline underline-offset-4 hover:text-cyan-200"
+          >
+            {p}
+          </a>
+        )
+      })}
+    </>
+  )
 }
 
 function unwrapGeneratePitchPayload(raw: unknown): GeneratePitchPayload {
@@ -163,6 +191,8 @@ export function PitchGenerator({
   } | null>(null)
   const [generatedLeadId, setGeneratedLeadId] = useState<string | null>(null)
   const [outputBlurred, setOutputBlurred] = useState<boolean>(false)
+  const [lastCompanyInputForReport, setLastCompanyInputForReport] = useState<string | null>(null)
+  const [lastReportCtaHref, setLastReportCtaHref] = useState<string | null>(null)
   const [context, setContext] = useState<{
     loading: boolean
     signalsCount: number
@@ -208,6 +238,17 @@ export function PitchGenerator({
   }, [supabase])
 
   const isStarter = tier === 'starter'
+  const reportHref = (() => {
+    // Prefer server-provided CTA so the pitch → report workflow stays consistent with backend parsing.
+    if (typeof lastReportCtaHref === 'string' && lastReportCtaHref.trim().length > 0) {
+      return lastReportCtaHref.trim()
+    }
+    const raw = (lastCompanyInputForReport ?? companyUrl).trim()
+    const parsed = parseCompanyFromPitchInput(raw || null)
+    const company = parsed.company
+    const url = parsed.url
+    return buildCompetitiveReportNewUrl({ company, url, auto: true })
+  })()
 
   useEffect(() => {
     if (tier !== 'team') return
@@ -640,6 +681,9 @@ export function PitchGenerator({
       const pitchText = (pitchTextRaw ?? pitchPreviewRaw ?? '').trim()
       if (pitchText) {
         setPitch(pitchText)
+        setLastCompanyInputForReport(companyUrl)
+        const hrefFromServer = (data as { reportCtaHref?: unknown } | null)?.reportCtaHref
+        setLastReportCtaHref(typeof hrefFromServer === 'string' && hrefFromServer.trim().length > 0 ? hrefFromServer.trim() : null)
         track('premium_generation_completed', {
           type: 'pitch',
           blurred,
@@ -1026,7 +1070,17 @@ export function PitchGenerator({
             </CardHeader>
             <CardContent>
               <div className="p-4 rounded-lg border border-cyan-500/10 bg-background/30">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{pitch}</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                  <LinkifiedText text={pitch} />
+                </p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 justify-end">
+                <Button asChild size="sm" className="neon-border hover:glow-effect">
+                  <Link href={reportHref}>Generate competitive report</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/competitive-report">Open Reports</Link>
+                </Button>
               </div>
               <div className="mt-4 rounded-lg border border-cyan-500/10 bg-background/30 p-4">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Context used</div>
