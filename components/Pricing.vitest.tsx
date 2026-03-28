@@ -7,8 +7,9 @@ vi.mock('next/navigation', () => ({
 }))
 
 let mockIsPro = false
+let mockTier: 'starter' | 'closer' | 'closer_plus' | 'team' = 'starter'
 vi.mock('@/components/PlanProvider', () => ({
-  usePlan: () => ({ isPro: mockIsPro, isHouseCloserOverride: false }),
+  usePlan: () => ({ isPro: mockIsPro, tier: mockTier, isHouseCloserOverride: false }),
 }))
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -19,6 +20,7 @@ describe('Pricing (public)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockIsPro = false
+    mockTier = 'starter'
     ;(globalThis as any).IntersectionObserver =
       (globalThis as any).IntersectionObserver ??
       class {
@@ -43,6 +45,7 @@ describe('Pricing (public)', () => {
 
   it('does not redirect paid users away from /pricing', async () => {
     mockIsPro = true
+    mockTier = 'closer'
     const { Pricing } = await import('./Pricing')
     render(<Pricing />)
     expect(replaceMock).not.toHaveBeenCalled()

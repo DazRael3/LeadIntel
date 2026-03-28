@@ -21,7 +21,7 @@ export function MobileNavMenu() {
       <Button
         size="sm"
         variant="ghost"
-        className="min-h-10 min-w-10 text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+        className="h-11 w-11 p-0 text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
         onClick={() => setOpen(true)}
         aria-label="Open menu"
       >
@@ -95,12 +95,13 @@ export function MobileNavMenu() {
   )
 }
 
-function MenuLink(props: { href: string; label: string; icon: React.ReactNode; onClick: () => void }) {
+function MenuLink(props: { href: string; label: string; icon: React.ReactNode; onClick: () => void; prefetch?: boolean }) {
   return (
     <Link
       href={props.href}
       onClick={props.onClick}
-      className="flex min-h-10 items-center gap-2 rounded border border-cyan-500/10 bg-background/40 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+      prefetch={props.prefetch}
+      className="flex min-h-11 items-center gap-2 rounded border border-cyan-500/10 bg-background/40 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
     >
       {props.icon}
       <span className="font-medium">{props.label}</span>
