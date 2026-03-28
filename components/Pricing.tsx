@@ -14,6 +14,7 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { COPY } from '@/lib/copy/leadintel'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { OutcomePricingIntro } from '@/components/marketing/OutcomePricingIntro'
+import { LeadCaptureCard } from '@/components/marketing/LeadCaptureCard'
 import { useStripePortal } from '@/app/dashboard/hooks/useStripePortal'
 
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
@@ -843,6 +844,10 @@ export function Pricing() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="mt-12 max-w-6xl mx-auto">
+          <LeadCaptureCard surface="pricing" />
         </div>
 
         <div className="mt-10 max-w-6xl mx-auto">
