@@ -23,6 +23,7 @@ import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { randomUUID } from 'crypto'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { logAudit } from '@/lib/audit/log'
+import { buildCompetitiveReportNewUrl } from '@/lib/reports/reportLinks'
 import {
   getPremiumGenerationCapabilities,
   getPremiumGenerationUsage,
@@ -372,6 +373,12 @@ export const POST = withApiGuard(
     }
 
     const leadRow = (savedLead.data ?? null) as { id?: string; company_name?: string | null; company_domain?: string | null; company_url?: string | null } | null
+    const reportCtaHref = buildCompetitiveReportNewUrl({
+      company: leadRow?.company_name ?? topicName ?? null,
+      url: leadRow?.company_url ?? (isUrlLike ? input : null),
+      ticker: null,
+      auto: true,
+    })
     const baseResponse = {
       lead: leadRow
         ? {
@@ -381,6 +388,7 @@ export const POST = withApiGuard(
             company_url: leadRow.company_url ?? null,
           }
         : null,
+      reportCtaHref,
       triggerEvent: latestTriggerEvent,
       hasTriggerEvent,
       warnings,

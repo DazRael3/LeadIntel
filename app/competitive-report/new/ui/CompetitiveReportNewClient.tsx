@@ -124,7 +124,9 @@ export function CompetitiveReportNewClient() {
 
     setIsSubmitting(true)
     try {
-      if (usage && usage.remaining <= 0) {
+      // Only enforce the preview cap for Starter (freeCopy is only set when tier === 'starter').
+      // Paid tiers must not be blocked by a stale/misleading usage meter.
+      if (freeCopy && usage && usage.remaining <= 0) {
         setInlineError({
           title: 'You’ve used all 3 preview generations.',
           tips: ['Upgrade to unlock unlimited generation and full report access.'],
@@ -271,7 +273,7 @@ export function CompetitiveReportNewClient() {
                 </ul>
               </div>
             ) : null}
-            {usage && usage.remaining <= 0 ? (
+            {freeCopy && usage && usage.remaining <= 0 ? (
               <UpgradeExplainer target="closer" reason="free_limit_reached" source="competitive_report_new" compact />
             ) : null}
 
@@ -315,7 +317,11 @@ export function CompetitiveReportNewClient() {
               <div className="text-xs text-muted-foreground">Used to fetch SEC filings as citations when available.</div>
             </div>
 
-            <Button type="submit" className="neon-border hover:glow-effect" disabled={isSubmitting || !canSubmit || (usage?.remaining ?? 1) <= 0}>
+            <Button
+              type="submit"
+              className="neon-border hover:glow-effect"
+              disabled={isSubmitting || !canSubmit || (Boolean(freeCopy) && (usage?.remaining ?? 1) <= 0)}
+            >
               {isSubmitting ? 'Generating…' : 'Generate report'}
             </Button>
           </form>
