@@ -19,7 +19,15 @@ export async function getUserTierForGating(args: {
   // Note: RLS allows users to read their own billing rows (api.users / api.subscriptions),
   // so using the request client does not weaken entitlements.
   if (args.supabase) {
-    const resolved = await resolveTierFromDb(args.supabase as unknown as SupabaseClient<any, 'api', any>, args.userId, args.sessionEmail ?? null)
+    // IMPORTANT: Tier/billing state is stored in the `api` schema. Some environments
+    // intentionally configure the default request client schema to `public` for other
+    // surfaces. Ensure we always query `api` here to avoid fail-soft "starter" tier
+    // resolution for paid users due to schema mismatch.
+    const schemaClient =
+      (args.supabase as unknown as { schema?: (s: string) => SupabaseClient }).schema
+        ? (args.supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('api')
+        : args.supabase
+    const resolved = await resolveTierFromDb(schemaClient as unknown as SupabaseClient<any, 'api', any>, args.userId, args.sessionEmail ?? null)
     return resolved.tier
   }
 
