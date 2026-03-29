@@ -18,6 +18,7 @@ export function TopNav() {
   const [loading, setLoading] = useState(true)
   const [supabaseError, setSupabaseError] = useState(false)
   const [reviewMode, setReviewMode] = useState(false)
+  const showDashboardLink = !(pathname === '/dashboard' || pathname.startsWith('/dashboard/'))
 
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null
@@ -140,16 +141,18 @@ export function TopNav() {
                 >
                   <Link href="/competitive-report">Reports</Link>
                 </Button>
-                <Button
-                  asChild
-                  variant="ghost"
-                  className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
-                >
-                  <Link href="/dashboard">
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Dashboard
-                  </Link>
-                </Button>
+                {showDashboardLink ? (
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+                  >
+                    <Link href="/dashboard">
+                      <LayoutDashboard className="h-4 w-4 mr-2" />
+                      Dashboard
+                    </Link>
+                  </Button>
+                ) : null}
                 <Button
                   onClick={handleSignOut}
                   variant="ghost"

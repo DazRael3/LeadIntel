@@ -21,6 +21,7 @@ export function LegacyCitationBannerClient(props: {
   const params = new URLSearchParams()
   if (props.companyName) params.set('company', props.companyName)
   if (props.inputUrl) params.set('url', props.inputUrl)
+  params.set('auto', '1')
 
   return (
     <div className="rounded border border-yellow-500/20 bg-yellow-500/5 p-3 text-sm text-muted-foreground">
@@ -29,7 +30,7 @@ export function LegacyCitationBannerClient(props: {
         Regenerate with a website URL or ticker so the report can include at least 2 real citations.
       </div>
       <div className="mt-2">
-        <Link className="text-cyan-400 hover:underline" href={`/competitive-report/new?${params.toString()}`}>
+        <Link className="text-cyan-400 hover:underline" href={`/competitive-report?${params.toString()}`}>
           Regenerate report
         </Link>
       </div>

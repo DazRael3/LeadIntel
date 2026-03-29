@@ -4,7 +4,7 @@ import { buildCompetitiveReportNewUrl, parseCompanyFromPitchInput } from './repo
 describe('reportLinks', () => {
   it('builds new report url with params and auto', () => {
     const href = buildCompetitiveReportNewUrl({ company: 'Google', url: 'https://google.com', ticker: 'GOOG', auto: true })
-    expect(href).toContain('/competitive-report/new?')
+    expect(href).toContain('/competitive-report?')
     expect(href).toContain('company=Google')
     expect(href).toContain('url=')
     expect(href).toContain('ticker=GOOG')

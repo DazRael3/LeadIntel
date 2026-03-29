@@ -74,10 +74,12 @@ describe('team gating', () => {
       }))
 
       const { requireTeamPlan } = await import('./gating')
-      const supabase = {} as unknown as import('@supabase/supabase-js').SupabaseClient
+      const schema = vi.fn(() => ({} as unknown as import('@supabase/supabase-js').SupabaseClient))
+      const supabase = { schema } as unknown as import('@supabase/supabase-js').SupabaseClient
       const gate = await requireTeamPlan({ userId: 'user_1', sessionEmail: 'u1@example.com', supabase })
       expect(gate.ok).toBe(true)
       expect(resolveTierFromDb).toHaveBeenCalledTimes(1)
+      expect(schema).toHaveBeenCalledWith('api')
       expect(createSupabaseAdminClient).toHaveBeenCalledTimes(0)
     })
   })

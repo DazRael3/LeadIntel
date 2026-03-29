@@ -12,7 +12,7 @@ function nextCta(stepId: string | null): { href: string; label: string; helper: 
   if (!stepId) return { href: '/dashboard', label: 'Open command center', helper: 'You’re ready to run the loop.' }
   if (stepId === 'target_accounts_added') return { href: '/onboarding', label: 'Add targets', helper: 'Start by tracking a few accounts.' }
   if (stepId === 'first_pitch_preview_generated') return { href: '/pitch', label: 'Generate a pitch preview', helper: 'Turn why-now signals into a send-ready opener.' }
-  if (stepId === 'first_report_preview_generated') return { href: '/competitive-report/new', label: 'Generate a report preview', helper: 'Create a sourced competitive report and save it.' }
+  if (stepId === 'first_report_preview_generated') return { href: '/competitive-report?auto=1', label: 'Generate a report preview', helper: 'Create a sourced competitive report and save it.' }
   if (stepId === 'first_scoring_explainer_viewed') return { href: '/how-scoring-works', label: 'Review scoring method', helper: 'Understand what drives the 0–100 score.' }
   if (stepId === 'templates_viewed') return { href: '/templates', label: 'Open templates', helper: 'Stay consistent across reps and accounts.' }
   if (stepId === 'account_brief_saved') return { href: '/dashboard', label: 'Generate an account brief', helper: 'Use the account workspace action center to save a brief.' }

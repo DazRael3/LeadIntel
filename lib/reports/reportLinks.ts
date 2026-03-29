@@ -24,7 +24,9 @@ export function buildCompetitiveReportNewUrl(args: {
   if (args.auto) params.set('auto', '1')
 
   const qs = params.toString()
-  return qs.length > 0 ? `/competitive-report/new?${qs}` : '/competitive-report/new'
+  // Reports hub is the single landing page. It can auto-generate a report (auto=1)
+  // and then redirect to the saved report.
+  return qs.length > 0 ? `/competitive-report?${qs}` : '/competitive-report'
 }
 
 function looksLikeDomain(input: string): boolean {
