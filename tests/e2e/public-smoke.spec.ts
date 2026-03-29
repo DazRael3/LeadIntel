@@ -59,7 +59,63 @@ for (const route of routes) {
 }
 
 test('home navigation links work', async ({ page }) => {
+  // Nav click → client-side routing can be slow under multi-project load (notably WebKit).
+  // Keep coverage (must open menu / click links / navigate), but allow enough time to avoid false negatives.
+  test.setTimeout(60_000)
   await gotoStable(page, '/')
+
+  async function clickAndWaitForUrl(args: {
+    locator: import('@playwright/test').Locator
+    expected: RegExp
+  }) {
+    const timeoutMs = 12_000
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await Promise.all([
+          page.waitForURL(args.expected, { timeout: timeoutMs, waitUntil: 'domcontentloaded' }),
+          args.locator.click(),
+        ])
+        return
+      } catch (error) {
+        if (attempt === 1) throw error
+        // WebKit can occasionally miss the first click/navigation under load; retry once.
+        await page.waitForTimeout(50)
+      }
+    }
+  }
+
+  async function openPublicMobileMenu() {
+    const nav = page.locator('nav').filter({ has: page.getByRole('link', { name: /leadintel/i }) }).first()
+    const openMenu = nav.getByRole('button', { name: /open.*menu/i }).first()
+    // Mobile Safari can occasionally miss the first click during hydration; retry a few times.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const expanded = await openMenu.getAttribute('aria-expanded')
+      if (expanded === 'true') break
+      await openMenu.click()
+      try {
+        await expect(openMenu).toHaveAttribute('aria-expanded', 'true', { timeout: 1500 })
+        break
+      } catch {
+        // best-effort retry
+      }
+      await page.waitForTimeout(100)
+    }
+
+    await expect(openMenu).toHaveAttribute('aria-expanded', 'true')
+    const menu = page.getByRole('dialog')
+    await expect(menu).toBeVisible()
+    return menu
+  }
+
+  async function isDesktopNavVisible(nav: import('@playwright/test').Locator) {
+    // Avoid locator.isVisible() flaking due to animation/hydration; use a short deterministic check.
+    return await nav
+      .getByRole('button', { name: /open.*menu/i })
+      .first()
+      .isVisible()
+      .then((v) => !v)
+      .catch(() => true)
+  }
 
   const checks = [
     { name: /pricing/i, expected: /\/pricing$/ },
@@ -74,23 +130,25 @@ test('home navigation links work', async ({ page }) => {
     await gotoStable(page, '/')
 
     // Prefer desktop nav if visible; otherwise open the mobile menu.
-    const navLink = page.locator('nav').getByRole('link', { name: check.name }).first()
-    if (await navLink.isVisible()) {
-      await navLink.click()
+    const nav = page.locator('nav').filter({ has: page.getByRole('link', { name: /leadintel/i }) }).first()
+    const desktopLink = nav.getByRole('link', { name: check.name }).first()
+    const useDesktop = await isDesktopNavVisible(nav)
+    if (useDesktop) {
+      await expect(desktopLink).toHaveAttribute('href', check.expected)
+      await clickAndWaitForUrl({ locator: desktopLink, expected: check.expected })
     } else {
-      await page.getByRole('button', { name: /open menu/i }).click()
-      await page.getByRole('link', { name: check.name }).first().click()
+      const menu = await openPublicMobileMenu()
+      const link = menu.getByRole('link', { name: check.name }).first()
+      await expect(link).toHaveAttribute('href', check.expected)
+      await clickAndWaitForUrl({ locator: link, expected: check.expected })
     }
 
-    // Sometimes Next/router navigation doesn't commit URL immediately in CI/dev; treat URL OR heading as success.
-    const urlOk = page.waitForURL(check.expected, { timeout: 10_000 }).then(() => true).catch(() => false)
-    const headingOk = page
-      .getByRole('heading', { level: 1 })
-      .first()
-      .isVisible()
-      .then(() => true)
-      .catch(() => false)
-    expect(await Promise.race([urlOk, headingOk])).toBeTruthy()
+    // Verify we landed on a real page, not just a stale heading.
+    await expect(page.locator('main')).toBeVisible()
+    const h1 = page.getByRole('heading', { level: 1 })
+    if ((await h1.count()) > 0) {
+      await expect(h1.first()).toBeVisible()
+    }
   }
 });
 
