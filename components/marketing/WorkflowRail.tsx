@@ -37,7 +37,10 @@ export function WorkflowRail() {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-lg">How LeadIntel works</CardTitle>
-          <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+          <Badge
+            variant="outline"
+            className="border-cyan-500/30 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300"
+          >
             Signal-based outbound platform
           </Badge>
         </div>
@@ -64,7 +67,7 @@ export function WorkflowRail() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-semibold text-foreground">{`${idx + 1}) ${s.title}`}</div>
-                  {isActive ? <CheckCircle2 className="h-4 w-4 text-cyan-300" /> : null}
+                  {isActive ? <CheckCircle2 className="h-4 w-4 text-cyan-700 dark:text-cyan-300" /> : null}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">{s.description}</div>
               </button>
