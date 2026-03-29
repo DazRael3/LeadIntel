@@ -38,7 +38,14 @@
     "audit:ai": "tsx scripts/aiSiteAudit.ts",
     "audit:storage": "tsx scripts/saveAuditStorageState.ts",
     "audit:doctor": "tsx scripts/auditDoctor.ts",
-    "audit:public": "tsx scripts/aiSiteAudit.ts -- --scope=public"
+    "audit:public": "tsx scripts/aiSiteAudit.ts -- --scope=public",
+    "test:e2e:public": "playwright test tests/e2e/public-smoke.spec.ts tests/e2e/accessibility.smoke.spec.ts",
+    "test:e2e:live": "cross-env E2E_BASE_URL=https://dazrael.com playwright test tests/e2e/public-smoke.spec.ts tests/e2e/accessibility.smoke.spec.ts",
+    "lhci:live": "lhci autorun --config=lighthouserc.live.json",
+    "knip": "knip",
+    "analyze": "cross-env ANALYZE=true next build",
+    "audit:deps": "npm audit --audit-level=high",
+    "audit:site:live": "npm run test:e2e:live && npm run lhci:live"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
@@ -78,6 +85,9 @@
     "esbuild": "^0.25.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
+    "@lhci/cli": "^0.15.1",
+    "@next/bundle-analyzer": "15.5.10",
     "@playwright/test": "^1.57.0",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
@@ -86,9 +96,11 @@
     "@types/react-dom": "^18.2.19",
     "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.17",
+    "cross-env": "^10.1.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "15.5.10",
     "jsdom": "^23.0.1",
+    "knip": "^6.1.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",

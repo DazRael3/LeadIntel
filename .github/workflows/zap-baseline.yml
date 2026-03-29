@@ -1,0 +1,32 @@
+name: zap-baseline
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '31 6 * * 1'
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create report directory
+        run: mkdir -p reports/zap
+
+      - name: Run ZAP baseline scan against production
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/reports/zap:/zap/wrk:rw \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t https://dazrael.com -J zap.json -r zap.html -w zap.md -m 5 -j -a
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: reports/zap
