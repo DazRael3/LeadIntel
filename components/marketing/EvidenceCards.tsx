@@ -69,7 +69,7 @@ export function EvidenceCards() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base">{e.title}</CardTitle>
-                <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+                <Badge variant="outline" className="li-chip">
                   {e.badge}
                 </Badge>
               </div>
@@ -77,13 +77,13 @@ export function EvidenceCards() {
             <CardContent className="space-y-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md border border-cyan-500/20 bg-cyan-500/10">
-                  <Icon className="h-4 w-4 text-cyan-300" />
+                  <Icon className="h-4 w-4 li-accent" />
                 </div>
                 <div className="text-sm text-muted-foreground">{e.body}</div>
               </div>
               <div className="flex flex-wrap gap-3 text-xs">
                 {e.links.map((l) => (
-                  <Link key={l.href + l.label} className="text-cyan-400 hover:underline" href={l.href}>
+                  <Link key={l.href + l.label} className="li-accent-link" href={l.href}>
                     {l.label}
                   </Link>
                 ))}

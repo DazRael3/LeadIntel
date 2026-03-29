@@ -112,6 +112,23 @@
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     letter-spacing: 0.25px;
   }
+
+  /* A11y: semantic accent utilities to satisfy WCAG AA contrast in light mode. */
+  .li-accent {
+    @apply text-cyan-800 dark:text-cyan-300;
+  }
+
+  .li-accent-link {
+    @apply li-accent underline underline-offset-4 hover:opacity-90;
+  }
+
+  .li-chip {
+    @apply border border-cyan-500/30 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300;
+  }
+
+  .li-codeblock {
+    @apply rounded-lg border border-cyan-500/10 bg-slate-100 text-slate-900 dark:bg-slate-950/60 dark:text-slate-200/90;
+  }
   
   .blur-sm {
     filter: blur(4px);

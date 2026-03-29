@@ -14,7 +14,10 @@ export function CategoryStrengthTable(props: { rows: CategoryStrengthRow[]; titl
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">{props.title ?? 'Category strengths (high level)'}</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent
+        className="overflow-x-auto focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        tabIndex={0}
+      >
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-cyan-500/10 text-xs text-muted-foreground">

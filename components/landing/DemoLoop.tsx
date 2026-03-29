@@ -59,8 +59,8 @@ export function DemoLoop() {
         <div className="text-xs text-muted-foreground">{content.title}</div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="rounded-lg border border-cyan-500/10 bg-slate-950/60 p-4">
-          <pre className="whitespace-pre-wrap font-mono text-xs text-slate-200/90 leading-relaxed">
+        <div className="li-codeblock p-4">
+          <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
             {content.lines.join('\n')}
           </pre>
         </div>

@@ -55,7 +55,7 @@ export function CapabilityProofGrid() {
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-base">{x.title}</CardTitle>
-              <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+              <Badge variant="outline" className="li-chip">
                 {x.tag}
               </Badge>
             </div>

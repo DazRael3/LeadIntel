@@ -50,7 +50,7 @@ export function TourStepper() {
                   aria-current={isActive ? 'step' : undefined}
                 >
                   <span className="font-medium">{`${idx + 1}) ${s.title}`}</span>
-                  {isActive ? <span className="text-xs text-cyan-400">Active</span> : null}
+                  {isActive ? <span className="text-xs li-accent">Active</span> : null}
                 </button>
               )
             })}
@@ -96,10 +96,10 @@ export function TourStepper() {
               </Button>
             </div>
             <div className="mt-3 flex flex-wrap gap-3 text-xs">
-              <Link className="text-cyan-400 hover:underline" href="/templates">
+              <Link className="li-accent-link" href="/templates">
                 Browse templates
               </Link>
-              <Link className="text-cyan-400 hover:underline" href="/pricing">
+              <Link className="li-accent-link" href="/pricing">
                 Pricing
               </Link>
             </div>

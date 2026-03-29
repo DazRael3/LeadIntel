@@ -151,15 +151,15 @@ export function TryLeadIntel() {
 
         {result && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-lg border border-cyan-500/10 bg-slate-950/60 p-4">
+            <div className="li-codeblock p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sample digest</div>
-              <pre className="mt-2 whitespace-pre-wrap font-mono text-xs text-slate-200/90 leading-relaxed">
+              <pre className="mt-2 whitespace-pre-wrap font-mono text-xs leading-relaxed">
                 {digestText}
               </pre>
             </div>
-            <div className="rounded-lg border border-cyan-500/10 bg-slate-950/60 p-4">
+            <div className="li-codeblock p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sample pitch</div>
-              <div className="mt-2 text-xs text-slate-200/90">
+              <div className="mt-2 text-xs">
                 <div className="font-mono">Subject: {result.pitchSubject}</div>
                 <pre className="mt-2 whitespace-pre-wrap font-mono text-xs leading-relaxed">{result.pitchBody}</pre>
               </div>

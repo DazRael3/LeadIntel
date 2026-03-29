@@ -1,6 +1,13 @@
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
+let withBundleAnalyzer = (config) => config;
+try {
+  // Optional dev dependency; do not hard-crash runtime/test server if missing.
+  // eslint-disable-next-line global-require -- conditional optional require
+  withBundleAnalyzer = require('@next/bundle-analyzer')({
+    enabled: process.env.ANALYZE === 'true',
+  });
+} catch {
+  // noop: analyzer is optional
+}
 
 const csp = [
   "default-src 'self'",
@@ -22,6 +29,8 @@ const csp = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Next 15 dev warning: allow local dev/test origins explicitly.
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

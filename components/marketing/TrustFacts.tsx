@@ -72,7 +72,7 @@ export function TrustFacts() {
     <div ref={ref} className="rounded-xl border border-cyan-500/20 bg-card/50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm font-semibold text-foreground">Trust facts</div>
-        <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+        <Badge variant="outline" className="li-chip">
           Production-grade defaults
         </Badge>
       </div>
@@ -82,7 +82,7 @@ export function TrustFacts() {
           return (
             <div key={f.key} className="rounded-lg border border-cyan-500/10 bg-background/40 px-3 py-3">
               <div className="flex items-center gap-2">
-                <Icon className="h-4 w-4 text-cyan-400" />
+                <Icon className="h-4 w-4 li-accent" />
                 <div className="text-xs font-semibold text-foreground">{f.label}</div>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">{f.detail}</div>

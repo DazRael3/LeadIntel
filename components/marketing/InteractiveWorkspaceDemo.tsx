@@ -256,7 +256,7 @@ export function InteractiveWorkspaceDemo() {
               Preview based on realistic example data: tracked accounts → daily shortlist → score explanation → intent + signals → people recommendations → send-ready action.
             </div>
           </div>
-          <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+          <Badge variant="outline" className="li-chip">
             Preview
           </Badge>
         </div>
@@ -384,7 +384,7 @@ export function InteractiveWorkspaceDemo() {
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>{isoToNice(s.occurredAtIso)}</span>
                           {s.sourceUrl ? (
-                            <a className="text-cyan-400 hover:underline inline-flex items-center gap-1" href={s.sourceUrl} target="_blank" rel="noreferrer">
+                            <a className="li-accent-link inline-flex items-center gap-1" href={s.sourceUrl} target="_blank" rel="noreferrer">
                               source <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : null}

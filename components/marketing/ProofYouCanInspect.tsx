@@ -45,7 +45,7 @@ export function ProofYouCanInspect() {
         <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
           {ITEMS.map((i) => (
             <li key={i.href}>
-              <Link className="text-cyan-300 hover:underline" href={i.href}>
+              <Link className="li-accent-link" href={i.href}>
                 {i.label}
               </Link>
             </li>
