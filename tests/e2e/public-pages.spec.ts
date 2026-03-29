@@ -19,6 +19,8 @@ test.describe('Public pages', () => {
 
       if (path === '/pricing') {
         await expect(page.getByText(/Free plan:\s*3 preview generations total/i)).toBeVisible()
+        // Pricing page copy intentionally communicates the simple global preview framing.
+        // (Per-type caps are enforced in-app; pricing keeps messaging concise.)
         await expect(page.getByText(/Usage is shared across pitches and reports/i)).toBeVisible()
       }
 

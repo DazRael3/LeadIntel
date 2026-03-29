@@ -83,7 +83,7 @@ export function PlaybookTemplate(props: {
                     <Badge variant="outline">{s.day}</Badge>
                     <div className="font-medium text-foreground">{s.label}</div>
                   </div>
-                  <Link className="text-cyan-400 hover:underline text-sm" href={href}>
+                  <Link className="li-accent hover:underline text-sm" href={href}>
                     Open template
                   </Link>
                 </div>
@@ -144,11 +144,11 @@ export function PlaybookTemplate(props: {
             </Button>
           </div>
           <div className="flex flex-wrap gap-3 text-xs">
-            <Link className="text-cyan-400 hover:underline" href="/how-scoring-works">
+            <Link className="li-accent-link" href="/how-scoring-works">
               How scoring works
             </Link>
             {props.related.map((r) => (
-              <Link key={r.href} className="text-cyan-400 hover:underline" href={r.href}>
+              <Link key={r.href} className="li-accent-link" href={r.href}>
                 {r.label}
               </Link>
             ))}

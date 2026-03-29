@@ -72,7 +72,7 @@ export function TrustFacts() {
     <div ref={ref} className="rounded-xl border border-cyan-500/20 bg-card/50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm font-semibold text-foreground">Trust facts</div>
-        <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+        <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
           Production-grade defaults
         </Badge>
       </div>

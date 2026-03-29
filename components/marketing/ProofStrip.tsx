@@ -74,7 +74,10 @@ export function ProofStrip() {
     <div ref={ref} className="rounded-xl border border-cyan-500/20 bg-card/50">
       <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
         <div className="text-sm font-semibold text-foreground">Proof strip</div>
-        <Badge variant="outline" className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+        <Badge
+          variant="outline"
+          className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300"
+        >
           Evidence, not hype
         </Badge>
       </div>
