@@ -38,21 +38,18 @@
     "audit:ai": "tsx scripts/aiSiteAudit.ts",
     "audit:storage": "tsx scripts/saveAuditStorageState.ts",
     "audit:doctor": "tsx scripts/auditDoctor.ts",
-    "audit:public": "tsx scripts/aiSiteAudit.ts -- --scope=public",
-    "test:e2e:public": "playwright test tests/e2e/public-smoke.spec.ts tests/e2e/accessibility.smoke.spec.ts --project=chromium --project=mobile-chrome",
-    "test:e2e:live": "cross-env E2E_BASE_URL=https://dazrael.com playwright test tests/e2e/public-smoke.spec.ts tests/e2e/accessibility.smoke.spec.ts --project=chromium --project=mobile-chrome",
-    "lhci:live": "lhci autorun --config=lighthouserc.live.json",
-    "knip": "knip -c knip.json",
-    "analyze": "cross-env ANALYZE=true next build",
-    "audit:deps": "npm audit --audit-level=high",
-    "audit:site:live": "npm run test:e2e:live && npm run lhci:live"
+    "audit:public": "tsx scripts/aiSiteAudit.ts -- --scope=public"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
     "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
+    "@stripe/stripe-js": "^2.4.0",
+    "@supabase/auth-helpers-nextjs": "^0.8.7",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.39.3",
     "@upstash/ratelimit": "^2.0.0",
@@ -61,7 +58,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.3.1",
     "lucide-react": "^0.344.0",
-    "next": "15.5.14",
+    "next": "15.5.10",
     "next-themes": "^0.4.6",
     "openai": "^4.28.0",
     "playwright": "^1.41.0",
@@ -78,16 +75,10 @@
     "zod": "^3.22.4"
   },
   "overrides": {
-    "esbuild": "^0.25.0",
-    "flatted": "^3.4.2",
-    "picomatch": "^4.0.4",
-    "brace-expansion": "^1.1.13",
-    "tmp": "^0.2.4"
+    "esbuild": "^0.25.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.1",
-    "@lhci/cli": "^0.15.1",
-    "@next/bundle-analyzer": "^15.5.10",
     "@playwright/test": "^1.57.0",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
@@ -96,17 +87,16 @@
     "@types/react-dom": "^18.2.19",
     "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.17",
-    "axe-core": "^4.11.1",
-    "cross-env": "^10.1.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "15.5.10",
     "jsdom": "^23.0.1",
-    "knip": "^6.1.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
+    "vite": "^7.3.1",
+    "vite-node": "^5.3.0",
     "vitest": "^4.0.18"
   }
 }
