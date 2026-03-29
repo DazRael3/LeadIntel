@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 import { AutoGenerateReportClient } from './AutoGenerateReportClient'
 
@@ -45,6 +45,8 @@ describe('AutoGenerateReportClient', () => {
     render(<AutoGenerateReportClient />)
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    // Persistent bubble should be visible while running.
+    expect(await screen.findByText('Building report')).toBeInTheDocument()
     const firstCall = fetchMock.mock.calls[0]
     expect(firstCall).toBeTruthy()
     expect(String(firstCall?.[0])).toBe('/api/competitive-report/generate')
