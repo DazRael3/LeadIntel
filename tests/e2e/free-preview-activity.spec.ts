@@ -20,7 +20,7 @@ test.describe('Free preview usage coherence', () => {
     await page.goto('/competitive-report')
 
     await expect(page.getByText('Recent premium activity')).toBeVisible()
-    await expect(page.getByText(/Usage is shared across pitches and reports\./i)).toBeVisible()
+    await expect(page.getByText(/Pitch and report preview limits are tracked separately\./i)).toBeVisible()
   })
 })
 
