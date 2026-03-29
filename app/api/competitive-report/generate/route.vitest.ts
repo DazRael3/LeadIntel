@@ -112,6 +112,10 @@ vi.mock('@/lib/sources/orchestrate', () => ({
   })),
 }))
 
+vi.mock('@/lib/sources/http', () => ({
+  fetchText: vi.fn(async () => ({ ok: false, status: null, url: 'https://example', errorCode: 'network', message: 'nope' })),
+}))
+
 describe('/api/competitive-report/generate', () => {
   beforeEach(() => {
     vi.resetModules()

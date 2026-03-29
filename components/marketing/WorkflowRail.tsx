@@ -37,7 +37,10 @@ export function WorkflowRail() {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-lg">How LeadIntel works</CardTitle>
-          <Badge variant="outline" className="li-chip">
+          <Badge
+            variant="outline"
+            className="border-cyan-500/30 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300"
+          >
             Signal-based outbound platform
           </Badge>
         </div>

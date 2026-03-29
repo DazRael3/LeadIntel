@@ -11,7 +11,7 @@ import { DownloadMarkdownButton } from './ui/DownloadMarkdownButton'
 import { SourcesFreshnessPanelClient } from './ui/SourcesFreshnessPanelClient'
 import { ReportQualityBadge } from './ui/ReportQualityBadge'
 import { LegacyCitationBannerClient } from './ui/LegacyCitationBannerClient'
-import { AutoGenerateReportClient } from './ui/AutoGenerateReportClient'
+import { CreateReportPanelClient } from './ui/CreateReportPanelClient'
 import { SourceQualitySummary } from '@/components/report/SourceQualitySummary'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -82,7 +82,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
   const q = qRaw ? safeQueryLike(qRaw) : null
   const status = pickString(sp, 'status')
   const id = pickString(sp, 'id')
-
+  const create = pickString(sp, 'create')
   const qpCompany = pickString(sp, 'company') ?? pickString(sp, 'name') ?? pickString(sp, 'company_name')
   const qpUrl = pickString(sp, 'url') ?? pickString(sp, 'input_url') ?? pickString(sp, 'website') ?? pickString(sp, 'domain')
   const qpTicker = pickString(sp, 'ticker') ?? pickString(sp, 'symbol')
@@ -143,7 +143,6 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
     <div className="min-h-screen bg-background terminal-grid">
       <TopNav />
       <main className="container mx-auto px-6 py-10">
-        <AutoGenerateReportClient />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold bloomberg-font neon-cyan">Reports</h1>
@@ -151,12 +150,16 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
           </div>
           <div className="flex items-center gap-2">
             <Button asChild size="sm" className="neon-border hover:glow-effect">
-              <Link href={buildCompetitiveReportNewUrl({ auto: false })}>New report</Link>
+              <Link href="/competitive-report?create=1">New report</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href="/dashboard">Dashboard</Link>
             </Button>
           </div>
+        </div>
+
+        <div className="mt-6">
+          <CreateReportPanelClient open={create === '1'} />
         </div>
 
         {capabilities.tier === 'starter' ? (
@@ -300,7 +303,7 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
               </CardHeader>
               <CardContent>
                 {selected ? (
-                  <div className="space-y-4">
+                  <div className="space-y-4" id="report-viewer">
                     <LegacyCitationBannerClient
                       reportMarkdown={selectedMarkdownForViewer}
                       companyName={selected.company_name}

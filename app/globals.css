@@ -61,6 +61,12 @@
     --ring: 224.3 76.3% 48%;
     --page-bg-from: 210 30% 97%;
     --page-bg-to: 214 25% 92%;
+
+    /* Darken neon accents for WCAG AA contrast on light surfaces */
+    --neon-cyan: 188 92% 32%;
+    --neon-green: 142 72% 28%;
+    --neon-blue: 212 88% 36%;
+    --neon-purple: 270 86% 42%;
   }
 }
 
@@ -77,6 +83,14 @@
 }
 
 @layer utilities {
+  .a11y-link {
+    @apply text-cyan-700 dark:text-cyan-300;
+  }
+
+  .a11y-link:hover {
+    @apply text-cyan-800 dark:text-cyan-200;
+  }
+
   .neon-cyan {
     color: hsl(var(--neon-cyan));
     text-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.35), 0 0 22px hsl(var(--neon-cyan) / 0.18);
@@ -112,8 +126,12 @@
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     letter-spacing: 0.25px;
   }
-
-  /* A11y: semantic accent utilities to satisfy WCAG AA contrast in light mode. */
+  
+  /**
+   * Accent links/badges that must meet WCAG AA in light theme.
+   * In light mode, Tailwind's `text-cyan-200/300/400` can be too low contrast on `--background`.
+   * Prefer these semantic utility classes over raw color tokens.
+   */
   .li-accent {
     @apply text-cyan-800 dark:text-cyan-300;
   }

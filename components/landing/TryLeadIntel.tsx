@@ -153,9 +153,7 @@ export function TryLeadIntel() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="li-codeblock p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sample digest</div>
-              <pre className="mt-2 whitespace-pre-wrap font-mono text-xs leading-relaxed">
-                {digestText}
-              </pre>
+              <pre className="mt-2 whitespace-pre-wrap font-mono text-xs leading-relaxed">{digestText}</pre>
             </div>
             <div className="li-codeblock p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sample pitch</div>
