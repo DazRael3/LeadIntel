@@ -61,6 +61,29 @@ for (const route of routes) {
 test('home navigation links work', async ({ page }) => {
   await gotoStable(page, '/')
 
+  async function openPublicMobileMenu() {
+    const nav = page.locator('nav').filter({ has: page.getByRole('link', { name: /leadintel/i }) }).first()
+    const openMenu = nav.getByRole('button', { name: /open.*menu/i }).first()
+    // Mobile Safari can occasionally miss the first click during hydration; retry a few times.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const expanded = await openMenu.getAttribute('aria-expanded')
+      if (expanded === 'true') break
+      await openMenu.click()
+      try {
+        await expect(openMenu).toHaveAttribute('aria-expanded', 'true', { timeout: 1500 })
+        break
+      } catch {
+        // best-effort retry
+      }
+      await page.waitForTimeout(100)
+    }
+
+    await expect(openMenu).toHaveAttribute('aria-expanded', 'true')
+    const menu = page.getByRole('dialog')
+    await expect(menu).toBeVisible()
+    return menu
+  }
+
   const checks = [
     { name: /pricing/i, expected: /\/pricing$/ },
     { name: /use cases/i, expected: /\/use-cases$/ },
@@ -74,23 +97,30 @@ test('home navigation links work', async ({ page }) => {
     await gotoStable(page, '/')
 
     // Prefer desktop nav if visible; otherwise open the mobile menu.
-    const navLink = page.locator('nav').getByRole('link', { name: check.name }).first()
-    if (await navLink.isVisible()) {
-      await navLink.click()
+    const nav = page.locator('nav').filter({ has: page.getByRole('link', { name: /leadintel/i }) }).first()
+    const desktopLink = nav.getByRole('link', { name: check.name }).first()
+    if (await desktopLink.isVisible()) {
+      await expect(desktopLink).toHaveAttribute('href', check.expected)
+      await Promise.all([
+        page.waitForURL(check.expected, { timeout: 10_000, waitUntil: 'domcontentloaded' }),
+        desktopLink.click(),
+      ])
     } else {
-      await page.getByRole('button', { name: /open menu/i }).click()
-      await page.getByRole('link', { name: check.name }).first().click()
+      const menu = await openPublicMobileMenu()
+      const link = menu.getByRole('link', { name: check.name }).first()
+      await expect(link).toHaveAttribute('href', check.expected)
+      await Promise.all([
+        page.waitForURL(check.expected, { timeout: 10_000, waitUntil: 'domcontentloaded' }),
+        link.click(),
+      ])
     }
 
-    // Sometimes Next/router navigation doesn't commit URL immediately in CI/dev; treat URL OR heading as success.
-    const urlOk = page.waitForURL(check.expected, { timeout: 10_000 }).then(() => true).catch(() => false)
-    const headingOk = page
-      .getByRole('heading', { level: 1 })
-      .first()
-      .isVisible()
-      .then(() => true)
-      .catch(() => false)
-    expect(await Promise.race([urlOk, headingOk])).toBeTruthy()
+    // Verify we landed on a real page, not just a stale heading.
+    await expect(page.locator('main')).toBeVisible()
+    const h1 = page.getByRole('heading', { level: 1 })
+    if ((await h1.count()) > 0) {
+      await expect(h1.first()).toBeVisible()
+    }
   }
 });
 
