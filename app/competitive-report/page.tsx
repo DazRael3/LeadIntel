@@ -11,7 +11,6 @@ import { DownloadMarkdownButton } from './ui/DownloadMarkdownButton'
 import { SourcesFreshnessPanelClient } from './ui/SourcesFreshnessPanelClient'
 import { ReportQualityBadge } from './ui/ReportQualityBadge'
 import { LegacyCitationBannerClient } from './ui/LegacyCitationBannerClient'
-import { AutoGenerateReportClient } from './ui/AutoGenerateReportClient'
 import { CreateReportPanelClient } from './ui/CreateReportPanelClient'
 import { SourceQualitySummary } from '@/components/report/SourceQualitySummary'
 import ReactMarkdown from 'react-markdown'
@@ -144,7 +143,6 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
     <div className="min-h-screen bg-background terminal-grid">
       <TopNav />
       <main className="container mx-auto px-6 py-10">
-        <AutoGenerateReportClient />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold bloomberg-font neon-cyan">Reports</h1>

@@ -3,6 +3,8 @@ import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { AnalyticsBootstrap } from '@/components/AnalyticsBootstrap'
+import { Suspense } from 'react'
+import { ReportGenerationManager } from '@/components/report/ReportGenerationManager'
 
 export const metadata: Metadata = {
   // Prefer configured canonical host; fall back to apex.
@@ -32,6 +34,9 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true} disableTransitionOnChange>
           <AnalyticsBootstrap />
           {children}
+          <Suspense fallback={null}>
+            <ReportGenerationManager />
+          </Suspense>
           <Toaster />
         </ThemeProvider>
       </body>
