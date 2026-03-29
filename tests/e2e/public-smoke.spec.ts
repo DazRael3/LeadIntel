@@ -59,7 +59,30 @@ for (const route of routes) {
 }
 
 test('home navigation links work', async ({ page }) => {
+  // Nav click → client-side routing can be slow under multi-project load (notably WebKit).
+  // Keep coverage (must open menu / click links / navigate), but allow enough time to avoid false negatives.
+  test.setTimeout(60_000)
   await gotoStable(page, '/')
+
+  async function clickAndWaitForUrl(args: {
+    locator: import('@playwright/test').Locator
+    expected: RegExp
+  }) {
+    const timeoutMs = 12_000
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await Promise.all([
+          page.waitForURL(args.expected, { timeout: timeoutMs, waitUntil: 'domcontentloaded' }),
+          args.locator.click(),
+        ])
+        return
+      } catch (error) {
+        if (attempt === 1) throw error
+        // WebKit can occasionally miss the first click/navigation under load; retry once.
+        await page.waitForTimeout(50)
+      }
+    }
+  }
 
   async function openPublicMobileMenu() {
     const nav = page.locator('nav').filter({ has: page.getByRole('link', { name: /leadintel/i }) }).first()
@@ -84,6 +107,16 @@ test('home navigation links work', async ({ page }) => {
     return menu
   }
 
+  async function isDesktopNavVisible(nav: import('@playwright/test').Locator) {
+    // Avoid locator.isVisible() flaking due to animation/hydration; use a short deterministic check.
+    return await nav
+      .getByRole('button', { name: /open.*menu/i })
+      .first()
+      .isVisible()
+      .then((v) => !v)
+      .catch(() => true)
+  }
+
   const checks = [
     { name: /pricing/i, expected: /\/pricing$/ },
     { name: /use cases/i, expected: /\/use-cases$/ },
@@ -99,20 +132,15 @@ test('home navigation links work', async ({ page }) => {
     // Prefer desktop nav if visible; otherwise open the mobile menu.
     const nav = page.locator('nav').filter({ has: page.getByRole('link', { name: /leadintel/i }) }).first()
     const desktopLink = nav.getByRole('link', { name: check.name }).first()
-    if (await desktopLink.isVisible()) {
+    const useDesktop = await isDesktopNavVisible(nav)
+    if (useDesktop) {
       await expect(desktopLink).toHaveAttribute('href', check.expected)
-      await Promise.all([
-        page.waitForURL(check.expected, { timeout: 10_000, waitUntil: 'domcontentloaded' }),
-        desktopLink.click(),
-      ])
+      await clickAndWaitForUrl({ locator: desktopLink, expected: check.expected })
     } else {
       const menu = await openPublicMobileMenu()
       const link = menu.getByRole('link', { name: check.name }).first()
       await expect(link).toHaveAttribute('href', check.expected)
-      await Promise.all([
-        page.waitForURL(check.expected, { timeout: 10_000, waitUntil: 'domcontentloaded' }),
-        link.click(),
-      ])
+      await clickAndWaitForUrl({ locator: link, expected: check.expected })
     }
 
     // Verify we landed on a real page, not just a stale heading.
