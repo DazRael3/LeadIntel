@@ -126,7 +126,7 @@
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     letter-spacing: 0.25px;
   }
-
+  
   /**
    * Accent links/badges that must meet WCAG AA in light theme.
    * In light mode, Tailwind's `text-cyan-200/300/400` can be too low contrast on `--background`.

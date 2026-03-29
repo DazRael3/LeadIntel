@@ -74,10 +74,7 @@ export function ProofStrip() {
     <div ref={ref} className="rounded-xl border border-cyan-500/20 bg-card/50">
       <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
         <div className="text-sm font-semibold text-foreground">Proof strip</div>
-        <Badge
-          variant="outline"
-          className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300"
-        >
+        <Badge variant="outline" className="w-fit li-chip">
           Evidence, not hype
         </Badge>
       </div>
@@ -87,7 +84,7 @@ export function ProofStrip() {
           return (
             <div key={i.key} className="rounded-lg border border-cyan-500/10 bg-background/40 px-3 py-3">
               <div className="flex items-center gap-2">
-                <Icon className="h-4 w-4 text-cyan-400" />
+                <Icon className="h-4 w-4 li-accent" />
                 <div className="text-sm font-semibold text-foreground">{i.label}</div>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">{i.description}</div>

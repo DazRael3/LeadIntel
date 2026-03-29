@@ -126,5 +126,6 @@ jobs:
 
       - name: Skip E2E (missing secrets)
         if: env.HAS_E2E_SECRETS != 'true'
-        run: echo "Skipping Playwright E2E: required secrets are not configured (E2E_EMAIL/E2E_PASSWORD/E2E_TEAM_EMAIL/E2E_TEAM_PASSWORD)."
+        run: |
+          echo "Skipping Playwright E2E: required secrets are not configured (E2E_EMAIL/E2E_PASSWORD/E2E_TEAM_EMAIL/E2E_TEAM_PASSWORD)."
 

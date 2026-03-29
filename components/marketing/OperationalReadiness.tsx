@@ -32,7 +32,7 @@ export function OperationalReadiness() {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-lg">Operational transparency</CardTitle>
-          <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+          <Badge variant="outline" className="li-chip">
             Inspectable
           </Badge>
         </div>

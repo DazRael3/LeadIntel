@@ -256,10 +256,7 @@ export function InteractiveWorkspaceDemo() {
               Preview based on realistic example data: tracked accounts → daily shortlist → score explanation → intent + signals → people recommendations → send-ready action.
             </div>
           </div>
-          <Badge
-            variant="outline"
-            className="border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
-          >
+          <Badge variant="outline" className="li-chip">
             Preview
           </Badge>
         </div>

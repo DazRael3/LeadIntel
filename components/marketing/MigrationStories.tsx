@@ -66,7 +66,7 @@ export function MigrationStories() {
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-lg">Common switching paths</CardTitle>
-            <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300">
+            <Badge variant="outline" className="li-chip">
               Patterns, not case studies
             </Badge>
           </div>

@@ -1,0 +1,32 @@
+{
+  "ci": {
+    "collect": {
+      "url": [
+        "https://dazrael.com/",
+        "https://dazrael.com/pricing",
+        "https://dazrael.com/use-cases",
+        "https://dazrael.com/compare",
+        "https://dazrael.com/tour",
+        "https://dazrael.com/trust",
+        "https://dazrael.com/support",
+        "https://dazrael.com/how-scoring-works",
+        "https://dazrael.com/status",
+        "https://dazrael.com/version"
+      ],
+      "numberOfRuns": 3
+    },
+    "assert": {
+      "preset": "lighthouse:no-pwa",
+      "assertions": {
+        "categories:performance": ["warn", { "minScore": 0.8 }],
+        "categories:accessibility": ["error", { "minScore": 0.9 }],
+        "categories:best-practices": ["error", { "minScore": 0.9 }],
+        "categories:seo": ["error", { "minScore": 0.9 }],
+        "errors-in-console": "error"
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}

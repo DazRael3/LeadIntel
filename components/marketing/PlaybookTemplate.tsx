@@ -83,7 +83,7 @@ export function PlaybookTemplate(props: {
                     <Badge variant="outline">{s.day}</Badge>
                     <div className="font-medium text-foreground">{s.label}</div>
                   </div>
-                  <Link className="li-accent hover:underline text-sm" href={href}>
+                  <Link className="li-accent-link text-sm" href={href}>
                     Open template
                   </Link>
                 </div>

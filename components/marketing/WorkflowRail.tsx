@@ -67,7 +67,7 @@ export function WorkflowRail() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-semibold text-foreground">{`${idx + 1}) ${s.title}`}</div>
-                  {isActive ? <CheckCircle2 className="h-4 w-4 text-cyan-700 dark:text-cyan-300" /> : null}
+                  {isActive ? <CheckCircle2 className="h-4 w-4 li-accent" /> : null}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">{s.description}</div>
               </button>

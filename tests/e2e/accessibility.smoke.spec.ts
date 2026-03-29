@@ -38,4 +38,3 @@ test.describe('Accessibility smoke (serious/critical)', () => {
     })
   }
 })
-
