@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { toast } from '@/components/ui/use-toast'
-import { ToastAction } from '@/components/ui/toast'
 
 type GenerateResponse =
   | { ok: true; data: { reportId: string; reused?: boolean } }
@@ -31,11 +29,14 @@ function clampPercent(n: number): number {
 export function AutoGenerateReportClient() {
   const router = useRouter()
   const sp = useSearchParams()
-  const [minimized, setMinimized] = useState(false)
   const startedAtRef = useRef<number>(0)
   const didStartRef = useRef(false)
-  const toastHandleRef = useRef<ReturnType<typeof toast> | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [progress, setProgress] = useState<{ pct: number; seconds: number } | null>(null)
+  const [minimized, setMinimized] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [status, setStatus] = useState<'running' | 'error' | 'done' | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
   const auto = parseAuto(sp.get('auto'))
   const id = sp.get('id')
@@ -62,18 +63,10 @@ export function AutoGenerateReportClient() {
     didStartRef.current = true
 
     startedAtRef.current = Date.now()
-    const initialTitle = 'Generating report…'
-    const initialDesc = minimized ? 'Starting…' : 'Fetching sources and drafting a citation-backed report.'
-    toastHandleRef.current = toast({
-      title: initialTitle,
-      description: initialDesc,
-      duration: Infinity,
-      action: (
-        <ToastAction altText={minimized ? 'Expand' : 'Minimize'} onClick={() => setMinimized((v) => !v)}>
-          {minimized ? 'Expand' : 'Minimize'}
-        </ToastAction>
-      ),
-    })
+    setVisible(true)
+    setStatus('running')
+    setMessage(null)
+    setProgress({ pct: 0, seconds: 0 })
 
     // Lightweight progress ticker (not tied to backend; avoids request spam).
     tickRef.current = setInterval(() => {
@@ -81,17 +74,7 @@ export function AutoGenerateReportClient() {
       // Target 45s "expected" completion for a human-friendly indicator.
       const pct = clampPercent((elapsedMs / 45000) * 100)
       const seconds = Math.max(0, Math.ceil(elapsedMs / 1000))
-      const desc = minimized ? `Generating… ${pct}%` : `Generating… ${pct}% (${seconds}s)`
-      toastHandleRef.current?.update({
-        title: 'Generating report…',
-        description: desc,
-        duration: Infinity,
-        action: (
-          <ToastAction altText={minimized ? 'Expand' : 'Minimize'} onClick={() => setMinimized((v) => !v)}>
-            {minimized ? 'Expand' : 'Minimize'}
-          </ToastAction>
-        ),
-      } as any)
+      setProgress({ pct, seconds })
     }, 1000)
 
     const run = async () => {
@@ -106,32 +89,19 @@ export function AutoGenerateReportClient() {
           throw new Error('unexpected_response')
         }
         if (!json.ok) {
-          toastHandleRef.current?.dismiss()
-          toast({
-            variant: 'destructive',
-            title: 'Report generation failed',
-            description: json.error?.message ?? 'Please try again.',
-          })
+          setStatus('error')
+          setMessage(json.error?.message ?? 'Please try again.')
           return
         }
 
         const reportId = json.data.reportId
-        toastHandleRef.current?.dismiss()
-        toast({
-          variant: 'success',
-          title: 'Report ready',
-          description: 'Your report was generated and saved.',
-          action: (
-            <ToastAction altText="View report" onClick={() => router.push(`/competitive-report?id=${encodeURIComponent(reportId)}`)}>
-              View
-            </ToastAction>
-          ),
-        })
+        setStatus('done')
+        setMessage('Report saved.')
         router.push(`/competitive-report?id=${encodeURIComponent(reportId)}`)
         router.refresh()
       } catch {
-        toastHandleRef.current?.dismiss()
-        toast({ variant: 'destructive', title: 'Network error', description: 'Please try again.' })
+        setStatus('error')
+        setMessage('Network error. Please try again.')
       } finally {
         if (tickRef.current) {
           clearInterval(tickRef.current)
@@ -145,8 +115,47 @@ export function AutoGenerateReportClient() {
       if (tickRef.current) clearInterval(tickRef.current)
       tickRef.current = null
     }
-  }, [auto, id, canGenerate, minimized, payload, router])
+  }, [auto, id, canGenerate, payload, router])
 
-  return null
+  if (!visible || !progress) return null
+
+  const pct = progress.pct
+  const seconds = progress.seconds
+  const label =
+    status === 'error'
+      ? 'Report failed'
+      : status === 'done'
+        ? 'Report ready'
+        : 'Building report'
+
+  const detail =
+    status === 'error'
+      ? message ?? 'Please try again.'
+      : status === 'done'
+        ? message ?? 'Saved.'
+        : minimized
+          ? `${pct}%`
+          : `${pct}% · ${seconds}s`
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[120]">
+      <button
+        type="button"
+        onClick={() => setMinimized((v) => !v)}
+        className="rounded-full border border-purple-400/30 bg-purple-600/20 backdrop-blur px-4 py-3 shadow-lg hover:bg-purple-600/25 transition"
+        aria-label={minimized ? 'Expand generation progress' : 'Minimize generation progress'}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-700/30 border border-purple-400/30">
+            <span className="text-blue-300 font-bold tabular-nums">{pct}%</span>
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-foreground">{label}</div>
+            {minimized ? null : <div className="text-xs text-muted-foreground">{detail}</div>}
+          </div>
+        </div>
+      </button>
+    </div>
+  )
 }
 
