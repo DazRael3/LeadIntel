@@ -229,5 +229,24 @@ describe('env schema validation', () => {
         expect(result.data.NODE_ENV).toBe('development')
       }
     })
+
+    it('buildServerEnv wires PLATFORM_API_KEY_PEPPER and EMBED_SIGNING_SECRET', async () => {
+      process.env.NODE_ENV = 'production'
+      process.env.NEXT_PUBLIC_SITE_URL = 'https://app.example.com'
+      process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = 'pk_test_123'
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+      process.env.STRIPE_SECRET_KEY = 'sk_test_123'
+      process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_123'
+      process.env.OPENAI_API_KEY = 'sk-test-openai'
+      process.env.PLATFORM_API_KEY_PEPPER = 'x'.repeat(32)
+      process.env.EMBED_SIGNING_SECRET = 'y'.repeat(64)
+
+      // Avoid module caching between tests.
+      const mod = await import('@/lib/env')
+      expect((mod.serverEnv.PLATFORM_API_KEY_PEPPER ?? '').length).toBeGreaterThan(0)
+      expect((mod.serverEnv.EMBED_SIGNING_SECRET ?? '').length).toBeGreaterThan(0)
+    })
   })
 })
