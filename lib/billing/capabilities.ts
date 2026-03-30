@@ -15,12 +15,15 @@ export type CapabilityKey =
   | 'angle_library'
   | 'angle_variants'
   | 'approvals'
+  | 'audit_log'
   | 'governance_exports'
   | 'shared_metrics_dashboard'
   | 'multi_workspace_controls'
   | 'territory_controls'
   | 'integration_destination_health'
   | 'integration_delivery_audit'
+  | 'team_dashboards'
+  | 'executive_dashboard'
 
 export type Capabilities = Record<CapabilityKey, boolean>
 
@@ -38,12 +41,15 @@ const ALL_FALSE: Capabilities = {
   angle_library: false,
   angle_variants: false,
   approvals: false,
+  audit_log: false,
   governance_exports: false,
   shared_metrics_dashboard: false,
   multi_workspace_controls: false,
   territory_controls: false,
   integration_destination_health: false,
   integration_delivery_audit: false,
+  team_dashboards: false,
+  executive_dashboard: false,
 }
 
 /**
@@ -91,12 +97,15 @@ export function getTierCapabilities(tier: Tier): Capabilities {
   return {
     ...getTierCapabilities('closer_plus'),
     approvals: true,
+    audit_log: true,
     governance_exports: true,
     shared_metrics_dashboard: true,
     multi_workspace_controls: true,
     territory_controls: true,
     integration_destination_health: true,
     integration_delivery_audit: true,
+    team_dashboards: true,
+    executive_dashboard: true,
   }
 }
 

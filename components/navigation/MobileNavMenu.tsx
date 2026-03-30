@@ -11,10 +11,11 @@ import { tierAtLeast } from '@/lib/billing/tier'
 
 export function MobileNavMenu() {
   const [open, setOpen] = useState(false)
-  const { tier } = usePlan()
+  const { tier, capabilities } = usePlan()
   const showPaid = tier !== 'starter'
   const showTeam = tierAtLeast(tier, 'team')
   const showActions = tierAtLeast(tier, 'team')
+  const showWorkspacePicker = capabilities.multi_workspace_controls
 
   return (
     <div className="md:hidden">
@@ -48,7 +49,7 @@ export function MobileNavMenu() {
                 <div className="rounded border border-cyan-500/10 bg-card/30 p-3">
                   <div className="text-xs text-muted-foreground">Workspace</div>
                   <div className="mt-2">
-                    <WorkspaceSwitcher showPicker />
+                    <WorkspaceSwitcher showPicker={showWorkspacePicker} />
                   </div>
                 </div>
 
