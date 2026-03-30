@@ -4,12 +4,16 @@ import { NextRequest } from 'next/server'
 let mockAuthedUser: { id: string } | null = { id: 'user_1' }
 let mockInsertError: unknown = null
 let mockDeleteError: unknown = null
+let mockLeadExists = true
 
 class FakeQuery {
   private table: string
   private mode: 'insert' | 'delete' | null = null
   constructor(table: string) {
     this.table = table
+  }
+  select() {
+    return this
   }
   insert() {
     this.mode = 'insert'
@@ -21,6 +25,13 @@ class FakeQuery {
   }
   eq() {
     return this
+  }
+  maybeSingle() {
+    // Only used by the lead ownership guard.
+    if (this.table === 'leads') {
+      return Promise.resolve({ data: mockLeadExists ? { id: 'lead_1' } : null, error: null })
+    }
+    return Promise.resolve({ data: null, error: null })
   }
   then<TResult1 = unknown, TResult2 = never>(
     onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | undefined | null,
@@ -42,6 +53,9 @@ vi.mock('@/lib/supabase/route', () => ({
       getUser: vi.fn(async () => ({ data: { user: mockAuthedUser }, error: null })),
     },
     from: (table: string) => new FakeQuery(table),
+    schema: () => ({
+      from: (table: string) => new FakeQuery(table),
+    }),
   })),
 }))
 
@@ -52,6 +66,7 @@ describe('/api/leads/[leadId]/tags', () => {
     mockAuthedUser = { id: 'user_1' }
     mockInsertError = null
     mockDeleteError = null
+    mockLeadExists = true
     process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000'
   })
 
@@ -79,6 +94,20 @@ describe('/api/leads/[leadId]/tags', () => {
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.data?.success).toBe(true)
+  })
+
+  it('POST rejects when lead does not exist/does not belong to user', async () => {
+    mockLeadExists = false
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/leads/123e4567-e89b-12d3-a456-426614174000/tags', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ tagId: '123e4567-e89b-12d3-a456-426614174000' }),
+    })
+    const res = await POST(req, { params: Promise.resolve({ leadId: '123e4567-e89b-12d3-a456-426614174000' }) })
+    expect(res.status).toBe(404)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
   })
 
   it('DELETE authenticated -> ok', async () => {

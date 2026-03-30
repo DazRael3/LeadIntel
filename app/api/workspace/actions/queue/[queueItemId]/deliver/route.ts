@@ -184,6 +184,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
       .from('action_queue_items')
       .update({ status: 'queued', destination_type: 'webhook', destination_id: endpointId, error: null })
       .eq('id', queueItemId)
+      .eq('workspace_id', workspace.id)
 
     await logAudit({
       supabase,

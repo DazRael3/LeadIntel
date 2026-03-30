@@ -47,6 +47,11 @@ export const POST = withApiGuard(
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
       if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
+      // Defense-in-depth: ensure the target account belongs to this user.
+      // Leads are user-scoped (not workspace-scoped) in this app's schema.
+      const { data: lead } = await supabase.schema('api').from('leads').select('id').eq('id', accountId).eq('user_id', user.id).maybeSingle()
+      if (!lead) return fail(ErrorCode.NOT_FOUND, 'Account not found', undefined, { status: 404 }, bridge, requestId)
+
       const item = await createActionQueueItem({
         supabase,
         workspaceId: workspace.id,
