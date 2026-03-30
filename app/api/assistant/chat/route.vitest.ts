@@ -18,8 +18,8 @@ vi.mock('@/lib/supabase/safe-auth', () => ({
   getUserSafe: vi.fn(async () => mockUser),
 }))
 
-vi.mock('@/lib/team/gating', () => ({
-  requireTeamPlan: vi.fn(async () => ({ ok: false })),
+vi.mock('@/lib/billing/require-capability', () => ({
+  requireCapability: vi.fn(async () => ({ ok: false, tier: 'starter' })),
 }))
 
 describe('/api/assistant/chat', () => {

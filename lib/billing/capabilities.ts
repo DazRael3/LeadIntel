@@ -25,6 +25,9 @@ export type CapabilityKey =
   | 'territory_controls'
   | 'integration_destination_health'
   | 'integration_delivery_audit'
+  | 'platform_api_access'
+  | 'assistant'
+  | 'revenue_intelligence'
   | 'team_dashboards'
   | 'executive_dashboard'
 
@@ -54,6 +57,9 @@ const ALL_FALSE: Capabilities = {
   territory_controls: false,
   integration_destination_health: false,
   integration_delivery_audit: false,
+  platform_api_access: false,
+  assistant: false,
+  revenue_intelligence: false,
   team_dashboards: false,
   executive_dashboard: false,
 }
@@ -113,6 +119,9 @@ export function getTierCapabilities(tier: Tier): Capabilities {
     territory_controls: true,
     integration_destination_health: true,
     integration_delivery_audit: true,
+    platform_api_access: true,
+    assistant: true,
+    revenue_intelligence: true,
     team_dashboards: true,
     executive_dashboard: true,
   }
