@@ -12,6 +12,7 @@ import { SourcesFreshnessPanelClient } from './ui/SourcesFreshnessPanelClient'
 import { ReportQualityBadge } from './ui/ReportQualityBadge'
 import { LegacyCitationBannerClient } from './ui/LegacyCitationBannerClient'
 import { CreateReportPanelClient } from './ui/CreateReportPanelClient'
+import { ReportDiffPanelClient } from './ui/ReportDiffPanelClient'
 import { SourceQualitySummary } from '@/components/report/SourceQualitySummary'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -47,6 +48,8 @@ type UserReportRow = {
   report_version: number
   meta: unknown
 }
+
+type SnapshotRow = { id: string; report_markdown: string; created_at: string }
 
 function pickString(sp: SearchParams, key: string): string | null {
   const v = sp[key]
@@ -325,6 +328,10 @@ export default async function CompetitiveReportPage(props: { searchParams?: Prom
                       inputUrl={selected.input_url}
                       sourcesFetchedAt={selected.sources_fetched_at}
                       sourcesUsed={selected.sources_used}
+                    />
+                    <ReportDiffPanelClient
+                      reportId={selected.id}
+                      latestMarkdown={selectedMarkdownFull}
                     />
                     {capabilities.blurPremiumSections ? (
                       <BlurredPremiumSection
