@@ -11,6 +11,7 @@ import { Star, Building2, TrendingUp, AlertCircle, X } from "lucide-react"
 import { LeadDetailView } from "@/components/LeadDetailView"
 import { getUserSafe } from "@/lib/supabase/safe-auth"
 import { formatRelativeDate, formatSignalType } from "@/lib/domain/explainability"
+import { getActiveWorkspaceIdForUser, ensureDefaultWatchlist, addLeadToWatchlist as addLeadToWatchlistV2, removeLeadFromWatchlist as removeLeadFromWatchlistV2, listWatchlistItems } from "@/lib/watchlists-v2/service"
 
 interface WatchlistProps {
   isPro: boolean
@@ -27,6 +28,49 @@ export function Watchlist({ isPro }: WatchlistProps) {
     try {
       const user = await getUserSafe(supabase)
       if (!user) return
+
+      // Prefer Watchlists v2 (workspace-scoped) when available; fall back to legacy table.
+      try {
+        const wsRes = await getActiveWorkspaceIdForUser({ supabase, userId: user.id })
+        if (wsRes.ok) {
+          const def = await ensureDefaultWatchlist({ supabase, workspaceId: wsRes.workspaceId, createdBy: user.id })
+          if (def.ok) {
+            const items = await listWatchlistItems({ supabase, workspaceId: wsRes.workspaceId, watchlistId: def.watchlistId, limit: 200 })
+            const validItems: Array<WatchlistItem & { lead: Lead }> = items
+              .map((it) => {
+                const l = it.row.leads
+                if (!l) return null
+                // Bridge to the legacy UI type. This view doesn't use expires_at; keep a long-lived placeholder.
+                const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+                const watchedAt = it.row.created_at
+                return {
+                  id: it.row.id,
+                  user_id: user.id,
+                  lead_id: it.row.lead_id,
+                  watched_at: watchedAt,
+                  last_checked_at: watchedAt,
+                  expires_at: expiresAt,
+                  created_at: watchedAt,
+                  lead: {
+                    id: l.id,
+                    company_name: l.company_name || l.company_domain || l.company_url || 'Company',
+                    trigger_event: '',
+                    ai_personalized_pitch: '',
+                    company_domain: l.company_domain || undefined,
+                    company_url: l.company_url || undefined,
+                    created_at: l.created_at || watchedAt,
+                  } as Lead,
+                }
+              })
+              .filter((x): x is WatchlistItem & { lead: Lead } => Boolean(x))
+            setWatchlistItems(validItems)
+            setLoading(false)
+            return
+          }
+        }
+      } catch {
+        // fall back
+      }
 
       const { data, error } = await supabase
         .from('watchlist')
@@ -118,6 +162,21 @@ export function Watchlist({ isPro }: WatchlistProps) {
       const user = await getUserSafe(supabase)
       if (!user) return
 
+      // Prefer Watchlists v2 when available.
+      try {
+        const wsRes = await getActiveWorkspaceIdForUser({ supabase, userId: user.id })
+        if (wsRes.ok) {
+          const def = await ensureDefaultWatchlist({ supabase, workspaceId: wsRes.workspaceId, createdBy: user.id })
+          if (def.ok) {
+            await removeLeadFromWatchlistV2({ supabase, workspaceId: wsRes.workspaceId, watchlistId: def.watchlistId, leadId })
+            loadWatchlist()
+            return
+          }
+        }
+      } catch {
+        // fall back
+      }
+
       const { error } = await supabase
         .from('watchlist')
         .delete()
@@ -136,6 +195,21 @@ export function Watchlist({ isPro }: WatchlistProps) {
     try {
       const user = await getUserSafe(supabase)
       if (!user) return
+
+      // Prefer Watchlists v2 when available.
+      try {
+        const wsRes = await getActiveWorkspaceIdForUser({ supabase, userId: user.id })
+        if (wsRes.ok) {
+          const def = await ensureDefaultWatchlist({ supabase, workspaceId: wsRes.workspaceId, createdBy: user.id })
+          if (def.ok) {
+            await addLeadToWatchlistV2({ supabase, workspaceId: wsRes.workspaceId, watchlistId: def.watchlistId, userId: user.id, leadId: lead.id })
+            loadWatchlist()
+            return
+          }
+        }
+      } catch {
+        // fall back
+      }
 
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + 30) // 30 days from now
@@ -334,6 +408,20 @@ export async function addLeadToWatchlist(lead: Lead): Promise<boolean> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return false
+
+    // Prefer Watchlists v2 when available.
+    try {
+      const wsRes = await getActiveWorkspaceIdForUser({ supabase, userId: user.id })
+      if (wsRes.ok) {
+        const def = await ensureDefaultWatchlist({ supabase, workspaceId: wsRes.workspaceId, createdBy: user.id })
+        if (def.ok) {
+          const res = await addLeadToWatchlistV2({ supabase, workspaceId: wsRes.workspaceId, watchlistId: def.watchlistId, userId: user.id, leadId: lead.id })
+          return res.ok || res.reason === 'conflict'
+        }
+      }
+    } catch {
+      // fall back
+    }
 
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 30)

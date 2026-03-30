@@ -28,6 +28,7 @@ import { addLeadToWatchlist } from "@/components/Watchlist"
 import { computeStarterLeadUsage, STARTER_MAX_LEADS } from '@/lib/billing/leads-usage'
 import { COPY } from "@/lib/copy/leadintel"
 import { markUpgradeNudgeShown, shouldShowUpgradeNudge } from '@/lib/growth/nudge-cap'
+import { getActiveWorkspaceIdForUser, ensureDefaultWatchlist, listWatchlistItems, removeLeadFromWatchlist as removeLeadFromWatchlistV2 } from "@/lib/watchlists-v2/service"
 
 type WatchlistRow = {
   lead_id: string
@@ -55,6 +56,21 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
     try {
       const user = await getUserSafe(supabase)
       if (!user) return
+
+      // Prefer Watchlists v2 when available.
+      try {
+        const wsRes = await getActiveWorkspaceIdForUser({ supabase, userId: user.id })
+        if (wsRes.ok) {
+          const def = await ensureDefaultWatchlist({ supabase, workspaceId: wsRes.workspaceId, createdBy: user.id })
+          if (def.ok) {
+            const items = await listWatchlistItems({ supabase, workspaceId: wsRes.workspaceId, watchlistId: def.watchlistId, limit: 500 })
+            setStarredLeads(new Set(items.map((it) => it.row.lead_id)))
+            return
+          }
+        }
+      } catch {
+        // fall back
+      }
 
       const { data } = await supabase
         .from('watchlist')
@@ -94,6 +110,25 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
       try {
         const user = await getUserSafe(supabase)
         if (!user) return
+
+        // Prefer Watchlists v2 when available.
+        try {
+          const wsRes = await getActiveWorkspaceIdForUser({ supabase, userId: user.id })
+          if (wsRes.ok) {
+            const def = await ensureDefaultWatchlist({ supabase, workspaceId: wsRes.workspaceId, createdBy: user.id })
+            if (def.ok) {
+              await removeLeadFromWatchlistV2({ supabase, workspaceId: wsRes.workspaceId, watchlistId: def.watchlistId, leadId: lead.id })
+              setStarredLeads(prev => {
+                const next = new Set(prev)
+                next.delete(lead.id)
+                return next
+              })
+              return
+            }
+          }
+        } catch {
+          // fall back
+        }
 
         await supabase
           .from('watchlist')
