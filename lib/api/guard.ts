@@ -28,6 +28,33 @@ import { timingSafeEqualAscii, verifyCronToken } from '@/lib/api/cron-auth'
 import { recordCounter } from '@/lib/observability/metrics'
 import crypto from 'crypto'
 import { getReviewSessionFromRequest } from '@/lib/review/session'
+import { PublicError } from '@/lib/api/public-error'
+
+function shouldNoStoreApiResponse(request: NextRequest): boolean {
+  const path = new URL(request.url).pathname
+  if (!path.startsWith('/api/')) return false
+
+  // Never interfere with webhook delivery to third parties.
+  if (path === '/api/stripe/webhook' || path === '/api/resend/webhook' || path === '/api/webhook') return false
+
+  // Allow anonymous tracker GET script to be cached (it already sets Cache-Control).
+  if (path === '/api/tracker' && request.method === 'GET') return false
+
+  // Public version endpoints are safe to cache by infra/CDN.
+  if (path === '/api/version') return false
+
+  // Default: authenticated/private API should not be cached by browsers or intermediary proxies.
+  return true
+}
+
+function applyNoStoreHeadersIfNeeded(args: { request: NextRequest; response: Response }): void {
+  if (!shouldNoStoreApiResponse(args.request)) return
+  if (args.response.headers.has('Cache-Control')) return
+
+  // Conservative private no-store.
+  args.response.headers.set('Cache-Control', 'private, no-store, max-age=0')
+  args.response.headers.set('Pragma', 'no-cache')
+}
 
 /**
  * Options for withApiGuard
@@ -409,6 +436,8 @@ export function withApiGuard(
       }
       
       const nextResponse = response
+
+      applyNoStoreHeadersIfNeeded({ request, response: nextResponse })
       
       if (!nextResponse.headers.get('X-Request-ID')) {
         nextResponse.headers.set('X-Request-ID', requestId)
@@ -425,17 +454,24 @@ export function withApiGuard(
       
       return nextResponse
     } catch (err) {
-      // Handler errors should be caught and handled by the handler itself
-      // But if they bubble up, return standardized error
-      const errorMessage = err instanceof Error ? err.message : 'Internal server error'
-      return fail(
-        ErrorCode.INTERNAL_ERROR,
-        errorMessage,
-        undefined,
-        undefined,
-        bridge,
-        requestId
-      )
+      // Handler errors should be caught and handled by the handler itself.
+      // If they bubble up, do NOT leak raw messages to clients (they can contain secrets).
+      // Allow an explicit PublicError escape hatch for known-safe user messages.
+      if (err instanceof PublicError) {
+        const res = fail(
+          err.code,
+          err.message,
+          err.details,
+          { status: err.status },
+          bridge,
+          requestId
+        )
+        applyNoStoreHeadersIfNeeded({ request, response: res })
+        return res
+      }
+      const res = fail(ErrorCode.INTERNAL_ERROR, 'An unexpected error occurred', undefined, undefined, bridge, requestId)
+      applyNoStoreHeadersIfNeeded({ request, response: res })
+      return res
     }
   }
 }

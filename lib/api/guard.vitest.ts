@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { withApiGuard } from './guard'
 import { ok } from './http'
 import { z } from 'zod'
+import { PublicError } from '@/lib/api/public-error'
 
 // Mock dependencies
 vi.mock('@/lib/env', () => ({
@@ -61,6 +62,17 @@ vi.mock('@/lib/stripe', () => ({
 describe('withApiGuard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('adds no-store Cache-Control for /api responses by default', async () => {
+    const handler = withApiGuard(async () => ok({ success: true }))
+
+    const request = new NextRequest('http://localhost:3000/api/test', {
+      method: 'GET',
+    })
+
+    const response = await handler(request)
+    expect(response.headers.get('Cache-Control')).toContain('no-store')
   })
 
   it('should block dev-only routes in production', async () => {
@@ -225,6 +237,36 @@ describe('withApiGuard', () => {
 
     expect(response.headers.get('X-Request-ID')).toBe('test-request-id')
     expect(body.data.requestId).toBe('test-request-id')
+  })
+
+  it('should not leak raw handler error messages', async () => {
+    const handler = withApiGuard(async () => {
+      throw new Error('leaky: secret=sk_test_123')
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/test', { method: 'GET' })
+    const response = await handler(request)
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body.ok).toBe(false)
+    expect(body.error.code).toBe('INTERNAL_ERROR')
+    expect(body.error.message).toBe('An unexpected error occurred')
+  })
+
+  it('should allow PublicError message passthrough', async () => {
+    const handler = withApiGuard(async () => {
+      throw new PublicError({ code: 'FORBIDDEN', message: 'Access restricted', status: 403 })
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/test', { method: 'GET' })
+    const response = await handler(request)
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.ok).toBe(false)
+    expect(body.error.code).toBe('FORBIDDEN')
+    expect(body.error.message).toBe('Access restricted')
   })
 
   it('should allow cron access when X-CRON-SECRET matches', async () => {

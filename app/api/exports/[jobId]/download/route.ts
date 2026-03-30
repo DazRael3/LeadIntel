@@ -68,6 +68,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="${job.type}-${jobId}.csv"`,
+        'Cache-Control': 'private, no-store, max-age=0',
+        Pragma: 'no-cache',
         'X-Request-ID': requestId,
       },
     })
