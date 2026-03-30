@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { BuildInfo } from '@/lib/debug/buildInfo'
 import { createClient } from '@/lib/supabase/client'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
+import type { Capabilities } from '@/lib/billing/capabilities'
+import { getTierCapabilities } from '@/lib/billing/capabilities'
 
 type Plan = 'free' | 'pro'
 type Tier = 'starter' | 'closer' | 'closer_plus' | 'team'
@@ -46,6 +48,7 @@ interface PlanContextValue {
     | null
   buildInfo: BuildInfo | null
   isPro: boolean
+  capabilities: Capabilities
   trial: { active: boolean; endsAt: string | null }
   loading: boolean
   refresh: () => Promise<void>
@@ -64,6 +67,7 @@ const fallbackPlanValue: PlanContextValue = {
   debug: null,
   buildInfo: null,
   isPro: false,
+  capabilities: getTierCapabilities('starter'),
   trial: { active: false, endsAt: null },
   loading: false,
   refresh: async () => {},
@@ -79,6 +83,7 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
   const [plan, setPlan] = useState<Plan>(initialPlan)
   const [tier, setTier] = useState<Tier>('starter')
   const [planId, setPlanId] = useState<string | null>(null)
+  const [capabilities, setCapabilities] = useState<Capabilities>(getTierCapabilities('starter'))
   const [isHouseCloserOverride, setIsHouseCloserOverride] = useState<boolean>(false)
   const [isQaTierOverride, setIsQaTierOverride] = useState<boolean>(false)
   const [qaOverride, setQaOverride] = useState<{ tier: Tier; expiresAt: string | null } | null>(null)
@@ -119,6 +124,7 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
           setPlan('free')
           setTier('starter')
           setPlanId(null)
+          setCapabilities(getTierCapabilities('starter'))
           setIsHouseCloserOverride(false)
           setIsQaTierOverride(false)
           setQaOverride(null)
@@ -136,6 +142,7 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
           setPlan('free')
           setTier('starter')
           setPlanId(null)
+          setCapabilities(getTierCapabilities('starter'))
           setIsHouseCloserOverride(false)
           setIsQaTierOverride(false)
           setQaOverride(null)
@@ -165,9 +172,11 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
       // Product tiers are starter/closer. Treat legacy "team" as "closer" for backward compatibility.
       if (payload?.tier === 'starter' || payload?.tier === 'closer' || payload?.tier === 'closer_plus' || payload?.tier === 'team') {
         setTier(payload.tier)
+        setCapabilities(getTierCapabilities(payload.tier))
       } else {
         // Safe default: treat unknown/missing as Starter.
         setTier('starter')
+        setCapabilities(getTierCapabilities('starter'))
       }
       if (typeof payload?.planId === 'string') {
         setPlanId(payload.planId)
@@ -276,11 +285,12 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
       debug,
       buildInfo,
       isPro: computeIsPro(plan, tier),
+      capabilities,
       trial,
       loading,
       refresh,
     }),
-    [plan, tier, planId, isHouseCloserOverride, isQaTierOverride, qaOverride, qaDebugEligible, debug, buildInfo, trial, loading, refresh]
+    [plan, tier, planId, isHouseCloserOverride, isQaTierOverride, qaOverride, qaDebugEligible, debug, buildInfo, capabilities, trial, loading, refresh]
   )
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>
