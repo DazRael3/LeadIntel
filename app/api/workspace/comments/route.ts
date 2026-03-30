@@ -43,7 +43,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'comments' })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'approvals' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const parsed = ListQuerySchema.safeParse(query ?? {})
@@ -83,7 +83,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'comments' })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'approvals' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const parsed = CreateThreadSchema.safeParse(body)
@@ -137,7 +137,7 @@ export const PATCH = withApiGuard(async (request: NextRequest, { requestId, user
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'comments' })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'approvals' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     // PATCH is dual-mode:

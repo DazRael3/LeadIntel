@@ -231,7 +231,7 @@ describe('env schema validation', () => {
     })
 
     it('buildServerEnv wires PLATFORM_API_KEY_PEPPER and EMBED_SIGNING_SECRET', async () => {
-      process.env.NODE_ENV = 'production'
+      Object.defineProperty(process.env, 'NODE_ENV', { value: 'production', writable: true, configurable: true })
       process.env.NEXT_PUBLIC_SITE_URL = 'https://app.example.com'
       process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'

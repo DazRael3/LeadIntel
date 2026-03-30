@@ -56,3 +56,22 @@ export async function recordStripeWebhookEventIfFirst(args: {
   }
 }
 
+/**
+ * Backwards-compatible helper used by the Stripe webhook route.
+ */
+export async function shouldProcessStripeEvent(args: {
+  supabaseAdmin: SupabaseClient
+  stripeEventId: string
+  type: string | null
+  livemode: boolean | null
+  payload: unknown
+}): Promise<StripeIdempotencyResult> {
+  return recordStripeWebhookEventIfFirst({
+    admin: args.supabaseAdmin,
+    stripeEventId: args.stripeEventId,
+    type: args.type,
+    livemode: args.livemode,
+    payload: args.payload,
+  })
+}
+

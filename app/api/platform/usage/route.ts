@@ -23,7 +23,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'platform_api' })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'platform_api_access' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const parsed = QuerySchema.safeParse(query ?? {})

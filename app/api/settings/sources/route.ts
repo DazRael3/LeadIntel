@@ -18,7 +18,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'team_settings' })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'team_dashboards' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const runtime = getSourceRuntimeStatus()
