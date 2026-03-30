@@ -18,6 +18,7 @@ import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
 import { getResendReplyToEmail } from '@/lib/email/routing'
+import { shouldProcessStripeEvent } from '@/lib/webhooks/stripe-idempotency'
 
 /**
  * Stripe Webhook Handler
@@ -62,6 +63,20 @@ export const POST = withApiGuard(
     // Create Supabase admin client for subscription updates.
     // IMPORTANT: Always target the `api` schema (never `public`).
     const supabaseAdmin = createSupabaseAdminClient({ schema: 'api' })
+
+    // Idempotency: record and skip already-processed Stripe events (best-effort).
+    // If schema is behind, we fail-open to preserve webhook delivery.
+    const processGate = await shouldProcessStripeEvent({
+      supabaseAdmin,
+      stripeEventId: event.id,
+      type: event.type,
+      livemode: Boolean((event as unknown as { livemode?: unknown }).livemode),
+      payload: event,
+    })
+    if (processGate === 'duplicate') {
+      recordCounter('webhook.stripe.duplicate', 1)
+      return ok({ received: true, duplicate: true }, undefined, undefined, requestId)
+    }
 
     // Handle different event types
     switch (event.type) {

@@ -266,7 +266,9 @@ export function withApiGuard(
           return fail(
             ErrorCode.VALIDATION_ERROR,
             'Invalid webhook signature',
-            { details: err instanceof Error ? err.message : 'Unknown error' },
+            // Never expose upstream verification errors (can leak config or provider internals).
+            // Detailed failure context is only available via server logs/observability.
+            undefined,
             undefined,
             bridge,
             requestId

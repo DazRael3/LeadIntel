@@ -218,6 +218,8 @@ describe('withApiGuard', () => {
     expect(body.ok).toBe(false)
     expect(body.error.code).toBe('VALIDATION_ERROR')
     expect(body.error.message).toContain('Invalid webhook signature')
+    // Do not leak internal verification details (e.g. secret missing, header parse errors).
+    expect(String(body.error.details ?? '')).not.toContain('Invalid signature')
   })
 
   it('should include requestId in response', async () => {

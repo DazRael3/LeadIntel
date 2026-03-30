@@ -7,6 +7,7 @@ import { ingestRealTriggerEvents } from '@/lib/services/triggerEvents'
 import { serverEnv } from '@/lib/env'
 import { getConfiguredProviderNames } from '@/lib/events/provider'
 import { logProductEvent } from '@/lib/services/analytics'
+import { timingSafeEqualAscii } from '@/lib/api/cron-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,7 @@ export const POST = withApiGuard(
     try {
       const provided = request.headers.get('x-cron-secret')
       const expected = serverEnv.TRIGGER_EVENTS_CRON_SECRET
-      if (!expected || !provided || provided !== expected) {
+      if (!expected || !provided || !timingSafeEqualAscii(provided, expected)) {
         return fail(ErrorCode.UNAUTHORIZED, 'Unauthorized', undefined, undefined, bridge, requestId)
       }
 
@@ -49,7 +50,8 @@ export const POST = withApiGuard(
 
       const { data: leads, error } = await query
       if (error) {
-        return fail(ErrorCode.DATABASE_ERROR, 'Failed to query leads', { message: error.message }, undefined, bridge, requestId)
+        // Never leak DB/internal error messages to callers of secret-protected ingest routes.
+        return fail(ErrorCode.DATABASE_ERROR, 'Failed to query leads', undefined, undefined, bridge, requestId)
       }
 
       let totalCreated = 0
