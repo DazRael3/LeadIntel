@@ -43,6 +43,8 @@ import { UpgradeReasonsCard } from '@/components/dashboard/UpgradeReasonsCard'
 import { ActionQueueCard } from '@/components/dashboard/ActionQueueCard'
 import { MobileShortlistView } from '@/components/mobile/MobileShortlistView'
 import { FeedbackCard } from '@/components/feedback/FeedbackCard'
+import { SampleModeCard } from '@/components/sample/SampleModeCard'
+import { TourGoalsCard } from '@/components/tour/TourGoalsCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -238,6 +240,8 @@ export function DashboardClient({
                 {isStarter ? (
                   <>
                     <ScoreExplainerCard />
+                    <TourGoalsCard compact />
+                    <SampleModeCard />
                     <UpgradeReasonsCard />
                   </>
                 ) : (
