@@ -3,8 +3,8 @@ import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
-import { requireTeamPlan } from '@/lib/team/gating'
 import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { requireCapability } from '@/lib/billing/require-capability'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,8 +68,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
     } = await supabase.auth.getUser()
     if (error || !user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, { status: 401 }, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
-    if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Team plan required', undefined, { status: 403 }, bridge, requestId)
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'integration_destination_health' })
+    if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
 
     const url = new URL(request.url)
     const parsed = QuerySchema.safeParse({ kind: url.searchParams.get('kind') })

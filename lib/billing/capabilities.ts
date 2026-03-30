@@ -14,6 +14,9 @@ export type CapabilityKey =
   | 'report_diff'
   | 'angle_library'
   | 'angle_variants'
+  | 'prospect_watch'
+  | 'action_queue'
+  | 'extensions'
   | 'approvals'
   | 'audit_log'
   | 'governance_exports'
@@ -40,6 +43,9 @@ const ALL_FALSE: Capabilities = {
   report_diff: false,
   angle_library: false,
   angle_variants: false,
+  prospect_watch: false,
+  action_queue: false,
+  extensions: false,
   approvals: false,
   audit_log: false,
   governance_exports: false,
@@ -96,6 +102,9 @@ export function getTierCapabilities(tier: Tier): Capabilities {
   // Team: all capabilities.
   return {
     ...getTierCapabilities('closer_plus'),
+    prospect_watch: true,
+    action_queue: true,
+    extensions: true,
     approvals: true,
     audit_log: true,
     governance_exports: true,
