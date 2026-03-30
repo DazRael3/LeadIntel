@@ -13,6 +13,7 @@ import { ActionDestinationPicker } from '@/components/account/ActionDestinationP
 import { CrmHandoffCard } from '@/components/account/CrmHandoffCard'
 import { SequencerHandoffCard } from '@/components/account/SequencerHandoffCard'
 import { ActionRecipeSuggestions } from '@/components/account/ActionRecipeSuggestions'
+import { usePlan } from '@/components/PlanProvider'
 
 type ExportEnvelope =
   | { ok: true; data: { jobId: string } }
@@ -49,6 +50,7 @@ export function AccountActionCenter(props: {
   onBriefGenerated?: () => void
 }) {
   const { toast } = useToast()
+  const { tier, capabilities } = usePlan()
   const [exporting, setExporting] = useState(false)
   const [pushing, setPushing] = useState(false)
   const [briefing, setBriefing] = useState(false)
@@ -111,6 +113,12 @@ export function AccountActionCenter(props: {
             variant="outline"
             disabled={variantsLoading}
             onClick={async () => {
+              if (!capabilities.angle_library) {
+                toast({ variant: 'destructive', title: 'Upgrade required', description: 'Upgrade to Closer+ to save angles and variants.' })
+                window.location.href = '/pricing?target=closer_plus'
+                return
+              }
+
               const nextShow = !showVariants
               setShowVariants(nextShow)
               if (!nextShow) return
