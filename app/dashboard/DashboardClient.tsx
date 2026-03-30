@@ -45,6 +45,7 @@ import { MobileShortlistView } from '@/components/mobile/MobileShortlistView'
 import { FeedbackCard } from '@/components/feedback/FeedbackCard'
 import { SampleModeCard } from '@/components/sample/SampleModeCard'
 import { TourGoalsCard } from '@/components/tour/TourGoalsCard'
+import { InAppWhyNowDigestCard } from '@/components/digest/InAppWhyNowDigestCard'
 
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
@@ -249,6 +250,7 @@ export function DashboardClient({
                     <ValueMomentsCard />
                     <ScoreExplainerCard />
                     <QuickTourActionsCard />
+                    <InAppWhyNowDigestCard />
                     <ActivationGoalCard totalLeads={totalLeads} />
                     <UpgradeReasonsCard />
                   </>

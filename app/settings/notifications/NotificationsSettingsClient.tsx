@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
+import { usePlan } from '@/components/PlanProvider'
 
 export function NotificationsSettingsClient(props: {
   initialProductTipsOptIn: boolean
@@ -13,6 +14,10 @@ export function NotificationsSettingsClient(props: {
   initialDigestEnabled: boolean
 }) {
   const { toast } = useToast()
+  // Capability-based gating: email digests are only meaningful when the plan includes it.
+  // In-app digests are separate and surfaced on the dashboard.
+  // Keep this as UI-only; server enforcement occurs in digest delivery routes.
+  const { capabilities } = usePlan()
   const [productTipsOptIn, setProductTipsOptIn] = useState(props.initialProductTipsOptIn)
   const [digestEmailsOptIn, setDigestEmailsOptIn] = useState(props.initialDigestEmailsOptIn)
   const [digestEnabled, setDigestEnabled] = useState(props.initialDigestEnabled)
@@ -64,18 +69,26 @@ export function NotificationsSettingsClient(props: {
               checked={productTipsOptIn}
               onChange={setProductTipsOptIn}
             />
-            <ToggleRow
-              label="Digest emails"
-              helper="Receive your daily/weekly shortlist by email."
-              checked={digestEmailsOptIn}
-              onChange={setDigestEmailsOptIn}
-            />
-            <ToggleRow
-              label="Digest cadence enabled"
-              helper="Controls whether LeadIntel schedules digest delivery."
-              checked={digestEnabled}
-              onChange={setDigestEnabled}
-            />
+            {capabilities.why_now_digest_email ? (
+              <>
+                <ToggleRow
+                  label="Digest emails"
+                  helper="Receive your daily/weekly shortlist by email."
+                  checked={digestEmailsOptIn}
+                  onChange={setDigestEmailsOptIn}
+                />
+                <ToggleRow
+                  label="Digest cadence enabled"
+                  helper="Controls whether LeadIntel schedules digest delivery."
+                  checked={digestEnabled}
+                  onChange={setDigestEnabled}
+                />
+              </>
+            ) : (
+              <div className="rounded border border-purple-500/20 bg-purple-500/5 p-3 text-xs">
+                Digest emails unlock on the Closer plan. You can still view the in-app why-now digest on the dashboard after upgrading.
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3">
               <Button onClick={save} disabled={saving} className="neon-border hover:glow-effect">
