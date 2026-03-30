@@ -4,6 +4,7 @@ import { applySecurityHeadersEdge } from '@/lib/api/security-edge'
 import { getOrCreateRequestId, setRequestIdHeader } from '@/lib/observability/request-id'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { getDbSchema } from '@/lib/supabase/schema'
+import { getReviewSessionFromRequest, clearReviewSessionCookies } from '@/lib/review/session'
 
 function shouldRedirectWwwToApex(request: NextRequest): boolean {
   // Always keep canonical host on apex to prevent split SEO + cookie/origin drift.
@@ -74,7 +75,8 @@ export async function middleware(request: NextRequest) {
   // if the shared demo reviewer user is still authenticated but the review session cookie is missing,
   // clear auth cookies so the session cannot be used outside Review Mode.
   const demoEmail = (process.env.REVIEW_DEMO_EMAIL ?? '').trim().toLowerCase()
-  const hasReviewSession = Boolean(request.cookies.get('li_review_session')?.value)
+  // Treat invalid/expired cookies as "no review session".
+  const hasReviewSession = Boolean(getReviewSessionFromRequest(request))
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
   const supabaseKey = getSupabaseKey()
   if (demoEmail && !hasReviewSession && supabaseUrl && supabaseKey) {
@@ -98,6 +100,8 @@ export async function middleware(request: NextRequest) {
       const email = (data.user?.email ?? '').trim().toLowerCase()
       if (email && email === demoEmail) {
         clearSupabaseAuthCookies(response)
+        // Also clear any stale/tampered review cookies so the UI can't treat them as active.
+        clearReviewSessionCookies(response)
       }
     } catch {
       // ignore
