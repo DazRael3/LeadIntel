@@ -8,6 +8,7 @@ import { ensurePersonalWorkspace } from '@/lib/team/workspace'
 import { setCurrentWorkspace } from '@/lib/services/workspace-switching'
 import { logAudit } from '@/lib/audit/log'
 import { logProductEvent } from '@/lib/services/analytics'
+import { requireCapability } from '@/lib/billing/require-capability'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,14 @@ export const POST = withApiGuard(
       if (!userId) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       const user = await getUserSafe(supabase)
       if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+
+      const gate = await requireCapability({
+        userId: user.id,
+        sessionEmail: user.email ?? null,
+        supabase,
+        capability: 'multi_workspace_controls',
+      })
+      if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
       const parsed = BodySchema.safeParse(body)
       if (!parsed.success) return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)

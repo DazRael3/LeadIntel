@@ -4,7 +4,7 @@ import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
     }
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'multi_workspace_controls' })
     if (!gate.ok) {
       return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
     }

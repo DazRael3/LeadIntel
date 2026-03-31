@@ -7,6 +7,12 @@ const LOCAL_ORIGINS = [
   'http://127.0.0.1:3001',
 ]
 
+function shouldEnforceCsp(): boolean {
+  // Keep edge + next.config.js aligned. Default to report-only in production
+  // unless explicitly enabled to avoid breaking the app via overly strict CSP.
+  return (process.env.ENFORCE_CSP ?? '').trim() === '1'
+}
+
 function expandWwwVariants(origin: string): string[] {
   try {
     const u = new URL(origin)
@@ -80,7 +86,8 @@ function getSecurityHeadersEdge(request: NextRequest): HeadersInit {
     }
   }
 
-  headers['Content-Security-Policy'] = buildCsp()
+  const cspKey = shouldEnforceCsp() ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'
+  headers[cspKey] = buildCsp()
 
   return headers
 }

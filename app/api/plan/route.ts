@@ -10,6 +10,7 @@ import { logger } from '@/lib/observability/logger'
 import { resolveTierFromDb } from '@/lib/billing/resolve-tier'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { getQaOverrideConfig, isQaActorAllowlisted, isQaTargetAllowlisted } from '@/lib/qa/overrides'
+import { getTierCapabilities } from '@/lib/billing/capabilities'
 
 export const dynamic = 'force-dynamic'
 
@@ -307,6 +308,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
         plan: tier === 'starter' ? 'free' : 'pro',
         tier,
         planId,
+        capabilities: getTierCapabilities(tier),
         isHouseCloserOverride,
         isQaTierOverride,
         qaOverride,

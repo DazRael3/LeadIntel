@@ -330,10 +330,11 @@ export function asHttpError(
       )
     }
 
-    // Generic error with message (but never expose stack traces)
+    // Generic error with message:
+    // Never leak raw upstream/internal error messages to clients (may contain secrets).
     return fail(
       ErrorCode.INTERNAL_ERROR,
-      safeMessage || 'An unexpected error occurred',
+      'An unexpected error occurred',
       undefined,
       { status: errorObj.status ?? HttpStatus.INTERNAL_SERVER_ERROR },
       cookieBridge,
@@ -346,7 +347,7 @@ export function asHttpError(
     // Never expose stack traces to clients
     return fail(
       ErrorCode.INTERNAL_ERROR,
-      redactPotentialSecrets(error.message || 'An unexpected error occurred'),
+      'An unexpected error occurred',
       undefined,
       undefined,
       cookieBridge,

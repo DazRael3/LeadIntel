@@ -20,10 +20,11 @@ export function DashboardHeader() {
   const supabase = createClient()
   const { startTour } = useInAppTour()
   const [assistantOpen, setAssistantOpen] = useState(false)
-  const { tier } = usePlan()
+  const { tier, capabilities } = usePlan()
   const showTeamNav = tierAtLeast(tier, 'team')
   const showPaidNav = tier !== 'starter'
   const showMore = showPaidNav || showTeamNav
+  const canSwitchWorkspaces = capabilities.multi_workspace_controls
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -42,7 +43,7 @@ export function DashboardHeader() {
               </span>
             </Link>
             <div className="hidden md:block">
-              <WorkspaceSwitcher />
+              <WorkspaceSwitcher showPicker={canSwitchWorkspaces} />
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { getExportDownload } from '@/lib/exports/storage'
 import { logAudit } from '@/lib/audit/log'
@@ -19,7 +19,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'governance_exports' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     await ensurePersonalWorkspace({ supabase, userId: user.id })
@@ -68,6 +68,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="${job.type}-${jobId}.csv"`,
+        'Cache-Control': 'private, no-store, max-age=0',
+        Pragma: 'no-cache',
         'X-Request-ID': requestId,
       },
     })

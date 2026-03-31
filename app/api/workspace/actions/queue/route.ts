@@ -4,7 +4,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { listActionQueueItems } from '@/lib/services/action-queue'
 import type { ActionQueueStatus } from '@/lib/domain/action-queue'
@@ -28,7 +28,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'integration_delivery_audit' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const parsed = QuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams.entries()))

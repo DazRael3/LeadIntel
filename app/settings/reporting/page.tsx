@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { TeamUpgradeGate } from '@/components/team/TeamUpgradeGate'
 import { ReportingSettingsClient } from './reporting-settings-client'
 
@@ -20,7 +20,7 @@ export default async function ReportingSettingsPage() {
   } = await supabase.auth.getUser()
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/reporting')
 
-  const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+  const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'team_dashboards' })
   if (!gate.ok) return <TeamUpgradeGate />
 
   return <ReportingSettingsClient />

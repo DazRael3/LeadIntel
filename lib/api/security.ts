@@ -247,7 +247,10 @@ export function getSecurityHeaders(request: NextRequest): HeadersInit {
   }
   
   // Content-Security-Policy: conservative baseline with Stripe/PostHog/Supabase compatibility.
-  headers['Content-Security-Policy'] = buildCsp()
+  // Default to report-only unless explicitly enforced, to avoid breaking production unexpectedly.
+  const enforce = (process.env.ENFORCE_CSP ?? '').trim() === '1'
+  const cspKey = enforce ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'
+  headers[cspKey] = buildCsp()
   
   return headers
 }

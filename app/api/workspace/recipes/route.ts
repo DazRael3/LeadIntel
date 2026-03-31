@@ -3,7 +3,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { RecipeInputSchema, createActionRecipe, listActionRecipes } from '@/lib/services/action-recipes'
 import { logAudit } from '@/lib/audit/log'
@@ -19,8 +19,8 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
-    if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'action_queue' })
+    if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
 
     const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
     if (!workspace) {
@@ -45,8 +45,8 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
-    if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'action_queue' })
+    if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, { status: 403 }, bridge, requestId)
 
     const parsed = RecipeInputSchema.safeParse(body)
     if (!parsed.success) return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)

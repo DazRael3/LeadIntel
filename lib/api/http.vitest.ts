@@ -195,7 +195,8 @@ describe('asHttpError', () => {
     if (typeof body === 'object' && body !== null && 'error' in body) {
       const errorObj = body.error as { code: string; message: string }
       expect(errorObj.code).toBe(ErrorCode.INTERNAL_ERROR)
-      expect(errorObj.message).toBe('Something went wrong')
+      // Do not leak internal error messages to clients.
+      expect(errorObj.message).toBe('An unexpected error occurred')
     }
   })
 

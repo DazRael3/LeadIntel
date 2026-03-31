@@ -72,7 +72,15 @@ export const GET = withApiGuard(
       const q = query as z.infer<typeof GetQuerySchema>
       const supabase = createRouteClient(request, bridge)
 
+      // Premium read: briefs are a paid surface (Closer or above).
+      const user = await getUserSafe(supabase)
+      const tier = await getUserTierForGating({ userId, sessionEmail: user?.email ?? null, supabase })
+      if (tier === 'starter') {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+      }
+
       const { data, error } = await supabase
+        .schema('api')
         .from('user_reports')
         .select('id, created_at, title, report_markdown, sources_fetched_at, meta')
         .eq('user_id', userId)

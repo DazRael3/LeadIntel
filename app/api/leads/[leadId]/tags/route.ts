@@ -35,7 +35,14 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ leadId
         const { tagId } = body as z.infer<typeof LeadTagPostSchema>
         const supabase = createRouteClient(req, bridge)
 
+        // Defense-in-depth: verify the lead belongs to this user before creating any join rows.
+        const { data: lead } = await supabase.schema('api').from('leads').select('id').eq('id', leadId).eq('user_id', userId).maybeSingle()
+        if (!lead) {
+          return fail(ErrorCode.NOT_FOUND, 'Lead not found', undefined, { status: 404 }, bridge, requestId)
+        }
+
         const { error } = await supabase
+          .schema('api')
           .from('lead_tags')
           .insert({
             lead_id: leadId,

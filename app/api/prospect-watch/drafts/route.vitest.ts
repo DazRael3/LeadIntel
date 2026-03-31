@@ -59,7 +59,8 @@ vi.mock('@/lib/supabase/route', () => ({
 }))
 
 vi.mock('@/lib/team/gating', () => ({
-  requireTeamPlan: vi.fn(async () => ({ ok: true })),
+  // Route now gates via requireCapability(), which depends on getUserTierForGating().
+  getUserTierForGating: vi.fn(async () => 'team'),
 }))
 
 vi.mock('@/lib/team/workspace', () => ({

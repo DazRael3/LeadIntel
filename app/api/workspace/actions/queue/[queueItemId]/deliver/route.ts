@@ -4,7 +4,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { enqueueWebhookEventToEndpoint, type WebhookEventType } from '@/lib/integrations/webhooks'
 import { prepareCrmHandoff } from '@/lib/services/crm-handoff'
@@ -48,7 +48,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'integration_delivery_audit' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const queueItemId = extractQueueItemIdFromPath(new URL(request.url).pathname)
@@ -184,6 +184,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId, userI
       .from('action_queue_items')
       .update({ status: 'queued', destination_type: 'webhook', destination_id: endpointId, error: null })
       .eq('id', queueItemId)
+      .eq('workspace_id', workspace.id)
 
     await logAudit({
       supabase,

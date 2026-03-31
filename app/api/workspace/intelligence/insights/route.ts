@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { logProductEvent } from '@/lib/services/analytics'
 
@@ -17,7 +17,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
   try {
     if (!userId) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId, sessionEmail: null, supabase })
+    const gate = await requireCapability({ userId, sessionEmail: null, supabase, capability: 'benchmarks' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     await ensurePersonalWorkspace({ supabase, userId })

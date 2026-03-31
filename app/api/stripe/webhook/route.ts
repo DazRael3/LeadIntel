@@ -18,6 +18,7 @@ import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
 import { getResendReplyToEmail } from '@/lib/email/routing'
+import { recordStripeWebhookEventIfFirst } from '@/lib/webhooks/stripe-idempotency'
 
 /**
  * Stripe Webhook Handler
@@ -62,6 +63,41 @@ export const POST = withApiGuard(
     // Create Supabase admin client for subscription updates.
     // IMPORTANT: Always target the `api` schema (never `public`).
     const supabaseAdmin = createSupabaseAdminClient({ schema: 'api' })
+
+    // Idempotency: required dependency. We ACK duplicates to prevent replay side effects.
+    // If idempotency persistence is unavailable, we fail safe (500) so Stripe retries
+    // rather than processing without replay protection.
+    try {
+      const processGate = await recordStripeWebhookEventIfFirst({
+        admin: supabaseAdmin,
+        stripeEventId: event.id,
+        type: event.type,
+        livemode: Boolean((event as unknown as { livemode?: unknown }).livemode),
+        payload: event,
+      })
+      if (processGate === 'duplicate') {
+        recordCounter('webhook.stripe.duplicate', 1)
+        return ok({ received: true, duplicate: true }, undefined, undefined, requestId)
+      }
+    } catch (e) {
+      recordCounter('webhook.stripe.error', 1, { stage: 'idempotency_unavailable' })
+      captureMessage('stripe_webhook_idempotency_unavailable', { level: 'error' })
+      logger.error({
+        level: 'error',
+        scope: 'stripe_webhook',
+        message: 'idempotency_unavailable',
+        requestId,
+        error: e,
+      })
+      return fail(
+        ErrorCode.INTERNAL_ERROR,
+        'Idempotency storage unavailable',
+        undefined,
+        undefined,
+        undefined,
+        requestId
+      )
+    }
 
     // Handle different event types
     switch (event.type) {

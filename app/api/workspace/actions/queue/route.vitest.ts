@@ -15,6 +15,7 @@ vi.mock('@/lib/supabase/safe-auth', () => ({
 
 vi.mock('@/lib/team/gating', () => ({
   requireTeamPlan: vi.fn(async () => ({ ok: true, tier: 'team' })),
+  getUserTierForGating: vi.fn(async () => 'team'),
 }))
 
 vi.mock('@/lib/team/workspace', () => ({

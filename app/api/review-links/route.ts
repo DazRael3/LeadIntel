@@ -5,7 +5,7 @@ import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { logAudit } from '@/lib/audit/log'
 import { signReviewToken } from '@/lib/review/security'
 
@@ -38,7 +38,12 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+    const gate = await requireCapability({
+      userId: user.id,
+      sessionEmail: user.email ?? null,
+      supabase,
+      capability: 'approvals',
+    })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     await ensurePersonalWorkspace({ supabase, userId: user.id })
@@ -75,7 +80,12 @@ export const POST = withApiGuard(
       const user = await getUserSafe(supabase)
       if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-      const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+      const gate = await requireCapability({
+        userId: user.id,
+        sessionEmail: user.email ?? null,
+        supabase,
+        capability: 'approvals',
+      })
       if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
       const parsed = CreateBodySchema.safeParse(body ?? {})
@@ -155,7 +165,12 @@ export const DELETE = withApiGuard(
       const user = await getUserSafe(supabase)
       if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-      const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+      const gate = await requireCapability({
+        userId: user.id,
+        sessionEmail: user.email ?? null,
+        supabase,
+        capability: 'approvals',
+      })
       if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
       const parsed = RevokeBodySchema.safeParse(body ?? {})

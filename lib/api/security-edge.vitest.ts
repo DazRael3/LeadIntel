@@ -22,7 +22,8 @@ describe('applySecurityHeadersEdge', () => {
     const req = makeReq('https://dazrael.com/')
 
     expect(() => applySecurityHeadersEdge(res, req)).not.toThrow()
-    expect(res.headers.get('Content-Security-Policy')).toBeTruthy()
+    // Default: report-only unless explicitly enabled.
+    expect(res.headers.get('Content-Security-Policy-Report-Only')).toBeTruthy()
 
     process.env = oldEnv
   })
@@ -40,6 +41,19 @@ describe('applySecurityHeadersEdge', () => {
     const req2 = makeReq('http://dazrael.com/', { 'x-forwarded-proto': 'http' })
     applySecurityHeadersEdge(res2, req2)
     expect(res2.headers.get('Strict-Transport-Security')).toBeNull()
+
+    process.env = oldEnv
+  })
+
+  it('enforces CSP only when ENFORCE_CSP=1', () => {
+    const oldEnv = process.env
+    process.env = { ...oldEnv, NODE_ENV: 'production', ENFORCE_CSP: '1' }
+
+    const res = NextResponse.next()
+    const req = makeReq('https://dazrael.com/', { 'x-forwarded-proto': 'https' })
+    applySecurityHeadersEdge(res, req)
+    expect(res.headers.get('Content-Security-Policy')).toBeTruthy()
+    expect(res.headers.get('Content-Security-Policy-Report-Only')).toBeNull()
 
     process.env = oldEnv
   })

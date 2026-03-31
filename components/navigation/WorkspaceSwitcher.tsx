@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
 import { WorkspaceContextBadge } from '@/components/navigation/WorkspaceContextBadge'
+import { usePlan } from '@/components/PlanProvider'
 
 type WorkspaceAccess = {
   workspace: { id: string; name: string; owner_user_id: string; created_at: string }
@@ -42,12 +43,14 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
   const router = useRouter()
   const pathname = usePathname()
   const { toast } = useToast()
+  const { capabilities } = usePlan()
   const [loading, setLoading] = useState(true)
   const [current, setCurrent] = useState<{ id: string; name: string; role: string | null } | null>(null)
   const [workspaces, setWorkspaces] = useState<WorkspaceAccess[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const showPicker = Boolean(props.showPicker)
+  const canSwitch = capabilities.multi_workspace_controls === true
 
   const loadCurrent = useCallback(async () => {
     setLoading(true)
@@ -90,6 +93,11 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
     setLoading(true)
     setError(null)
     try {
+      if (!canSwitch) {
+        setWorkspaces([])
+        setError('Multi-workspace switching is available on the Team plan.')
+        return
+      }
       const res = await fetch('/api/workspaces/directory', { cache: 'no-store' })
       const json = (await res.json().catch(() => null)) as DirectoryEnvelope | null
       const err =
@@ -110,7 +118,7 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [canSwitch, toast])
 
   useEffect(() => {
     // Only fetch current workspace quietly in top chrome; directory is loaded on-demand in the picker.
@@ -120,6 +128,10 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
   const onSwitch = useCallback(
     async (workspaceId: string) => {
       if (!workspaceId || workspaceId === current?.id) return
+      if (!canSwitch) {
+        toast({ title: 'Upgrade required', description: 'Multi-workspace switching is available on the Team plan.', variant: 'destructive' })
+        return
+      }
       try {
         const res = await fetch('/api/workspaces/switch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId }) })
         const json = (await res.json().catch(() => null)) as
@@ -140,7 +152,7 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
         toast({ title: 'Switch failed', description: e instanceof Error ? e.message : 'Please try again.', variant: 'destructive' })
       }
     },
-    [current?.id, loadCurrent, loadDirectory, pathname, router, showPicker, toast, workspaces.length]
+    [canSwitch, current?.id, loadCurrent, loadDirectory, pathname, router, showPicker, toast, workspaces.length]
   )
 
   // Always render a stable badge; top chrome should never throw destructive UI for context fetch failures.
@@ -159,9 +171,10 @@ export function WorkspaceSwitcher(props: { showPicker?: boolean } = {}) {
           ) : null}
           <select
             className="h-9 rounded border border-cyan-500/20 bg-background/30 px-2 text-sm text-foreground"
-            disabled={loading || !current || Boolean(error)}
+            disabled={loading || !current || Boolean(error) || !canSwitch}
             value={current?.id ?? ''}
             onFocus={() => {
+              if (!canSwitch) return
               if (workspaces.length === 0 && !loading) void loadDirectory()
             }}
             onChange={(e) => void onSwitch(e.target.value)}

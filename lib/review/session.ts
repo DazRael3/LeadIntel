@@ -45,7 +45,8 @@ export function setReviewSessionCookies(args: {
 }
 
 export function clearReviewSessionCookies(response: NextResponse): void {
-  response.cookies.set(REVIEW_SESSION_COOKIE, '', { path: '/', maxAge: 0 })
-  response.cookies.set(REVIEW_MODE_COOKIE, '', { path: '/', maxAge: 0 })
+  const secure = process.env.NODE_ENV === 'production'
+  response.cookies.set(REVIEW_SESSION_COOKIE, '', { path: '/', maxAge: 0, secure, sameSite: 'lax', httpOnly: true })
+  response.cookies.set(REVIEW_MODE_COOKIE, '', { path: '/', maxAge: 0, secure, sameSite: 'lax', httpOnly: false })
 }
 

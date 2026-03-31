@@ -15,6 +15,7 @@ import { logAudit } from '@/lib/audit/log'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
 import { serverEnv } from '@/lib/env'
 import { logProductEvent } from '@/lib/services/analytics'
+import { hasCapability } from '@/lib/billing/capabilities'
 import {
   cancelPremiumGeneration,
   completePremiumGeneration,
@@ -374,6 +375,39 @@ export const POST = withApiGuard(
           bridge,
           requestId
         )
+      }
+
+      // Closer+ feature: snapshot the report content for diffing on refresh.
+      if (hasCapability(capabilities.tier, 'report_diff')) {
+        try {
+          await supabase
+            .schema('api')
+            .from('user_report_snapshots')
+            .insert({
+              user_id: user.id,
+              report_id: inserted.id,
+              report_kind: 'competitive',
+              report_version: 1,
+              company_name: companyNameForReport,
+              company_domain: input.companyDomain,
+              input_url: input.inputUrl,
+              title,
+              report_markdown: generated.reportMarkdown,
+              report_json: generated.reportJson,
+              sources_used: citations,
+              sources_fetched_at: refreshed.bundle.fetchedAt,
+              meta: {
+                source: 'competitive-report',
+                companyKey: refreshed.bundle.companyKey,
+                generatedAt: new Date().toISOString(),
+                model: generated.model,
+                latencyMs,
+                forceRefresh,
+              },
+            } as never)
+        } catch {
+          // best-effort only; snapshot table may not exist yet in older envs
+        }
       }
 
       await completePremiumGeneration({

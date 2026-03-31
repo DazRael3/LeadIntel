@@ -161,7 +161,8 @@ export async function GET(request: NextRequest) {
 async function identifyCompany(ip: string): Promise<RevealResponse> {
   const clearbitKey = serverEnv.CLEARBIT_REVEAL_API_KEY
   if (!clearbitKey) {
-    throw new Error('Configuration Error: Missing API Key - CLEARBIT_REVEAL_API_KEY')
+    // Treat as a server-side configuration issue; never surface secret/config names to clients.
+    throw new Error('clearbit_not_configured')
   }
 
   try {
@@ -191,6 +192,6 @@ async function identifyCompany(ip: string): Promise<RevealResponse> {
       message: 'identify_company_failed',
       error: message,
     })
-    throw new Error(`Failed to identify company: ${message}`)
+    throw new Error('clearbit_identify_failed')
   }
 }

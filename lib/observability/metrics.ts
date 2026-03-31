@@ -8,6 +8,7 @@ export type MetricsName =
   | 'webhook.resend.error'
   | 'webhook.resend.signature_invalid'
   | 'webhook.stripe.total'
+  | 'webhook.stripe.duplicate'
   | 'webhook.stripe.error'
   | 'send_pitch.success'
   | 'send_pitch.error'

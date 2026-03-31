@@ -4,7 +4,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { createActionQueueItem } from '@/lib/services/action-queue'
 import { logAudit } from '@/lib/audit/log'
@@ -37,7 +37,7 @@ export const POST = withApiGuard(
       const accountId = extractAccountIdFromPath(new URL(request.url).pathname)
       if (!accountId) return fail(ErrorCode.VALIDATION_ERROR, 'Missing account id', undefined, { status: 400 }, bridge, requestId)
 
-      const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+      const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'integration_delivery_audit' })
       if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
       await ensurePersonalWorkspace({ supabase, userId: user.id })
@@ -46,6 +46,11 @@ export const POST = withApiGuard(
 
       const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
       if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+
+      // Defense-in-depth: ensure the target account belongs to this user.
+      // Leads are user-scoped (not workspace-scoped) in this app's schema.
+      const { data: lead } = await supabase.schema('api').from('leads').select('id').eq('id', accountId).eq('user_id', user.id).maybeSingle()
+      if (!lead) return fail(ErrorCode.NOT_FOUND, 'Account not found', undefined, { status: 404 }, bridge, requestId)
 
       const item = await createActionQueueItem({
         supabase,
