@@ -1,15 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type StripeIdempotencyResult = 'first' | 'duplicate' | 'unavailable'
+export type StripeIdempotencyResult = 'first' | 'duplicate'
 
 /**
- * Best-effort Stripe webhook idempotency using `api.stripe_webhook_events`.
+ * Stripe webhook idempotency using `api.stripe_webhook_events`.
  *
  * - Uses the service-role client (RLS bypass) so it works in webhook contexts.
  * - Returns:
  *   - 'first' when the event was recorded (process it)
  *   - 'duplicate' when the event already exists (ACK without side effects)
- *   - 'unavailable' when the table does not exist / schema behind (process as before)
  */
 export async function recordStripeWebhookEventIfFirst(args: {
   admin: SupabaseClient
@@ -19,7 +18,11 @@ export async function recordStripeWebhookEventIfFirst(args: {
   payload: unknown
 }): Promise<StripeIdempotencyResult> {
   const stripeEventId = (args.stripeEventId ?? '').trim()
-  if (!stripeEventId) return 'unavailable'
+  if (!stripeEventId) {
+    const err = new Error('Missing Stripe event id')
+    err.name = 'StripeIdempotencyError'
+    throw err
+  }
 
   try {
     const { error } = await args.admin
@@ -41,37 +44,18 @@ export async function recordStripeWebhookEventIfFirst(args: {
       if (message.toLowerCase().includes('duplicate key') || message.toLowerCase().includes('unique')) {
         return 'duplicate'
       }
-      // If the table/column isn't present, fail-soft to previous behavior.
-      if (message.includes('schema cache') || message.includes('Could not find') || message.includes('undefined_table')) {
-        return 'unavailable'
-      }
-      // Unknown DB error: do not block webhook processing; treat as unavailable.
-      return 'unavailable'
+      const err = new Error('Stripe webhook idempotency insert failed')
+      err.name = 'StripeIdempotencyUnavailable'
+      throw err
     }
 
     return 'first'
   } catch {
-    // Fail-soft: do not block processing if storage is unavailable.
-    return 'unavailable'
+    const err = new Error('Stripe webhook idempotency unavailable')
+    err.name = 'StripeIdempotencyUnavailable'
+    throw err
   }
 }
 
-/**
- * Backwards-compatible helper used by the Stripe webhook route.
- */
-export async function shouldProcessStripeEvent(args: {
-  supabaseAdmin: SupabaseClient
-  stripeEventId: string
-  type: string | null
-  livemode: boolean | null
-  payload: unknown
-}): Promise<StripeIdempotencyResult> {
-  return recordStripeWebhookEventIfFirst({
-    admin: args.supabaseAdmin,
-    stripeEventId: args.stripeEventId,
-    type: args.type,
-    livemode: args.livemode,
-    payload: args.payload,
-  })
-}
+// NOTE: Do not provide a fail-open API here; idempotency is required for Stripe webhooks.
 
