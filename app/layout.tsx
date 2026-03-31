@@ -15,7 +15,9 @@ export const metadata: Metadata = {
     title: 'LeadIntel',
     description: 'Trigger-based account alerts and instant pitch drafts.',
     url: ((process.env.NEXT_PUBLIC_SITE_URL ?? process.env.APP_URL ?? 'https://dazrael.com').trim() || 'https://dazrael.com'),
-    images: [{ url: '/api/og?title=LeadIntel&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches', width: 1200, height: 630 }],
+    // Use a reliable fallback image for metadata. Dynamic OG rendering can fail in production runtimes;
+    // keep it available at /api/og but don't make it a hard dependency for social previews.
+    images: [{ url: '/api/og-fallback', width: 1200, height: 630 }],
   },
   icons: {
     icon: '/favicon.svg',

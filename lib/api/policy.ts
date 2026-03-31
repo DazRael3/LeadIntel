@@ -110,6 +110,20 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     devOnly: false,
     webhookSignatureRequired: false,
   },
+  // Tier D: Public, non-destructive config signals
+  'GET:/api/public/email-config': {
+    tier: 'D',
+    maxBytes: 0,
+    rateLimit: {
+      authPerMin: 0,
+      ipPerMin: 30,
+    },
+    originRequired: false,
+    authRequired: false,
+    cronAllowed: false,
+    devOnly: false,
+    webhookSignatureRequired: false,
+  },
   'POST:/api/generate-sequence': {
     tier: 'AI_GENERATION',
     maxBytes: 65536, // 64KB

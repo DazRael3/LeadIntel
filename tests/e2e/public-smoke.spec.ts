@@ -187,8 +187,15 @@ test('homepage CTAs and sample form are usable', async ({ page }) => {
   await page.getByLabel(/company name or website/i).fill('example.com');
   const checkbox = page.getByLabel(/email me this sample/i);
   if (await checkbox.isVisible()) {
-    await checkbox.check();
-    await expect(checkbox).toBeChecked();
+    // Checkbox may be present but disabled if email delivery isn't configured in the environment.
+    // This should never be a "clickable but silently failing" flow.
+    const enabled = await checkbox.isEnabled().catch(() => false);
+    if (enabled) {
+      await checkbox.check();
+      await expect(checkbox).toBeChecked();
+    } else {
+      await expect(checkbox).toBeDisabled();
+    }
   }
 
   const emailField = page.getByLabel(/email \(optional\)/i)
@@ -198,4 +205,13 @@ test('homepage CTAs and sample form are usable', async ({ page }) => {
   } else {
     await expect(emailField).toBeDisabled()
   }
+});
+
+test('og image endpoint returns non-empty png', async ({ page }) => {
+  const res = await page.request.get('/api/og?title=Playwright&subtitle=Smoke');
+  expect(res.status(), 'OG endpoint should return 200').toBe(200);
+  const ct = res.headers()['content-type'] || '';
+  expect(ct, 'OG endpoint should be image/png').toContain('image/png');
+  const buf = await res.body();
+  expect(buf.length, 'OG endpoint returned empty body').toBeGreaterThan(200);
 });

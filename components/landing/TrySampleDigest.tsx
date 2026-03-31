@@ -49,6 +49,7 @@ export function TrySampleDigest() {
   const [tracked, setTracked] = useState(false)
   const [usage, setUsage] = useState<{ used: number; limit: number; remaining: number } | null>(null)
   const [usageTier, setUsageTier] = useState<string | null>(null)
+  const [emailConfigured, setEmailConfigured] = useState(false)
 
   const canSubmit = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
 
@@ -86,6 +87,30 @@ export function TrySampleDigest() {
       cancelled = true
     }
   }, [authed])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadEmailConfig = async () => {
+      try {
+        const res = await fetch('/api/public/email-config', { method: 'GET', cache: 'no-store' })
+        if (!res.ok) return
+        const json = (await res.json()) as { ok?: boolean; data?: { enabled?: boolean } }
+        if (!json?.ok) return
+        if (cancelled) return
+        setEmailConfigured(Boolean(json.data?.enabled))
+      } catch {
+        // ignore
+      }
+    }
+    void loadEmailConfig()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!emailConfigured && emailMe) setEmailMe(false)
+  }, [emailConfigured, emailMe])
 
   async function trackThisAccount() {
     if (!result) return
@@ -133,7 +158,7 @@ export function TrySampleDigest() {
     }
     const trimmed = parsedTarget.name
     const email = workEmail.trim()
-    const wantsEmail = emailMe
+    const wantsEmail = emailMe && emailConfigured
     const deviceClass = getDeviceClass()
     const host = typeof window !== 'undefined' ? window.location.host : 'unknown'
 
@@ -236,7 +261,7 @@ export function TrySampleDigest() {
             value={workEmail}
             onChange={(e) => setWorkEmail(e.target.value)}
             placeholder="you@company.com"
-            disabled={loading || !emailMe}
+            disabled={loading || !emailMe || !emailConfigured}
             className="bg-background"
           />
         </div>
@@ -247,11 +272,16 @@ export function TrySampleDigest() {
             type="checkbox"
             checked={emailMe}
             onChange={(e) => setEmailMe(e.target.checked)}
-            disabled={loading}
+            disabled={loading || !emailConfigured}
             className="mt-1 h-4 w-4 accent-cyan-400"
           />
           <div className="flex-1">
             <Label htmlFor="email_me">{COPY.home.trySample.checkboxLabel}</Label>
+            {!emailConfigured ? (
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                Email delivery isn’t enabled for this environment yet.
+              </div>
+            ) : null}
           </div>
         </div>
 
