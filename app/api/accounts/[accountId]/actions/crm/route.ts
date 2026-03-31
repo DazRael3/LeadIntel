@@ -4,7 +4,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { prepareCrmHandoff } from '@/lib/services/crm-handoff'
 import { createActionQueueItem } from '@/lib/services/action-queue'
@@ -46,7 +46,7 @@ export const POST = withApiGuard(
       const accountId = extractAccountIdFromPath(new URL(request.url).pathname)
       if (!accountId) return fail(ErrorCode.VALIDATION_ERROR, 'Missing account id', undefined, { status: 400 }, bridge, requestId)
 
-      const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+      const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'integration_delivery_audit' })
       if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
       await ensurePersonalWorkspace({ supabase, userId: user.id })
