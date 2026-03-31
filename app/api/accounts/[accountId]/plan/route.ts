@@ -4,7 +4,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { getWorkspacePolicies } from '@/lib/services/workspace-policies'
 import { getAccountRevenueIntelligence } from '@/lib/revenue/engine'
@@ -24,7 +24,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const user = await getUserSafe(supabase)
     if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-    const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+    const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'planning_intelligence' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
     const url = new URL(request.url)

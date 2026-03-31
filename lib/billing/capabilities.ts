@@ -20,6 +20,8 @@ export type CapabilityKey =
   | 'approvals'
   | 'audit_log'
   | 'governance_exports'
+  | 'benchmarks'
+  | 'planning_intelligence'
   | 'shared_metrics_dashboard'
   | 'multi_workspace_controls'
   | 'territory_controls'
@@ -28,6 +30,11 @@ export type CapabilityKey =
   | 'platform_api_access'
   | 'assistant'
   | 'revenue_intelligence'
+  | 'partner_dashboard'
+  | 'experiments'
+  | 'deployment_readiness'
+  | 'adaptive_playbooks'
+  | 'account_intelligence'
   | 'team_dashboards'
   | 'executive_dashboard'
 
@@ -52,6 +59,8 @@ const ALL_FALSE: Capabilities = {
   approvals: false,
   audit_log: false,
   governance_exports: false,
+  benchmarks: false,
+  planning_intelligence: false,
   shared_metrics_dashboard: false,
   multi_workspace_controls: false,
   territory_controls: false,
@@ -60,6 +69,11 @@ const ALL_FALSE: Capabilities = {
   platform_api_access: false,
   assistant: false,
   revenue_intelligence: false,
+  partner_dashboard: false,
+  experiments: false,
+  deployment_readiness: false,
+  adaptive_playbooks: false,
+  account_intelligence: false,
   team_dashboards: false,
   executive_dashboard: false,
 }
@@ -114,6 +128,8 @@ export function getTierCapabilities(tier: Tier): Capabilities {
     approvals: true,
     audit_log: true,
     governance_exports: true,
+    benchmarks: true,
+    planning_intelligence: true,
     shared_metrics_dashboard: true,
     multi_workspace_controls: true,
     territory_controls: true,
@@ -122,6 +138,11 @@ export function getTierCapabilities(tier: Tier): Capabilities {
     platform_api_access: true,
     assistant: true,
     revenue_intelligence: true,
+    partner_dashboard: true,
+    experiments: true,
+    deployment_readiness: true,
+    adaptive_playbooks: true,
+    account_intelligence: true,
     team_dashboards: true,
     executive_dashboard: true,
   }

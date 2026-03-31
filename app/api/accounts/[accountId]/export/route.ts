@@ -5,7 +5,7 @@ import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, createCookieBridge, ErrorCode } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { getAccountExplainability } from '@/lib/data/getAccountExplainability'
 import { toCsv } from '@/lib/exports/csv'
@@ -58,7 +58,7 @@ export const POST = withApiGuard(
       const accountId = extractAccountIdFromPath(new URL(request.url).pathname)
       if (!accountId) return fail(ErrorCode.VALIDATION_ERROR, 'Missing account id', undefined, { status: 400 }, bridge, requestId)
 
-      const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+      const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'governance_exports' })
       if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
       await ensurePersonalWorkspace({ supabase, userId: user.id })
