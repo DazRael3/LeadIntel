@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { execSync } from 'node:child_process'
 
 function isSqlMigrationFilename(name: string): boolean {
   return /^\d+_.+\.sql$/i.test(name)
@@ -8,6 +9,24 @@ function isSqlMigrationFilename(name: string): boolean {
 function versionFromFilename(name: string): string | null {
   const m = /^(\d+)_/.exec(name)
   return m ? m[1] : null
+}
+
+function getGitTrackedMigrations(): Set<string> | null {
+  try {
+    const out = execSync('git ls-files -- supabase/migrations', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+    })
+    const files = out
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((p) => path.basename(p))
+      .filter(isSqlMigrationFilename)
+    return new Set(files)
+  } catch {
+    return null
+  }
 }
 
 function main(): void {
@@ -21,6 +40,20 @@ function main(): void {
     .readdirSync(migrationsDir)
     .filter(isSqlMigrationFilename)
     .sort((a, b) => a.localeCompare(b))
+
+  const tracked = getGitTrackedMigrations()
+  if (tracked) {
+    const extras = files.filter((f) => !tracked.has(f))
+    if (extras.length) {
+      console.error('[migrations-check] Untracked migration files present in supabase/migrations:')
+      for (const f of extras) console.error(`- ${f}`)
+      console.error(
+        '[migrations-check] This commonly happens when older renamed migrations remain on disk after a pull. ' +
+          'Delete the files above or run `git clean -fd supabase/migrations` (review carefully before cleaning).'
+      )
+      process.exit(1)
+    }
+  }
 
   const versions = new Map<string, string[]>()
   for (const f of files) {
@@ -37,6 +70,8 @@ function main(): void {
     for (const [v, arr] of dupes.sort((a, b) => Number(a[0]) - Number(b[0]))) {
       console.error(`- ${v}: ${arr.join(', ')}`)
     }
+    console.error('[migrations-check] Full migration file list (sorted):')
+    for (const f of files) console.error(`- ${f}`)
     process.exit(1)
   }
 
