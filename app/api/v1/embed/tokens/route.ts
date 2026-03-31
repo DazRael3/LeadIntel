@@ -40,6 +40,20 @@ export async function POST(request: NextRequest) {
       return platformFail(ErrorCode.FORBIDDEN, 'Embeds disabled for this workspace', undefined, { status: 403 }, requestId)
     }
 
+    // If embedding an account-specific widget, ensure the account belongs to this workspace.
+    if (parsed.data.accountId) {
+      const { data: acct } = await admin
+        .from('account_program_accounts')
+        .select('id')
+        .eq('workspace_id', authed.ctx.workspaceId)
+        .eq('lead_id', parsed.data.accountId)
+        .limit(1)
+        .maybeSingle()
+      if (!acct) {
+        return platformFail(ErrorCode.NOT_FOUND, 'Account not found', undefined, { status: 404 }, requestId)
+      }
+    }
+
     const exp = Math.floor(Date.now() / 1000) + parsed.data.expiresInMinutes * 60
     const token = signEmbedToken({
       v: 1,
