@@ -39,7 +39,11 @@ export type CompetitiveReportSourcedResult = {
 }
 
 function getOpenAIClient(): OpenAI {
-  return new OpenAI({ apiKey: serverEnv.OPENAI_API_KEY })
+  const key = (serverEnv.OPENAI_API_KEY ?? '').trim()
+  if (!key) {
+    throw new Error('Missing OPENAI_API_KEY (required for competitive report generation).')
+  }
+  return new OpenAI({ apiKey: key })
 }
 
 function safeTrim(v: unknown): string {

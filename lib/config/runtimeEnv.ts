@@ -55,6 +55,7 @@ export function assertSupabaseServiceRoleConfigured(): void {
     message: 'supabase_service_role_missing',
     appEnv: APP_ENV,
   })
+  throw new Error('Supabase service role is not configured')
 }
 
 export function hasSupabaseServiceRoleConfigured(): boolean {

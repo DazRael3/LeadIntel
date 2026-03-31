@@ -29,8 +29,11 @@ import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates
 
 // Lazy initialization of OpenAI client
 function getOpenAIClient(): OpenAI {
-  // Use validated environment variable (validated at module load time)
-  const apiKey = serverEnv.OPENAI_API_KEY
+  // Feature-scoped requirement: do not force global boot to require OpenAI unless AI generation runs.
+  const apiKey = (serverEnv.OPENAI_API_KEY ?? '').trim()
+  if (!apiKey) {
+    throw new Error('OpenAI is not configured (missing OPENAI_API_KEY)')
+  }
   
   // OpenAI SDK automatically adds 'Bearer ' prefix to the Authorization header
   // The header will be: 'Authorization': `Bearer ${apiKey}`
