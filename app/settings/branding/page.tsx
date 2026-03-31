@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import { requireTeamPlan } from '@/lib/team/gating'
+import { requireCapability } from '@/lib/billing/require-capability'
 import { TeamUpgradeGate } from '@/components/team/TeamUpgradeGate'
 import { BrandingSettingsClient } from './branding-settings-client'
 
@@ -20,7 +20,7 @@ export default async function BrandingSettingsPage() {
   } = await supabase.auth.getUser()
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/branding')
 
-  const gate = await requireTeamPlan({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+  const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'multi_workspace_controls' })
   if (!gate.ok) return <TeamUpgradeGate />
 
   return <BrandingSettingsClient />
