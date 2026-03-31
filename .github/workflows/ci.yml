@@ -43,6 +43,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check Supabase migration versions
+        run: npm run migrations:check
+        continue-on-error: false
+
       - name: Lint
         run: npm run lint
         continue-on-error: false

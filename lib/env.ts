@@ -15,6 +15,8 @@ function requiredInProduction<T extends z.ZodTypeAny>(schema: T): z.ZodTypeAny {
   // In production we enforce strict env validation for ops safety.
   // In test-like environments (unit/E2E/CI), allow missing secrets so the app can run
   // with in-memory shims and without external integrations.
+  // Preview/staging should behave like production in terms of URL/origin safety,
+  // but MUST NOT require every integration secret globally (feature-scoped).
   return process.env.NODE_ENV === 'production' && !isTestLikeEnv() ? schema : schema.optional()
 }
 
@@ -89,11 +91,14 @@ const serverEnvSchema = z.object({
   NEXT_PUBLIC_SITE_URL: siteUrlSchema,
 
   // Supabase (server-only secrets)
+  // Service role is required for key background/admin paths, but we do not hard-require it
+  // globally in preview/staging to keep public boot predictable. Feature boundaries enforce it.
   SUPABASE_SERVICE_ROLE_KEY: requiredInProduction(z.string().min(1, 'Supabase service role key required')),
   SUPABASE_DB_SCHEMA: z.string().optional(),
   SUPABASE_DB_SCHEMA_FALLBACK: z.string().default('api'),
   
   // Stripe (server-only secrets)
+  // Stripe is feature-scoped; do not require globally except in production boot.
   STRIPE_SECRET_KEY: requiredInProduction(z.string().startsWith('sk_', 'Invalid Stripe secret key format')),
   STRIPE_PRICE_ID: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_PRO: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
@@ -107,10 +112,12 @@ const serverEnvSchema = z.object({
   STRIPE_PRICE_ID_TEAM_BASE_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_TEAM_SEAT: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
   STRIPE_PRICE_ID_TEAM_SEAT_ANNUAL: z.string().startsWith('price_', 'Invalid Stripe price ID format').optional(),
-  STRIPE_WEBHOOK_SECRET: requiredInProduction(z.string().startsWith('whsec_', 'Invalid Stripe webhook secret format')),
+  // Webhook secret is only required if webhook processing is enabled; enforce at route boundary.
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_', 'Invalid Stripe webhook secret format').optional(),
   
   // OpenAI
-  OPENAI_API_KEY: requiredInProduction(z.string().startsWith('sk-', 'Invalid OpenAI API key format')),
+  // OpenAI is feature-scoped; enforce at generation boundaries.
+  OPENAI_API_KEY: z.string().startsWith('sk-', 'Invalid OpenAI API key format').optional(),
   
   // Resend
   RESEND_API_KEY: z.string().startsWith('re_', 'Invalid Resend API key format').optional(),

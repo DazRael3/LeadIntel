@@ -40,6 +40,10 @@ export type CompetitiveReportGenerateResult = {
 }
 
 function getOpenAIClient(): OpenAI {
+  const apiKey = (serverEnv.OPENAI_API_KEY ?? '').trim()
+  if (!apiKey) {
+    throw new Error('OpenAI is not configured (missing OPENAI_API_KEY)')
+  }
   return new OpenAI({ apiKey: serverEnv.OPENAI_API_KEY })
 }
 
