@@ -21,12 +21,16 @@ function fail(message) {
 }
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const baseOptions = {
     cwd: rootDir,
     stdio: 'inherit',
     env: process.env,
     ...options,
-  })
+  }
+  const result =
+    process.platform === 'win32'
+      ? spawnSync('cmd.exe', ['/d', '/s', '/c', `${command} ${args.map(quoteForCmd).join(' ')}`], baseOptions)
+      : spawnSync(command, args, baseOptions)
   if (result.error) {
     fail(`[agent:cache] Failed running "${command} ${args.join(' ')}": ${result.error.message}`)
   }
@@ -36,8 +40,13 @@ function run(command, args, options = {}) {
 }
 
 function resolveExecutable(baseName) {
-  if (process.platform === 'win32') return `${baseName}.cmd`
+  if (process.platform === 'win32') return baseName
   return baseName
+}
+
+function quoteForCmd(arg) {
+  if (/^[A-Za-z0-9_./:-]+$/.test(arg)) return arg
+  return `"${String(arg).replace(/"/g, '\\"')}"`
 }
 
 if (!existsSync(lockfile)) {
