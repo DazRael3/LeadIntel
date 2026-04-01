@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 import { AdminAuthBootstrapClient } from './AdminAuthBootstrapClient'
 
 export const dynamic = 'force-dynamic'
@@ -15,18 +14,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-function asString(v: string | string[] | undefined): string {
-  if (typeof v === 'string') return v
-  if (Array.isArray(v)) return v[0] ?? ''
-  return ''
-}
-
-export default async function AdminAuthBootstrapPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = asString(sp.token) || null
-  if (!isValidAdminToken(token)) notFound()
-
-  const tokenQs = `token=${encodeURIComponent(token ?? '')}`
+export default async function AdminAuthBootstrapPage() {
+  await requireAdminSessionOrNotFound()
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10 space-y-6">
@@ -39,10 +28,10 @@ export default async function AdminAuthBootstrapPage(props: { searchParams?: Pro
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/ops?${tokenQs}`}>Ops</Link>
+            <Link href="/admin/ops">Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/support?${tokenQs}`}>Support</Link>
+            <Link href="/admin/support">Support</Link>
           </Button>
         </div>
       </div>
@@ -53,7 +42,7 @@ export default async function AdminAuthBootstrapPage(props: { searchParams?: Pro
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Admin-token gated</Badge>
+            <Badge variant="outline">Admin session gated</Badge>
             <Badge variant="outline">Creates Auth users</Badge>
             <Badge variant="outline">Sets tier in api.users</Badge>
           </div>
@@ -70,7 +59,7 @@ export default async function AdminAuthBootstrapPage(props: { searchParams?: Pro
             </div>
           </div>
 
-          <AdminAuthBootstrapClient token={token ?? ''} />
+          <AdminAuthBootstrapClient />
         </CardContent>
       </Card>
     </div>

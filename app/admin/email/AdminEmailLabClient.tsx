@@ -31,7 +31,6 @@ type SendEnvelope =
   | { ok: false; error: { code: string; message: string; details?: unknown } }
 
 export function AdminEmailLabClient(props: {
-  token: string
   appUrl: string
   templates: Array<{ id: EmailTemplateId; label: string; kind: string; audience: string }>
   qa: QaResult[]
@@ -51,7 +50,7 @@ export function AdminEmailLabClient(props: {
       track('email_lab_previewed', { templateId })
       const res = await fetch('/api/admin/email/preview', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-admin-token': props.token },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ templateId, appUrl: props.appUrl }),
       })
       const json = (await res.json().catch(() => null)) as PreviewEnvelope | null
@@ -77,7 +76,7 @@ export function AdminEmailLabClient(props: {
       track('email_lab_test_send_clicked', { templateId, dryRun })
       const res = await fetch('/api/admin/email/test-send', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-admin-token': props.token },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ templateId, appUrl: props.appUrl, toEmail: toEmail.trim() || undefined, dryRun }),
       })
       const json = (await res.json().catch(() => null)) as SendEnvelope | null

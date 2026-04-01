@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, ErrorCode, createCookieBridge, asHttpError } from '@/lib/api/http'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
 import { getAppUrl } from '@/lib/app-url'
 import { getEmailTemplate, type EmailTemplateId } from '@/lib/email/registry'
 import { qaEmailTemplate } from '@/lib/email/qa'
@@ -12,6 +11,7 @@ import { serverEnv } from '@/lib/env'
 import { getResendReplyToEmail } from '@/lib/email/routing'
 import { parseEmailCsv } from '@/lib/lifecycle/config'
 import { logProductEvent } from '@/lib/services/analytics'
+import { hasAdminAccess } from '@/lib/admin/access'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +34,7 @@ export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
     const bridge = createCookieBridge()
     try {
-      const token = request.headers.get('x-admin-token')
-      if (!isValidAdminToken(token)) {
+      if (!hasAdminAccess(request)) {
         return fail(ErrorCode.UNAUTHORIZED, 'Unauthorized', undefined, { status: 401 }, bridge, requestId)
       }
 

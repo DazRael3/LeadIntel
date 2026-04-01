@@ -90,7 +90,7 @@ export async function generateLearningAgentReport(args: { windowDays?: number })
       title: 'Email templates have QA errors',
       summary: 'At least one template is missing a required structural field (subject/html/text).',
       why: ['Broken email structure can cause poor deliverability and operator confusion.', 'Fix templates before enabling lifecycle sends broadly.'],
-      actions: [{ label: 'Open Email Lab', href: '/admin/email?token={ADMIN_TOKEN}' }],
+      actions: [{ label: 'Open Email Lab', href: '/admin/email' }],
       evidence: { qaErrors: qaCounts.error, qaWarnings: qaCounts.warn },
     })
   } else if (qaCounts.warn > 0) {
@@ -100,7 +100,7 @@ export async function generateLearningAgentReport(args: { windowDays?: number })
       title: 'Email templates have QA warnings',
       summary: 'Some templates are missing a clear CTA/prefs link/support mailto, or have mobile readability risks.',
       why: ['Warnings don’t block sending, but they correlate with lower trust and weaker activation/conversion.'],
-      actions: [{ label: 'Open Email Lab', href: '/admin/email?token={ADMIN_TOKEN}' }],
+      actions: [{ label: 'Open Email Lab', href: '/admin/email' }],
       evidence: { qaWarnings: qaCounts.warn },
     })
   }
@@ -150,10 +150,7 @@ export async function generateLearningAgentReport(args: { windowDays?: number })
       title: 'Email send failures detected',
       summary: 'Some email sends failed in the last window.',
       why: ['Review Resend configuration and sender domain health.', 'Use Email Lab test-send to validate From/Reply-To and deliverability.'],
-      actions: [
-        { label: 'Open Ops', href: '/admin/ops?token={ADMIN_TOKEN}' },
-        { label: 'Open Email Lab', href: '/admin/email?token={ADMIN_TOKEN}' },
-      ],
+      actions: [{ label: 'Open Ops', href: '/admin/ops' }, { label: 'Open Email Lab', href: '/admin/email' }],
       evidence: { emailSendFailures: emailFailedCount, windowDays },
     })
   }
@@ -166,7 +163,7 @@ export async function generateLearningAgentReport(args: { windowDays?: number })
       title: 'Recent feedback submitted',
       summary: 'Users submitted feedback recently; review themes and follow up where needed.',
       why: ['Feedback is the highest-signal friction detector when kept privacy-safe and lightweight.'],
-      actions: [{ label: 'Open support tools', href: '/admin/support?token={ADMIN_TOKEN}' }],
+      actions: [{ label: 'Open support tools', href: '/admin/support' }],
       evidence: { feedbackCount, windowDays },
     })
   }

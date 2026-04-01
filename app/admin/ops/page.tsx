@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,7 +9,7 @@ import { runEnvDoctor } from '@/lib/ops/envDoctor'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { AdminKpiMonitorPanelClient } from './AdminKpiMonitorPanelClient'
 import { computeOpsHealth, type OpsHealthCheckStatus } from '@/lib/ops/opsHealth'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 import { readLatestJobRuns } from '@/lib/jobs/persist'
 import { lifecycleEmailsEnabled, adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
 import { prospectWatchEnabled, prospectDailyDigestEnabled, contentDailyDigestEnabled, getReviewEmails } from '@/lib/prospect-watch/config'
@@ -25,10 +24,6 @@ export const metadata: Metadata = {
   title: 'Ops | LeadIntel',
   description: 'Admin ops diagnostics for environment and audits.',
   robots: { index: false, follow: false },
-}
-
-function requireAdminToken(token: string | null): void {
-  if (!isValidAdminToken(token)) notFound()
 }
 
 type ContentAuditReportRow = {
@@ -93,10 +88,8 @@ function flagEnabled(raw: string | undefined): boolean {
   return v === '1' || v === 'true' || v === 'yes'
 }
 
-export default async function AdminOpsPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = typeof sp.token === 'string' ? sp.token : null
-  requireAdminToken(token)
+export default async function AdminOpsPage() {
+  await requireAdminSessionOrNotFound()
 
   const opsHealth = await computeOpsHealth().catch(() => null)
   const env = (() => {
@@ -212,28 +205,28 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/growth?token=${encodeURIComponent(token ?? '')}`}>Growth Ops</Link>
+            <Link href="/admin/growth">Growth Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/refinement?token=${encodeURIComponent(token ?? '')}`}>Refinement</Link>
+            <Link href="/admin/refinement">Refinement</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/run-health?token=${encodeURIComponent(token ?? '')}`}>Run health</Link>
+            <Link href="/admin/run-health">Run health</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/data-health?token=${encodeURIComponent(token ?? '')}`}>Data health</Link>
+            <Link href="/admin/data-health">Data health</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/generations?token=${encodeURIComponent(token ?? '')}`}>Generations</Link>
+            <Link href="/admin/generations">Generations</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/webhooks?token=${encodeURIComponent(token ?? '')}`}>Webhooks</Link>
+            <Link href="/admin/webhooks">Webhooks</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/support?token=${encodeURIComponent(token ?? '')}`}>Support</Link>
+            <Link href="/admin/support">Support</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/email?token=${encodeURIComponent(token ?? '')}`}>Email Lab</Link>
+            <Link href="/admin/email">Email Lab</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/status">Status</Link>
@@ -464,7 +457,7 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="sm">
-                <Link href={`/admin/email?token=${encodeURIComponent(token ?? '')}`}>Open Email Lab</Link>
+                <Link href="/admin/email">Open Email Lab</Link>
               </Button>
               <div className="text-xs text-muted-foreground">Use Email Lab to preview/test-send (operator allowlist only, deduped).</div>
             </div>
@@ -522,7 +515,7 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
                       <div className="mt-2 flex flex-wrap gap-2">
                         {r.actions.slice(0, 2).map((a) => (
                           <Button key={a.label} asChild size="sm" variant="outline">
-                            <Link href={a.href.replace('{ADMIN_TOKEN}', encodeURIComponent(token ?? ''))}>{a.label}</Link>
+                            <Link href={a.href}>{a.label}</Link>
                           </Button>
                         ))}
                       </div>
@@ -583,7 +576,7 @@ export default async function AdminOpsPage(props: { searchParams?: Promise<Recor
         </CardContent>
       </Card>
 
-      <AdminKpiMonitorPanelClient token={token} />
+      <AdminKpiMonitorPanelClient />
     </div>
   )
 }

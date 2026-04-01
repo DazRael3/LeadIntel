@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { isAdminRequestAuthorized } from '@/lib/admin/access'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { ensurePersonalWorkspace } from '@/lib/team/workspace'
 
@@ -60,8 +60,8 @@ export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
     const bridge = createCookieBridge()
     try {
-      const token = (request.headers.get('x-admin-token') ?? '').trim()
-      if (!isValidAdminToken(token)) {
+      const authed = isAdminRequestAuthorized({ request })
+      if (!authed) {
         return fail(ErrorCode.UNAUTHORIZED, 'Unauthorized', undefined, { status: 401 }, bridge, requestId)
       }
 

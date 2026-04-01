@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, ErrorCode, createCookieBridge, asHttpError } from '@/lib/api/http'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { hasAdminAccess } from '@/lib/admin/access'
 import { getAppUrl } from '@/lib/app-url'
 import { getEmailTemplate, type EmailTemplateId } from '@/lib/email/registry'
 import { qaEmailTemplate } from '@/lib/email/qa'
@@ -20,8 +20,7 @@ export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
     const bridge = createCookieBridge()
     try {
-      const token = request.headers.get('x-admin-token')
-      if (!isValidAdminToken(token)) {
+      if (!hasAdminAccess(request)) {
         return fail(ErrorCode.UNAUTHORIZED, 'Unauthorized', undefined, { status: 401 }, bridge, requestId)
       }
 

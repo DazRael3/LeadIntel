@@ -14,7 +14,7 @@ type BootstrapEnvelope =
   | { ok: true; data: { userId: string; email: string; tier: Tier; workspaceId: string | null; notes: string[] } }
   | { ok: false; error: { code: string; message: string; details?: unknown } }
 
-export function AdminAuthBootstrapClient(props: { token: string }) {
+export function AdminAuthBootstrapClient() {
   const { toast } = useToast()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -35,7 +35,7 @@ export function AdminAuthBootstrapClient(props: { token: string }) {
     try {
       const res = await fetch('/api/admin/auth/bootstrap', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-admin-token': props.token },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
           password,
@@ -69,8 +69,8 @@ export function AdminAuthBootstrapClient(props: { token: string }) {
         <CardTitle className="text-lg">Bootstrap internal test users</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 text-sm text-muted-foreground">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">Admin-token gated</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Admin session gated</Badge>
           <Badge variant="outline">Creates/updates Auth user</Badge>
           <Badge variant="outline">Ensures workspace</Badge>
           <Badge variant="outline">Sets app tier</Badge>

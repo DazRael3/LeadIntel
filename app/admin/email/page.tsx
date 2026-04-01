@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 import { getAppUrl } from '@/lib/app-url'
 import { EMAIL_TEMPLATES, type EmailTemplateId } from '@/lib/email/registry'
 import { qaAllEmailTemplates } from '@/lib/email/qa'
@@ -19,14 +18,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-function requireAdminToken(token: string | null): void {
-  if (!isValidAdminToken(token)) notFound()
-}
-
-export default async function AdminEmailLabPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = typeof sp.token === 'string' ? sp.token : null
-  requireAdminToken(token)
+export default async function AdminEmailLabPage() {
+  await requireAdminSessionOrNotFound()
 
   const appUrl = getAppUrl()
   const qa = qaAllEmailTemplates({ appUrl })
@@ -53,7 +46,7 @@ export default async function AdminEmailLabPage(props: { searchParams?: Promise<
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/ops?token=${encodeURIComponent(token ?? '')}`}>Back to Ops</Link>
+            <Link href="/admin/ops">Back to Ops</Link>
           </Button>
         </div>
       </div>
@@ -73,7 +66,6 @@ export default async function AdminEmailLabPage(props: { searchParams?: Promise<
       </Card>
 
       <AdminEmailLabClient
-        token={token ?? ''}
         appUrl={appUrl}
         templates={templates as Array<{ id: EmailTemplateId; label: string; kind: string; audience: string }>}
         qa={qa}

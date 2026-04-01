@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { serverEnv } from '@/lib/env'
 import { getAppUrl } from '@/lib/app-url'
@@ -10,6 +9,7 @@ import { renderSupportHelpEmail, type LifecycleEmailType } from '@/lib/email/lif
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { getResendReplyToEmail } from '@/lib/email/routing'
+import { assertAdminApiAccess } from '@/lib/admin/access'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,9 +27,9 @@ export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
     const bridge = createCookieBridge()
     try {
-      const token = request.headers.get('x-admin-token')
-      if (!isValidAdminToken(token)) {
-        return fail(ErrorCode.UNAUTHORIZED, 'Unauthorized', undefined, { status: 401 }, bridge, requestId)
+      const access = assertAdminApiAccess(request)
+      if (!access.ok) {
+        return fail(access.errorCode, access.message, undefined, { status: access.status }, bridge, requestId)
       }
 
       const parsed = BodySchema.safeParse(body)
