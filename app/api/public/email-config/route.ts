@@ -62,7 +62,14 @@ async function isResendConfiguredForSiteDomain(): Promise<boolean> {
 export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => {
   try {
     const enabled = await isResendConfiguredForSiteDomain()
-    return ok({ enabled }, undefined, undefined, requestId)
+    // This value changes rarely; allow short-lived caching to reduce logged-in navigation noise.
+    // Note: withApiGuard applies private no-store by default unless Cache-Control is explicitly set.
+    return ok(
+      { enabled },
+      { headers: { 'Cache-Control': 'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400' } },
+      undefined,
+      requestId
+    )
   } catch (error) {
     return asHttpError(error, '/api/public/email-config', undefined, undefined, requestId)
   }

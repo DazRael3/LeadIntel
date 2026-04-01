@@ -154,14 +154,15 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
       }
       const text = await resp.text()
       if (!text || text.trim().length === 0) {
-        console.warn('PlanProvider: Empty response from /api/plan')
+        // Fail-soft: avoid noisy runtime errors for transient network issues.
+        // The UI will keep the last-known tier/plan (or safe defaults on first load).
         return
       }
       let data
       try {
         data = JSON.parse(text)
       } catch (parseError: unknown) {
-        console.error('PlanProvider: JSON parse error:', parseError, 'Response text:', text.substring(0, 200))
+        // Fail-soft: avoid noisy runtime errors; treat as transient.
         return
       }
       // Standard envelope: { ok: true, data: { plan, trial } }
@@ -258,8 +259,8 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
           endsAt: typeof nextTrial.endsAt === 'string' ? nextTrial.endsAt : null,
         })
       }
-    } catch (error: unknown) {
-      console.error('PlanProvider: Error refreshing plan:', error)
+    } catch {
+      // Fail-soft: ignore transient fetch errors (offline, navigation aborts, etc).
     } finally {
       setLoading(false)
     }

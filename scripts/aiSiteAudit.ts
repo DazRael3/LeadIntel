@@ -8,10 +8,10 @@ import {
   preflightWritableDir,
   npmCommand,
   isWindows,
-} from './audit/tooling'
-import { classifyRequestFailed } from './audit/network'
-import { fetchSitemapRoutes } from './audit/sitemap'
-import { normalizeRoute } from './audit/url'
+} from './audit/tooling.ts'
+import { classifyRequestFailed } from './audit/network.ts'
+import { fetchSitemapRoutes } from './audit/sitemap.ts'
+import { normalizeRoute } from './audit/url.ts'
 
 type FlowStep = {
   id: string

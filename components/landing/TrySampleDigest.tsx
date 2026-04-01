@@ -30,6 +30,39 @@ type ApiOk = {
 type ApiErr = { ok: false; error?: { message?: string } }
 type ApiEnvelope = ApiOk | ApiErr
 
+const EMAIL_CONFIG_CACHE_KEY = 'li_email_config_v1'
+const EMAIL_CONFIG_CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6 hours
+
+type EmailConfigCache = { enabled: boolean; ts: number }
+
+function loadEmailConfigCache(): EmailConfigCache | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(EMAIL_CONFIG_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object') return null
+    const obj = parsed as Record<string, unknown>
+    const enabled = obj.enabled
+    const ts = obj.ts
+    if (typeof enabled !== 'boolean') return null
+    if (typeof ts !== 'number' || !Number.isFinite(ts)) return null
+    if (Date.now() - ts > EMAIL_CONFIG_CACHE_TTL_MS) return null
+    return { enabled, ts }
+  } catch {
+    return null
+  }
+}
+
+function saveEmailConfigCache(enabled: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(EMAIL_CONFIG_CACHE_KEY, JSON.stringify({ enabled, ts: Date.now() } satisfies EmailConfigCache))
+  } catch {
+    // ignore
+  }
+}
+
 function getDeviceClass(): 'mobile' | 'desktop' | 'unknown' {
   if (typeof window === 'undefined') return 'unknown'
   const w = window.innerWidth
@@ -92,12 +125,20 @@ export function TrySampleDigest() {
     let cancelled = false
     const loadEmailConfig = async () => {
       try {
-        const res = await fetch('/api/public/email-config', { method: 'GET', cache: 'no-store' })
+        const cached = loadEmailConfigCache()
+        if (cached) {
+          setEmailConfigured(cached.enabled)
+          return
+        }
+
+        const res = await fetch('/api/public/email-config', { method: 'GET', cache: 'force-cache' })
         if (!res.ok) return
         const json = (await res.json()) as { ok?: boolean; data?: { enabled?: boolean } }
         if (!json?.ok) return
         if (cancelled) return
-        setEmailConfigured(Boolean(json.data?.enabled))
+        const enabled = Boolean(json.data?.enabled)
+        setEmailConfigured(enabled)
+        saveEmailConfigCache(enabled)
       } catch {
         // ignore
       }

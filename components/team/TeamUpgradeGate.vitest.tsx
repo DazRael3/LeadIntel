@@ -16,14 +16,15 @@ describe('TeamUpgradeGate', () => {
     )
 
     expect(screen.getByRole('heading', { level: 1, name: 'Actions' })).toBeInTheDocument()
-    expect(screen.getByText('Locked on Starter')).toBeInTheDocument()
+    expect(screen.getByText(/Team-only/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Upgrade to Team' })).toHaveAttribute('href', '/pricing?target=team')
   })
 
   it('renders locked tier based on effective tier', async () => {
     const { TeamUpgradeGate } = await import('./TeamUpgradeGate')
     render(<TeamUpgradeGate heading="Command Center" currentTier="closer_plus" />)
-    expect(screen.getByText('Locked on Closer+')).toBeInTheDocument()
+    expect(screen.getByText(/Team-only/i)).toBeInTheDocument()
+    expect(screen.getByText(/Closer\+/i)).toBeInTheDocument()
   })
 
   it('renders session proof when email provided', async () => {

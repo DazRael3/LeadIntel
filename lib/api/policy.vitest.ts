@@ -44,6 +44,7 @@ describe('API Policy', () => {
     'POST:/api/analytics/track',
     'POST:/api/admin/site-report/run',
     'GET:/api/admin/site-report/latest',
+    'GET:/api/public/email-config',
   ]
 
   it('should have policies for all required routes', () => {
@@ -91,6 +92,13 @@ describe('API Policy', () => {
     expect(policy.webhookSignatureRequired).toBe(true)
     expect(policy.rateLimit.authPerMin).toBe(300) // High limit (DoS backstop)
     expect(policy.rateLimit.ipPerMin).toBe(300)
+  })
+
+  it('should not rate-limit authenticated email-config requests to zero', () => {
+    const policy = getRoutePolicy('/api/public/email-config', 'GET')
+    expect(policy.authRequired).toBe(false)
+    expect(policy.originRequired).toBe(false)
+    expect(policy.rateLimit.authPerMin).toBeGreaterThan(0)
   })
 
   it('should return correct policy for dev routes', () => {

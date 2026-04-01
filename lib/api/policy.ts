@@ -115,7 +115,9 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     tier: 'D',
     maxBytes: 0,
     rateLimit: {
-      authPerMin: 0,
+      // Public endpoint, but authenticated sessions may still call it (cookie-based browsing).
+      // authPerMin must be > 0; otherwise any authed request can be immediately 429'd.
+      authPerMin: 60,
       ipPerMin: 30,
     },
     originRequired: false,

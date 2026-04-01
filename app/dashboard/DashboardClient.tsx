@@ -199,8 +199,8 @@ export function DashboardClient({
             ) : (
               <div className="md:hidden">
                 <ProOnlyCard
-                  title="Daily shortlist is Team-only"
-                  description="Upgrade to Team to unlock the workflow shortlist, queue + approvals triage, and team operations."
+                  title="Team ops console (Team-only)"
+                  description="Upgrade to Team to unlock the ops console: queue + approvals triage, routing, and workspace operations."
                   icon="lock"
                   iconColor="purple"
                   upgradeTarget="team"

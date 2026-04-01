@@ -12,6 +12,7 @@ export function TeamUpgradeGate(props: {
   primaryCtaLabel?: string
   secondaryCtaHref?: string
   secondaryCtaLabel?: string
+  lockedLabel?: string
   currentTier?: Tier
   sessionEmail?: string | null
 } = {}) {
@@ -26,6 +27,7 @@ export function TeamUpgradeGate(props: {
   const secondaryCtaHref = props.secondaryCtaHref ?? '/pricing'
   const secondaryCtaLabel = props.secondaryCtaLabel ?? 'See pricing'
   const lockedOn = tierLabel(props.currentTier ?? 'starter')
+  const lockedLabel = props.lockedLabel ?? `Team-only · your tier: ${lockedOn}`
 
   return (
     <div className="min-h-screen bg-background terminal-grid">
@@ -37,7 +39,7 @@ export function TeamUpgradeGate(props: {
 
         <Card className="border-cyan-500/20 bg-card/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Locked on {lockedOn}</CardTitle>
+            <CardTitle className="text-base">{lockedLabel}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <p>{whyLocked}</p>
