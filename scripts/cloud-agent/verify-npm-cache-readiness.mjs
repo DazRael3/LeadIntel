@@ -1,0 +1,80 @@
+#!/usr/bin/env node
+
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const rootDir = resolve(__dirname, '..', '..')
+const lockfile = join(rootDir, 'package-lock.json')
+const modulesLockfile = join(rootDir, 'node_modules', '.package-lock.json')
+const stateDir = join(rootDir, '.cache', 'cloud-agent')
+const lockHashFile = join(stateDir, 'npm-lock.sha256')
+const nvmrc = join(rootDir, '.nvmrc')
+
+function fail(message) {
+  console.error(message)
+  process.exit(1)
+}
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: process.env,
+    ...options,
+  })
+  if (result.error) {
+    fail(`[agent:cache] Failed running "${command} ${args.join(' ')}": ${result.error.message}`)
+  }
+  if (typeof result.status === 'number' && result.status !== 0) {
+    process.exit(result.status)
+  }
+}
+
+if (!existsSync(lockfile)) {
+  fail('[agent:cache] package-lock.json is required for deterministic installs.')
+}
+
+if (existsSync(nvmrc)) {
+  const requiredMajor = readFileSync(nvmrc, 'utf8').trim()
+  const currentMajor = process.versions.node.split('.')[0]
+  if (requiredMajor && requiredMajor !== currentMajor) {
+    console.error(`[agent:cache] Warning: .nvmrc requests Node ${requiredMajor}, current is ${currentMajor}.`)
+  }
+}
+
+mkdirSync(stateDir, { recursive: true })
+
+const lockHash = createHash('sha256').update(readFileSync(lockfile)).digest('hex')
+let warmModules = false
+
+if (existsSync(modulesLockfile) && existsSync(lockHashFile)) {
+  const rootLock = readFileSync(lockfile)
+  const installedLock = readFileSync(modulesLockfile)
+  const savedHash = readFileSync(lockHashFile, 'utf8').trim()
+  if (Buffer.compare(rootLock, installedLock) === 0 && savedHash === lockHash) {
+    warmModules = true
+  }
+}
+
+if (warmModules) {
+  console.log('[agent:cache] node_modules is lockfile-aligned. Skipping npm ci.')
+} else {
+  console.log('[agent:cache] Installing dependencies with npm ci (prefer-offline).')
+  run('npm', ['ci', '--prefer-offline', '--no-audit', '--fund=false'])
+}
+
+console.log('[agent:cache] Verifying npm cache integrity.')
+run('npm', ['cache', 'verify'])
+
+writeFileSync(lockHashFile, `${lockHash}\n`, 'utf8')
+
+run('npx', ['--no-install', 'tsc', '--version'])
+run('npx', ['--no-install', 'next', '--version'])
+run('npx', ['--no-install', 'vitest', '--version'])
+
+console.log('[agent:cache] Ready: dependencies and toolchain are cache-warm.')
