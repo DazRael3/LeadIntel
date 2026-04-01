@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -13,6 +13,7 @@ const lockfile = join(rootDir, 'package-lock.json')
 const modulesLockfile = join(rootDir, 'node_modules', '.package-lock.json')
 const stateDir = join(rootDir, '.cache', 'cloud-agent')
 const lockHashFile = join(stateDir, 'npm-lock.sha256')
+const installedLockSnapshot = join(stateDir, 'package-lock.installed.snapshot.json')
 const nvmrc = join(rootDir, '.nvmrc')
 
 function fail(message) {
@@ -68,7 +69,9 @@ let warmModules = false
 
 if (existsSync(modulesLockfile) && existsSync(lockHashFile)) {
   const rootLock = readFileSync(lockfile)
-  const installedLock = readFileSync(modulesLockfile)
+  const installedLock = existsSync(installedLockSnapshot)
+    ? readFileSync(installedLockSnapshot)
+    : readFileSync(modulesLockfile)
   const savedHash = readFileSync(lockHashFile, 'utf8').trim()
   if (Buffer.compare(rootLock, installedLock) === 0 && savedHash === lockHash) {
     warmModules = true
@@ -86,6 +89,7 @@ console.log('[agent:cache] Verifying npm cache integrity.')
 run(resolveExecutable('npm'), ['cache', 'verify'])
 
 writeFileSync(lockHashFile, `${lockHash}\n`, 'utf8')
+cpSync(lockfile, installedLockSnapshot)
 
 run(resolveExecutable('npx'), ['--no-install', 'tsc', '--version'])
 run(resolveExecutable('npx'), ['--no-install', 'next', '--version'])
