@@ -33,6 +33,23 @@ cd LeadIntel
 npm install
 ```
 
+### Optional: Cloud agent dependency prewarm/readiness
+
+For fresh cloud agents, use the lockfile-aware scripts to preinstall dependencies and verify cache readiness:
+
+```bash
+# Strictly installs from package-lock.json and records lock hash
+npm run cloud:deps:prewarm
+
+# Fast readiness check; runs npm ci only when lock hash changed or node_modules missing
+npm run cloud:deps:verify
+```
+
+These scripts are in `scripts/cloud-agent/` and are optimized for quickly running:
+- `npm run typecheck`
+- `npm run lint`
+- `npm run test:unit`
+
 **Note for Windows Users**: Some antivirus/EDR software blocks `npm.ps1` shims. If you encounter this issue, use `npm.cmd` explicitly (or run via WSL/Linux).
 
 ### 3. Environment Variables

@@ -39,7 +39,10 @@
     "audit:ai": "tsx scripts/aiSiteAudit.ts",
     "audit:storage": "tsx scripts/saveAuditStorageState.ts",
     "audit:doctor": "tsx scripts/auditDoctor.ts",
-    "audit:public": "tsx scripts/aiSiteAudit.ts -- --scope=public"
+    "audit:public": "tsx scripts/aiSiteAudit.ts -- --scope=public",
+    "cloud:agent:prewarm": "bash scripts/cloud-agent/prewarm-npm-deps.sh",
+    "cloud:agent:verify-cache": "bash scripts/cloud-agent/verify-npm-cache-readiness.sh",
+    "cloud:agent:ready": "npm run cloud:agent:verify-cache && npm run typecheck && npm run lint && npm run test:unit -- --runInBand"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
