@@ -54,18 +54,6 @@ type AutomationEnvelope =
       ok: true
       data: {
         enabled: boolean
-        lastRuns: Record<string, { status: string; finishedAt: string }>
-      }
-    }
-  | { ok: false; error?: { message?: string } }
-
-type OpsHealthEnvelope =
-  | {
-      ok: true
-      data: {
-        score: number
-        grade: 'excellent' | 'good' | 'needs_attention' | 'critical'
-        updatedAt: string
       }
     }
   | { ok: false; error?: { message?: string } }
@@ -73,11 +61,10 @@ type OpsHealthEnvelope =
 export default async function StatusPage() {
   const baseUrl = await getBaseUrl()
 
-  const [health, version, automation, opsHealth] = await Promise.all([
+  const [health, version, automation] = await Promise.all([
     safeFetchJson<HealthEnvelope>(`${baseUrl}/api/health`),
     safeFetchJson<VersionEnvelope>(`${baseUrl}/api/version`),
     safeFetchJson<AutomationEnvelope>(`${baseUrl}/api/public/automation`),
-    safeFetchJson<OpsHealthEnvelope>(`${baseUrl}/api/public/ops-health`),
   ])
 
   const status = health?.ok === true ? health.data.status : 'degraded'
@@ -115,12 +102,9 @@ export default async function StatusPage() {
             <div>
               <span className="font-medium text-foreground">Status:</span> {status}
             </div>
-            {opsHealth?.ok === true ? (
-              <div>
-                <span className="font-medium text-foreground">Ops health:</span> {opsHealth.data.score}/100{' '}
-                <span className="text-xs text-muted-foreground">({opsHealth.data.grade})</span>
-              </div>
-            ) : null}
+            <div>
+              <span className="font-medium text-foreground">Ops health:</span> available in operator dashboard only
+            </div>
             {checkedAt ? (
               <div>
                 <span className="font-medium text-foreground">Last checked:</span> {new Date(checkedAt).toLocaleString()}
@@ -238,41 +222,11 @@ export default async function StatusPage() {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
             {automation?.ok === true && automation.data.enabled ? (
-              Object.keys(automation.data.lastRuns).length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-cyan-500/10 text-xs text-muted-foreground">
-                        <th className="text-left py-2 pr-3">Job</th>
-                        <th className="text-left py-2 pr-3">Status</th>
-                        <th className="text-left py-2">Finished</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(automation.data.lastRuns).map(([job, run]) => (
-                        <tr key={job} className="border-b border-cyan-500/10">
-                          <td className="py-2 pr-3 font-medium text-foreground">
-                            <div>{job}</div>
-                            {job === 'content_audit' ? (
-                              <div className="mt-1 text-xs font-normal text-muted-foreground">Content audit details are available inside the app.</div>
-                            ) : null}
-                          </td>
-                          <td className="py-2 pr-3">
-                            <Badge variant="outline">{run.status}</Badge>
-                          </td>
-                          <td className="py-2">{new Date(run.finishedAt).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div>No completed automation runs have been recorded yet.</div>
-              )
+              <div>Automation services are enabled.</div>
             ) : (
               <div>Automation metrics aren’t enabled on this deployment.</div>
             )}
-            <div className="text-xs text-muted-foreground">This endpoint exposes timestamps only (no secrets).</div>
+            <div className="text-xs text-muted-foreground">This endpoint exposes only aggregate automation health.</div>
           </CardContent>
         </Card>
 
