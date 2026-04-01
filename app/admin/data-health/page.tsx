@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 import { computeDataHealthSummary } from '@/lib/services/data-health'
 
 export const dynamic = 'force-dynamic'
@@ -22,10 +21,8 @@ function toneForErrors(errors: number): { cls: string; label: string } {
   return { cls: 'border-red-500/30 bg-red-500/10 text-red-200', label: 'Unhealthy' }
 }
 
-export default async function AdminDataHealthPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = typeof sp.token === 'string' ? sp.token : null
-  if (!isValidAdminToken(token)) notFound()
+export default async function AdminDataHealthPage() {
+  await requireAdminSessionOrNotFound()
 
   const summary = await computeDataHealthSummary()
 
@@ -39,10 +36,10 @@ export default async function AdminDataHealthPage(props: { searchParams?: Promis
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/ops?token=${encodeURIComponent(token ?? '')}`}>Ops</Link>
+            <Link href="/admin/ops">Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/run-health?token=${encodeURIComponent(token ?? '')}`}>Run health</Link>
+            <Link href="/admin/run-health">Run health</Link>
           </Button>
         </div>
       </div>

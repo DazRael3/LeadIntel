@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 import { adminListRecentWebhookDeliveries, adminListWebhookEndpoints } from '@/lib/services/admin-queries'
 import { badgeClassForTone, webhookDeliveryStatusLabel } from '@/lib/ui/status-labels'
 
@@ -23,10 +22,8 @@ function truncate(s: string, max: number): string {
   return t.slice(0, Math.max(0, max - 3)) + '...'
 }
 
-export default async function AdminWebhooksOpsPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = typeof sp.token === 'string' ? sp.token : null
-  if (!isValidAdminToken(token)) notFound()
+export default async function AdminWebhooksOpsPage() {
+  await requireAdminSessionOrNotFound()
 
   const [endpoints, deliveries] = await Promise.all([adminListWebhookEndpoints(200), adminListRecentWebhookDeliveries(200)])
 
@@ -42,13 +39,13 @@ export default async function AdminWebhooksOpsPage(props: { searchParams?: Promi
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/ops?token=${encodeURIComponent(token ?? '')}`}>Ops</Link>
+            <Link href="/admin/ops">Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/run-health?token=${encodeURIComponent(token ?? '')}`}>Run health</Link>
+            <Link href="/admin/run-health">Run health</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/generations?token=${encodeURIComponent(token ?? '')}`}>Generations</Link>
+            <Link href="/admin/generations">Generations</Link>
           </Button>
         </div>
       </div>

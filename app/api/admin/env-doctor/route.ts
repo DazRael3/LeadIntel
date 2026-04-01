@@ -2,20 +2,14 @@ import { NextRequest } from 'next/server'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, ErrorCode, asHttpError, createCookieBridge } from '@/lib/api/http'
 import { runEnvDoctor } from '@/lib/ops/envDoctor'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { isAdminRequestAuthorized } from '@/lib/admin/access'
 
 export const dynamic = 'force-dynamic'
-
-function readAdminToken(request: NextRequest): string | null {
-  const header = (request.headers.get('x-admin-token') ?? '').trim()
-  return header || null
-}
 
 export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
   try {
-    const token = readAdminToken(request)
-    if (!isValidAdminToken(token)) {
+    if (!isAdminRequestAuthorized({ request })) {
       return fail(ErrorCode.NOT_FOUND, 'Not found', undefined, { status: 404 }, bridge, requestId)
     }
 

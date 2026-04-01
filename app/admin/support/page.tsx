@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 import { buildSupportContext, lookupUserIdByEmail } from '@/lib/services/support-tools'
 import { badgeClassForTone, exportJobStatusLabel } from '@/lib/ui/status-labels'
 
@@ -23,18 +22,15 @@ function truncate(s: string, max: number): string {
   return t.slice(0, Math.max(0, max - 3)) + '...'
 }
 
-export default async function AdminSupportPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = typeof sp.token === 'string' ? sp.token : null
-  if (!isValidAdminToken(token)) notFound()
+export default async function AdminSupportPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await props.searchParams
+  await requireAdminSessionOrNotFound()
 
   const userIdParam = typeof sp.userId === 'string' ? sp.userId.trim() : ''
   const emailParam = typeof sp.email === 'string' ? sp.email.trim() : ''
   const resolvedUserId = userIdParam || (emailParam ? await lookupUserIdByEmail(emailParam) : null) || null
 
   const ctx = resolvedUserId ? await buildSupportContext({ userId: resolvedUserId }) : null
-
-  const tokenQs = `token=${encodeURIComponent(token ?? '')}`
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 space-y-6">
@@ -46,13 +42,13 @@ export default async function AdminSupportPage(props: { searchParams?: Promise<R
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/ops?${tokenQs}`}>Ops</Link>
+            <Link href="/admin/ops">Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/run-health?${tokenQs}`}>Run health</Link>
+            <Link href="/admin/run-health">Run health</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/generations?${tokenQs}`}>Generations</Link>
+            <Link href="/admin/generations">Generations</Link>
           </Button>
         </div>
       </div>
@@ -63,7 +59,6 @@ export default async function AdminSupportPage(props: { searchParams?: Promise<R
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           <form method="GET" action="/admin/support" className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <input type="hidden" name="token" value={token ?? ''} />
             <input
               name="userId"
               defaultValue={userIdParam}

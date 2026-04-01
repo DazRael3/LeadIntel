@@ -2,14 +2,9 @@ import { NextRequest } from 'next/server'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, ErrorCode, asHttpError, createCookieBridge } from '@/lib/api/http'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { isAdminRequestAuthorized } from '@/lib/admin/access'
 
 export const dynamic = 'force-dynamic'
-
-function readAdminToken(request: NextRequest): string | null {
-  const header = (request.headers.get('x-admin-token') ?? '').trim()
-  return header || null
-}
 
 type SnapshotRow = {
   run_started_at: string | null
@@ -33,8 +28,7 @@ function safeNum(v: unknown): number {
 export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
   try {
-    const token = readAdminToken(request)
-    if (!isValidAdminToken(token)) {
+    if (!isAdminRequestAuthorized({ request })) {
       return fail(ErrorCode.NOT_FOUND, 'Not found', undefined, { status: 404 }, bridge, requestId)
     }
 

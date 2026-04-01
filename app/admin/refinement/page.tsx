@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { RefinementBoard } from '@/components/refinement/RefinementBoard'
 import { auditRefinement } from '@/lib/refinement/audit'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,16 +14,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-function requireAdminToken(token: string | null): void {
-  const expected = (process.env.ADMIN_TOKEN ?? '').trim()
-  if (!expected) notFound()
-  if (!token || token !== expected) notFound()
-}
-
-export default async function AdminRefinementPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = typeof sp.token === 'string' ? sp.token : null
-  requireAdminToken(token)
+export default async function AdminRefinementPage() {
+  await requireAdminSessionOrNotFound()
 
   const report = auditRefinement()
 
@@ -38,10 +30,10 @@ export default async function AdminRefinementPage(props: { searchParams?: Promis
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/ops?token=${encodeURIComponent(token ?? '')}`}>Ops</Link>
+            <Link href="/admin/ops">Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/growth?token=${encodeURIComponent(token ?? '')}`}>Growth Ops</Link>
+            <Link href="/admin/growth">Growth Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/status">Status</Link>

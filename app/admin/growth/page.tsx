@@ -1,6 +1,6 @@
-import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { revalidatePath } from 'next/cache'
+import { notFound } from 'next/navigation'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,7 @@ import { getPostHogApiConfig, queryHogQL } from '@/lib/posthog/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { seedPublishQueue } from '@/lib/growth/seedPublishQueue'
 import { CopyTextButton } from '@/components/admin/CopyTextButton'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,12 +67,6 @@ function isEnabledPostHogReads(): boolean {
   return Boolean(getPostHogApiConfig())
 }
 
-function requireAdminToken(token: string | null): void {
-  const expected = (process.env.ADMIN_TOKEN ?? '').trim()
-  if (!expected) notFound()
-  if (!token || token !== expected) notFound()
-}
-
 async function getKpis24h(): Promise<{ enabled: boolean; rows: Array<{ metric: string; count: number }> }> {
   const cfg = getPostHogApiConfig()
   if (!cfg) return { enabled: false, rows: [] }
@@ -110,15 +105,12 @@ function Integration(props: { label: string; enabled: boolean; note: string }) {
   )
 }
 
-export default async function AdminGrowthOpsPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = typeof sp.token === 'string' ? sp.token : null
-  requireAdminToken(token)
+export default async function AdminGrowthOpsPage() {
+  await requireAdminSessionOrNotFound()
 
-  async function seedQueuesNow(formData: FormData) {
+  async function seedQueuesNow(_formData: FormData) {
     'use server'
-    const tok = String(formData.get('token') ?? '')
-    requireAdminToken(tok)
+    await requireAdminSessionOrNotFound()
     const supabase = createSupabaseAdminClient({ schema: 'api' })
     await seedPublishQueue({ supabase })
     revalidatePath('/admin/growth')
@@ -126,8 +118,7 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
 
   async function runNow(formData: FormData) {
     'use server'
-    const tok = String(formData.get('token') ?? '')
-    requireAdminToken(tok)
+    await requireAdminSessionOrNotFound()
     const job = String(formData.get('job') ?? '') as JobName
     const allowed: JobName[] = ['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit', 'growth_cycle']
     if (!allowed.includes(job)) notFound()
@@ -137,8 +128,7 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
 
   async function retryPublishQueue(formData: FormData) {
     'use server'
-    const tok = String(formData.get('token') ?? '')
-    requireAdminToken(tok)
+    await requireAdminSessionOrNotFound()
     const id = String(formData.get('id') ?? '')
     if (!id) notFound()
     const supabase = createSupabaseAdminClient({ schema: 'api' })
@@ -147,10 +137,9 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
     revalidatePath('/admin/growth')
   }
 
-  async function retryAllFailed(formData: FormData) {
+  async function retryAllFailed(_formData: FormData) {
     'use server'
-    const tok = String(formData.get('token') ?? '')
-    requireAdminToken(tok)
+    await requireAdminSessionOrNotFound()
     const supabase = createSupabaseAdminClient({ schema: 'api' })
     const nowIso = new Date().toISOString()
     await supabase.from('publish_queue').update({ status: 'queued', scheduled_for: nowIso, last_error: null }).eq('status', 'failed')
@@ -159,8 +148,7 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
 
   async function markPosted(formData: FormData) {
     'use server'
-    const tok = String(formData.get('token') ?? '')
-    requireAdminToken(tok)
+    await requireAdminSessionOrNotFound()
     const id = String(formData.get('id') ?? '')
     if (!id) notFound()
     const supabase = createSupabaseAdminClient({ schema: 'api' })
@@ -279,7 +267,6 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
           <CardContent className="flex flex-wrap gap-3">
             {(['growth_cycle', 'lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit'] as JobName[]).map((job) => (
               <form key={job} action={runNow}>
-                <input type="hidden" name="token" value={token ?? ''} />
                 <input type="hidden" name="job" value={job} />
                 <Button type="submit" className={job === 'growth_cycle' ? 'neon-border hover:glow-effect' : ''} variant={job === 'growth_cycle' ? 'default' : 'outline'}>
                   Run {job.replace('_', ' ')}
@@ -287,7 +274,6 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
               </form>
             ))}
             <form action={seedQueuesNow}>
-              <input type="hidden" name="token" value={token ?? ''} />
               <Button type="submit" variant="outline">
                 Seed publish queue
               </Button>
@@ -309,7 +295,6 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
             </div>
             <div className="flex flex-wrap gap-3">
               <form action={retryAllFailed}>
-                <input type="hidden" name="token" value={token ?? ''} />
                 <Button type="submit" variant="outline">
                   Retry failed publishes
                 </Button>
@@ -355,7 +340,6 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
                         <td className="py-2">
                           {r.status === 'failed' ? (
                             <form action={retryPublishQueue}>
-                              <input type="hidden" name="token" value={token ?? ''} />
                               <input type="hidden" name="id" value={r.id} />
                               <Button type="submit" size="sm" variant="outline">
                                 Retry
@@ -399,7 +383,6 @@ export default async function AdminGrowthOpsPage(props: { searchParams?: Promise
                         <CopyTextButton text={p.content} />
                         {p.status !== 'posted' ? (
                           <form action={markPosted}>
-                            <input type="hidden" name="token" value={token ?? ''} />
                             <input type="hidden" name="id" value={p.id} />
                             <Button size="sm" variant="outline" type="submit">
                               Mark posted

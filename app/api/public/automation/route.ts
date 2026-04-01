@@ -14,21 +14,13 @@ type AutomationSummary = {
 
 const JOBS = ['lifecycle', 'digest_lite', 'kpi_monitor', 'content_audit', 'growth_cycle', 'sources_refresh'] as const satisfies readonly JobName[]
 
-const JOB_STALE_HOURS: Record<JobName, number> = {
+const JOB_STALE_HOURS: Partial<Record<JobName, number>> = {
   lifecycle: 30,
   digest_lite: 8 * 24,
   kpi_monitor: 30,
   content_audit: 30,
   growth_cycle: 30,
   sources_refresh: 30,
-  autopilot: 30,
-  leads_discover: 30,
-  digest: 30,
-  digest_content: 30,
-  email_send: 30,
-  prospect_watch: 30,
-  prospect_watch_digest: 8 * 24,
-  webhook_queue_drain: 30,
 }
 
 function canReadJobRuns(): boolean {

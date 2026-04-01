@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PageViewTrack } from '@/components/marketing/PageViewTrack'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { requireAdminSessionOrNotFound } from '@/lib/admin/session'
 import { adminListRecentUsageEvents } from '@/lib/services/admin-queries'
 
 export const dynamic = 'force-dynamic'
@@ -28,10 +27,8 @@ function statusBadge(status: string) {
   return <Badge variant={variant as 'outline' | 'secondary' | 'destructive'}>{status}</Badge>
 }
 
-export default async function AdminGenerationsOpsPage(props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = (await props.searchParams) ?? {}
-  const token = typeof sp.token === 'string' ? sp.token : null
-  if (!isValidAdminToken(token)) notFound()
+export default async function AdminGenerationsOpsPage() {
+  await requireAdminSessionOrNotFound()
 
   const rows = await adminListRecentUsageEvents(200)
 
@@ -45,13 +42,13 @@ export default async function AdminGenerationsOpsPage(props: { searchParams?: Pr
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/ops?token=${encodeURIComponent(token ?? '')}`}>Ops</Link>
+            <Link href="/admin/ops">Ops</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/run-health?token=${encodeURIComponent(token ?? '')}`}>Run health</Link>
+            <Link href="/admin/run-health">Run health</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/webhooks?token=${encodeURIComponent(token ?? '')}`}>Webhooks</Link>
+            <Link href="/admin/webhooks">Webhooks</Link>
           </Button>
         </div>
       </div>

@@ -66,7 +66,7 @@ function sparkline(points: number[], width = 260, height = 44): string {
     .join(' ')
 }
 
-export function AdminKpiMonitorPanelClient(props: { token: string | null }) {
+export function AdminKpiMonitorPanelClient() {
   const [latest, setLatest] = useState<LatestEnvelope | null>(null)
   const [trends, setTrends] = useState<TrendsEnvelope | null>(null)
   const [loading, setLoading] = useState(false)
@@ -74,17 +74,11 @@ export function AdminKpiMonitorPanelClient(props: { token: string | null }) {
   const [selectedWindow, setSelectedWindow] = useState<'24h' | '7d'>('24h')
 
   async function load() {
-    if (!props.token) {
-      setLatest({ ok: false, error: { message: 'Admin token missing.' } })
-      setTrends({ ok: false, error: { message: 'Admin token missing.' } })
-      return
-    }
     setLoading(true)
     try {
-      const adminHeaders = { 'x-admin-token': props.token }
       const [l, t] = await Promise.all([
-        fetch('/api/admin/kpi-monitor/latest', { cache: 'no-store', headers: adminHeaders }).then((r) => r.json()),
-        fetch('/api/admin/kpi-monitor/trends?days=14', { cache: 'no-store', headers: adminHeaders }).then((r) => r.json()),
+        fetch('/api/admin/kpi-monitor/latest', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/admin/kpi-monitor/trends?days=14', { cache: 'no-store' }).then((r) => r.json()),
       ])
       setLatest(l as LatestEnvelope)
       setTrends(t as TrendsEnvelope)
@@ -98,7 +92,7 @@ export function AdminKpiMonitorPanelClient(props: { token: string | null }) {
 
   useEffect(() => {
     void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- token is stable for the session
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load is intentionally run once on mount
   }, [])
 
   const latestRows = useMemo(() => (latest?.ok ? latest.data.rows : []), [latest])

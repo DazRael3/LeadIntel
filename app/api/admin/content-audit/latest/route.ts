@@ -2,15 +2,14 @@ import { NextRequest } from 'next/server'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, ErrorCode, asHttpError, createCookieBridge } from '@/lib/api/http'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { isValidAdminToken } from '@/lib/admin/admin-token'
+import { hasAdminAccess } from '@/lib/admin/access'
 
 export const dynamic = 'force-dynamic'
 
 export const GET = withApiGuard(async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
   try {
-    const token = request.headers.get('x-admin-token')
-    if (!isValidAdminToken(token)) {
+    if (!hasAdminAccess(request)) {
       return fail(ErrorCode.NOT_FOUND, 'Not found', undefined, { status: 404 }, bridge, requestId)
     }
 

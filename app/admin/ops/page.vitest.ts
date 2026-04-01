@@ -9,8 +9,8 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-vi.mock('@/lib/admin/admin-token', () => ({
-  isValidAdminToken: (token: string | null | undefined) => token === 'ok',
+vi.mock('@/lib/admin/session', () => ({
+  requireAdminSessionOrNotFound: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/lib/ops/opsHealth', () => ({
@@ -70,13 +70,7 @@ vi.mock('./AdminKpiMonitorPanelClient', () => ({
 describe('/admin/ops page (server)', () => {
   it('does not crash when optional subsystems throw (fail-soft by section)', async () => {
     const mod = await import('./page')
-    await expect(mod.default({ searchParams: Promise.resolve({ token: 'ok' }) })).resolves.toBeTruthy()
-  })
-
-  it('returns notFound when token is invalid', async () => {
-    const mod = await import('./page')
-    await expect(mod.default({ searchParams: Promise.resolve({ token: 'nope' }) })).rejects.toThrow(/NEXT_NOT_FOUND/)
-    expect(notFoundMock).toHaveBeenCalledTimes(1)
+    await expect(mod.default()).resolves.toBeTruthy()
   })
 })
 
