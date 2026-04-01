@@ -58,23 +58,13 @@ type AutomationEnvelope =
     }
   | { ok: false; error?: { message?: string } }
 
-type OpsHealthEnvelope =
-  | {
-      ok: true
-      data: {
-        status: string
-      }
-    }
-  | { ok: false; error?: { message?: string } }
-
 export default async function StatusPage() {
   const baseUrl = await getBaseUrl()
 
-  const [health, version, automation, opsHealth] = await Promise.all([
+  const [health, version, automation] = await Promise.all([
     safeFetchJson<HealthEnvelope>(`${baseUrl}/api/health`),
     safeFetchJson<VersionEnvelope>(`${baseUrl}/api/version`),
     safeFetchJson<AutomationEnvelope>(`${baseUrl}/api/public/automation`),
-    safeFetchJson<OpsHealthEnvelope>(`${baseUrl}/api/public/ops-health`),
   ])
 
   const status = health?.ok === true ? health.data.status : 'degraded'
@@ -112,11 +102,9 @@ export default async function StatusPage() {
             <div>
               <span className="font-medium text-foreground">Status:</span> {status}
             </div>
-            {opsHealth?.ok === true ? (
-              <div>
-                <span className="font-medium text-foreground">Ops health:</span> {opsHealth.data.status}
-              </div>
-            ) : null}
+            <div>
+              <span className="font-medium text-foreground">Ops health:</span> available in operator dashboard only
+            </div>
             {checkedAt ? (
               <div>
                 <span className="font-medium text-foreground">Last checked:</span> {new Date(checkedAt).toLocaleString()}
