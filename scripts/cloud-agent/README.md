@@ -18,6 +18,7 @@ These scripts make fresh cloud agents ready to run Node quality checks quickly:
 
 - Uses Node scripts (`.mjs`) so commands work on Linux and Windows environments.
 - No bash dependency required.
+- On Windows, the scripts invoke `npm.cmd` / `npx.cmd` automatically.
 
 ## Recommended cloud-agent startup sequence
 

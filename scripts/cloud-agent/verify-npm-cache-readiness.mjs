@@ -35,6 +35,11 @@ function run(command, args, options = {}) {
   }
 }
 
+function resolveExecutable(baseName) {
+  if (process.platform === 'win32') return `${baseName}.cmd`
+  return baseName
+}
+
 if (!existsSync(lockfile)) {
   fail('[agent:cache] package-lock.json is required for deterministic installs.')
 }
@@ -65,16 +70,16 @@ if (warmModules) {
   console.log('[agent:cache] node_modules is lockfile-aligned. Skipping npm ci.')
 } else {
   console.log('[agent:cache] Installing dependencies with npm ci (prefer-offline).')
-  run('npm', ['ci', '--prefer-offline', '--no-audit', '--fund=false'])
+  run(resolveExecutable('npm'), ['ci', '--prefer-offline', '--no-audit', '--fund=false'])
 }
 
 console.log('[agent:cache] Verifying npm cache integrity.')
-run('npm', ['cache', 'verify'])
+run(resolveExecutable('npm'), ['cache', 'verify'])
 
 writeFileSync(lockHashFile, `${lockHash}\n`, 'utf8')
 
-run('npx', ['--no-install', 'tsc', '--version'])
-run('npx', ['--no-install', 'next', '--version'])
-run('npx', ['--no-install', 'vitest', '--version'])
+run(resolveExecutable('npx'), ['--no-install', 'tsc', '--version'])
+run(resolveExecutable('npx'), ['--no-install', 'next', '--version'])
+run(resolveExecutable('npx'), ['--no-install', 'vitest', '--version'])
 
 console.log('[agent:cache] Ready: dependencies and toolchain are cache-warm.')
