@@ -9,7 +9,7 @@ Raw audit artifacts (screenshots, storage state, HTML snapshots) are intentional
 From the repo root:
 
 ```bash
-node scripts/aiSiteAudit.ts --baseUrl "https://dazrael.com" --scope all
+AUDIT_BASE_URL="https://dazrael.com" AUDIT_SCOPE="public" npm run audit:ai
 ```
 
 Then review the generated report under `admin-reports/ai-site-audit/...` and update the latest summary in this folder.
