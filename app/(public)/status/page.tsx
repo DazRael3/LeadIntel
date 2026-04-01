@@ -54,7 +54,6 @@ type AutomationEnvelope =
       ok: true
       data: {
         enabled: boolean
-        lastRuns: Record<string, { status: string; finishedAt: string }>
       }
     }
   | { ok: false; error?: { message?: string } }
@@ -63,9 +62,7 @@ type OpsHealthEnvelope =
   | {
       ok: true
       data: {
-        score: number
-        grade: 'excellent' | 'good' | 'needs_attention' | 'critical'
-        updatedAt: string
+        status: string
       }
     }
   | { ok: false; error?: { message?: string } }
@@ -117,8 +114,7 @@ export default async function StatusPage() {
             </div>
             {opsHealth?.ok === true ? (
               <div>
-                <span className="font-medium text-foreground">Ops health:</span> {opsHealth.data.score}/100{' '}
-                <span className="text-xs text-muted-foreground">({opsHealth.data.grade})</span>
+                <span className="font-medium text-foreground">Ops health:</span> {opsHealth.data.status}
               </div>
             ) : null}
             {checkedAt ? (
@@ -238,41 +234,11 @@ export default async function StatusPage() {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
             {automation?.ok === true && automation.data.enabled ? (
-              Object.keys(automation.data.lastRuns).length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-cyan-500/10 text-xs text-muted-foreground">
-                        <th className="text-left py-2 pr-3">Job</th>
-                        <th className="text-left py-2 pr-3">Status</th>
-                        <th className="text-left py-2">Finished</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(automation.data.lastRuns).map(([job, run]) => (
-                        <tr key={job} className="border-b border-cyan-500/10">
-                          <td className="py-2 pr-3 font-medium text-foreground">
-                            <div>{job}</div>
-                            {job === 'content_audit' ? (
-                              <div className="mt-1 text-xs font-normal text-muted-foreground">Content audit details are available inside the app.</div>
-                            ) : null}
-                          </td>
-                          <td className="py-2 pr-3">
-                            <Badge variant="outline">{run.status}</Badge>
-                          </td>
-                          <td className="py-2">{new Date(run.finishedAt).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div>No completed automation runs have been recorded yet.</div>
-              )
+              <div>Automation services are enabled.</div>
             ) : (
               <div>Automation metrics aren’t enabled on this deployment.</div>
             )}
-            <div className="text-xs text-muted-foreground">This endpoint exposes timestamps only (no secrets).</div>
+            <div className="text-xs text-muted-foreground">This endpoint exposes only aggregate automation health.</div>
           </CardContent>
         </Card>
 
