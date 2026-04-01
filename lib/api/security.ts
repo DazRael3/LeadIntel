@@ -39,20 +39,6 @@ function expandWwwVariants(origin: string): string[] {
 }
 
 /**
- * Check if an origin is a localhost origin
- */
-function isLocalhostOrigin(origin: string): boolean {
-  if (!origin) return false
-  try {
-    const url = new URL(origin)
-    const hostname = url.hostname
-    return hostname === 'localhost' || hostname === '127.0.0.1'
-  } catch {
-    return false
-  }
-}
-
-/**
  * Get allowed origins from environment
  * Supports multiple origins separated by commas
  */
@@ -183,13 +169,6 @@ export function validateOrigin(
   })
   
   if (!isAllowed) {
-    // Special case: Allow localhost origins for local production testing
-    // This is safe because localhost requests can only come from the local machine
-    if (isLocalhostOrigin(requestOrigin)) {
-      console.warn(`[security] Allowing localhost origin in production mode: ${requestOrigin}`)
-      return null
-    }
-    
     return fail(
       ErrorCode.FORBIDDEN,
       'Origin not allowed',

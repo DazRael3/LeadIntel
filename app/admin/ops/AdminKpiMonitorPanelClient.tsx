@@ -81,9 +81,10 @@ export function AdminKpiMonitorPanelClient(props: { token: string | null }) {
     }
     setLoading(true)
     try {
+      const adminHeaders = { 'x-admin-token': props.token }
       const [l, t] = await Promise.all([
-        fetch(`/api/admin/kpi-monitor/latest?token=${encodeURIComponent(props.token)}`, { cache: 'no-store' }).then((r) => r.json()),
-        fetch(`/api/admin/kpi-monitor/trends?days=14&token=${encodeURIComponent(props.token)}`, { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/admin/kpi-monitor/latest', { cache: 'no-store', headers: adminHeaders }).then((r) => r.json()),
+        fetch('/api/admin/kpi-monitor/trends?days=14', { cache: 'no-store', headers: adminHeaders }).then((r) => r.json()),
       ])
       setLatest(l as LatestEnvelope)
       setTrends(t as TrendsEnvelope)

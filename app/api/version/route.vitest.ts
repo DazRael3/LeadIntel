@@ -28,15 +28,54 @@ describe('/api/version', () => {
     )
   })
 
-  it('includes repo/branch/sha when present', async () => {
+  it('keeps repo/branch/sha redacted for public requests', async () => {
     process.env.VERCEL_GIT_REPO_OWNER = 'DazRael3'
     process.env.VERCEL_GIT_REPO_SLUG = 'LeadIntel'
     process.env.VERCEL_GIT_COMMIT_REF = 'main'
     process.env.VERCEL_GIT_COMMIT_SHA = 'abcdef1234567890'
+    process.env.ADMIN_TOKEN = 'adm-secret'
 
     const { GET } = await import('./route')
     const res = await GET(new NextRequest('http://localhost:3000/api/version'))
     const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data.repo).toBe(null)
+    expect(json.data.branch).toBe(null)
+    expect(json.data.commitSha).toBe(null)
+  })
+
+  it('redacts repo/branch/sha without admin token', async () => {
+    process.env.VERCEL_GIT_REPO_OWNER = 'DazRael3'
+    process.env.VERCEL_GIT_REPO_SLUG = 'LeadIntel'
+    process.env.VERCEL_GIT_COMMIT_REF = 'main'
+    process.env.VERCEL_GIT_COMMIT_SHA = 'abcdef1234567890'
+    process.env.ADMIN_TOKEN = 'adm-secret'
+
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/version')
+    const res = await GET(req)
+    const json = await res.json()
+
+    expect(json.ok).toBe(true)
+    expect(json.data.repo).toBe(null)
+    expect(json.data.branch).toBe(null)
+    expect(json.data.commitSha).toBe(null)
+  })
+
+  it('includes repo/branch/sha with valid admin token header', async () => {
+    process.env.VERCEL_GIT_REPO_OWNER = 'DazRael3'
+    process.env.VERCEL_GIT_REPO_SLUG = 'LeadIntel'
+    process.env.VERCEL_GIT_COMMIT_REF = 'main'
+    process.env.VERCEL_GIT_COMMIT_SHA = 'abcdef1234567890'
+    process.env.ADMIN_TOKEN = 'adm-secret'
+
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/version', {
+      headers: { 'x-admin-token': 'adm-secret' },
+    })
+    const res = await GET(req)
+    const json = await res.json()
+
     expect(json.ok).toBe(true)
     expect(json.data.repo).toBe('DazRael3/LeadIntel')
     expect(json.data.branch).toBe('main')
