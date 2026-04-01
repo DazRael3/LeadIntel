@@ -1,4 +1,4 @@
-import { normalizeRoute } from './url.ts'
+import { normalizeRoute } from './url'
 
 function stripCdata(s: string): string {
   return s.replace('<![CDATA[', '').replace(']]>', '')
