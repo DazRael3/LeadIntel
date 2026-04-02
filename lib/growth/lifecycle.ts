@@ -200,31 +200,31 @@ export async function runLifecycleCron(args?: { now?: Date }) {
 
     try {
       if (!rowRaw.welcome_sent_at) {
-        await maybeSend('welcome', renderWelcomeEmail({ appUrl }), 'welcome_sent_at')
+        await maybeSend('welcome', renderWelcomeEmail({ appUrl, variantSeed: userId }), 'welcome_sent_at')
         continue
       }
 
       if (hrs >= 6 && accountsCount < 10 && !rowRaw.nudge_accounts_sent_at) {
-        await maybeSend('nudge_accounts', renderAccountsNudgeEmail({ appUrl }), 'nudge_accounts_sent_at')
+        await maybeSend('nudge_accounts', renderAccountsNudgeEmail({ appUrl, variantSeed: userId }), 'nudge_accounts_sent_at')
         continue
       }
 
       if (hrs >= 24 && pitchesCount < 1 && !rowRaw.nudge_pitch_sent_at) {
-        await maybeSend('nudge_pitch', renderPitchNudgeEmail({ appUrl }), 'nudge_pitch_sent_at')
+        await maybeSend('nudge_pitch', renderPitchNudgeEmail({ appUrl, variantSeed: userId }), 'nudge_pitch_sent_at')
         continue
       }
 
       if (days >= 3 && activated && !upgraded && !rowRaw.value_recap_sent_at) {
         await maybeSend(
           'value_recap',
-          renderValueRecapEmail({ appUrl, accountsCount, pitchesCount, savedOutputsCount: pitchesCount }),
+          renderValueRecapEmail({ appUrl, accountsCount, pitchesCount, savedOutputsCount: pitchesCount, variantSeed: userId }),
           'value_recap_sent_at'
         )
         continue
       }
 
       if (days >= 7 && !activated && !rowRaw.winback_sent_at) {
-        await maybeSend('winback', renderWinbackEmail({ appUrl }), 'winback_sent_at')
+        await maybeSend('winback', renderWinbackEmail({ appUrl, variantSeed: userId }), 'winback_sent_at')
         continue
       }
     } catch (e) {

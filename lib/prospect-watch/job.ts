@@ -439,6 +439,7 @@ export async function runProspectWatchDigests(args: { dryRun?: boolean }) {
   const email = renderAdminNotificationEmail({
     title: `Prospect watch daily digest (${day})`,
     appUrl,
+    variationSeed: day,
     ctaHref: `${appUrl}/settings/prospects`,
     ctaLabel: 'Review queue',
     lines: bodyLines,
