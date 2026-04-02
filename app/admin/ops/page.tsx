@@ -358,7 +358,7 @@ export default async function AdminOpsPage() {
               </div>
             </div>
             <div className="text-[11px] text-muted-foreground">
-              Cron auth header: send <span className="text-foreground font-medium">x-cron-secret</span> with your configured secret. (Never put the secret in URLs.)
+              Cron auth header: send <span className="text-foreground font-medium">Authorization: Bearer &lt;secret&gt;</span> with your configured secret. (Never put the secret in URLs.)
             </div>
           </div>
 

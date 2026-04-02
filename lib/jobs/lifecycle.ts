@@ -78,31 +78,32 @@ async function sendLifecycleEmail(args: {
 
   const payload =
     args.type === 'welcome'
-      ? renderWelcomeEmail({ appUrl: args.appUrl })
+      ? renderWelcomeEmail({ appUrl: args.appUrl, variantSeed: args.userId })
       : args.type === 'nudge_accounts'
-        ? renderAccountsNudgeEmail({ appUrl: args.appUrl })
+        ? renderAccountsNudgeEmail({ appUrl: args.appUrl, variantSeed: args.userId })
         : args.type === 'nudge_pitch'
-          ? renderPitchNudgeEmail({ appUrl: args.appUrl })
+          ? renderPitchNudgeEmail({ appUrl: args.appUrl, variantSeed: args.userId })
           : args.type === 'first_output'
-            ? renderFirstOutputEmail({ appUrl: args.appUrl })
+            ? renderFirstOutputEmail({ appUrl: args.appUrl, variantSeed: args.userId })
             : args.type === 'starter_near_limit'
-              ? renderStarterNearLimitEmail({ appUrl: args.appUrl, remaining: args.starterRemaining })
+              ? renderStarterNearLimitEmail({ appUrl: args.appUrl, remaining: args.starterRemaining, variantSeed: args.userId })
               : args.type === 'starter_exhausted'
-                ? renderStarterExhaustedEmail({ appUrl: args.appUrl })
+                ? renderStarterExhaustedEmail({ appUrl: args.appUrl, variantSeed: args.userId })
                 : args.type === 'feedback_request'
-                  ? renderFeedbackRequestEmail({ appUrl: args.appUrl })
+                  ? renderFeedbackRequestEmail({ appUrl: args.appUrl, variantSeed: args.userId })
                   : args.type === 'upgrade_confirmation'
-                    ? renderUpgradeConfirmationEmail({ appUrl: args.appUrl })
+                    ? renderUpgradeConfirmationEmail({ appUrl: args.appUrl, variantSeed: args.userId })
                     : args.type === 'support_help'
-                      ? renderSupportHelpEmail({ appUrl: args.appUrl })
+                      ? renderSupportHelpEmail({ appUrl: args.appUrl, variantSeed: args.userId })
                       : args.type === 'value_recap'
                         ? renderValueRecapEmail({
                             appUrl: args.appUrl,
                             accountsCount: args.accountsCount,
                             pitchesCount: args.pitchesCount,
                             savedOutputsCount: args.pitchesCount,
+                            variantSeed: args.userId,
                           })
-                        : renderWinbackEmail({ appUrl: args.appUrl })
+                        : renderWinbackEmail({ appUrl: args.appUrl, variantSeed: args.userId })
 
   const dedupeKey = `lifecycle:${args.type}:${args.userId}`
   const res = await sendEmailDeduped(args.supabase, {

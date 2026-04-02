@@ -1,5 +1,6 @@
 import { escapeHtml } from '@/lib/email/templates'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { serverEnv } from '@/lib/env'
 
 export type LifecycleEmailType =
   | 'welcome'
@@ -19,6 +20,136 @@ export type LifecycleEmail = {
   subject: string
   html: string
   text: string
+}
+
+type LifecycleRenderArgs = {
+  appUrl: string
+  variantSeed?: string
+}
+
+function stableVariantIndex(seed: string | undefined, count: number): number {
+  if (count <= 1) return 0
+  const input = (seed ?? '').trim()
+  if (!input) return 0
+  let hash = 2166136261
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i)
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24)
+  }
+  return Math.abs(hash >>> 0) % count
+}
+
+function pickVariant(seed: string | undefined, values: readonly string[]): string {
+  return values[stableVariantIndex(seed, values.length)] ?? values[0] ?? ''
+}
+
+function getLogoUrl(): string | null {
+  const raw = (serverEnv.EMAIL_BRAND_IMAGE_URL ?? '').trim()
+  if (!raw) return null
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== 'https:') return null
+    return u.toString()
+  } catch {
+    return null
+  }
+}
+
+const DEFAULT_HEADER_HTML =
+  '<div style="font-size:14px;color:#94a3b8;letter-spacing:0.12em;text-transform:uppercase;">LeadIntel</div>'
+const FOOTER_MARKER = '<hr style="border:none;border-top:1px solid rgba(148,163,184,0.25); margin:20px 0;">'
+
+const VARIANT_LINES: Record<LifecycleEmailType, readonly string[]> = {
+  welcome: [
+    'You can start simple and still get signal quickly.',
+    'Small daily consistency usually beats one-time setup bursts.',
+    'We kept this workflow short so you can see value fast.',
+  ],
+  nudge_accounts: [
+    'A focused account list makes every alert more useful.',
+    'Quality targets outperform large unfocused lists.',
+    'Ten clear targets are enough to start strong.',
+  ],
+  nudge_pitch: [
+    'A first draft is the fastest way to calibrate your messaging.',
+    'One real draft gives you signal faster than planning alone.',
+    'Use the first draft to quickly iterate your angle.',
+  ],
+  first_output: [
+    'Keep momentum while this account context is fresh.',
+    'The second output is usually faster than the first.',
+    'Saving one winning angle compounds over time.',
+  ],
+  starter_near_limit: [
+    'Use the remaining previews on your highest-intent accounts.',
+    'Prioritize accounts with clear trigger activity first.',
+    'A focused final preview often reveals your best workflow.',
+  ],
+  starter_exhausted: [
+    'You’ve validated the flow; now it’s about consistent execution.',
+    'This is a good point to decide if the workflow fits your team.',
+    'If the signal quality is working, ongoing usage is the next step.',
+  ],
+  feedback_request: [
+    'Your feedback helps us reduce friction for real operators.',
+    'Short, specific feedback is the most useful for product tuning.',
+    'Even one blocker note helps us improve the next run.',
+  ],
+  upgrade_confirmation: [
+    'Thanks for investing in a more consistent outbound workflow.',
+    'You now have room to run this process without preview limits.',
+    'This unlocks continuous use instead of one-off testing.',
+  ],
+  support_help: [
+    'We can help you get from setup to first win quickly.',
+    'A short support exchange can remove most early blockers.',
+    'You do not need a long onboarding to get useful output.',
+  ],
+  value_recap: [
+    'Repeatable timing beats one-off outreach bursts.',
+    'Small daily review loops compound into better pipeline quality.',
+    'Operational consistency is where this workflow performs best.',
+  ],
+  winback: [
+    'If priorities changed, we can still help you restart quickly.',
+    'A quick sample can help validate fit without extra setup.',
+    'If timing matters now, we can help you re-enter the flow fast.',
+  ],
+}
+
+function renderEmailHeader(args: { appUrl: string }): string {
+  const logoUrl = getLogoUrl()
+  const appUrl = escapeHtml(args.appUrl)
+  return logoUrl
+    ? `<div style="margin-bottom:10px;">
+        <a href="${appUrl}" style="text-decoration:none;">
+          <img src="${escapeHtml(logoUrl)}" alt="LeadIntel logo" style="max-width:190px;height:auto;border:0;display:block;">
+        </a>
+      </div>`
+    : DEFAULT_HEADER_HTML
+}
+
+function applyBrandingAndVariation(
+  email: LifecycleEmail,
+  args: LifecycleRenderArgs
+): LifecycleEmail {
+  const seed = args.variantSeed ? `${email.type}:${args.variantSeed}` : email.type
+  const variantLine = pickVariant(seed, VARIANT_LINES[email.type])
+
+  const htmlWithLogo = email.html.replace(DEFAULT_HEADER_HTML, renderEmailHeader({ appUrl: args.appUrl }))
+  const htmlWithVariant = htmlWithLogo.includes(FOOTER_MARKER)
+    ? htmlWithLogo.replace(
+        FOOTER_MARKER,
+        `<div style="margin-top:12px;font-size:13px;color:#cbd5e1;">${escapeHtml(variantLine)}</div>${FOOTER_MARKER}`
+      )
+    : htmlWithLogo
+  const textWithVariant = `${email.text}\n\n${variantLine}`
+
+  return {
+    ...email,
+    html: htmlWithVariant,
+    text: textWithVariant,
+  }
 }
 
 function monoBlock(text: string): string {
@@ -48,7 +179,7 @@ function footer(args: { appUrl: string }): { html: string; text: string } {
   return { html, text }
 }
 
-export function renderWelcomeEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderWelcomeEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Your signal engine is ready'
   const primaryHref = `${args.appUrl}/dashboard`
   const secondaryHref = `${args.appUrl}/how-scoring-works`
@@ -83,10 +214,10 @@ export function renderWelcomeEmail(args: { appUrl: string }): LifecycleEmail {
     </div>
   </body></html>`
 
-  return { type: 'welcome', subject, html, text }
+  return applyBrandingAndVariation({ type: 'welcome', subject, html, text }, args)
 }
 
-export function renderAccountsNudgeEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderAccountsNudgeEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Add 10 accounts to unlock your first digest'
   const primaryHref = `${args.appUrl}/dashboard?onboarding=accounts`
   const secondaryHref = `${args.appUrl}/templates`
@@ -119,10 +250,10 @@ export function renderAccountsNudgeEmail(args: { appUrl: string }): LifecycleEma
     </div>
   </body></html>`
 
-  return { type: 'nudge_accounts', subject, html, text }
+  return applyBrandingAndVariation({ type: 'nudge_accounts', subject, html, text }, args)
 }
 
-export function renderPitchNudgeEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderPitchNudgeEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Generate your first pitch draft'
   const primaryHref = `${args.appUrl}/pitch`
   const secondaryHref = `${args.appUrl}/tour`
@@ -149,7 +280,7 @@ export function renderPitchNudgeEmail(args: { appUrl: string }): LifecycleEmail 
     </div>
   </body></html>`
 
-  return { type: 'nudge_pitch', subject, html, text }
+  return applyBrandingAndVariation({ type: 'nudge_pitch', subject, html, text }, args)
 }
 
 export function renderValueRecapEmail(args: {
@@ -157,6 +288,7 @@ export function renderValueRecapEmail(args: {
   accountsCount: number
   pitchesCount: number
   savedOutputsCount: number
+  variantSeed?: string
 }): LifecycleEmail {
   const subject = 'Make this your daily workflow'
   const primaryHref = `${args.appUrl}/pricing?target=closer`
@@ -189,10 +321,13 @@ export function renderValueRecapEmail(args: {
     </div>
   </body></html>`
 
-  return { type: 'value_recap', subject, html, text }
+  return applyBrandingAndVariation(
+    { type: 'value_recap', subject, html, text },
+    { appUrl: args.appUrl, variantSeed: args.variantSeed }
+  )
 }
 
-export function renderWinbackEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderWinbackEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Want a sample digest for your target list?'
   const primaryHref = `${args.appUrl}/#try-sample`
   const secondaryHref = `${args.appUrl}/dashboard`
@@ -223,10 +358,10 @@ export function renderWinbackEmail(args: { appUrl: string }): LifecycleEmail {
     </div>
   </body></html>`
 
-  return { type: 'winback', subject, html, text }
+  return applyBrandingAndVariation({ type: 'winback', subject, html, text }, args)
 }
 
-export function renderFirstOutputEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderFirstOutputEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Nice — your first output is ready'
   const primaryHref = `${args.appUrl}/dashboard`
   const secondaryHref = `${args.appUrl}/pricing?target=closer`
@@ -266,10 +401,10 @@ export function renderFirstOutputEmail(args: { appUrl: string }): LifecycleEmail
     </div>
   </body></html>`
 
-  return { type: 'first_output', subject, html, text }
+  return applyBrandingAndVariation({ type: 'first_output', subject, html, text }, args)
 }
 
-export function renderStarterNearLimitEmail(args: { appUrl: string; remaining: number }): LifecycleEmail {
+export function renderStarterNearLimitEmail(args: { appUrl: string; remaining: number; variantSeed?: string }): LifecycleEmail {
   const subject = 'Heads up: you’re close to the Starter limit'
   const primaryHref = `${args.appUrl}/pricing?target=closer`
   const secondaryHref = `${args.appUrl}/dashboard`
@@ -304,10 +439,13 @@ export function renderStarterNearLimitEmail(args: { appUrl: string; remaining: n
     </div>
   </body></html>`
 
-  return { type: 'starter_near_limit', subject, html, text }
+  return applyBrandingAndVariation(
+    { type: 'starter_near_limit', subject, html, text },
+    { appUrl: args.appUrl, variantSeed: args.variantSeed }
+  )
 }
 
-export function renderStarterExhaustedEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderStarterExhaustedEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Starter limit reached'
   const primaryHref = `${args.appUrl}/pricing?target=closer`
   const secondaryHref = `${args.appUrl}/pricing`
@@ -339,10 +477,10 @@ export function renderStarterExhaustedEmail(args: { appUrl: string }): Lifecycle
     </div>
   </body></html>`
 
-  return { type: 'starter_exhausted', subject, html, text }
+  return applyBrandingAndVariation({ type: 'starter_exhausted', subject, html, text }, args)
 }
 
-export function renderFeedbackRequestEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderFeedbackRequestEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Quick question — what blocked you?'
   const primaryHref = `${args.appUrl}/support`
   const secondaryHref = `${args.appUrl}/dashboard`
@@ -376,10 +514,10 @@ export function renderFeedbackRequestEmail(args: { appUrl: string }): LifecycleE
     </div>
   </body></html>`
 
-  return { type: 'feedback_request', subject, html, text }
+  return applyBrandingAndVariation({ type: 'feedback_request', subject, html, text }, args)
 }
 
-export function renderUpgradeConfirmationEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderUpgradeConfirmationEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Upgrade confirmed — Closer is active'
   const primaryHref = `${args.appUrl}/dashboard`
   const secondaryHref = `${args.appUrl}/settings/notifications`
@@ -411,10 +549,10 @@ export function renderUpgradeConfirmationEmail(args: { appUrl: string }): Lifecy
     </div>
   </body></html>`
 
-  return { type: 'upgrade_confirmation', subject, html, text }
+  return applyBrandingAndVariation({ type: 'upgrade_confirmation', subject, html, text }, args)
 }
 
-export function renderSupportHelpEmail(args: { appUrl: string }): LifecycleEmail {
+export function renderSupportHelpEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const subject = 'Need help getting to first value?'
   const primaryHref = `${args.appUrl}/support`
   const secondaryHref = `${args.appUrl}/dashboard`
@@ -447,6 +585,6 @@ export function renderSupportHelpEmail(args: { appUrl: string }): LifecycleEmail
     </div>
   </body></html>`
 
-  return { type: 'support_help', subject, html, text }
+  return applyBrandingAndVariation({ type: 'support_help', subject, html, text }, args)
 }
 

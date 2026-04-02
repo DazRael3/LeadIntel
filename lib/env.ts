@@ -123,6 +123,7 @@ const serverEnvSchema = z.object({
   RESEND_API_KEY: z.string().startsWith('re_', 'Invalid Resend API key format').optional(),
   RESEND_FROM_EMAIL: z.string().email('Invalid Resend from email').optional(),
   RESEND_REPLY_TO_EMAIL: z.string().email('Invalid Resend reply-to email').optional(),
+  EMAIL_BRAND_IMAGE_URL: z.string().url('Invalid email brand image URL').optional(),
   RESEND_WEBHOOK_SECRET: z.string().min(1, 'Resend webhook secret required').optional(),
 
   // Lifecycle / launch automation (optional)
@@ -395,6 +396,7 @@ function buildServerEnv(): ServerEnv {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     RESEND_REPLY_TO_EMAIL: process.env.RESEND_REPLY_TO_EMAIL,
+    EMAIL_BRAND_IMAGE_URL: process.env.EMAIL_BRAND_IMAGE_URL,
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
     LIFECYCLE_EMAILS_ENABLED: process.env.LIFECYCLE_EMAILS_ENABLED,
     LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED: process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED,
