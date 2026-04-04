@@ -69,8 +69,8 @@ export const POST = withApiGuard(
         },
       })
 
-      if (!messageId || !status) {
-        // Valid webhook, but not actionable for our current analytics.
+      if (!messageId) {
+        // Valid webhook, but no provider message id to correlate.
         return ok({ received: true }, undefined, undefined, requestId)
       }
 
@@ -93,27 +93,32 @@ export const POST = withApiGuard(
         // Ignore: schema may not include resend_message_id yet
       }
 
-      // Update email log status (best-effort).
-      try {
-        await supabaseAdmin
-          .from('email_logs')
-          .update({ status })
-          .eq('resend_message_id', messageId)
-      } catch {
-        // Ignore schema mismatch
+      // Update email log status only for known delivery-state mappings.
+      if (status) {
+        try {
+          await supabaseAdmin
+            .from('email_logs')
+            .update({ status })
+            .eq('resend_message_id', messageId)
+        } catch {
+          // Ignore schema mismatch
+        }
       }
 
       // Insert engagement row (best-effort).
       if (correlated) {
         try {
-          await supabaseAdmin.from('email_engagement').insert({
-            user_id: correlated.user_id,
-            lead_id: correlated.lead_id,
-            provider: 'resend',
-            provider_message_id: messageId,
-            event_type: event.type || status,
-            occurred_at: new Date().toISOString(),
-          })
+          const eventType = (event.type ?? '').trim() || status
+          if (eventType) {
+            await supabaseAdmin.from('email_engagement').insert({
+              user_id: correlated.user_id,
+              lead_id: correlated.lead_id,
+              provider: 'resend',
+              provider_message_id: messageId,
+              event_type: eventType,
+              occurred_at: new Date().toISOString(),
+            })
+          }
         } catch {
           // Ignore: engagement table may not exist yet
         }

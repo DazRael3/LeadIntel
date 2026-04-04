@@ -42,6 +42,7 @@ type UserSettingsRow = {
   ideal_customer?: string | null
   what_you_sell?: string | null
   product_tips_opt_in?: boolean | null
+  allow_product_updates?: boolean | null
 }
 
 function hasIcp(s: UserSettingsRow | null): boolean {
@@ -71,6 +72,26 @@ async function hasBouncedLifecycleEmail(args: {
       .eq('to_email', args.toEmail)
       .eq('status', 'bounced')
       .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) return false
+    return Boolean((data as { id?: string } | null)?.id)
+  } catch {
+    return false
+  }
+}
+
+async function hasRepliedLifecycleEmail(args: {
+  supabase: ReturnType<typeof createSupabaseAdminClient>
+  userId: string
+}): Promise<boolean> {
+  try {
+    const { data, error } = await args.supabase
+      .from('email_engagement')
+      .select('id')
+      .eq('user_id', args.userId)
+      .ilike('event_type', '%repl%')
+      .order('occurred_at', { ascending: false })
       .limit(1)
       .maybeSingle()
     if (error) return false
@@ -201,10 +222,12 @@ export async function checkLifecycleForUser(
 
   const { data: settingsRow } = await supabase
     .from('user_settings')
-    .select('user_id, ideal_customer, what_you_sell, product_tips_opt_in')
+    .select('user_id, ideal_customer, what_you_sell, product_tips_opt_in, allow_product_updates')
     .eq('user_id', userId)
     .maybeSingle()
   const settings = (settingsRow ?? null) as UserSettingsRow | null
+  const allowProductUpdates = (settings?.allow_product_updates ?? true) === true
+  if (!allowProductUpdates) return { sent: 0, skipped: 1, reason: 'global_unsubscribe' }
   const tipsOptIn = (settings?.product_tips_opt_in ?? true) === true
   if (!tipsOptIn) return { sent: 0, skipped: 1, reason: 'opted_out' }
 
@@ -238,9 +261,12 @@ export async function checkLifecycleForUser(
   const premiumDays = premiumFirstAt ? daysSince(premiumFirstAt, nowMs) : null
   const activated = hasIcp(settings) && accountsCount >= 10 && pitchesCount >= 1
   const upgraded = await canTreatAsUpgraded(supabase, userId)
+  const hasReplied = await hasRepliedLifecycleEmail({ supabase, userId })
   const hasBouncedEmail = await hasBouncedLifecycleEmail({ supabase, userId, toEmail })
   const stopReason = getLifecycleStopReason({
+    allowProductUpdates,
     productTipsOptIn: tipsOptIn,
+    hasRepliedLifecycleEmail: hasReplied,
     hasBouncedEmail,
     upgraded,
     upgradeConfirmSentAt: lifecycle.upgrade_confirm_sent_at,

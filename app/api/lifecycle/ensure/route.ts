@@ -35,6 +35,26 @@ async function hasBouncedLifecycleEmail(args: {
   }
 }
 
+async function hasRepliedLifecycleEmail(args: {
+  supabase: ReturnType<typeof createRouteClient>
+  userId: string
+}): Promise<boolean> {
+  try {
+    const { data, error } = await args.supabase
+      .from('email_engagement')
+      .select('id')
+      .eq('user_id', args.userId)
+      .ilike('event_type', '%repl%')
+      .order('occurred_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) return false
+    return Boolean((data as { id?: string } | null)?.id)
+  } catch {
+    return false
+  }
+}
+
 async function canTreatAsUpgraded(supabase: ReturnType<typeof createRouteClient>, userId: string): Promise<boolean> {
   try {
     const { data: sub } = await supabase
@@ -70,7 +90,7 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId }) => 
     const { data: ensuredSettings } = await supabase
       .from('user_settings')
       .upsert({ user_id: user.id, onboarding_completed: true }, { onConflict: 'user_id' })
-      .select('user_id, product_tips_opt_in')
+      .select('user_id, product_tips_opt_in, allow_product_updates')
       .maybeSingle()
 
     // Ensure lifecycle_state exists (do not overwrite signup_at).
@@ -100,13 +120,17 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId }) => 
 
     // Best-effort: send welcome immediately after signup/signin when eligible.
     const tipsOptIn = ((ensuredSettings as { product_tips_opt_in?: boolean | null } | null)?.product_tips_opt_in ?? true) === true
+    const allowProductUpdates = ((ensuredSettings as { allow_product_updates?: boolean | null } | null)?.allow_product_updates ?? true) === true
     const hasResendKey = Boolean((serverEnv.RESEND_API_KEY ?? '').trim())
     const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
     const toEmail = (user.email ?? '').trim()
+    const hasRepliedLifecycleSignal = await hasRepliedLifecycleEmail({ supabase, userId: user.id })
     const hasBouncedEmail = toEmail ? await hasBouncedLifecycleEmail({ supabase, userId: user.id, toEmail }) : false
     const upgraded = await canTreatAsUpgraded(supabase, user.id)
     const stopReason = getLifecycleStopReason({
+      allowProductUpdates,
       productTipsOptIn: tipsOptIn,
+      hasRepliedLifecycleEmail: hasRepliedLifecycleSignal,
       hasBouncedEmail,
       upgraded,
       upgradeConfirmSentAt: (existing as { upgrade_confirm_sent_at?: string | null } | null)?.upgrade_confirm_sent_at ?? null,

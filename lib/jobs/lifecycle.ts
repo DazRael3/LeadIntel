@@ -48,6 +48,15 @@ type BatchRow = {
   upgraded: boolean
 }
 
+type UserSettingsPrefsRow = {
+  user_id: string
+  allow_product_updates: boolean | null
+}
+
+type ReplySignalRow = {
+  user_id: string
+}
+
 function hoursSince(iso: string, nowMs: number): number {
   const ms = Date.parse(iso)
   if (!Number.isFinite(ms)) return 0
@@ -81,6 +90,24 @@ async function hasBouncedLifecycleEmail(args: {
     return Boolean((data as { id?: string } | null)?.id)
   } catch {
     return false
+  }
+}
+
+async function fetchLifecycleReplySignals(args: {
+  supabase: ReturnType<typeof createSupabaseAdminClient>
+  userIds: string[]
+}): Promise<Set<string>> {
+  if (args.userIds.length === 0) return new Set()
+  try {
+    const { data, error } = await args.supabase
+      .from('email_engagement')
+      .select('user_id')
+      .in('user_id', args.userIds)
+      .ilike('event_type', '%repl%')
+    if (error) return new Set()
+    return new Set(((data ?? []) as ReplySignalRow[]).map((r) => r.user_id))
+  } catch {
+    return new Set()
   }
 }
 
@@ -185,6 +212,13 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
   // Move batch forward so repeated runs don't re-scan the same first N users.
   const ids = rows.map((r) => r.user_id)
   void supabase.from('lifecycle_state').update({ last_checked_at: now.toISOString() }).in('user_id', ids)
+  const [prefsRes, repliedUserIds] = await Promise.all([
+    supabase.from('user_settings').select('user_id, allow_product_updates').in('user_id', ids),
+    fetchLifecycleReplySignals({ supabase, userIds: ids }),
+  ])
+  const allowProductUpdatesByUserId = new Map(
+    ((prefsRes.data ?? []) as UserSettingsPrefsRow[]).map((r) => [r.user_id, r.allow_product_updates !== false])
+  )
 
   for (const r of rows) {
     const toEmail = (r.email ?? '').trim()
@@ -202,8 +236,12 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
     const premiumFirstAt = typeof r.premium_first_at === 'string' ? r.premium_first_at : null
     const premiumDays = premiumFirstAt ? daysSince(premiumFirstAt, nowMs) : null
     const hasBouncedEmail = await hasBouncedLifecycleEmail({ supabase, userId: r.user_id, toEmail })
+    const allowProductUpdates = allowProductUpdatesByUserId.get(r.user_id) ?? true
+    const hasRepliedLifecycleEmail = repliedUserIds.has(r.user_id)
     const stopReason = getLifecycleStopReason({
+      allowProductUpdates,
       productTipsOptIn: r.product_tips_opt_in,
+      hasRepliedLifecycleEmail,
       hasBouncedEmail,
       upgraded: r.upgraded,
       upgradeConfirmSentAt: r.upgrade_confirm_sent_at,

@@ -33,14 +33,14 @@ Auth is required via an Authorization bearer token:
 Runs lifecycle eligibility checks and sends at most **one email per user per run**, in a fixed priority order.
 
 Stop conditions enforced in-code:
+- global product-updates unsubscribe (`user_settings.allow_product_updates = false`)
 - product tips opt-out (`user_settings.product_tips_opt_in = false`)
+- prior reply signal detected (`api.email_engagement.event_type ILIKE '%repl%'`)
 - prior bounce detected (`api.email_logs.status = 'bounced'` for the same user/email)
 - conversion terminal state (after `upgrade_confirmation` has already been sent)
 
 Stop conditions currently **not proven/enforced** in lifecycle state:
-- explicit reply stop
-- explicit disqualification stop
-- explicit global unsubscribe state outside `product_tips_opt_in`
+- explicit disqualification stop (no user-level lifecycle disqualification field/state)
 
 **Email types**
 - **welcome**: after signup/first login (also best-effort via `/api/lifecycle/ensure`)
@@ -51,6 +51,7 @@ Stop conditions currently **not proven/enforced** in lifecycle state:
 - **starter_exhausted**: Starter has reached the 3-preview cap
 - **value_recap**: recap + upgrade framing after activation (3-day threshold)
 - **winback**: reactivation nudge for non-activated users (7-day threshold)
+- No dedicated 14-day lifecycle step is currently implemented.
 - **feedback_request**: one lightweight request after initial usage
 - **upgrade_confirmation**: cron backstop if a webhook missed it
 
@@ -182,22 +183,18 @@ curl -sS \
 
 Repository truth:
 - `vercel.json` currently schedules: `kpi_monitor`, `content_audit`, `lifecycle`, `digest_lite`.
-- `prospect_watch`, `prospect_watch_digest`, `sources_refresh`, and webhook delivery are **not** scheduled in `vercel.json`.
-- They require external scheduler wiring (or explicit Vercel cron additions) to be proven active.
+- Job handlers available via `GET/POST /api/cron/run`:
+  - `lifecycle`, `digest_lite`, `kpi_monitor`, `content_audit`, `growth_cycle`, `sources_refresh`, `prospect_watch`, `prospect_watch_digest`
+- Separate webhook-delivery worker route exists:
+  - `POST /api/cron/webhooks`
+- `growth_cycle`, `sources_refresh`, `prospect_watch`, `prospect_watch_digest`, and `POST /api/cron/webhooks` are **not** scheduled in-repo today.
 
-Recommended split:
-- **Vercel cron (daily backstop)**: lifecycle
-  - `GET /api/cron/run?job=lifecycle&limit=200`
-
-- **External cron (twice daily)**:
-  - morning: `job=prospect_watch` + `job=prospect_watch_digest`
-  - afternoon: `job=prospect_watch` + `job=prospect_watch_digest`
-
-Example request:
-
-```bash
-curl -sS \
-  -H "Authorization: Bearer $EXTERNAL_CRON_SECRET" \
-  "https://dazrael.com/api/cron/run?job=prospect_watch&limit=50"
-```
+External scheduler ops steps (required to prove active in production):
+1. Create authenticated jobs that send `Authorization: Bearer $EXTERNAL_CRON_SECRET`.
+2. Add cron invocations (example cadence, adjust as needed):
+   - `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50` (2x/day)
+   - `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest` (2x/day)
+   - `GET https://dazrael.com/api/cron/run?job=sources_refresh&limit=20` (1x/day)
+   - `POST https://dazrael.com/api/cron/webhooks` with body `{"limit":50}` (every 5-15 min)
+3. Verify execution by checking recent `api.job_runs` rows for each `job_name` and webhook delivery health in `/admin/ops`.
 

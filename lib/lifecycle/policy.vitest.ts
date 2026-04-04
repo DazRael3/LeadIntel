@@ -4,7 +4,9 @@ import { getLifecycleStopReason, selectLifecycleStep } from '@/lib/lifecycle/pol
 describe('lifecycle policy', () => {
   it('stops on opted out', () => {
     const reason = getLifecycleStopReason({
+      allowProductUpdates: true,
       productTipsOptIn: false,
+      hasRepliedLifecycleEmail: false,
       hasBouncedEmail: false,
       upgraded: false,
       upgradeConfirmSentAt: null,
@@ -14,7 +16,9 @@ describe('lifecycle policy', () => {
 
   it('stops on bounced email', () => {
     const reason = getLifecycleStopReason({
+      allowProductUpdates: true,
       productTipsOptIn: true,
+      hasRepliedLifecycleEmail: false,
       hasBouncedEmail: true,
       upgraded: false,
       upgradeConfirmSentAt: null,
@@ -24,7 +28,9 @@ describe('lifecycle policy', () => {
 
   it('stops after conversion confirmation sent', () => {
     const reason = getLifecycleStopReason({
+      allowProductUpdates: true,
       productTipsOptIn: true,
+      hasRepliedLifecycleEmail: false,
       hasBouncedEmail: false,
       upgraded: true,
       upgradeConfirmSentAt: '2026-04-01T00:00:00.000Z',
@@ -34,12 +40,38 @@ describe('lifecycle policy', () => {
 
   it('does not stop upgraded users before confirmation', () => {
     const reason = getLifecycleStopReason({
+      allowProductUpdates: true,
       productTipsOptIn: true,
+      hasRepliedLifecycleEmail: false,
       hasBouncedEmail: false,
       upgraded: true,
       upgradeConfirmSentAt: null,
     })
     expect(reason).toBeNull()
+  })
+
+  it('stops on global product-update unsubscribe', () => {
+    const reason = getLifecycleStopReason({
+      allowProductUpdates: false,
+      productTipsOptIn: true,
+      hasRepliedLifecycleEmail: false,
+      hasBouncedEmail: false,
+      upgraded: false,
+      upgradeConfirmSentAt: null,
+    })
+    expect(reason).toBe('global_unsubscribe')
+  })
+
+  it('stops on reply signal', () => {
+    const reason = getLifecycleStopReason({
+      allowProductUpdates: true,
+      productTipsOptIn: true,
+      hasRepliedLifecycleEmail: true,
+      hasBouncedEmail: false,
+      upgraded: false,
+      upgradeConfirmSentAt: null,
+    })
+    expect(reason).toBe('replied')
   })
 
   it('picks 3-day recap and 7-day winback, no 14-day branch', () => {
@@ -74,5 +106,25 @@ describe('lifecycle policy', () => {
       starterLimit: 3,
     })
     expect(winback).toEqual({ type: 'winback', field: 'winback_sent_at' })
+
+    const noFourteenDayStep = selectLifecycleStep({
+      state: {
+        welcome_sent_at: '2026-04-01T00:00:00.000Z',
+        nudge_accounts_sent_at: '2026-04-01T06:00:00.000Z',
+        nudge_pitch_sent_at: '2026-04-02T00:00:00.000Z',
+        value_recap_sent_at: '2026-04-04T00:00:00.000Z',
+        winback_sent_at: '2026-04-08T00:00:00.000Z',
+      },
+      hoursSinceSignup: 14 * 24,
+      daysSinceSignup: 14,
+      accountsCount: 12,
+      pitchesCount: 4,
+      activated: true,
+      upgraded: false,
+      premiumUsed: 0,
+      premiumDays: null,
+      starterLimit: 3,
+    })
+    expect(noFourteenDayStep).toBeNull()
   })
 })

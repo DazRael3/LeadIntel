@@ -3,13 +3,13 @@ export const COPY = {
     name: 'LeadIntel',
   },
   positioning: {
-    icpLine: 'Signal-based outbound platform for teams who need why-now intelligence and send-ready outreach.',
+    icpLine: 'Signal-based outbound platform for teams who need why-now intelligence and send-ready drafts.',
   },
   home: {
     hero: {
-      headline: 'Why-now signals for outbound teams. Send-ready outreach in minutes.',
+      headline: 'Why-now signals for outbound teams. Send-ready drafts in minutes.',
       subhead:
-        'LeadIntel turns fresh buying signals into a daily shortlist, an explainable 0–100 score, and outreach SDRs and AEs can send without starting from a blank page.',
+        'LeadIntel turns fresh buying signals into a daily shortlist, an explainable 0–100 score, and review-first draft copy SDRs and AEs can personalize and send without starting from a blank page.',
       support: 'Track target accounts, see why now, and take action from one workspace.',
       primaryCta: 'Generate a sample digest',
       secondaryCta: 'See pricing',
@@ -20,7 +20,7 @@ export const COPY = {
       bullets: [
         'Daily shortlist: a short, prioritized list of accounts to action today',
         'Lead score (0–100) with clear reasons',
-        'Outreach drafts: email + LinkedIn-ready copy',
+        'Outreach drafts: email + LinkedIn draft copy (review-first)',
         'Trigger signals: funding, hiring spikes, launches, partnerships, press mentions',
       ],
     },
@@ -44,7 +44,7 @@ export const COPY = {
       bullets: [
         'Daily shortlist for your target accounts',
         'Explainable 0–100 score with reasons',
-        'Send-ready drafts and an action layer (webhooks + exports)',
+        'Send-ready drafts (human-reviewed) and an action layer (webhooks + exports)',
       ],
       trustStrip: (supportEmail: string) => `Transparent pricing. Cancel anytime. Support: ${supportEmail}.`,
       primaryCta: 'Start free',
