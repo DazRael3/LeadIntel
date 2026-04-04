@@ -463,12 +463,34 @@ export async function runProspectWatchDigests(args: { dryRun?: boolean }) {
       })
     )
   )
+  const delivered = results.reduce((count, result) => {
+    if (result.status !== 'fulfilled') return count
+    return result.value.ok && result.value.status === 'sent' ? count + 1 : count
+  }, 0)
+  const failed = results.reduce((count, result) => {
+    if (result.status === 'rejected') return count + 1
+    if (result.value.ok) return count
+    return count + 1
+  }, 0)
+  const skipped = results.reduce((count, result) => {
+    if (result.status !== 'fulfilled') return count
+    return result.value.ok && result.value.status === 'skipped' ? count + 1 : count
+  }, 0)
 
   void captureServerEvent({ distinctId: 'prospect_watch', event: 'founder_digest_sent', properties: { day, prospectCount, contentCount } })
 
   return {
     status: 'ok' as const,
-    summary: { recipients: tos.length, deliveredAttempts: results.length, prospectCount, contentCount, enabled: { prospects: prospectDailyDigestEnabled(), content: contentDailyDigestEnabled() } },
+    summary: {
+      recipients: tos.length,
+      attempted: results.length,
+      delivered: delivered,
+      failed,
+      skipped,
+      prospectCount,
+      contentCount,
+      enabled: { prospects: prospectDailyDigestEnabled(), content: contentDailyDigestEnabled() },
+    },
   }
 }
 

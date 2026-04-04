@@ -1,7 +1,6 @@
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { getAppUrl } from '@/lib/app-url'
 import { serverEnv } from '@/lib/env'
-import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import {
   renderAccountsNudgeEmail,
   renderPitchNudgeEmail,
@@ -20,6 +19,7 @@ import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { FREE_MAX_PREMIUM_GENERATIONS } from '@/lib/billing/premium-generations'
 import { lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { getResendReplyToEmail } from '@/lib/email/routing'
+import { getLifecycleStopReason, selectLifecycleStep, type LifecycleSendField } from '@/lib/lifecycle/policy'
 
 type LifecycleRow = {
   user_id: string
@@ -42,6 +42,7 @@ type UserSettingsRow = {
   ideal_customer?: string | null
   what_you_sell?: string | null
   product_tips_opt_in?: boolean | null
+  allow_product_updates?: boolean | null
 }
 
 function hasIcp(s: UserSettingsRow | null): boolean {
@@ -56,6 +57,48 @@ function hoursSince(iso: string, nowMs: number): number {
 
 function daysSince(iso: string, nowMs: number): number {
   return hoursSince(iso, nowMs) / 24
+}
+
+async function hasBouncedLifecycleEmail(args: {
+  supabase: ReturnType<typeof createSupabaseAdminClient>
+  userId: string
+  toEmail: string
+}): Promise<boolean> {
+  try {
+    const { data, error } = await args.supabase
+      .from('email_logs')
+      .select('id')
+      .eq('user_id', args.userId)
+      .eq('to_email', args.toEmail)
+      .eq('status', 'bounced')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) return false
+    return Boolean((data as { id?: string } | null)?.id)
+  } catch {
+    return false
+  }
+}
+
+async function hasRepliedLifecycleEmail(args: {
+  supabase: ReturnType<typeof createSupabaseAdminClient>
+  userId: string
+}): Promise<boolean> {
+  try {
+    const { data, error } = await args.supabase
+      .from('email_engagement')
+      .select('id')
+      .eq('user_id', args.userId)
+      .ilike('event_type', '%repl%')
+      .order('occurred_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) return false
+    return Boolean((data as { id?: string } | null)?.id)
+  } catch {
+    return false
+  }
 }
 
 async function canTreatAsUpgraded(supabase: ReturnType<typeof createSupabaseAdminClient>, userId: string): Promise<boolean> {
@@ -147,7 +190,7 @@ async function sendLifecycleEmail(args: {
 
 export async function checkLifecycleForUser(
   userId: string,
-  context: { triggeredBy: 'request' | 'admin' }
+  _context: { triggeredBy: 'request' | 'admin' }
 ): Promise<{ sent: number; skipped: number; reason?: string }> {
   // If admin client can't be created (service role missing), skip safely.
   const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
@@ -179,10 +222,12 @@ export async function checkLifecycleForUser(
 
   const { data: settingsRow } = await supabase
     .from('user_settings')
-    .select('user_id, ideal_customer, what_you_sell, product_tips_opt_in')
+    .select('user_id, ideal_customer, what_you_sell, product_tips_opt_in, allow_product_updates')
     .eq('user_id', userId)
     .maybeSingle()
   const settings = (settingsRow ?? null) as UserSettingsRow | null
+  const allowProductUpdates = (settings?.allow_product_updates ?? true) === true
+  if (!allowProductUpdates) return { sent: 0, skipped: 1, reason: 'global_unsubscribe' }
   const tipsOptIn = (settings?.product_tips_opt_in ?? true) === true
   if (!tipsOptIn) return { sent: 0, skipped: 1, reason: 'opted_out' }
 
@@ -216,12 +261,23 @@ export async function checkLifecycleForUser(
   const premiumDays = premiumFirstAt ? daysSince(premiumFirstAt, nowMs) : null
   const activated = hasIcp(settings) && accountsCount >= 10 && pitchesCount >= 1
   const upgraded = await canTreatAsUpgraded(supabase, userId)
+  const hasReplied = await hasRepliedLifecycleEmail({ supabase, userId })
+  const hasBouncedEmail = await hasBouncedLifecycleEmail({ supabase, userId, toEmail })
+  const stopReason = getLifecycleStopReason({
+    allowProductUpdates,
+    productTipsOptIn: tipsOptIn,
+    hasRepliedLifecycleEmail: hasReplied,
+    hasBouncedEmail,
+    upgraded,
+    upgradeConfirmSentAt: lifecycle.upgrade_confirm_sent_at,
+  })
+  if (stopReason) return { sent: 0, skipped: 1, reason: stopReason }
 
   const hrs = hoursSince(lifecycle.signup_at, nowMs)
   const days = daysSince(lifecycle.signup_at, nowMs)
 
-  const maybeSend = async (type: LifecycleEmailType, field: keyof LifecycleRow) => {
-    if ((lifecycle as any)[field]) return { sent: 0, skipped: 1, reason: 'already_sent' }
+  const maybeSend = async (type: LifecycleEmailType, field: LifecycleSendField) => {
+    if (lifecycle[field]) return { sent: 0, skipped: 1, reason: 'already_sent' }
     const res = await sendLifecycleEmail({
       supabase,
       userId,
@@ -235,17 +291,30 @@ export async function checkLifecycleForUser(
     return { sent: 1, skipped: 0 }
   }
 
-  // Same priority as daily sweep.
-  if (!lifecycle.welcome_sent_at) return await maybeSend('welcome', 'welcome_sent_at')
-  if (hrs >= 6 && accountsCount < 10 && !lifecycle.nudge_accounts_sent_at) return await maybeSend('nudge_accounts', 'nudge_accounts_sent_at')
-  if (hrs >= 24 && pitchesCount < 1 && premiumUsed === 0 && !lifecycle.nudge_pitch_sent_at) return await maybeSend('nudge_pitch', 'nudge_pitch_sent_at')
-  if (!upgraded && premiumUsed >= starterLimit && !lifecycle.starter_exhausted_sent_at) return await maybeSend('starter_exhausted', 'starter_exhausted_sent_at')
-  if (!upgraded && premiumUsed === starterLimit - 1 && !lifecycle.starter_near_limit_sent_at) return await maybeSend('starter_near_limit', 'starter_near_limit_sent_at')
-  if (premiumUsed >= 1 && premiumDays !== null && premiumDays <= 7 && !lifecycle.first_output_sent_at) return await maybeSend('first_output', 'first_output_sent_at')
-  if (upgraded && !lifecycle.upgrade_confirm_sent_at) return await maybeSend('upgrade_confirmation', 'upgrade_confirm_sent_at')
-  if (days >= 3 && activated && !upgraded && !lifecycle.value_recap_sent_at) return await maybeSend('value_recap', 'value_recap_sent_at')
-  if (days >= 7 && !activated && !lifecycle.winback_sent_at) return await maybeSend('winback', 'winback_sent_at')
-  if (!upgraded && premiumUsed >= 1 && premiumDays !== null && premiumDays >= 2 && !lifecycle.feedback_request_sent_at) return await maybeSend('feedback_request', 'feedback_request_sent_at')
+  const next = selectLifecycleStep({
+    state: {
+      welcome_sent_at: lifecycle.welcome_sent_at ?? null,
+      nudge_accounts_sent_at: lifecycle.nudge_accounts_sent_at ?? null,
+      nudge_pitch_sent_at: lifecycle.nudge_pitch_sent_at ?? null,
+      first_output_sent_at: lifecycle.first_output_sent_at ?? null,
+      starter_near_limit_sent_at: lifecycle.starter_near_limit_sent_at ?? null,
+      starter_exhausted_sent_at: lifecycle.starter_exhausted_sent_at ?? null,
+      feedback_request_sent_at: lifecycle.feedback_request_sent_at ?? null,
+      upgrade_confirm_sent_at: lifecycle.upgrade_confirm_sent_at ?? null,
+      value_recap_sent_at: lifecycle.value_recap_sent_at ?? null,
+      winback_sent_at: lifecycle.winback_sent_at ?? null,
+    },
+    hoursSinceSignup: hrs,
+    daysSinceSignup: days,
+    accountsCount,
+    pitchesCount,
+    activated,
+    upgraded,
+    premiumUsed,
+    premiumDays,
+    starterLimit,
+  })
+  if (next) return await maybeSend(next.type, next.field)
 
   return { sent: 0, skipped: 1, reason: 'not_due' }
 }

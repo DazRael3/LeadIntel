@@ -88,7 +88,7 @@ export function DashboardHeaderSection({ creditsRemaining }: DashboardHeaderSect
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold bloomberg-font neon-cyan">Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Why-now signals → explainable score → send-ready outreach</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Why-now signals → explainable score → send-ready drafts</p>
           </div>
           <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
             {/* Account summary (compact) */}

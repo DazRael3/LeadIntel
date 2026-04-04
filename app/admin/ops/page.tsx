@@ -334,7 +334,7 @@ export default async function AdminOpsPage() {
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded border border-cyan-500/10 bg-background/30 p-3 space-y-2">
                 <div className="text-xs font-medium text-foreground">Vercel backstop</div>
-                <div className="text-[11px] text-muted-foreground">Runs lifecycle once daily.</div>
+                <div className="text-[11px] text-muted-foreground">In-repo schedule currently includes: kpi_monitor, content_audit, lifecycle, digest_lite.</div>
                 <div className="rounded border border-cyan-500/10 bg-background/60 p-2">
                   <div className="text-[11px] break-all">{appUrl}{vercelCronSuggested}</div>
                 </div>
@@ -356,6 +356,9 @@ export default async function AdminOpsPage() {
                 </div>
                 <CopyTextButton text={`${appUrl}${externalDigestSuggested}`} />
               </div>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Not scheduled in-repo by default: growth_cycle, sources_refresh, prospect_watch, prospect_watch_digest, and /api/cron/webhooks. Configure these explicitly in your external scheduler if you depend on them.
             </div>
             <div className="text-[11px] text-muted-foreground">
               Cron auth header: send <span className="text-foreground font-medium">Authorization: Bearer &lt;secret&gt;</span> with your configured secret. (Never put the secret in URLs.)

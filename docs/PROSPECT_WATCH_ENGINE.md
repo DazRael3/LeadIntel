@@ -184,6 +184,8 @@ External sending (disabled by default):
 ## What’s intentionally deferred
 
 - Any automatic LinkedIn posting
+- Any automatic LinkedIn DM sending
+- Any LinkedIn connection-request automation
 - Any mass cold email automation
 - Any scraping beyond approved RSS + manual inputs
 - Deep CRM sync or lead enrichment

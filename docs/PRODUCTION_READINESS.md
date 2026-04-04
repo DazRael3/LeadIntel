@@ -277,21 +277,32 @@ Suggested steps:
   - `PROSPECT_WATCH_DAILY_DIGEST_ENABLED=1`\n
   - `PROSPECT_WATCH_CONTENT_DIGEST_ENABLED=1`\n
 
-### Cron schedule (given: 1 Vercel cron + 4 external jobs)
+### Cron schedule truth (repo vs external)
 
-Vercel cron (daily backstop):
-- `GET https://dazrael.com/api/cron/run?job=lifecycle&limit=200` with `Authorization: Bearer $CRON_SECRET`
+In-repo (`vercel.json`) currently schedules:
+- `GET /api/cron/run?job=kpi_monitor`
+- `GET /api/cron/run?job=content_audit`
+- `GET /api/cron/run?job=lifecycle`
+- `GET /api/cron/run?job=digest_lite`
 
-External cron jobs:
-- Morning\n
-  1) `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50` with `Authorization: Bearer $EXTERNAL_CRON_SECRET`\n
-  2) `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest` with `Authorization: Bearer $EXTERNAL_CRON_SECRET`\n
-- Afternoon\n
-  3) `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50`\n
-  4) `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest`\n
+Available but **not** scheduled in-repo:
+- `GET /api/cron/run?job=growth_cycle`
+- `GET /api/cron/run?job=sources_refresh&limit=20`
+- `GET /api/cron/run?job=prospect_watch&limit=50`
+- `GET /api/cron/run?job=prospect_watch_digest`
+- `POST /api/cron/webhooks` with body `{"limit":50}`
 
-Notes:
-- `prospect_watch_digest` is deduped by day+recipient via `api.email_send_log`, so a second daily run will safely skip.
+External scheduler steps (required before claiming these are active):
+1) Configure scheduler auth header on every request:
+- `Authorization: Bearer $EXTERNAL_CRON_SECRET`
+2) Add jobs:
+- prospect ingest: `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50` (2x/day)
+- prospect digest: `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest` (2x/day)
+- sources refresh: `GET https://dazrael.com/api/cron/run?job=sources_refresh&limit=20` (1x/day)
+- webhook delivery worker: `POST https://dazrael.com/api/cron/webhooks` body `{"limit":50}` (every 5-15 minutes)
+3) Verify run evidence in production:
+- `api.job_runs` rows for each `job_name`
+- `/admin/ops` run-health cards and webhook delivery health
 
 ### Prospect watch contact workflow (migration)
 

@@ -25,7 +25,7 @@ export type DedupedSendArgs = {
 export type DedupedSendResult =
   | { ok: true; status: 'sent'; messageId: string }
   | { ok: true; status: 'skipped'; reason: 'deduped' | 'not_enabled' | 'schema_not_ready' }
-  | { ok: false; status: 'failed'; error: string }
+  | { ok: false; status: 'failed'; error: string; retryable: boolean }
 
 function isUniqueViolation(err: PostgrestError | null): boolean {
   return Boolean(err && err.code === '23505')
@@ -34,6 +34,18 @@ function isUniqueViolation(err: PostgrestError | null): boolean {
 function isSchemaNotReady(err: PostgrestError | null): boolean {
   // Common Postgres codes surfaced via PostgREST when a migration hasn't applied yet.
   return Boolean(err && (err.code === '42P01' /* undefined_table */ || err.code === '42703' /* undefined_column */))
+}
+
+function isPermanentProviderError(message: string): boolean {
+  const text = message.toLowerCase()
+  return (
+    text.includes('domain is not verified') ||
+    text.includes('invalid to address') ||
+    text.includes('invalid from address') ||
+    text.includes('recipient address rejected') ||
+    text.includes('suppressed') ||
+    text.includes('blocked')
+  )
 }
 
 export async function sendEmailDeduped(
@@ -107,7 +119,7 @@ export async function sendEmailDeduped(
     return { ok: true, status: 'skipped', reason: 'schema_not_ready' }
   }
   if (insertErr) {
-    return { ok: false, status: 'failed', error: insertErr.message || 'email_send_log_insert_failed' }
+    return { ok: false, status: 'failed', error: insertErr.message || 'email_send_log_insert_failed', retryable: true }
   }
 
   // 2) Send
@@ -137,22 +149,31 @@ export async function sendEmailDeduped(
   }
 
   if (!send.ok) {
+    const providerError = send.errorMessage || 'send_failed'
+    const retryable = !isPermanentProviderError(providerError)
     try {
       await supabaseAdmin
         .from('email_send_log')
-        .update({ status: 'failed', error: send.errorMessage ?? 'send_failed' })
+        .update({ status: 'failed', error: providerError, meta: { ...(args.meta ?? {}), retryable } })
         .eq('dedupe_key', args.dedupeKey)
     } catch {
       // best-effort
+    }
+    if (retryable) {
+      try {
+        await supabaseAdmin.from('email_send_log').delete().eq('dedupe_key', args.dedupeKey)
+      } catch {
+        // best-effort
+      }
     }
     if (args.userId) {
       void captureServerEvent({
         distinctId: args.userId,
         event: `email_sent_${args.template}`,
-        properties: { status: 'failed', template: args.template, kind: args.kind },
+        properties: { status: 'failed', template: args.template, kind: args.kind, retryable },
       })
     }
-    return { ok: false, status: 'failed', error: send.errorMessage || 'send_failed' }
+    return { ok: false, status: 'failed', error: providerError, retryable }
   }
 
   try {

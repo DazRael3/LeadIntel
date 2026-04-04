@@ -11,7 +11,9 @@ LeadIntel’s launch automation is intentionally **small and production-safe**:
 - **Lifecycle state**: `api.lifecycle_state`
   - Stores one-time “sent_at” markers for lifecycle emails.
 - **Email idempotency log**: `api.email_send_log`
-  - Enforces dedupe with a unique `dedupe_key` so cron reruns don’t spam.
+  - Enforces dedupe with a unique `dedupe_key` for successful sends.
+  - Retryable provider failures release the dedupe lock so retries can send.
+  - Non-retryable provider failures keep the dedupe lock to avoid repeated hard failures.
 - **Provider send log**: `api.email_logs`
   - Records outbound email attempts (provider correlation, status).
 
@@ -30,6 +32,16 @@ Auth is required via an Authorization bearer token:
 ### `job=lifecycle`
 Runs lifecycle eligibility checks and sends at most **one email per user per run**, in a fixed priority order.
 
+Stop conditions enforced in-code:
+- global product-updates unsubscribe (`user_settings.allow_product_updates = false`)
+- product tips opt-out (`user_settings.product_tips_opt_in = false`)
+- prior reply signal detected (`api.email_engagement.event_type ILIKE '%repl%'`)
+- prior bounce detected (`api.email_logs.status = 'bounced'` for the same user/email)
+- conversion terminal state (after `upgrade_confirmation` has already been sent)
+
+Stop conditions currently **not proven/enforced** in lifecycle state:
+- explicit disqualification stop (no user-level lifecycle disqualification field/state)
+
 **Email types**
 - **welcome**: after signup/first login (also best-effort via `/api/lifecycle/ensure`)
 - **nudge_accounts**: after ~6h if they haven’t added enough accounts
@@ -37,8 +49,9 @@ Runs lifecycle eligibility checks and sends at most **one email per user per run
 - **first_output**: after the first successful pitch/report (only if recent)
 - **starter_near_limit**: Starter is approaching the 3-preview cap
 - **starter_exhausted**: Starter has reached the 3-preview cap
-- **value_recap**: recap + upgrade framing after activation
-- **winback**: reactivation nudge after inactivity
+- **value_recap**: recap + upgrade framing after activation (3-day threshold)
+- **winback**: reactivation nudge for non-activated users (7-day threshold)
+- No dedicated 14-day lifecycle step is currently implemented.
 - **feedback_request**: one lightweight request after initial usage
 - **upgrade_confirmation**: cron backstop if a webhook missed it
 
@@ -117,15 +130,15 @@ This endpoint is deduped by default to **at most once per day** per recipient+ty
 
 LeadIntel includes an internal-only **Email Lab** so operators can preview and QA templates before broad enablement.
 
-- **UI**: `/admin/email?token=$ADMIN_TOKEN`
-- **Linked from**: `/admin/ops?token=$ADMIN_TOKEN`
+- **UI**: `/admin/email` (cookie-based admin session)
+- **Linked from**: `/admin/ops` (cookie-based admin session)
 
 Capabilities:
 - Preview rendered **subject + HTML + plain text**
 - Run lightweight **template QA checks** (missing subject/body, missing prefs link, missing support mailto, etc.)
 - **Test-send** to operator inboxes only (restricted to env allowlist) with daily dedupe per template+recipient
 
-APIs (admin-token gated):
+APIs (admin-auth gated):
 - `POST /api/admin/email/preview`
 - `POST /api/admin/email/test-send`
 
@@ -145,6 +158,8 @@ Analytics (optional; best-effort):
 - Cron sends use a stable dedupe key: `lifecycle:<type>:<userId>`
 - Operator notifications use `admin:<event>:...`
 - Lifecycle `*_sent_at` columns in `api.lifecycle_state` provide a second layer of safety and also make eligibility transparent.
+- Retryable provider failures remove the dedupe row so retries can proceed.
+- Non-retryable provider failures keep the dedupe row to prevent repeated hard-fail attempts.
 
 ## Safe testing
 
@@ -166,23 +181,20 @@ curl -sS \
 
 ## Production cron schedule (recommended)
 
-Infrastructure reality:
-- **1 Vercel cron** available
-- **4 external cron jobs** available
+Repository truth:
+- `vercel.json` currently schedules: `kpi_monitor`, `content_audit`, `lifecycle`, `digest_lite`.
+- Job handlers available via `GET/POST /api/cron/run`:
+  - `lifecycle`, `digest_lite`, `kpi_monitor`, `content_audit`, `growth_cycle`, `sources_refresh`, `prospect_watch`, `prospect_watch_digest`
+- Separate webhook-delivery worker route exists:
+  - `POST /api/cron/webhooks`
+- `growth_cycle`, `sources_refresh`, `prospect_watch`, `prospect_watch_digest`, and `POST /api/cron/webhooks` are **not** scheduled in-repo today.
 
-Recommended split:
-- **Vercel cron (daily backstop)**: lifecycle
-  - `GET /api/cron/run?job=lifecycle&limit=200`
-
-- **External cron (twice daily)**:
-  - morning: `job=prospect_watch` + `job=prospect_watch_digest`
-  - afternoon: `job=prospect_watch` + `job=prospect_watch_digest`
-
-Example request:
-
-```bash
-curl -sS \
-  -H "Authorization: Bearer $EXTERNAL_CRON_SECRET" \
-  "https://dazrael.com/api/cron/run?job=prospect_watch&limit=50"
-```
+External scheduler ops steps (required to prove active in production):
+1. Create authenticated jobs that send `Authorization: Bearer $EXTERNAL_CRON_SECRET`.
+2. Add cron invocations (example cadence, adjust as needed):
+   - `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50` (2x/day)
+   - `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest` (2x/day)
+   - `GET https://dazrael.com/api/cron/run?job=sources_refresh&limit=20` (1x/day)
+   - `POST https://dazrael.com/api/cron/webhooks` with body `{"limit":50}` (every 5-15 min)
+3. Verify execution by checking recent `api.job_runs` rows for each `job_name` and webhook delivery health in `/admin/ops`.
 

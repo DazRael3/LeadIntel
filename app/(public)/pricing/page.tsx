@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     url: 'https://dazrael.com/pricing',
     images: [
       {
-        url: '/api/og?title=Pricing&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20outreach',
+        url: '/api/og?title=Pricing&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20drafts',
         width: 1200,
         height: 630,
       },
