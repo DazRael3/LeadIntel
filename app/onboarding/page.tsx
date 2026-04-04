@@ -1,9 +1,15 @@
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/TopNav'
 import { OnboardingClient } from './ui/OnboardingClient'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = {
+  title: 'Onboarding Workspace Setup | LeadIntel',
+  description: 'Set up your workspace, first target, and signal flow to start using LeadIntel.',
+  alternates: { canonical: 'https://dazrael.com/onboarding' },
+}
 
 type UserSettingsRow = {
   onboarding_completed?: boolean | null

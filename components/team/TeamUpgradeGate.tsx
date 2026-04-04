@@ -12,6 +12,8 @@ export function TeamUpgradeGate(props: {
   primaryCtaLabel?: string
   secondaryCtaHref?: string
   secondaryCtaLabel?: string
+  continueCtaHref?: string
+  continueCtaLabel?: string
   currentTier?: Tier
   sessionEmail?: string | null
 } = {}) {
@@ -25,7 +27,19 @@ export function TeamUpgradeGate(props: {
   const primaryCtaLabel = props.primaryCtaLabel ?? 'Upgrade to Team'
   const secondaryCtaHref = props.secondaryCtaHref ?? '/pricing'
   const secondaryCtaLabel = props.secondaryCtaLabel ?? 'See pricing'
-  const lockedOn = tierLabel(props.currentTier ?? 'starter')
+  const continueCtaHref = props.continueCtaHref ?? '/dashboard'
+  const continueCtaLabel = props.continueCtaLabel ?? 'Continue in Dashboard'
+  const lockedOn = props.currentTier ? tierLabel(props.currentTier) : 'your current plan'
+  const tierGuidance =
+    !props.currentTier
+      ? 'This workspace is on a non-Team tier. Team adds shared workflows, governance controls, and team-level operations.'
+      : props.currentTier === 'closer_plus'
+      ? 'You already have Closer+ for individual execution. Team adds shared approvals, governance controls, and team operations across reps.'
+      : props.currentTier === 'closer'
+      ? 'You have Closer-level execution features. Team adds shared workflows, governance, and multi-user operational controls.'
+      : props.currentTier === 'team'
+      ? 'Your account should already have Team access. If this lock persists, contact support.'
+      : 'You are on Starter. Team unlocks shared workflows, governance controls, and team-level operations.'
 
   return (
     <div className="min-h-screen bg-background terminal-grid">
@@ -41,6 +55,12 @@ export function TeamUpgradeGate(props: {
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <p>{whyLocked}</p>
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs">
+              <div>
+                <span className="font-medium text-foreground">Unlock plan:</span> Team
+              </div>
+              <div className="mt-1">{tierGuidance}</div>
+            </div>
             {props.sessionEmail ? (
               <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs text-muted-foreground">
                 Signed in as <span className="text-foreground">{props.sessionEmail}</span> · Effective tier{' '}
@@ -58,6 +78,9 @@ export function TeamUpgradeGate(props: {
               </Button>
               <Button asChild variant="outline">
                 <Link href={secondaryCtaHref}>{secondaryCtaLabel}</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href={continueCtaHref}>{continueCtaLabel}</Link>
               </Button>
             </div>
           </CardContent>

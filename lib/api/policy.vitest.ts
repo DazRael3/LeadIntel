@@ -81,6 +81,21 @@ describe('API Policy', () => {
     expect(policy.rateLimit.ipPerMin).toBe(5)
   })
 
+  it('should keep public email-config usable for authenticated sessions', () => {
+    const policy = getRoutePolicy('/api/public/email-config', 'GET')
+
+    expect(policy.authRequired).toBe(false)
+    expect(policy.rateLimit.authPerMin).toBe(30)
+    expect(policy.rateLimit.ipPerMin).toBe(30)
+  })
+
+  it('should keep public email-config from auth-key throttling', () => {
+    const policy = getRoutePolicy('/api/public/email-config', 'GET')
+    expect(policy.authRequired).toBe(false)
+    expect(policy.rateLimit.authPerMin).toBeGreaterThan(0)
+    expect(policy.rateLimit.ipPerMin).toBeGreaterThan(0)
+  })
+
   it('should return correct policy for stripe webhook', () => {
     const policy = getRoutePolicy('/api/stripe/webhook', 'POST')
     

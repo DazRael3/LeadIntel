@@ -23,9 +23,10 @@ import { BlurredPremiumSection } from '@/components/gating/BlurredPremiumSection
 import { RecentPremiumActivityPanel } from '@/components/billing/RecentPremiumActivityPanel'
 
 export const metadata: Metadata = {
-  title: 'Competitive Intelligence Report | LeadIntel',
+  title: 'Competitive Reports Hub | LeadIntel',
   description:
     'Learn how LeadIntel turns near real-time buying signals into AI-generated pitches, battlecards, and watchlists to help you create pipeline faster.',
+  alternates: { canonical: 'https://dazrael.com/competitive-report' },
 }
 
 export const dynamic = 'force-dynamic'

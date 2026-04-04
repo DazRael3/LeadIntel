@@ -22,7 +22,7 @@ export default async function IntelligenceSettingsPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/intelligence')
 
   const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'adaptive_playbooks' })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok) return <TeamUpgradeGate currentTier={gate.tier} sessionEmail={user.email ?? null} />
 
   return <IntelligenceSettingsClient />
 }

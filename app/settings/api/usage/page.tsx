@@ -21,7 +21,7 @@ export default async function ApiUsagePage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/api/usage')
 
   const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'platform_api_access' })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok) return <TeamUpgradeGate currentTier={gate.tier} sessionEmail={user.email ?? null} />
 
   return <ApiUsageClient />
 }

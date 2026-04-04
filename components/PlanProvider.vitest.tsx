@@ -53,5 +53,32 @@ describe('PlanProvider / usePlan', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/plan', expect.any(Object))
     expect(screen.getByTestId('tier').textContent).toBe('team')
   })
+
+  it('hydrates from envelope-free /api/plan payload', async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          plan: 'pro',
+          tier: 'closer_plus',
+          planId: 'closer_plus',
+          trial: { active: false, endsAt: null },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch)
+
+    render(
+      <PlanProvider initialPlan="free">
+        <Consumer />
+      </PlanProvider>
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('tier').textContent).toBe('closer_plus')
+  })
 })
 
