@@ -96,18 +96,18 @@ async function hasBouncedLifecycleEmail(args: {
 async function fetchLifecycleReplySignals(args: {
   supabase: ReturnType<typeof createSupabaseAdminClient>
   userIds: string[]
-}): Promise<Set<string>> {
-  if (args.userIds.length === 0) return new Set()
+}): Promise<{ checked: boolean; repliedUserIds: Set<string> }> {
+  if (args.userIds.length === 0) return { checked: true, repliedUserIds: new Set() }
   try {
     const { data, error } = await args.supabase
       .from('email_engagement')
       .select('user_id')
       .in('user_id', args.userIds)
       .ilike('event_type', '%repl%')
-    if (error) return new Set()
-    return new Set(((data ?? []) as ReplySignalRow[]).map((r) => r.user_id))
+    if (error) return { checked: false, repliedUserIds: new Set() }
+    return { checked: true, repliedUserIds: new Set(((data ?? []) as ReplySignalRow[]).map((r) => r.user_id)) }
   } catch {
-    return new Set()
+    return { checked: false, repliedUserIds: new Set() }
   }
 }
 
@@ -196,6 +196,9 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
     eligible: 0,
     sent: 0,
     skipped: 0,
+    replySignalChecked: true,
+    replySignalUnavailableSkips: 0,
+    disqualificationStateSupported: false,
     limit,
   }
 
@@ -212,10 +215,11 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
   // Move batch forward so repeated runs don't re-scan the same first N users.
   const ids = rows.map((r) => r.user_id)
   void supabase.from('lifecycle_state').update({ last_checked_at: now.toISOString() }).in('user_id', ids)
-  const [prefsRes, repliedUserIds] = await Promise.all([
+  const [prefsRes, replySignals] = await Promise.all([
     supabase.from('user_settings').select('user_id, allow_product_updates').in('user_id', ids),
     fetchLifecycleReplySignals({ supabase, userIds: ids }),
   ])
+  summary.replySignalChecked = replySignals.checked
   const allowProductUpdatesByUserId = new Map(
     ((prefsRes.data ?? []) as UserSettingsPrefsRow[]).map((r) => [r.user_id, r.allow_product_updates !== false])
   )
@@ -237,16 +241,20 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
     const premiumDays = premiumFirstAt ? daysSince(premiumFirstAt, nowMs) : null
     const hasBouncedEmail = await hasBouncedLifecycleEmail({ supabase, userId: r.user_id, toEmail })
     const allowProductUpdates = allowProductUpdatesByUserId.get(r.user_id) ?? true
-    const hasRepliedLifecycleEmail = repliedUserIds.has(r.user_id)
+    const hasRepliedLifecycleEmail = replySignals.repliedUserIds.has(r.user_id)
     const stopReason = getLifecycleStopReason({
       allowProductUpdates,
       productTipsOptIn: r.product_tips_opt_in,
+      replySignalChecked: replySignals.checked,
       hasRepliedLifecycleEmail,
       hasBouncedEmail,
       upgraded: r.upgraded,
       upgradeConfirmSentAt: r.upgrade_confirm_sent_at,
     })
     if (stopReason) {
+      if (stopReason === 'reply_signal_unavailable') {
+        summary.replySignalUnavailableSkips += 1
+      }
       summary.skipped += 1
       continue
     }

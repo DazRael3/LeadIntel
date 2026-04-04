@@ -17,13 +17,23 @@ export type LifecycleCadenceState = Partial<Record<LifecycleSendField, string | 
 export function getLifecycleStopReason(args: {
   allowProductUpdates: boolean
   productTipsOptIn: boolean
+  replySignalChecked: boolean
   hasRepliedLifecycleEmail: boolean
   hasBouncedEmail: boolean
   upgraded: boolean
   upgradeConfirmSentAt?: string | null
-}): 'global_unsubscribe' | 'opted_out' | 'replied' | 'bounced' | 'converted' | null {
+}):
+  | 'global_unsubscribe'
+  | 'opted_out'
+  | 'reply_signal_unavailable'
+  | 'replied'
+  | 'bounced'
+  | 'converted'
+  | null {
   if (!args.allowProductUpdates) return 'global_unsubscribe'
   if (!args.productTipsOptIn) return 'opted_out'
+  // Safety guard: if we cannot verify reply-stop signals, avoid sending more lifecycle emails.
+  if (!args.replySignalChecked) return 'reply_signal_unavailable'
   if (args.hasRepliedLifecycleEmail) return 'replied'
   if (args.hasBouncedEmail) return 'bounced'
   if (args.upgraded && Boolean(args.upgradeConfirmSentAt)) return 'converted'

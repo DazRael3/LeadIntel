@@ -6,6 +6,7 @@ describe('lifecycle policy', () => {
     const reason = getLifecycleStopReason({
       allowProductUpdates: true,
       productTipsOptIn: false,
+      replySignalChecked: true,
       hasRepliedLifecycleEmail: false,
       hasBouncedEmail: false,
       upgraded: false,
@@ -18,6 +19,7 @@ describe('lifecycle policy', () => {
     const reason = getLifecycleStopReason({
       allowProductUpdates: true,
       productTipsOptIn: true,
+      replySignalChecked: true,
       hasRepliedLifecycleEmail: false,
       hasBouncedEmail: true,
       upgraded: false,
@@ -30,6 +32,7 @@ describe('lifecycle policy', () => {
     const reason = getLifecycleStopReason({
       allowProductUpdates: true,
       productTipsOptIn: true,
+      replySignalChecked: true,
       hasRepliedLifecycleEmail: false,
       hasBouncedEmail: false,
       upgraded: true,
@@ -42,6 +45,7 @@ describe('lifecycle policy', () => {
     const reason = getLifecycleStopReason({
       allowProductUpdates: true,
       productTipsOptIn: true,
+      replySignalChecked: true,
       hasRepliedLifecycleEmail: false,
       hasBouncedEmail: false,
       upgraded: true,
@@ -54,6 +58,7 @@ describe('lifecycle policy', () => {
     const reason = getLifecycleStopReason({
       allowProductUpdates: false,
       productTipsOptIn: true,
+      replySignalChecked: true,
       hasRepliedLifecycleEmail: false,
       hasBouncedEmail: false,
       upgraded: false,
@@ -66,12 +71,26 @@ describe('lifecycle policy', () => {
     const reason = getLifecycleStopReason({
       allowProductUpdates: true,
       productTipsOptIn: true,
+      replySignalChecked: true,
       hasRepliedLifecycleEmail: true,
       hasBouncedEmail: false,
       upgraded: false,
       upgradeConfirmSentAt: null,
     })
     expect(reason).toBe('replied')
+  })
+
+  it('stops when reply-signal verification is unavailable', () => {
+    const reason = getLifecycleStopReason({
+      allowProductUpdates: true,
+      productTipsOptIn: true,
+      replySignalChecked: false,
+      hasRepliedLifecycleEmail: false,
+      hasBouncedEmail: false,
+      upgraded: false,
+      upgradeConfirmSentAt: null,
+    })
+    expect(reason).toBe('reply_signal_unavailable')
   })
 
   it('picks 3-day recap and 7-day winback, no 14-day branch', () => {

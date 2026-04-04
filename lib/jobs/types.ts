@@ -7,6 +7,7 @@ export type JobName =
   | 'sources_refresh'
   | 'prospect_watch'
   | 'prospect_watch_digest'
+  | 'webhook_deliveries'
 export type TriggeredBy = 'cron' | 'admin'
 export type JobStatus = 'ok' | 'skipped' | 'error'
 

@@ -38,7 +38,7 @@ async function hasBouncedLifecycleEmail(args: {
 async function hasRepliedLifecycleEmail(args: {
   supabase: ReturnType<typeof createRouteClient>
   userId: string
-}): Promise<boolean> {
+}): Promise<{ checked: boolean; replied: boolean }> {
   try {
     const { data, error } = await args.supabase
       .from('email_engagement')
@@ -48,10 +48,10 @@ async function hasRepliedLifecycleEmail(args: {
       .order('occurred_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (error) return false
-    return Boolean((data as { id?: string } | null)?.id)
+    if (error) return { checked: false, replied: false }
+    return { checked: true, replied: Boolean((data as { id?: string } | null)?.id) }
   } catch {
-    return false
+    return { checked: false, replied: false }
   }
 }
 
@@ -124,13 +124,14 @@ export const POST = withApiGuard(async (request: NextRequest, { requestId }) => 
     const hasResendKey = Boolean((serverEnv.RESEND_API_KEY ?? '').trim())
     const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
     const toEmail = (user.email ?? '').trim()
-    const hasRepliedLifecycleSignal = await hasRepliedLifecycleEmail({ supabase, userId: user.id })
+    const replySignal = await hasRepliedLifecycleEmail({ supabase, userId: user.id })
     const hasBouncedEmail = toEmail ? await hasBouncedLifecycleEmail({ supabase, userId: user.id, toEmail }) : false
     const upgraded = await canTreatAsUpgraded(supabase, user.id)
     const stopReason = getLifecycleStopReason({
       allowProductUpdates,
       productTipsOptIn: tipsOptIn,
-      hasRepliedLifecycleEmail: hasRepliedLifecycleSignal,
+      replySignalChecked: replySignal.checked,
+      hasRepliedLifecycleEmail: replySignal.replied,
       hasBouncedEmail,
       upgraded,
       upgradeConfirmSentAt: (existing as { upgrade_confirm_sent_at?: string | null } | null)?.upgrade_confirm_sent_at ?? null,
