@@ -9,14 +9,22 @@ vi.mock('@/lib/analytics', () => ({
 
 describe('/tour', () => {
   it('renders interactive preview with deeper account blocks', async () => {
+    ;(globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver =
+      (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver ??
+      (class {
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+      } as unknown as IntersectionObserver)
+
     const Page = (await import('./page')).default
     render(<Page />)
 
-    expect(screen.getByText(/Product tour/i)).toBeTruthy()
-    expect(screen.getByText(/Interactive product preview/i)).toBeTruthy()
-    expect(screen.getByText(/People/i)).toBeTruthy()
-    expect(screen.getByText(/Signal timeline/i)).toBeTruthy()
-    expect(screen.getByText(/Action center/i)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Product tour/i })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /^Interactive product preview$/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^People$/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^Signal timeline$/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^Action center$/i })).toBeTruthy()
   })
 })
 

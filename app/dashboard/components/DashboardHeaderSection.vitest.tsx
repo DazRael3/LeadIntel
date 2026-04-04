@@ -6,6 +6,7 @@ import { DashboardHeaderSection } from './DashboardHeaderSection'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => '/dashboard',
 }))
 
 vi.mock('../hooks/useStripePortal', () => ({
@@ -68,10 +69,10 @@ describe('DashboardHeaderSection', () => {
     planMock.isHouseCloserOverride = false
     planMock.buildInfo = { repoOwner: 'DazRael3', repoSlug: 'LeadIntel', branch: 'main', commitSha: 'abcdef123456' }
     render(<DashboardHeaderSection creditsRemaining={9999} />)
-    expect(screen.queryByRole('button', { name: /upgrade to closer/i })).toBeNull()
-    expect(screen.getByRole('button', { name: /upgrade to closer\\+/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^upgrade to closer$/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /^upgrade to closer\+$/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
-    expect(screen.getByText(/closer/i)).toBeTruthy()
+    expect(screen.getByText(/^closer$/i)).toBeTruthy()
     expect(screen.queryByText(/house closer/i)).toBeNull()
     expect(screen.queryByTestId('build-debug-panel')).toBeNull()
   })
@@ -85,7 +86,7 @@ describe('DashboardHeaderSection', () => {
     render(<DashboardHeaderSection creditsRemaining={9999} />)
     expect(screen.getByRole('button', { name: /upgrade to team/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
-    expect(screen.getByText(/closer\\+/i)).toBeTruthy()
+    expect(screen.getByText(/closer\+/i)).toBeTruthy()
   })
 
   it('team shows Manage billing and no upgrade CTAs', () => {
@@ -97,7 +98,7 @@ describe('DashboardHeaderSection', () => {
     planMock.debug = null
     planMock.buildInfo = null
     render(<DashboardHeaderSection creditsRemaining={9999} />)
-    expect(screen.queryByRole('button', { name: /upgrade to closer\\+/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /upgrade to closer\+/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /upgrade to team/i })).toBeNull()
     expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
     expect(screen.getByText(/team/i)).toBeTruthy()
@@ -125,7 +126,7 @@ describe('DashboardHeaderSection', () => {
     planMock.isHouseCloserOverride = true
     planMock.buildInfo = { repoOwner: 'DazRael3', repoSlug: 'LeadIntel', branch: 'main', commitSha: 'abcdef123456' }
     render(<DashboardHeaderSection creditsRemaining={9999} />)
-    expect(screen.getByText(/house closer/i)).toBeTruthy()
+    expect(screen.getByLabelText(/house closer account/i)).toBeTruthy()
     expect(screen.getByTestId('build-debug-panel')).toBeTruthy()
     expect(screen.getByText(/build debug \(house closer only\)/i)).toBeTruthy()
     expect(screen.getByText(/dazrael3\/leadintel/i)).toBeTruthy()

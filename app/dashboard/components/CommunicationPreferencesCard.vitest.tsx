@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 
 const getUserMock = vi.fn(async () => ({ data: { user: { id: 'user_1' } }, error: null }))
 const maybeSingleMock = vi.fn(async () => ({
@@ -12,6 +13,15 @@ const maybeSingleMock = vi.fn(async () => ({
   error: null,
 }))
 const selectMock = vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: maybeSingleMock })) }))
+const trackMock = vi.fn((eventName: string, eventProps?: Record<string, unknown>) => {
+  const enabled = (process.env.NEXT_PUBLIC_ANALYTICS_ENABLED ?? '').trim().toLowerCase()
+  if (!(enabled === 'true' || enabled === '1')) return
+  void fetch('/api/analytics/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eventName, eventProps: eventProps ?? {} }),
+  })
+})
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
@@ -20,9 +30,15 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
+vi.mock('@/lib/analytics', () => ({
+  track: (...args: [string, Record<string, unknown> | undefined]) => trackMock(...args),
+}))
+
 describe('CommunicationPreferencesCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    trackMock.mockClear()
+    cleanup()
   })
 
   it('loads existing prefs and saves via /api/settings', async () => {
@@ -30,6 +46,7 @@ describe('CommunicationPreferencesCard', () => {
       ok: true,
       json: async () => ({}),
       text: async () => '',
+      headers: { get: () => null },
     } as any)
 
     const { CommunicationPreferencesCard } = await import('./CommunicationPreferencesCard')
@@ -62,25 +79,28 @@ describe('CommunicationPreferencesCard', () => {
       ok: true,
       json: async () => ({}),
       text: async () => '',
+      headers: { get: () => null },
     } as any)
 
     // Disabled: should not call /api/analytics/track
     process.env.NEXT_PUBLIC_ANALYTICS_ENABLED = 'false'
     const { CommunicationPreferencesCard } = await import('./CommunicationPreferencesCard')
     render(<CommunicationPreferencesCard />)
-    await waitFor(() => expect(screen.getByText('Communication preferences')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('Save preferences'))
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: /communication preferences/i }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByText('Save preferences')[0]!)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/analytics/track')).toBe(false)
+    await waitFor(() => expect(trackMock).toHaveBeenCalled())
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/api/analytics/track'))).toBe(false)
 
     // Enabled: should call /api/analytics/track
     fetchMock.mockClear()
     process.env.NEXT_PUBLIC_ANALYTICS_ENABLED = 'true'
+    cleanup()
     render(<CommunicationPreferencesCard />)
-    await waitFor(() => expect(screen.getAllByText('Save preferences').length).toBeGreaterThan(0))
-    fireEvent.click(screen.getAllByText('Save preferences')[0])
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/analytics/track')).toBe(true)
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: /communication preferences/i }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByText('Save preferences')[0]!)
+    await waitFor(() => expect(trackMock).toHaveBeenCalled())
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/api/analytics/track'))).toBe(true))
 
     fetchMock.mockRestore()
   })

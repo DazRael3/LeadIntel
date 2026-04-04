@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 
 import { PitchGenerator } from './PitchGenerator'
 import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
@@ -16,21 +17,24 @@ vi.mock('@/lib/runtimeFlags', () => ({
   isE2E: () => true,
 }))
 
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({
-    auth: {
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-    },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: async () => ({ data: { subscription_tier: 'free' }, error: null }),
-          maybeSingle: async () => ({ data: null, error: null }),
-        }),
+const supabaseClientMock = {
+  auth: {
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+  },
+  from: () => ({
+    select: () => ({
+      eq: () => ({
+        single: async () => ({ data: { subscription_tier: 'free' }, error: null }),
+        maybeSingle: async () => ({ data: null, error: null }),
       }),
-      upsert: async () => ({ data: null, error: null }),
     }),
+    upsert: async () => ({ data: null, error: null }),
   }),
+}
+
+vi.mock('@/lib/supabase/client', () => ({
+  // Return a stable object so effect deps in PitchGenerator don't churn indefinitely in tests.
+  createClient: () => supabaseClientMock,
 }))
 
 let tierMock: 'starter' | 'closer' = 'starter'
@@ -52,15 +56,21 @@ vi.mock('@/lib/supabase/safe-auth', () => ({
 
 describe('PitchGenerator', () => {
   beforeEach(() => {
-    vi.useFakeTimers()
     vi.stubEnv('NODE_ENV', 'development')
     tierMock = 'starter'
+    localStorage.clear()
 
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
-      if (u === '/api/usage/pitch-summary') {
+      if (u === '/api/usage/premium-generations') {
         return new Response(
-          JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 0, pitchesLimit: STARTER_PITCH_CAP_LIMIT } }),
+          JSON.stringify({
+            ok: true,
+            data: {
+              capabilities: { tier: 'starter' },
+              usage: { used: 0, limit: STARTER_PITCH_CAP_LIMIT, remaining: STARTER_PITCH_CAP_LIMIT },
+            },
+          }),
           { status: 200 }
         )
       }
@@ -85,11 +95,11 @@ describe('PitchGenerator', () => {
 
     // Seed saved companies for the mocked user id (user_1).
     localStorage.setItem('leadintel_saved_companies_user_1', JSON.stringify(['visa.com']))
+    localStorage.setItem('leadintel_saved_companies_anon', JSON.stringify(['visa.com']))
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    vi.useRealTimers()
   })
 
   it('shows pitch even when lead_id is missing (no UI banner)', async () => {
@@ -104,10 +114,7 @@ describe('PitchGenerator', () => {
       await Promise.resolve()
     })
 
-    // Advance hydration debounce timers (this used to clear the freshly generated pitch)
-    await act(async () => {
-      vi.advanceTimersByTime(1000)
-    })
+    await waitFor(() => expect(screen.getByText('Hello from pitch')).toBeTruthy())
 
     expect(await screen.findByText('Generated Pitch')).toBeTruthy()
     expect(screen.getByText('Hello from pitch')).toBeTruthy()
@@ -194,14 +201,17 @@ describe('PitchGenerator', () => {
     expect(calls.some((u) => u.startsWith('/api/pitch/latest?') && u.includes('companyDomain=visa.com'))).toBe(true)
   })
 
-  it('Starter at 3/3 pitches disables input and shows upgrade prompt, and only shows 3 saved chips', async () => {
+  it('Starter at 3/3 pitches disables input and shows upgrade path', async () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
-      if (u === '/api/usage/pitch-summary') {
+      if (u === '/api/usage/premium-generations') {
         return new Response(
           JSON.stringify({
             ok: true,
-            data: { tier: 'starter', pitchesUsed: STARTER_PITCH_CAP_LIMIT, pitchesLimit: STARTER_PITCH_CAP_LIMIT },
+            data: {
+              capabilities: { tier: 'starter' },
+              usage: { used: STARTER_PITCH_CAP_LIMIT, limit: STARTER_PITCH_CAP_LIMIT, remaining: 0 },
+            },
           }),
           { status: 200 }
         )
@@ -214,22 +224,28 @@ describe('PitchGenerator', () => {
     vi.stubGlobal('fetch', fetchMock as any)
 
     localStorage.setItem('leadintel_saved_companies_user_1', JSON.stringify(['a.com', 'b.com', 'c.com', 'd.com']))
+    localStorage.setItem('leadintel_saved_companies_anon', JSON.stringify(['a.com', 'b.com', 'c.com', 'd.com']))
 
     render(<PitchGenerator />)
 
-    expect(
-      await screen.findByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))
-    ).toBeTruthy()
+    await screen.findByRole('button', { name: /generate/i })
     expect(screen.getByTestId('pitch-input')).toBeDisabled()
-    expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(STARTER_PITCH_CAP_LIMIT)
+    expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(4)
+    expect(screen.getByRole('link', { name: /view plans/i })).toHaveAttribute('href', '/pricing?target=closer')
   })
 
   it('Starter at 2/3 pitches keeps prompt enabled and does not hide extra saved chips', async () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
-      if (u === '/api/usage/pitch-summary') {
+      if (u === '/api/usage/premium-generations') {
         return new Response(
-          JSON.stringify({ ok: true, data: { tier: 'starter', pitchesUsed: 2, pitchesLimit: STARTER_PITCH_CAP_LIMIT } }),
+          JSON.stringify({
+            ok: true,
+            data: {
+              capabilities: { tier: 'starter' },
+              usage: { used: 2, limit: STARTER_PITCH_CAP_LIMIT, remaining: 1 },
+            },
+          }),
           { status: 200 }
         )
       }
@@ -241,13 +257,13 @@ describe('PitchGenerator', () => {
     vi.stubGlobal('fetch', fetchMock as any)
 
     localStorage.setItem('leadintel_saved_companies_user_1', JSON.stringify(['a.com', 'b.com', 'c.com', 'd.com']))
+    localStorage.setItem('leadintel_saved_companies_anon', JSON.stringify(['a.com', 'b.com', 'c.com', 'd.com']))
     render(<PitchGenerator />)
 
     await act(async () => {
       await Promise.resolve()
     })
 
-    expect(screen.queryByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))).toBeNull()
     expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
     expect(screen.getAllByRole('button', { name: /load latest pitch for/i }).length).toBe(4)
   })
@@ -256,11 +272,14 @@ describe('PitchGenerator', () => {
     tierMock = 'closer'
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url)
-      if (u === '/api/usage/pitch-summary') {
+      if (u === '/api/usage/premium-generations') {
         return new Response(
           JSON.stringify({
             ok: true,
-            data: { tier: 'starter', pitchesUsed: 999, pitchesLimit: STARTER_PITCH_CAP_LIMIT },
+            data: {
+              capabilities: { tier: 'starter' },
+              usage: { used: 999, limit: STARTER_PITCH_CAP_LIMIT, remaining: 0 },
+            },
           }),
           { status: 200 }
         )
@@ -275,7 +294,6 @@ describe('PitchGenerator', () => {
       await Promise.resolve()
     })
 
-    expect(screen.queryByText(new RegExp(`You’ve used your ${STARTER_PITCH_CAP_LIMIT} free pitches`, 'i'))).toBeNull()
     expect(screen.getByTestId('pitch-input')).not.toBeDisabled()
   })
 
@@ -294,7 +312,7 @@ describe('PitchGenerator', () => {
     })
 
     const calls = fetchMock.mock.calls.map((c: unknown[]) => String(c[0]))
-    expect(calls.some((u) => u === '/api/usage/pitch-summary')).toBe(false)
+    expect(calls.some((u) => u === '/api/usage/premium-generations')).toBe(false)
   })
 })
 

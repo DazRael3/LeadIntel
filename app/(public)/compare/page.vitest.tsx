@@ -20,12 +20,12 @@ describe('/compare', () => {
     const Page = (await import('./page')).default
     render(<Page />)
 
-    expect(screen.getByText(/Competitor matrix/i)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /competitor matrix/i })).toBeTruthy()
     expect(screen.getByText('UserGems')).toBeTruthy()
     expect(screen.getByText('Common Room')).toBeTruthy()
     expect(screen.getByText('ZoomInfo Copilot')).toBeTruthy()
     expect(screen.getByText('Apollo')).toBeTruthy()
-    expect(screen.getByText('LeadIntel')).toBeTruthy()
+    expect(screen.getAllByText('LeadIntel').length).toBeGreaterThan(0)
   })
 })
 

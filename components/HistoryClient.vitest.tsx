@@ -6,8 +6,8 @@ import { HistoryClient } from './HistoryClient'
 describe('HistoryClient gating', () => {
   it('shows lock state when pitch history access is disabled', () => {
     render(<HistoryClient initialLeads={[]} canAccessPitchHistory={false} canExportLeads={false} />)
-    expect(screen.getByText(/trial work is safely stored/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /upgrade to pro/i })).toBeInTheDocument()
+    expect(screen.getByText(/save and reuse outputs/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /upgrade to closer/i })[0]).toHaveAttribute('href', '/pricing?target=closer')
   })
 })
 

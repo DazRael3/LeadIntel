@@ -7,12 +7,21 @@ import { DashboardClient } from './DashboardClient'
 // ---- Mocks (keep tests shallow and fast) ----
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => '/dashboard',
 }))
 
-let planMock: { plan: 'free' | 'pro'; isPro: boolean; trial: { active: boolean; endsAt: string | null } } = {
+let planMock: {
+  plan: 'free' | 'pro'
+  tier: 'starter' | 'closer' | 'closer_plus' | 'team'
+  isPro: boolean
+  trial: { active: boolean; endsAt: string | null }
+  capabilities: { tour_goals: boolean; why_now_digest_in_app: boolean }
+} = {
   plan: 'free',
+  tier: 'starter',
   isPro: false,
   trial: { active: false, endsAt: null },
+  capabilities: { tour_goals: true, why_now_digest_in_app: true },
 }
 vi.mock('@/components/PlanProvider', () => ({
   usePlan: () => planMock,
@@ -75,12 +84,20 @@ vi.mock('./components/DebugPanel', () => ({ DebugPanel: () => null }))
 vi.mock('./components/ViewModeToggle', () => ({ ViewModeToggle: () => null }))
 vi.mock('./components/ProOnlyCard', () => ({ ProOnlyCard: () => null }))
 vi.mock('./components/CommunicationPreferencesCard', () => ({ CommunicationPreferencesCard: () => null }))
+vi.mock('@/components/feedback/FeedbackCard', () => ({ FeedbackCard: () => null }))
+vi.mock('@/components/dashboard/RecentActivityFeed', () => ({ RecentActivityFeed: () => null }))
 vi.mock('@/components/ProGate', () => ({ ProGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
 
 describe('DashboardClient tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    planMock = { plan: 'free', isPro: false, trial: { active: false, endsAt: null } }
+    planMock = {
+      plan: 'free',
+      tier: 'starter',
+      isPro: false,
+      trial: { active: false, endsAt: null },
+      capabilities: { tour_goals: true, why_now_digest_in_app: true },
+    }
   })
 
   it('renders a horizontal overflow wrapper for half-screen layouts', () => {
@@ -98,7 +115,7 @@ describe('DashboardClient tabs', () => {
     expect(screen.getByTestId('dashboard-overflow-x')).toBeTruthy()
   })
 
-  it('shows a Pro pill on the Market Pulse tab for Starter users', async () => {
+  it('hides Market Pulse tab for Starter users', async () => {
     render(
       <DashboardClient
         initialSubscriptionTier="free"
@@ -110,15 +127,21 @@ describe('DashboardClient tabs', () => {
       />
     )
 
-    const marketTab = screen.getByRole('tab', { name: /market pulse/i })
-    expect(marketTab).toBeTruthy()
-    expect(within(marketTab).getByText('Pro')).toBeTruthy()
+    const marketTab = screen.queryByRole('tab', { name: /market pulse/i })
+    expect(marketTab).toBeNull()
+    expect(screen.queryByText('Pro')).toBeNull()
   })
 
   it('still renders the Market Pulse Pro pill for a paid tier render (Closer)', async () => {
     // DashboardClient uses `isPro` for badge visibility, and syncs it from usePlan().isPro in an effect.
     // This test asserts the badge is present even when the server render says "pro".
-    planMock = { plan: 'pro', isPro: false, trial: { active: false, endsAt: null } }
+    planMock = {
+      plan: 'pro',
+      tier: 'closer',
+      isPro: false,
+      trial: { active: false, endsAt: null },
+      capabilities: { tour_goals: true, why_now_digest_in_app: true },
+    }
 
     render(
       <DashboardClient
@@ -137,7 +160,7 @@ describe('DashboardClient tabs', () => {
     })
 
     const marketTab = screen.getByRole('tab', { name: /market pulse/i })
-    expect(within(marketTab).getByText('Pro')).toBeTruthy()
+    expect(within(marketTab).queryByText('Pro')).toBeNull()
   })
 })
 

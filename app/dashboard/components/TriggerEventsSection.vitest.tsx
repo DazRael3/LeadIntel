@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
@@ -6,6 +7,7 @@ import { TriggerEventsSection } from './TriggerEventsSection'
 const push = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
+  usePathname: () => '/dashboard',
 }))
 
 vi.mock('@/components/PlanProvider', () => ({
@@ -15,7 +17,7 @@ vi.mock('@/components/PlanProvider', () => ({
 }))
 
 describe('TriggerEventsSection', () => {
-  it('Starter empty state shows primary Upgrade to Closer CTA linking to /pricing?target=closer', () => {
+  it('Starter empty state shows primary continue-working CTA linking to /dashboard', () => {
     render(
       <TriggerEventsSection
         events={[]}
@@ -27,11 +29,11 @@ describe('TriggerEventsSection', () => {
       />
     )
 
-    const btn = screen.getByRole('button', { name: /upgrade to closer/i })
+    const btn = screen.getByRole('button', { name: /generate pitch draft/i })
     expect(btn).toBeTruthy()
     expect(btn.className).toContain('neon-border')
     fireEvent.click(btn)
-    expect(push).toHaveBeenCalledWith('/pricing?target=closer')
+    expect(push).toHaveBeenCalledWith('/dashboard')
   })
 })
 

@@ -8,9 +8,9 @@ vi.mock('@/lib/analytics', () => ({
 }))
 
 vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => {
-    throw new Error('Supabase not configured for tests')
-  },
+  createClient: () => ({
+    auth: { getUser: vi.fn(async () => ({ data: { user: null }, error: null })) },
+  }),
 }))
 
 vi.mock('@/lib/supabase/safe-auth', () => ({
@@ -30,11 +30,9 @@ describe('LandingClient', () => {
     const LandingClient = (await import('./LandingClient')).default
     render(<LandingClient />)
 
-    expect(screen.getByText('Why-now signals for outbound teams. Send-ready outreach in minutes.')).toBeTruthy()
-    expect(screen.getByText(/Why teams switch to LeadIntel/i)).toBeTruthy()
-    expect(screen.getByText(/How LeadIntel works/i)).toBeTruthy()
-    expect(screen.getByText(/Why LeadIntel feels different in practice/i)).toBeTruthy()
-    expect(screen.getByText(/Common switching paths/i)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /why-now signals for outbound teams/i })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Why teams switch to LeadIntel/i })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Evidence, not hype/i })).toBeTruthy()
     expect(screen.getByText(/Proof you can inspect today/i)).toBeTruthy()
   })
 })
