@@ -11,7 +11,9 @@ LeadIntel’s launch automation is intentionally **small and production-safe**:
 - **Lifecycle state**: `api.lifecycle_state`
   - Stores one-time “sent_at” markers for lifecycle emails.
 - **Email idempotency log**: `api.email_send_log`
-  - Enforces dedupe with a unique `dedupe_key` so cron reruns don’t spam.
+  - Enforces dedupe with a unique `dedupe_key` for successful sends.
+  - Retryable provider failures release the dedupe lock so retries can send.
+  - Non-retryable provider failures keep the dedupe lock to avoid repeated hard failures.
 - **Provider send log**: `api.email_logs`
   - Records outbound email attempts (provider correlation, status).
 
@@ -30,6 +32,16 @@ Auth is required via an Authorization bearer token:
 ### `job=lifecycle`
 Runs lifecycle eligibility checks and sends at most **one email per user per run**, in a fixed priority order.
 
+Stop conditions enforced in-code:
+- product tips opt-out (`user_settings.product_tips_opt_in = false`)
+- prior bounce detected (`api.email_logs.status = 'bounced'` for the same user/email)
+- conversion terminal state (after `upgrade_confirmation` has already been sent)
+
+Stop conditions currently **not proven/enforced** in lifecycle state:
+- explicit reply stop
+- explicit disqualification stop
+- explicit global unsubscribe state outside `product_tips_opt_in`
+
 **Email types**
 - **welcome**: after signup/first login (also best-effort via `/api/lifecycle/ensure`)
 - **nudge_accounts**: after ~6h if they haven’t added enough accounts
@@ -37,8 +49,8 @@ Runs lifecycle eligibility checks and sends at most **one email per user per run
 - **first_output**: after the first successful pitch/report (only if recent)
 - **starter_near_limit**: Starter is approaching the 3-preview cap
 - **starter_exhausted**: Starter has reached the 3-preview cap
-- **value_recap**: recap + upgrade framing after activation
-- **winback**: reactivation nudge after inactivity
+- **value_recap**: recap + upgrade framing after activation (3-day threshold)
+- **winback**: reactivation nudge for non-activated users (7-day threshold)
 - **feedback_request**: one lightweight request after initial usage
 - **upgrade_confirmation**: cron backstop if a webhook missed it
 
@@ -117,15 +129,15 @@ This endpoint is deduped by default to **at most once per day** per recipient+ty
 
 LeadIntel includes an internal-only **Email Lab** so operators can preview and QA templates before broad enablement.
 
-- **UI**: `/admin/email?token=$ADMIN_TOKEN`
-- **Linked from**: `/admin/ops?token=$ADMIN_TOKEN`
+- **UI**: `/admin/email` (cookie-based admin session)
+- **Linked from**: `/admin/ops` (cookie-based admin session)
 
 Capabilities:
 - Preview rendered **subject + HTML + plain text**
 - Run lightweight **template QA checks** (missing subject/body, missing prefs link, missing support mailto, etc.)
 - **Test-send** to operator inboxes only (restricted to env allowlist) with daily dedupe per template+recipient
 
-APIs (admin-token gated):
+APIs (admin-auth gated):
 - `POST /api/admin/email/preview`
 - `POST /api/admin/email/test-send`
 
@@ -145,6 +157,8 @@ Analytics (optional; best-effort):
 - Cron sends use a stable dedupe key: `lifecycle:<type>:<userId>`
 - Operator notifications use `admin:<event>:...`
 - Lifecycle `*_sent_at` columns in `api.lifecycle_state` provide a second layer of safety and also make eligibility transparent.
+- Retryable provider failures remove the dedupe row so retries can proceed.
+- Non-retryable provider failures keep the dedupe row to prevent repeated hard-fail attempts.
 
 ## Safe testing
 
@@ -166,9 +180,10 @@ curl -sS \
 
 ## Production cron schedule (recommended)
 
-Infrastructure reality:
-- **1 Vercel cron** available
-- **4 external cron jobs** available
+Repository truth:
+- `vercel.json` currently schedules: `kpi_monitor`, `content_audit`, `lifecycle`, `digest_lite`.
+- `prospect_watch`, `prospect_watch_digest`, `sources_refresh`, and webhook delivery are **not** scheduled in `vercel.json`.
+- They require external scheduler wiring (or explicit Vercel cron additions) to be proven active.
 
 Recommended split:
 - **Vercel cron (daily backstop)**: lifecycle

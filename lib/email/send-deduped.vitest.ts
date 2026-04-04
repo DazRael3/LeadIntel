@@ -6,14 +6,18 @@ function fakeSupabase(args: { insert: () => Promise<InsertResult>; update?: () =
   const updateChain = {
     eq: vi.fn().mockResolvedValue({}),
   }
+  const deleteChain = {
+    eq: vi.fn().mockResolvedValue({}),
+  }
   const fromChain = {
     insert: vi.fn().mockImplementation(args.insert),
     update: vi.fn().mockReturnValue(updateChain),
+    delete: vi.fn().mockReturnValue(deleteChain),
     eq: vi.fn().mockResolvedValue({}),
   }
   return {
     from: vi.fn().mockReturnValue(fromChain),
-    __chains: { fromChain, updateChain },
+    __chains: { fromChain, updateChain, deleteChain },
   } as unknown as any
 }
 
@@ -106,6 +110,78 @@ describe('sendEmailDeduped', () => {
 
     expect(res).toEqual({ ok: true, status: 'skipped', reason: 'schema_not_ready' })
     expect(sendSpy).not.toHaveBeenCalled()
+  })
+
+  it('deletes dedupe key for retryable provider failures', async () => {
+    vi.resetModules()
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv('RESEND_FROM_EMAIL', 'leadintel@dazrael.com')
+
+    const { sendEmailDeduped } = await import('./send-deduped')
+    const resendMod = await import('./resend')
+    vi.spyOn(resendMod, 'sendEmailWithResend').mockResolvedValue({
+      ok: false,
+      errorMessage: 'upstream timeout',
+    })
+
+    const supabase = fakeSupabase({
+      insert: async () => ({ error: null }),
+    })
+
+    const res = await sendEmailDeduped(supabase, {
+      dedupeKey: 'k4',
+      userId: '00000000-0000-0000-0000-000000000004',
+      toEmail: 'a@example.com',
+      fromEmail: 'leadintel@dazrael.com',
+      subject: 'Subj',
+      html: '<b>x</b>',
+      text: 'x',
+      kind: 'lifecycle',
+      template: 'welcome',
+      tags: [],
+    })
+
+    expect(res).toEqual({ ok: false, status: 'failed', error: 'upstream timeout', retryable: true })
+    expect((supabase as { __chains: { fromChain: { delete: ReturnType<typeof vi.fn> } } }).__chains.fromChain.delete).toHaveBeenCalledTimes(1)
+    expect((supabase as { __chains: { deleteChain: { eq: ReturnType<typeof vi.fn> } } }).__chains.deleteChain.eq).toHaveBeenCalledWith('dedupe_key', 'k4')
+  })
+
+  it('keeps dedupe key for non-retryable provider failures', async () => {
+    vi.resetModules()
+    vi.stubEnv('RESEND_API_KEY', 're_test')
+    vi.stubEnv('RESEND_FROM_EMAIL', 'leadintel@dazrael.com')
+
+    const { sendEmailDeduped } = await import('./send-deduped')
+    const resendMod = await import('./resend')
+    vi.spyOn(resendMod, 'sendEmailWithResend').mockResolvedValue({
+      ok: false,
+      errorMessage: 'The dazrael.com domain is not verified',
+    })
+
+    const supabase = fakeSupabase({
+      insert: async () => ({ error: null }),
+    })
+
+    const res = await sendEmailDeduped(supabase, {
+      dedupeKey: 'k5',
+      userId: '00000000-0000-0000-0000-000000000005',
+      toEmail: 'a@example.com',
+      fromEmail: 'leadintel@dazrael.com',
+      subject: 'Subj',
+      html: '<b>x</b>',
+      text: 'x',
+      kind: 'lifecycle',
+      template: 'welcome',
+      tags: [],
+    })
+
+    expect(res).toEqual({
+      ok: false,
+      status: 'failed',
+      error: 'The dazrael.com domain is not verified',
+      retryable: false,
+    })
+    expect((supabase as { __chains: { fromChain: { delete: ReturnType<typeof vi.fn> } } }).__chains.fromChain.delete).not.toHaveBeenCalled()
   })
 })
 

@@ -66,6 +66,13 @@ describe('runProspectWatchDigests', () => {
 
     const res = await runProspectWatchDigests({})
     expect(res.status).toBe('ok')
+    expect(res.summary).toMatchObject({
+      recipients: 1,
+      attempted: 1,
+      delivered: 1,
+      failed: 0,
+      skipped: 0,
+    })
     expect(sendEmailDeduped).toHaveBeenCalledTimes(1)
     expect((sendEmailDeduped as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[1]).toMatchObject({
       toEmail: 'leadintel@dazrael.com',

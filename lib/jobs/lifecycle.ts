@@ -1,7 +1,6 @@
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { getAppUrl } from '@/lib/app-url'
 import { serverEnv } from '@/lib/env'
-import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import {
   renderWelcomeEmail,
   renderAccountsNudgeEmail,
@@ -21,6 +20,7 @@ import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnabled } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
 import { getResendReplyToEmail } from '@/lib/email/routing'
+import { getLifecycleStopReason, selectLifecycleStep, type LifecycleSendField } from '@/lib/lifecycle/policy'
 
 type BatchRow = {
   user_id: string
@@ -60,6 +60,28 @@ function daysSince(iso: string, nowMs: number): number {
 
 function hasIcp(r: BatchRow): boolean {
   return Boolean((r.ideal_customer ?? '').trim() || (r.what_you_sell ?? '').trim())
+}
+
+async function hasBouncedLifecycleEmail(args: {
+  supabase: ReturnType<typeof createSupabaseAdminClient>
+  userId: string
+  toEmail: string
+}): Promise<boolean> {
+  try {
+    const { data, error } = await args.supabase
+      .from('email_logs')
+      .select('id')
+      .eq('user_id', args.userId)
+      .eq('to_email', args.toEmail)
+      .eq('status', 'bounced')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) return false
+    return Boolean((data as { id?: string } | null)?.id)
+  } catch {
+    return false
+  }
 }
 
 async function sendLifecycleEmail(args: {
@@ -165,16 +187,11 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
   void supabase.from('lifecycle_state').update({ last_checked_at: now.toISOString() }).in('user_id', ids)
 
   for (const r of rows) {
-    if (!r.product_tips_opt_in) {
-      summary.skipped += 1
-      continue
-    }
     const toEmail = (r.email ?? '').trim()
     if (!toEmail) {
       summary.skipped += 1
       continue
     }
-    summary.eligible += 1
 
     const hrs = hoursSince(r.signup_at, nowMs)
     const days = daysSince(r.signup_at, nowMs)
@@ -184,20 +201,20 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
     const starterRemaining = Math.max(0, starterLimit - premiumUsed)
     const premiumFirstAt = typeof r.premium_first_at === 'string' ? r.premium_first_at : null
     const premiumDays = premiumFirstAt ? daysSince(premiumFirstAt, nowMs) : null
+    const hasBouncedEmail = await hasBouncedLifecycleEmail({ supabase, userId: r.user_id, toEmail })
+    const stopReason = getLifecycleStopReason({
+      productTipsOptIn: r.product_tips_opt_in,
+      hasBouncedEmail,
+      upgraded: r.upgraded,
+      upgradeConfirmSentAt: r.upgrade_confirm_sent_at,
+    })
+    if (stopReason) {
+      summary.skipped += 1
+      continue
+    }
+    summary.eligible += 1
 
-    const maybeSend = async (type: LifecycleEmailType, field: keyof Pick<
-      BatchRow,
-      | 'welcome_sent_at'
-      | 'nudge_accounts_sent_at'
-      | 'nudge_pitch_sent_at'
-      | 'first_output_sent_at'
-      | 'starter_near_limit_sent_at'
-      | 'starter_exhausted_sent_at'
-      | 'feedback_request_sent_at'
-      | 'upgrade_confirm_sent_at'
-      | 'value_recap_sent_at'
-      | 'winback_sent_at'
-    >) => {
+    const maybeSend = async (type: LifecycleEmailType, field: LifecycleSendField) => {
       if (r[field]) return false
       const res = await sendLifecycleEmail({
         supabase,
@@ -262,56 +279,34 @@ export async function runLifecycleEmails(args: { dryRun?: boolean; limit?: numbe
       return true
     }
 
-    // Same priority order as lazy cron / historical sweep.
-    if (!r.welcome_sent_at) {
-      await maybeSend('welcome', 'welcome_sent_at')
+    const next = selectLifecycleStep({
+      state: {
+        welcome_sent_at: r.welcome_sent_at,
+        nudge_accounts_sent_at: r.nudge_accounts_sent_at,
+        nudge_pitch_sent_at: r.nudge_pitch_sent_at,
+        first_output_sent_at: r.first_output_sent_at,
+        starter_near_limit_sent_at: r.starter_near_limit_sent_at,
+        starter_exhausted_sent_at: r.starter_exhausted_sent_at,
+        feedback_request_sent_at: r.feedback_request_sent_at,
+        upgrade_confirm_sent_at: r.upgrade_confirm_sent_at,
+        value_recap_sent_at: r.value_recap_sent_at,
+        winback_sent_at: r.winback_sent_at,
+      },
+      hoursSinceSignup: hrs,
+      daysSinceSignup: days,
+      accountsCount: r.leads_count,
+      pitchesCount: r.pitches_count,
+      activated,
+      upgraded: r.upgraded,
+      premiumUsed,
+      premiumDays,
+      starterLimit,
+    })
+    if (!next) {
+      summary.skipped += 1
       continue
     }
-    if (hrs >= 6 && r.leads_count < 10 && !r.nudge_accounts_sent_at) {
-      await maybeSend('nudge_accounts', 'nudge_accounts_sent_at')
-      continue
-    }
-    if (hrs >= 24 && r.pitches_count < 1 && premiumUsed === 0 && !r.nudge_pitch_sent_at) {
-      await maybeSend('nudge_pitch', 'nudge_pitch_sent_at')
-      continue
-    }
-
-    // Starter usage reminders (only for not-upgraded users).
-    if (!r.upgraded && premiumUsed >= starterLimit && !r.starter_exhausted_sent_at) {
-      await maybeSend('starter_exhausted', 'starter_exhausted_sent_at')
-      continue
-    }
-    if (!r.upgraded && premiumUsed === starterLimit - 1 && !r.starter_near_limit_sent_at) {
-      await maybeSend('starter_near_limit', 'starter_near_limit_sent_at')
-      continue
-    }
-
-    // Reinforce after first successful output (only if recent; avoid resurfacing months later).
-    if (premiumUsed >= 1 && premiumDays !== null && premiumDays <= 7 && !r.first_output_sent_at) {
-      await maybeSend('first_output', 'first_output_sent_at')
-      continue
-    }
-
-    // Backstop upgrade confirmation (cron-safe) if the webhook hook missed it.
-    if (r.upgraded && !r.upgrade_confirm_sent_at) {
-      await maybeSend('upgrade_confirmation', 'upgrade_confirm_sent_at')
-      continue
-    }
-    if (days >= 3 && activated && !r.upgraded && !r.value_recap_sent_at) {
-      await maybeSend('value_recap', 'value_recap_sent_at')
-      continue
-    }
-    if (days >= 7 && !activated && !r.winback_sent_at) {
-      await maybeSend('winback', 'winback_sent_at')
-      continue
-    }
-
-    // Lightweight feedback request (only once, after initial usage).
-    if (!r.upgraded && premiumUsed >= 1 && premiumDays !== null && premiumDays >= 2 && !r.feedback_request_sent_at) {
-      await maybeSend('feedback_request', 'feedback_request_sent_at')
-      continue
-    }
-    summary.skipped += 1
+    await maybeSend(next.type, next.field)
   }
 
   return { status: 'ok' as const, summary }
