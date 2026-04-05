@@ -1210,7 +1210,9 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     tier: 'PUBLIC',
     maxBytes: 0,
     rateLimit: {
-      authPerMin: 0,
+      // Keep this endpoint usable from both anonymous and authenticated surfaces.
+      // A zero auth limit can hard-fail logged-in callers depending on limiter behavior.
+      authPerMin: 60,
       ipPerMin: 60,
     },
     originRequired: false,

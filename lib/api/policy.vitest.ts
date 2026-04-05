@@ -42,6 +42,7 @@ describe('API Policy', () => {
     'POST:/api/dev/create-user',
     'GET:/api/test-error',
     'POST:/api/analytics/track',
+    'GET:/api/public/automation',
     'POST:/api/admin/site-report/run',
     'GET:/api/admin/site-report/latest',
   ]
@@ -94,6 +95,13 @@ describe('API Policy', () => {
     expect(policy.authRequired).toBe(false)
     expect(policy.rateLimit.authPerMin).toBeGreaterThan(0)
     expect(policy.rateLimit.ipPerMin).toBeGreaterThan(0)
+  })
+
+  it('should keep public automation health endpoint from zero-limit auth throttling', () => {
+    const policy = getRoutePolicy('/api/public/automation', 'GET')
+    expect(policy.authRequired).toBe(false)
+    expect(policy.rateLimit.authPerMin).toBe(60)
+    expect(policy.rateLimit.ipPerMin).toBe(60)
   })
 
   it('should return correct policy for stripe webhook', () => {
