@@ -105,6 +105,7 @@ export default async function AdminOpsPage() {
   const lifecycleRun = lastByJob(runs, 'lifecycle')
   const prospectWatchRun = lastByJob(runs, 'prospect_watch')
   const prospectDigestRun = lastByJob(runs, 'prospect_watch_digest')
+  const webhookDeliveriesRun = lastByJob(runs, 'webhook_deliveries')
 
   let prospectReviewCount: number | null = null
   let contentDraftCount: number | null = null
@@ -395,7 +396,7 @@ export default async function AdminOpsPage() {
             <Badge variant="outline">Content digests: {contentDailyDigestEnabled() ? 'Enabled' : 'Disabled'}</Badge>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
               <div className="text-xs font-medium text-foreground">Last lifecycle run</div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -419,6 +420,16 @@ export default async function AdminOpsPage() {
                 <div className="text-xs">Finished {formatWhen(prospectDigestRun?.finished_at ?? null)}</div>
               </div>
               {prospectDigestRun?.error_text ? <div className="mt-2 text-xs text-amber-200">Error: {prospectDigestRun.error_text}</div> : null}
+            </div>
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+              <div className="text-xs font-medium text-foreground">Last webhook delivery run</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <StatusBadge status={webhookDeliveriesRun?.status ?? (jobRuns.enabled ? 'none' : 'unavailable')} />
+                <div className="text-xs">Finished {formatWhen(webhookDeliveriesRun?.finished_at ?? null)}</div>
+              </div>
+              {webhookDeliveriesRun?.error_text ? (
+                <div className="mt-2 text-xs text-amber-200">Error: {webhookDeliveriesRun.error_text}</div>
+              ) : null}
             </div>
           </div>
 

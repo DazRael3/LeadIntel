@@ -21,7 +21,7 @@ export default async function AssistantSettingsPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/assistant')
 
   const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'assistant' })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok) return <TeamUpgradeGate currentTier={gate.tier} sessionEmail={user.email ?? null} />
 
   return <AssistantSettingsClient />
 }

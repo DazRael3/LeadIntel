@@ -21,7 +21,7 @@ export default async function ExtensionsPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/extensions')
 
   const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'extensions' })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok) return <TeamUpgradeGate currentTier={gate.tier} sessionEmail={user.email ?? null} />
 
   return <ExtensionsSettingsClient />
 }

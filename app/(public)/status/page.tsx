@@ -54,6 +54,28 @@ type AutomationEnvelope =
       ok: true
       data: {
         enabled: boolean
+        summary?: {
+          monitoredJobs: number
+          recentSuccess: boolean
+          stale: boolean
+          missingJobs: number
+          failedJobs: number
+          staleJobs: number
+        }
+        scheduler?: {
+          requiredJobs: number
+          requiredExternalJobs: number
+          missingRequiredJobs: number
+          missingExternalJobs: number
+          warnings: string[]
+          jobs: Array<{
+            job: string
+            wiring: 'vercel_cron' | 'external_scheduler'
+            required: boolean
+            enabled: boolean
+            healthy: boolean | null
+          }>
+        }
       }
     }
   | { ok: false; error?: { message?: string } }
@@ -222,10 +244,41 @@ export default async function StatusPage() {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
             {automation?.ok === true && automation.data.enabled ? (
-              <div>Automation services are enabled.</div>
+              automation.data.summary && !automation.data.summary.stale && automation.data.summary.recentSuccess ? (
+                <div>Automation checks are healthy.</div>
+              ) : (
+                <div>
+                  Automation checks are degraded.
+                  {automation.data.summary ? (
+                    <span>
+                      {' '}
+                      ({automation.data.summary.staleJobs} stale, {automation.data.summary.failedJobs} failed, {automation.data.summary.missingJobs} missing)
+                    </span>
+                  ) : null}
+                </div>
+              )
             ) : (
               <div>Automation metrics aren’t enabled on this deployment.</div>
             )}
+            {automation?.ok === true && automation.data.scheduler ? (
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs space-y-1">
+                <div>
+                  Required scheduler jobs: {automation.data.scheduler.requiredJobs} ({automation.data.scheduler.requiredExternalJobs} external)
+                </div>
+                <div>
+                  Missing required jobs: {automation.data.scheduler.missingRequiredJobs} ({automation.data.scheduler.missingExternalJobs} external)
+                </div>
+                {automation.data.scheduler.warnings.length > 0 ? (
+                  <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                    {automation.data.scheduler.warnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-muted-foreground">No scheduler guardrail warnings.</div>
+                )}
+              </div>
+            ) : null}
             <div className="text-xs text-muted-foreground">This endpoint exposes only aggregate automation health.</div>
           </CardContent>
         </Card>

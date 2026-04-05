@@ -115,7 +115,9 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
     tier: 'D',
     maxBytes: 0,
     rateLimit: {
-      authPerMin: 0,
+      // Authenticated users can hit this public endpoint from logged-in surfaces.
+      // Keep auth and IP limits aligned to avoid accidental 429s on valid traffic.
+      authPerMin: 30,
       ipPerMin: 30,
     },
     originRequired: false,

@@ -34,7 +34,7 @@ export default async function ExportsSettingsPage() {
     supabase,
     capability: 'governance_exports',
   })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok) return <TeamUpgradeGate currentTier={gate.tier} sessionEmail={user.email ?? null} />
 
   return <ExportsSettingsClient />
 }

@@ -22,7 +22,7 @@ export default async function DeploymentSettingsPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/deployment')
 
   const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'deployment_readiness' })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok) return <TeamUpgradeGate currentTier={gate.tier} sessionEmail={user.email ?? null} />
 
   return <DeploymentSettingsClient />
 }

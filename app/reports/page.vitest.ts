@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 const redirectMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
-  redirect: (...args: unknown[]) => {
+  permanentRedirect: (...args: unknown[]) => {
     redirectMock(...args)
     throw new Error('NEXT_REDIRECT')
   },
@@ -14,7 +14,7 @@ describe('/reports page (server)', () => {
     redirectMock.mockClear()
 
     const mod = await import('./page')
-    await expect(mod.default({})).rejects.toThrow(/NEXT_REDIRECT/)
+    await expect(mod.default({ searchParams: Promise.resolve({}) })).rejects.toThrow(/NEXT_REDIRECT/)
 
     expect(redirectMock).toHaveBeenCalledWith('/competitive-report')
   })

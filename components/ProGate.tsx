@@ -79,6 +79,7 @@ export function ProGate(props: {
         : variant === 'advancedSignals'
           ? COPY.gates.variants.advancedSignals.body
           : COPY.gates.body
+  const continueHref = '/dashboard'
 
   return (
     <div className="relative">
@@ -93,6 +94,9 @@ export function ProGate(props: {
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{COPY.gates.label}</div>
           <div className="mt-1 text-sm font-semibold">{variantTitle}</div>
           <div className="mt-1 text-xs text-muted-foreground">{variantBody}</div>
+          <div className="mt-2 text-[11px] text-muted-foreground">
+            Unlock path: {tierLabel(props.requiredTier)} or higher. Continue working in Dashboard if you are not upgrading yet.
+          </div>
           {showBenefits ? (
             <ul className="mt-3 text-left text-xs text-muted-foreground list-disc pl-5 space-y-1">
               {COPY.gates.benefits.map((b) => (
@@ -107,6 +111,9 @@ export function ProGate(props: {
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => router.push('/pricing')}>
               {COPY.gates.ctaSecondary}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => router.push(continueHref)}>
+              Continue in Dashboard
             </Button>
           </div>
         </div>

@@ -32,5 +32,12 @@ describe('TeamUpgradeGate', () => {
     expect(screen.getByText(/signed in as/i)).toBeInTheDocument()
     expect(screen.getByText(/qa-team@dazrael\.com/i)).toBeInTheDocument()
   })
+
+  it('always renders a continue-working CTA', async () => {
+    const { TeamUpgradeGate } = await import('./TeamUpgradeGate')
+    render(<TeamUpgradeGate heading="Operations" currentTier="starter" />)
+    const cta = screen.getByRole('link', { name: 'Continue in Dashboard' })
+    expect(cta).toHaveAttribute('href', '/dashboard')
+  })
 })
 

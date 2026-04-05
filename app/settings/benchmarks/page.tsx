@@ -21,7 +21,7 @@ export default async function BenchmarksSettingsPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/benchmarks')
 
   const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'benchmarks' })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok) return <TeamUpgradeGate currentTier={gate.tier} sessionEmail={user.email ?? null} />
 
   return <BenchmarksSettingsClient />
 }

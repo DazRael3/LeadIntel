@@ -1,4 +1,12 @@
-import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
+import { permanentRedirect } from 'next/navigation'
+
+export const metadata: Metadata = {
+  title: 'Reports Redirect | LeadIntel',
+  description: 'Legacy reports route redirecting to the competitive reports hub.',
+  alternates: { canonical: 'https://dazrael.com/competitive-report' },
+  robots: { index: false, follow: true },
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +17,6 @@ export default async function ReportsPage(props: { searchParams?: Promise<Record
     if (typeof v === 'string') qs.set(k, v)
   }
   const suffix = qs.toString()
-  redirect(suffix ? `/competitive-report?${suffix}` : '/competitive-report')
+  permanentRedirect(suffix ? `/competitive-report?${suffix}` : '/competitive-report')
 }
 

@@ -84,7 +84,7 @@ async function hasBouncedLifecycleEmail(args: {
 async function hasRepliedLifecycleEmail(args: {
   supabase: ReturnType<typeof createSupabaseAdminClient>
   userId: string
-}): Promise<boolean> {
+}): Promise<{ checked: boolean; replied: boolean }> {
   try {
     const { data, error } = await args.supabase
       .from('email_engagement')
@@ -94,10 +94,10 @@ async function hasRepliedLifecycleEmail(args: {
       .order('occurred_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (error) return false
-    return Boolean((data as { id?: string } | null)?.id)
+    if (error) return { checked: false, replied: false }
+    return { checked: true, replied: Boolean((data as { id?: string } | null)?.id) }
   } catch {
-    return false
+    return { checked: false, replied: false }
   }
 }
 
@@ -261,12 +261,13 @@ export async function checkLifecycleForUser(
   const premiumDays = premiumFirstAt ? daysSince(premiumFirstAt, nowMs) : null
   const activated = hasIcp(settings) && accountsCount >= 10 && pitchesCount >= 1
   const upgraded = await canTreatAsUpgraded(supabase, userId)
-  const hasReplied = await hasRepliedLifecycleEmail({ supabase, userId })
+  const replySignal = await hasRepliedLifecycleEmail({ supabase, userId })
   const hasBouncedEmail = await hasBouncedLifecycleEmail({ supabase, userId, toEmail })
   const stopReason = getLifecycleStopReason({
     allowProductUpdates,
     productTipsOptIn: tipsOptIn,
-    hasRepliedLifecycleEmail: hasReplied,
+    replySignalChecked: replySignal.checked,
+    hasRepliedLifecycleEmail: replySignal.replied,
     hasBouncedEmail,
     upgraded,
     upgradeConfirmSentAt: lifecycle.upgrade_confirm_sent_at,

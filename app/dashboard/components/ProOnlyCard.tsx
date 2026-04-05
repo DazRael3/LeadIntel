@@ -34,10 +34,21 @@ export function ProOnlyCard({ title, description, icon, iconColor = 'cyan', upgr
         <p className="text-sm text-muted-foreground">
           {description}
         </p>
-        <Button onClick={() => router.push(`/pricing?target=${upgradeTarget}`)} className="neon-border hover:glow-effect">
-          <DollarSign className="h-4 w-4 mr-2" />
-          Upgrade to {tierLabel(upgradeTarget)}
-        </Button>
+        <div className="text-xs text-muted-foreground">
+          Unlock path: {tierLabel(upgradeTarget)} or higher. You can continue working in Dashboard without upgrading.
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <Button onClick={() => router.push(`/pricing?target=${upgradeTarget}`)} className="neon-border hover:glow-effect">
+            <DollarSign className="h-4 w-4 mr-2" />
+            Upgrade to {tierLabel(upgradeTarget)}
+          </Button>
+          <Button variant="outline" onClick={() => router.push('/pricing')}>
+            See pricing
+          </Button>
+          <Button variant="ghost" onClick={() => router.push('/dashboard')}>
+            Continue in Dashboard
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

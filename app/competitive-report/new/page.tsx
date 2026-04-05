@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/server'
 import { CompetitiveReportNewClient } from './ui/CompetitiveReportNewClient'
 
 export const metadata: Metadata = {
-  title: 'New Competitive Report | LeadIntel',
-  description: 'Generate a structured competitive intelligence report and save it to your Reports hub.',
+  title: 'Competitive Report Redirect | LeadIntel',
+  description: 'Legacy route redirecting to the competitive reports hub.',
+  alternates: { canonical: 'https://dazrael.com/competitive-report' },
+  robots: { index: false, follow: true },
 }
 
 export const dynamic = 'force-dynamic'

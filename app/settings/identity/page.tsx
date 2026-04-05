@@ -22,7 +22,7 @@ export default async function IdentitySettingsPage() {
   if (error || !user) redirect('/login?mode=signin&redirect=/settings/identity')
 
   const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'multi_workspace_controls' })
-  if (!gate.ok) return <TeamUpgradeGate />
+  if (!gate.ok) return <TeamUpgradeGate currentTier={gate.tier} sessionEmail={user.email ?? null} />
 
   return <IdentitySettingsClient />
 }

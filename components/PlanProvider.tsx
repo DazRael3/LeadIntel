@@ -79,6 +79,10 @@ interface PlanProviderProps {
   children: React.ReactNode
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+}
+
 export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, children }: PlanProviderProps) {
   const [plan, setPlan] = useState<Plan>(initialPlan)
   const [tier, setTier] = useState<Tier>('starter')
@@ -152,20 +156,26 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
         }
         return
       }
-      const text = await resp.text()
-      if (!text || text.trim().length === 0) {
-        console.warn('PlanProvider: Empty response from /api/plan')
+      const contentType = (resp.headers.get('content-type') ?? '').toLowerCase()
+      if (!contentType.includes('application/json')) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('PlanProvider: Non-JSON response from /api/plan')
+        }
         return
       }
-      let data
+
+      let data: unknown
       try {
-        data = JSON.parse(text)
+        data = await resp.json()
       } catch (parseError: unknown) {
-        console.error('PlanProvider: JSON parse error:', parseError, 'Response text:', text.substring(0, 200))
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('PlanProvider: JSON parse error:', parseError)
+        }
         return
       }
       // Standard envelope: { ok: true, data: { plan, trial } }
-      const payload = data?.data ?? data
+      const parsed = asRecord(data)
+      const payload = asRecord(parsed?.data) ?? parsed ?? {}
       if (payload?.plan === 'pro' || payload?.plan === 'free') {
         setPlan(payload.plan)
       }
@@ -259,7 +269,13 @@ export function PlanProvider({ initialPlan = 'free', initialBuildInfo = null, ch
         })
       }
     } catch (error: unknown) {
-      console.error('PlanProvider: Error refreshing plan:', error)
+      // Ignore transient network aborts during route transitions/prefetches.
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('PlanProvider: Error refreshing plan:', error)
+      }
     } finally {
       setLoading(false)
     }
