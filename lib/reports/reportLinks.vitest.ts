@@ -11,6 +11,19 @@ describe('reportLinks', () => {
     expect(href).toContain('auto=1')
   })
 
+  it('drops malformed hostname URLs from auto links', () => {
+    const href = buildCompetitiveReportNewUrl({ company: 'Acer', url: 'https://acer', auto: true })
+    expect(href).toContain('/competitive-report?')
+    expect(href).toContain('company=Acer')
+    expect(href).toContain('auto=1')
+    expect(href).not.toContain('url=')
+  })
+
+  it('normalizes bare valid domains in auto links', () => {
+    const href = buildCompetitiveReportNewUrl({ company: 'Viacom', url: 'viacom.com', auto: true })
+    expect(href).toContain('url=https%3A%2F%2Fviacom.com')
+  })
+
   it('parses pitch input as url or company', () => {
     expect(parseCompanyFromPitchInput('https://example.com').url).toBe('https://example.com')
     expect(parseCompanyFromPitchInput('example.com').url).toBe('example.com')

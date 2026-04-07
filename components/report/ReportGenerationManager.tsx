@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { normalizeReportDraftInput } from '@/lib/reports/reportInput'
 
 type GenerateResponse =
   | { ok: true; data: { reportId: string; reused?: boolean } }
@@ -94,7 +95,17 @@ export function ReportGenerationManager() {
     const company = pickFirstNonEmpty(sp, ['company', 'name', 'company_name'])
     const url = pickFirstNonEmpty(sp, ['url', 'input_url', 'website', 'domain'])
     const ticker = pickFirstNonEmpty(sp, ['ticker', 'symbol'])
-    return { company_name: company ?? null, input_url: url ?? null, ticker: ticker ?? null }
+    const normalized = normalizeReportDraftInput({
+      company_name: company ?? null,
+      input_url: url ?? null,
+      ticker: ticker ?? null,
+    })
+    return {
+      company_name: normalized.companyName,
+      input_url: normalized.inputUrl,
+      ticker: normalized.ticker,
+      hasInvalidAutoInput: normalized.hasInvalidInputUrl || normalized.hasInvalidTicker,
+    }
   }, [sp])
 
   const canGenerate = Boolean(payload.company_name || payload.input_url || payload.ticker)
@@ -125,6 +136,7 @@ export function ReportGenerationManager() {
     if (!auto) return
     if (reportId) return
     if (!canGenerate) return
+    if (payload.hasInvalidAutoInput) return
     if (inFlightRef.current) return
     if (job?.status === 'running') return
 
@@ -139,7 +151,11 @@ export function ReportGenerationManager() {
         const res = await fetch('/api/competitive-report/generate', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            company_name: payload.company_name,
+            input_url: payload.input_url,
+            ticker: payload.ticker,
+          }),
         })
         const json = (await res.json()) as GenerateResponse
         if (!json || typeof json !== 'object' || !('ok' in json)) {
@@ -173,7 +189,7 @@ export function ReportGenerationManager() {
     }
     void run()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onReportsHub, auto, reportId, canGenerate])
+  }, [onReportsHub, auto, reportId, canGenerate, payload])
 
   if (!job) return null
 

@@ -172,5 +172,20 @@ describe('/api/competitive-report/generate', () => {
     expect(json.ok).toBe(false)
     expect(json.error?.code).toBe('FREE_TIER_GENERATION_LIMIT_REACHED')
   })
+
+  it('rejects malformed input_url before generation', async () => {
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/competitive-report/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ company_name: 'Acer', input_url: 'https://acer' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('VALIDATION_ERROR')
+    expect(json.error?.details?.code).toBe('VALIDATION_ERROR_INVALID_INPUT_URL')
+  })
 })
 

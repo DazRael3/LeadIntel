@@ -1,4 +1,4 @@
-import { normalizeInputUrl } from '@/lib/sources/normalize'
+import { normalizeReportDraftInput } from '@/lib/reports/reportInput'
 
 function safeTrim(v: string | null | undefined): string | null {
   if (!v) return null
@@ -13,14 +13,15 @@ export function buildCompetitiveReportNewUrl(args: {
   auto?: boolean
 }): string {
   const params = new URLSearchParams()
-  const company = safeTrim(args.company)
-  const urlRaw = safeTrim(args.url)
-  const url = urlRaw ? normalizeInputUrl(urlRaw) ?? urlRaw : null
-  const ticker = safeTrim(args.ticker)
+  const normalized = normalizeReportDraftInput({
+    company_name: safeTrim(args.company),
+    input_url: safeTrim(args.url),
+    ticker: safeTrim(args.ticker),
+  })
 
-  if (company) params.set('company', company)
-  if (url) params.set('url', url)
-  if (ticker) params.set('ticker', ticker)
+  if (normalized.companyName) params.set('company', normalized.companyName)
+  if (normalized.inputUrl) params.set('url', normalized.inputUrl)
+  if (normalized.ticker) params.set('ticker', normalized.ticker)
   if (args.auto) params.set('auto', '1')
 
   const qs = params.toString()

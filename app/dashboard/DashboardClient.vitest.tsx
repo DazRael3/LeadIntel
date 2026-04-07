@@ -113,6 +113,7 @@ describe('DashboardClient tabs', () => {
     )
 
     expect(screen.getByTestId('dashboard-overflow-x')).toBeTruthy()
+    expect(screen.getByTestId('dashboard-tabs-strip')).toBeTruthy()
   })
 
   it('hides Market Pulse tab for Starter users', async () => {
