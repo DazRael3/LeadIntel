@@ -22,14 +22,9 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
 
     const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
     if (!workspace) {
-      return fail(
-        ErrorCode.CONFLICT,
-        'Workspace unavailable',
-        { reason: 'WORKSPACE_UNAVAILABLE' },
-        { status: 409 },
-        bridge,
-        requestId
-      )
+      // Truthful empty state: if no workspace is currently resolvable, there are no jobs to list.
+      // This keeps page load stable while create flows can establish workspace context.
+      return ok({ workspace: null, jobs: [] }, undefined, bridge, requestId)
     }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })

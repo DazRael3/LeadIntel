@@ -22,7 +22,7 @@ export function buildCompetitiveReportNewUrl(args: {
   if (normalized.companyName) params.set('company', normalized.companyName)
   if (normalized.inputUrl) params.set('url', normalized.inputUrl)
   if (normalized.ticker) params.set('ticker', normalized.ticker)
-  if (args.auto) params.set('auto', '1')
+  if (args.auto && (normalized.inputUrl || normalized.ticker)) params.set('auto', '1')
 
   const qs = params.toString()
   // Reports hub is the single landing page. It can auto-generate a report (auto=1)

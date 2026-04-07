@@ -33,6 +33,17 @@ describe('ReportGenerationManager auto generation', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('does not call generate API for company-only auto input', async () => {
+    mockSearchParams = new URLSearchParams('auto=1&company=Viacom')
+    const fetchMock = vi.fn()
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    render(<ReportGenerationManager />)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('calls generate API once for valid auto input', async () => {
     mockSearchParams = new URLSearchParams('auto=1&company=Viacom&url=viacom.com')
     const fetchMock = vi.fn(async () =>

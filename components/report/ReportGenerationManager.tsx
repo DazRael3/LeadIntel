@@ -109,6 +109,7 @@ export function ReportGenerationManager() {
   }, [sp])
 
   const canGenerate = Boolean(payload.company_name || payload.input_url || payload.ticker)
+  const canAutoGenerate = Boolean(payload.input_url || payload.ticker)
   const onReportsHub = pathname === '/competitive-report'
 
   // Load persisted job and keep time ticking when visible.
@@ -136,6 +137,7 @@ export function ReportGenerationManager() {
     if (!auto) return
     if (reportId) return
     if (!canGenerate) return
+    if (!canAutoGenerate) return
     if (payload.hasInvalidAutoInput) return
     if (inFlightRef.current) return
     if (job?.status === 'running') return
@@ -189,7 +191,7 @@ export function ReportGenerationManager() {
     }
     void run()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onReportsHub, auto, reportId, canGenerate, payload])
+  }, [onReportsHub, auto, reportId, canGenerate, canAutoGenerate, payload])
 
   if (!job) return null
 

@@ -79,4 +79,19 @@ describe('Dashboard overflow guards', () => {
     expect(screen.getByTestId('dashboard-overflow-x')).toBeInTheDocument()
     expect(screen.getByTestId('dashboard-tabs-strip')).toBeInTheDocument()
   })
+
+  it('applies root overflow clipping to prevent page-level horizontal scroll', () => {
+    render(
+      <DashboardClient
+        initialSubscriptionTier="free"
+        initialCreditsRemaining={1}
+        initialOnboardingCompleted={true}
+        initialAutopilotEnabled={false}
+        initialHasIcp={false}
+        initialTourCompletedAt={null}
+      />
+    )
+
+    expect(screen.getByTestId('dashboard-root').className).toContain('overflow-x-clip')
+  })
 })
