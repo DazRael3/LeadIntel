@@ -72,7 +72,9 @@ export function CreateReportPanelClient(props: { open?: boolean }) {
     if (normalized.companyName) params.set('company', normalized.companyName)
     if (normalized.inputUrl) params.set('url', normalized.inputUrl)
     if (normalized.ticker) params.set('ticker', normalized.ticker)
-    params.set('auto', '1')
+    if (normalized.inputUrl || normalized.ticker) {
+      params.set('auto', '1')
+    }
     // Clear any selected report id; this is a new generation request.
     params.delete('id')
     router.push(`/competitive-report?${params.toString()}`)

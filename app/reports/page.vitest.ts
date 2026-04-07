@@ -10,13 +10,13 @@ vi.mock('next/navigation', () => ({
 }))
 
 describe('/reports page (server)', () => {
-  it('redirects to /competitive-report (canonical reports hub)', async () => {
+  it('redirects to /competitive-report with source marker (canonical reports hub)', async () => {
     redirectMock.mockClear()
 
     const mod = await import('./page')
     await expect(mod.default({ searchParams: Promise.resolve({}) })).rejects.toThrow(/NEXT_REDIRECT/)
 
-    expect(redirectMock).toHaveBeenCalledWith('/competitive-report')
+    expect(redirectMock).toHaveBeenCalledWith('/competitive-report?source=reports')
   })
 })
 

@@ -27,6 +27,7 @@ export async function generateMetadata(props: { searchParams?: Promise<SearchPar
   const reportId = pickString(sp, 'id')
   const create = pickString(sp, 'create')
   const auto = pickString(sp, 'auto')
+  const source = pickString(sp, 'source')
   const company = pickString(sp, 'company') ?? pickString(sp, 'name') ?? pickString(sp, 'company_name')
   const ticker = pickString(sp, 'ticker') ?? pickString(sp, 'symbol')
   const companyLabel = (company ?? ticker ?? '').trim().slice(0, 80)
@@ -35,7 +36,10 @@ export async function generateMetadata(props: { searchParams?: Promise<SearchPar
   let description =
     'Generate, review, and compare competitive reports backed by real citations.'
 
-  if (reportId) {
+  if (source === 'reports') {
+    title = 'Reports Workspace | LeadIntel'
+    description = 'Legacy reports entrypoint redirected to the competitive reports workspace.'
+  } else if (reportId) {
     title = 'Competitive Report Details | LeadIntel'
     description = 'Review a saved competitive report and its source quality.'
   } else if (create === '1') {

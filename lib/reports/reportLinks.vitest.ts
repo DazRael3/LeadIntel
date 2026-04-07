@@ -15,8 +15,14 @@ describe('reportLinks', () => {
     const href = buildCompetitiveReportNewUrl({ company: 'Acer', url: 'https://acer', auto: true })
     expect(href).toContain('/competitive-report?')
     expect(href).toContain('company=Acer')
-    expect(href).toContain('auto=1')
+    expect(href).not.toContain('auto=1')
     expect(href).not.toContain('url=')
+  })
+
+  it('does not set auto mode for company-only links', () => {
+    const href = buildCompetitiveReportNewUrl({ company: 'Viacom', auto: true })
+    expect(href).toBe('/competitive-report?company=Viacom')
+    expect(href).not.toContain('auto=1')
   })
 
   it('normalizes bare valid domains in auto links', () => {

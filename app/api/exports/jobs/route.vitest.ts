@@ -63,16 +63,16 @@ describe('/api/exports/jobs', () => {
     mockJobsData = []
   })
 
-  it('returns 409 with explicit reason when workspace is unavailable', async () => {
+  it('returns 200 with an empty jobs state when workspace is unavailable', async () => {
     mockWorkspaceId = null
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/exports/jobs', { method: 'GET' })
     const res = await GET(req)
-    expect(res.status).toBe(409)
+    expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.ok).toBe(false)
-    expect(json.error?.code).toBe('CONFLICT')
-    expect(json.error?.details?.reason).toBe('WORKSPACE_UNAVAILABLE')
+    expect(json.ok).toBe(true)
+    expect(json.data?.workspace).toBeNull()
+    expect(json.data?.jobs).toEqual([])
   })
 
   it('returns 424 for schema exposure errors', async () => {
