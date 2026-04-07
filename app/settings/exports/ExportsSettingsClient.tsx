@@ -16,27 +16,49 @@ type ExportJob = {
   error: string | null
 }
 
+type LoadState = 'loading' | 'ready' | 'error'
+
+type JobsResponse =
+  | { ok: true; data?: { jobs?: ExportJob[] } }
+  | { ok: false; error?: { code?: string; message?: string } }
+
 export function ExportsSettingsClient() {
   const { toast } = useToast()
-  const [loading, setLoading] = useState(true)
+  const [loadState, setLoadState] = useState<LoadState>('loading')
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [creating, setCreating] = useState<string | null>(null)
   const [jobs, setJobs] = useState<ExportJob[]>([])
 
   const refresh = useCallback(async () => {
-    setLoading(true)
+    setLoadState('loading')
+    setLoadError(null)
     try {
       const res = await fetch('/api/exports/jobs', { cache: 'no-store' })
+      const json = (await res.json().catch(() => null)) as JobsResponse | null
       if (!res.ok) {
-        toast({ variant: 'destructive', title: 'Access restricted.' })
+        const message = json?.ok === false ? (json.error?.message ?? 'Failed to load exports.') : 'Failed to load exports.'
+        setLoadState('error')
+        setLoadError(message)
         setJobs([])
+        toast({ variant: 'destructive', title: 'Load failed', description: message })
         return
       }
-      const json = (await res.json()) as { ok?: boolean; data?: { jobs?: ExportJob[] } }
+      if (!json || json.ok !== true) {
+        const message = 'Failed to load exports.'
+        setLoadState('error')
+        setLoadError(message)
+        setJobs([])
+        toast({ variant: 'destructive', title: 'Load failed', description: message })
+        return
+      }
       setJobs(json.data?.jobs ?? [])
+      setLoadState('ready')
     } catch {
+      const message = 'Please try again.'
+      setLoadState('error')
+      setLoadError(message)
+      setJobs([])
       toast({ variant: 'destructive', title: 'Load failed', description: 'Please try again.' })
-    } finally {
-      setLoading(false)
     }
   }, [toast])
 
@@ -88,7 +110,7 @@ export function ExportsSettingsClient() {
 
   return (
     <div className="min-h-screen bg-background terminal-grid" data-testid="exports-page">
-      <div className="container mx-auto px-6 py-8 space-y-6">
+      <div className="container mx-auto max-w-5xl px-4 sm:px-6 py-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold bloomberg-font neon-cyan">Exports</h1>
           <p className="mt-1 text-sm text-muted-foreground">Generate downloadable CSV files.</p>
@@ -119,8 +141,15 @@ export function ExportsSettingsClient() {
             <CardTitle className="text-base">Recent jobs</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {loading ? (
+            {loadState === 'loading' ? (
               <div>Loading…</div>
+            ) : loadState === 'error' ? (
+              <div className="space-y-3" data-testid="exports-jobs-error">
+                <div className="text-red-300">{loadError ?? 'Failed to load exports.'}</div>
+                <Button size="sm" variant="outline" onClick={() => void refresh()}>
+                  Retry
+                </Button>
+              </div>
             ) : jobs.length === 0 ? (
               <div>No export jobs yet.</div>
             ) : (

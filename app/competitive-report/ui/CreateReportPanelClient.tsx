@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { normalizeReportDraftInput } from '@/lib/reports/reportInput'
 
 function pickFirstNonEmpty(sp: URLSearchParams, keys: string[]): string | null {
   for (const k of keys) {
@@ -61,11 +62,16 @@ export function CreateReportPanelClient(props: { open?: boolean }) {
   }
 
   function onGenerate() {
-    if (!canGenerate) return
+    const normalized = normalizeReportDraftInput({
+      company_name: companyName.trim(),
+      input_url: websiteUrl.trim(),
+      ticker: ticker.trim(),
+    })
+    if (!(normalized.companyName || normalized.inputUrl || normalized.ticker)) return
     const params = new URLSearchParams()
-    if (companyName.trim()) params.set('company', companyName.trim())
-    if (websiteUrl.trim()) params.set('url', websiteUrl.trim())
-    if (ticker.trim()) params.set('ticker', ticker.trim())
+    if (normalized.companyName) params.set('company', normalized.companyName)
+    if (normalized.inputUrl) params.set('url', normalized.inputUrl)
+    if (normalized.ticker) params.set('ticker', normalized.ticker)
     params.set('auto', '1')
     // Clear any selected report id; this is a new generation request.
     params.delete('id')

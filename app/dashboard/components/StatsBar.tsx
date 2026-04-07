@@ -16,7 +16,7 @@ export function StatsBar({ totalLeads, eventsCount, onDebugClick, debugEnabled }
     <div className="border-b border-cyan-500/10 bg-background/60 backdrop-blur-sm" data-testid="dashboard-metrics">
       <div className="container mx-auto px-4 sm:px-6 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="grid grid-cols-2 gap-4 flex-1 min-w-[260px]">
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-4 sm:min-w-[260px]">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
                 <Activity className="h-5 w-5 text-cyan-300" />
@@ -45,7 +45,7 @@ export function StatsBar({ totalLeads, eventsCount, onDebugClick, debugEnabled }
               size="sm"
               variant="outline"
               onClick={onDebugClick}
-              className="h-7 text-xs border-yellow-500/30 text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 ml-4"
+              className="ml-0 h-7 bg-yellow-500/10 text-xs text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/20 sm:ml-4"
             >
               <Bug className="h-3 w-3 mr-1" />
               Check Auth
