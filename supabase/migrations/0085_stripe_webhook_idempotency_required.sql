@@ -27,4 +27,3 @@ create policy stripe_events_no_access on api.stripe_webhook_events
 
 notify pgrst, 'reload schema';
 commit;
-
