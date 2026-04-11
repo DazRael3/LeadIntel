@@ -4,7 +4,6 @@ import { withApiGuard } from '@/lib/api/guard'
 import { createCookieBridge, ok, fail, ErrorCode, HttpStatus } from '@/lib/api/http'
 import { createRouteClient } from '@/lib/supabase/route'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { serverEnv } from '@/lib/env'
 import { adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
 import { renderAdminNotificationEmail, renderLeadCaptureConfirmationEmail } from '@/lib/email/internal'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
@@ -55,6 +54,11 @@ function computeDedupeKey(args: { email: string; formType: string; sourcePage: s
   // This is an opaque hash; no secrets.
   const normalized = `${args.email.trim().toLowerCase()}|${args.formType}|${args.sourcePage.trim()}|${dayKeyUtc()}`
   return crypto.createHash('sha256').update(normalized).digest('hex')
+}
+
+function getTrimmedEnv(name: string): string {
+  const raw = process.env[name]
+  return typeof raw === 'string' ? raw.trim() : ''
 }
 
 function normalizeOptionalText(value: string | null | undefined): string | null {
@@ -176,12 +180,13 @@ async function sendLeadCaptureFollowUp(args: {
   sourcePage: string
   consentMarketing: boolean
 }): Promise<{ sent: boolean; reason?: string }> {
-  const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean((serverEnv.RESEND_FROM_EMAIL ?? '').trim())
+  const resendApiKey = getTrimmedEnv('RESEND_API_KEY')
+  const from = getTrimmedEnv('RESEND_FROM_EMAIL')
+  const hasResend = Boolean(resendApiKey) && Boolean(from)
   if (!hasResend) {
     return { sent: false, reason: 'email_not_configured' }
   }
 
-  const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
   const appUrl = getAppUrl()
   const email = renderLeadCaptureConfirmationEmail({
     recipientName: args.recipientName,
@@ -343,8 +348,8 @@ export const POST = withApiGuard(
         // Duplicate submissions may still merge data, but should not fan out duplicate alerts.
         try {
           const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
-          const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
-          const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean(from)
+          const from = getTrimmedEnv('RESEND_FROM_EMAIL')
+          const hasResend = Boolean(getTrimmedEnv('RESEND_API_KEY')) && Boolean(from)
           const admins = getLifecycleAdminEmails()
           if (hasServiceRole && adminNotificationsEnabled() && admins.length > 0 && hasResend) {
             const appUrl = getAppUrl()

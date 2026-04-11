@@ -1,7 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { renderLeadCaptureConfirmationEmail } from '@/lib/email/internal'
 
+const originalBrandImageUrl = process.env.EMAIL_BRAND_IMAGE_URL
+
 describe('renderLeadCaptureConfirmationEmail', () => {
+  afterEach(() => {
+    if (originalBrandImageUrl === undefined) {
+      delete process.env.EMAIL_BRAND_IMAGE_URL
+    } else {
+      process.env.EMAIL_BRAND_IMAGE_URL = originalBrandImageUrl
+    }
+  })
+
   it('keeps non-consent follow-ups strictly transactional', () => {
     const rendered = renderLeadCaptureConfirmationEmail({
       appUrl: 'https://dazrael.com',
@@ -37,5 +47,16 @@ describe('renderLeadCaptureConfirmationEmail', () => {
     expect(rendered.text).toContain('Sample digest: https://dazrael.com/#try-sample')
     expect(rendered.html).toContain('Review pricing')
     expect(rendered.html).toContain('Generate another sample')
+  })
+
+  it('ignores invalid brand image env values safely', () => {
+    process.env.EMAIL_BRAND_IMAGE_URL = 'not-a-valid-url'
+    const rendered = renderLeadCaptureConfirmationEmail({
+      appUrl: 'https://dazrael.com',
+      formType: 'demo',
+      sourcePage: '/contact',
+      consentMarketing: true,
+    })
+    expect(rendered.html).not.toContain('<img src=')
   })
 })
