@@ -6,6 +6,7 @@ const DEFAULT_BASE_URL = 'https://dazrael.com'
 
 // Always include these core routes (content audit depends on their presence).
 const REQUIRED_ROUTES = [
+  '/contact',
   '/pricing',
   '/support',
   '/tour',

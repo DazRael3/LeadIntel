@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,10 @@ function safeText(v: unknown, max = 2000): string {
   return s.length > max ? s.slice(0, max) : s
 }
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
 function parseUtm(): { source?: string; medium?: string; campaign?: string } {
   if (typeof window === 'undefined') return {}
   try {
@@ -62,9 +67,11 @@ export function LeadCaptureCard(props: {
   const route = useMemo(() => (typeof pathname === 'string' && pathname.trim() ? pathname : '/'), [pathname])
 
   const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
   const [company, setCompany] = useState('')
   const [role, setRole] = useState('')
   const [message, setMessage] = useState('')
+  const [consentMarketing, setConsentMarketing] = useState(false)
 
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -74,7 +81,8 @@ export function LeadCaptureCard(props: {
   const subtitle = props.subtitle ?? 'Tell us what you’re evaluating and we’ll reply quickly.'
   const ctaLabel = props.ctaLabel ?? 'Send request'
 
-  const canSend = email.trim().length > 3 && status !== 'sending'
+  const emailValid = isValidEmail(email)
+  const canSend = emailValid && consentMarketing && status !== 'sending'
 
   const send = async () => {
     if (!canSend) return
@@ -90,11 +98,15 @@ export function LeadCaptureCard(props: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
+          name: name.trim() || undefined,
           company: company.trim() || undefined,
           role: role.trim() || undefined,
           intent,
+          formType: intent,
           message: message.trim() || undefined,
           route,
+          sourcePage: route,
+          consentMarketing,
           referrer: referrer || undefined,
           utm: Object.keys(utm).length > 0 ? utm : undefined,
           deviceClass: getDeviceClass(),
@@ -106,15 +118,24 @@ export function LeadCaptureCard(props: {
         setError('Could not submit. Please try again, or email us from the Support page.')
         setStatus('idle')
         track('lead_capture_failed', { surface: props.surface, route, intent, status: res.status })
+        if (intent === 'demo') {
+          track('demo_request_failed', { surface: props.surface, route, status: res.status })
+        }
         return
       }
       setStatus('sent')
       setMessage('')
       track('lead_capture_submitted', { surface: props.surface, route, intent })
+      if (intent === 'demo') {
+        track('demo_request_submitted', { surface: props.surface, route, formType: intent })
+      }
     } catch {
       setError('Could not submit. Please try again, or email us from the Support page.')
       setStatus('idle')
       track('lead_capture_failed', { surface: props.surface, route, intent, status: 'exception' })
+      if (intent === 'demo') {
+        track('demo_request_failed', { surface: props.surface, route, status: 'exception' })
+      }
     }
   }
 
@@ -135,13 +156,34 @@ export function LeadCaptureCard(props: {
         ) : null}
 
         {status === 'sent' ? (
-          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4 text-sm text-muted-foreground">
+          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4 text-sm text-muted-foreground space-y-3">
             <div className="font-medium text-foreground">Request received</div>
             <div className="mt-1">We’ll reply to <span className="text-foreground font-medium">{email.trim()}</span>.</div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link href="/pricing">Review pricing</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/#try-sample">Generate sample digest</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/support#email-preferences">Email preferences</Link>
+              </Button>
+            </div>
           </div>
         ) : null}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor={`lead-name-${props.surface}`}>Name (optional)</Label>
+            <Input
+              id={`lead-name-${props.surface}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              autoComplete="name"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor={`lead-email-${props.surface}`}>Email</Label>
             <Input
@@ -152,6 +194,9 @@ export function LeadCaptureCard(props: {
               inputMode="email"
               autoComplete="email"
             />
+            {email.trim().length > 0 && !emailValid ? (
+              <div className="text-xs text-red-300">Enter a valid email address.</div>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor={`lead-company-${props.surface}`}>Company (optional)</Label>
@@ -185,10 +230,34 @@ export function LeadCaptureCard(props: {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+          <label htmlFor={`lead-consent-${props.surface}`} className="flex items-start gap-2 text-xs text-muted-foreground">
+            <input
+              id={`lead-consent-${props.surface}`}
+              type="checkbox"
+              checked={consentMarketing}
+              onChange={(e) => setConsentMarketing(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-cyan-400"
+            />
+            <span>
+              I agree to be contacted about this request and product updates. I can opt out at any time.
+            </span>
+          </label>
           <div className="text-xs text-muted-foreground">
-            We only store what you submit, and use it to respond.
+            By submitting, you agree to our{' '}
+            <Link className="text-cyan-300 hover:underline" href="/privacy">
+              Privacy Policy
+            </Link>{' '}
+            and{' '}
+            <Link className="text-cyan-300 hover:underline" href="/terms">
+              Terms
+            </Link>
+            .
           </div>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-muted-foreground">We only store what you submit and track attribution for follow-up.</div>
           <Button
             type="button"
             className="min-h-11 px-5 neon-border hover:glow-effect"

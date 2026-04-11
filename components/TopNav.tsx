@@ -10,6 +10,7 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { Badge } from '@/components/ui/badge'
 import { PublicMobileNavMenu } from '@/components/navigation/PublicMobileNavMenu'
+import { track } from '@/lib/analytics'
 
 export function TopNav() {
   const router = useRouter()
@@ -94,6 +95,14 @@ export function TopNav() {
               className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
             >
               <Link href="/pricing">Pricing</Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+              onClick={() => track('public_nav_cta_clicked', { cta: 'book_demo' })}
+            >
+              <Link href="/contact">Book demo</Link>
             </Button>
             <Button
               asChild

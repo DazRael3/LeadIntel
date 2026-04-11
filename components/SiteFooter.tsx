@@ -36,6 +36,15 @@ export function SiteFooter() {
               <li>
                 <Link
                   className="hover:text-foreground"
+                  href="/contact"
+                  onClick={() => onFooterClick({ href: '/contact', label: 'Book demo', group: 'product' })}
+                >
+                  Book demo
+                </Link>
+              </li>
+              <li>
+                <Link
+                  className="hover:text-foreground"
                   href="/use-cases"
                   onClick={() => onFooterClick({ href: '/use-cases', label: 'Use Cases', group: 'product' })}
                 >

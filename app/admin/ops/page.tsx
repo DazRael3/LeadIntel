@@ -71,6 +71,18 @@ type JobRunRow = {
   error_text: string | null
 }
 
+type LeadCaptureRow = {
+  id: string
+  created_at: string
+  email: string
+  name: string | null
+  company: string | null
+  form_type: string | null
+  source_page: string | null
+  status: string | null
+  consent_marketing: boolean | null
+}
+
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) return '—'
   const ms = Date.parse(iso)
@@ -113,6 +125,7 @@ export default async function AdminOpsPage() {
   let outboundEvents24h: number | null = null
   let leadCaptures24h: number | null = null
   let leadCaptures7d: number | null = null
+  let recentLeadCaptures: LeadCaptureRow[] = []
   try {
     const admin = createSupabaseAdminClient({ schema: 'api' })
     const prospectsRes = await admin
@@ -153,6 +166,13 @@ export default async function AdminOpsPage() {
       .select('id', { count: 'exact', head: true })
       .gte('created_at', leadSince7d)
     leadCaptures7d = typeof lead7dRes.count === 'number' ? lead7dRes.count : 0
+
+    const recentLeadRes = await admin
+      .from('lead_captures')
+      .select('id, created_at, email, name, company, form_type, source_page, status, consent_marketing')
+      .order('created_at', { ascending: false })
+      .limit(12)
+    recentLeadCaptures = (recentLeadRes.data ?? []) as LeadCaptureRow[]
   } catch {
     prospectReviewCount = null
     contentDraftCount = null
@@ -160,6 +180,7 @@ export default async function AdminOpsPage() {
     outboundEvents24h = null
     leadCaptures24h = null
     leadCaptures7d = null
+    recentLeadCaptures = []
   }
 
   let report: ContentAuditReportRow | null = null
@@ -446,6 +467,47 @@ export default async function AdminOpsPage() {
             <Button asChild variant="outline" size="sm">
               <Link href="/settings/content">Open content queue</Link>
             </Button>
+          </div>
+
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs font-medium text-foreground">Recent inbound leads</div>
+              <Badge variant="outline">{recentLeadCaptures.length}</Badge>
+            </div>
+            {recentLeadCaptures.length === 0 ? (
+              <div className="mt-2 text-xs text-muted-foreground">No lead captures found.</div>
+            ) : (
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-cyan-500/10 text-muted-foreground">
+                      <th className="py-2 pr-3 text-left">When</th>
+                      <th className="py-2 pr-3 text-left">Lead</th>
+                      <th className="py-2 pr-3 text-left">Form</th>
+                      <th className="py-2 pr-3 text-left">Source</th>
+                      <th className="py-2 pr-3 text-left">Consent</th>
+                      <th className="py-2 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentLeadCaptures.map((lead) => (
+                      <tr key={lead.id} className="border-b border-cyan-500/10">
+                        <td className="py-2 pr-3 text-muted-foreground">{formatWhen(lead.created_at)}</td>
+                        <td className="py-2 pr-3 text-foreground">
+                          {lead.email}
+                          {lead.name ? <span className="ml-2 text-muted-foreground">({lead.name})</span> : null}
+                          {lead.company ? <div className="text-muted-foreground">{lead.company}</div> : null}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">{lead.form_type ?? '—'}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{lead.source_page ?? '—'}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{lead.consent_marketing ? 'yes' : 'no'}</td>
+                        <td className="py-2 text-muted-foreground">{lead.status ?? 'new'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div className="rounded border border-cyan-500/10 bg-background/40 p-3">

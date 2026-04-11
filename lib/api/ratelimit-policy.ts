@@ -119,6 +119,19 @@ export class RedisNotConfiguredError extends Error {
 }
 
 /**
+ * Resolve the effective per-minute limit for a route policy.
+ *
+ * Public routes can be called by authenticated sessions too; when authPerMin is unset (0),
+ * we intentionally fall back to ipPerMin to avoid hard-failing authenticated callers.
+ */
+export function resolvePolicyRateLimit(policy: RoutePolicy, isAuthenticated: boolean): number {
+  if (!isAuthenticated) return policy.rateLimit.ipPerMin
+  if (policy.rateLimit.authPerMin > 0) return policy.rateLimit.authPerMin
+  if (!policy.authRequired) return policy.rateLimit.ipPerMin
+  return policy.rateLimit.authPerMin
+}
+
+/**
  * Check rate limit using policy-defined limits
  * 
  * @param request - Next.js request object
@@ -155,7 +168,7 @@ export async function checkPolicyRateLimit(
   const isAuthenticated = userId !== null
   
   // Select appropriate limit based on authentication status
-  const limit = isAuthenticated ? policy.rateLimit.authPerMin : policy.rateLimit.ipPerMin
+  const limit = resolvePolicyRateLimit(policy, isAuthenticated)
   
   // For webhooks (Tier WEBHOOK), always use IP-based
   const effectiveUserId = policy.tier === 'WEBHOOK' ? null : userId

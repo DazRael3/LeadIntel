@@ -53,6 +53,14 @@ export default function LandingClient() {
                       {COPY.home.hero.secondaryCta}
                     </Link>
                   </Button>
+                  <Button asChild variant="outline" size="lg">
+                    <Link
+                      href="/contact"
+                      onClick={() => track('homepage_secondary_cta_clicked', { location: 'hero', cta: 'book_demo' })}
+                    >
+                      Book a demo
+                    </Link>
+                  </Button>
                 </div>
                 <div className="mt-3 text-xs text-muted-foreground">{COPY.home.hero.microTrust}</div>
 
