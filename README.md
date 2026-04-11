@@ -183,6 +183,58 @@ POSTHOG_API_KEY=phc_...
 
 The homepage demo is intentionally implemented as an in-app `DemoLoop` preview to avoid referencing missing media assets in production builds.
 
+## Inbound lead capture foundation
+
+LeadIntel includes a first-party, consent-based inbound lead flow:
+
+- Public forms post to `POST /api/lead-capture`
+- Records are stored in `api.lead_captures` (RLS enabled)
+- Inserts are deduped server-side with a daily `dedupe_key` hash (email + form + route)
+- Optional confirmation email is sent when `RESEND_API_KEY` + `RESEND_FROM_EMAIL` are configured
+- Confirmation sends are idempotent through `api.email_send_log` and `sendEmailDeduped`
+
+### Required env for confirmation follow-up
+
+```env
+# Required to send confirmation emails
+RESEND_API_KEY=re_your_resend_api_key
+RESEND_FROM_EMAIL=team@yourdomain.com
+
+# Optional, strongly recommended
+RESEND_REPLY_TO_EMAIL=support@yourdomain.com
+EMAIL_BRAND_IMAGE_URL=https://yourdomain.com/brand/logo-email.png
+APP_URL=https://dazrael.com
+```
+
+If Resend keys are not set, lead records are still saved and API responses remain successful; follow-up email status is reported as disabled.
+
+### Lead table fields (core)
+
+`api.lead_captures` includes:
+
+- `source_page`
+- `form_type`
+- `name`
+- `email`
+- `company`
+- `role`
+- `message`
+- `consent_marketing`
+- `consent_timestamp`
+- `utm_source`, `utm_medium`, `utm_campaign`
+- `referrer`
+- `status`
+
+### Local verification steps
+
+1. Apply migrations: `supabase db push`
+2. Start app: `npm run dev`
+3. Submit a lead from `/contact` or `/pricing`
+4. Verify row in Supabase:
+   - `select created_at, email, form_type, source_page, consent_marketing, status from api.lead_captures order by created_at desc limit 20;`
+5. If Resend is configured, verify send status:
+   - `select created_at, to_email, template, status, provider_message_id from api.email_send_log order by created_at desc limit 20;`
+
 #### Optional: Third-Party Integrations
 
 ```env

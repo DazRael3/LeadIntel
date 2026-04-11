@@ -19,6 +19,12 @@ export const metadata: Metadata = {
     // keep it available at /api/og but don't make it a hard dependency for social previews.
     images: [{ url: '/api/og-fallback', width: 1200, height: 630 }],
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'LeadIntel',
+    description: 'Trigger-based account alerts and instant pitch drafts.',
+    images: ['/api/og-fallback'],
+  },
   icons: {
     icon: '/favicon.svg',
   },

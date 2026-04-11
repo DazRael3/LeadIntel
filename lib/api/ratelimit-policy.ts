@@ -119,7 +119,7 @@ export class RedisNotConfiguredError extends Error {
 }
 
 /**
- * Resolve effective per-minute limit from route policy.
+ * Resolve the effective per-minute limit for a route policy.
  * Public routes with authPerMin=0 should still allow authenticated callers by
  * falling back to the IP limit.
  */

@@ -25,6 +25,18 @@ const INTERNAL_VARIANTS = [
   'Operator note: use this as a quick review handoff.',
 ] as const
 
+const FOLLOW_UP_OPENERS = [
+  'Thanks for reaching out to LeadIntel.',
+  'Your request is in. Thanks for contacting LeadIntel.',
+  'We received your request and queued next steps.',
+] as const
+
+const FOLLOW_UP_NEXT_STEPS = [
+  'We will follow up with practical next steps based on what you submitted.',
+  'A human review will follow with recommended next steps for your workflow.',
+  'You will get a direct follow-up with concrete options for moving forward.',
+] as const
+
 function mono(text: string): string {
   return `<pre style="white-space: pre-wrap; background:#0b1220; color:#e5e7eb; border:1px solid rgba(148,163,184,0.25); padding:14px; border-radius:10px;">${escapeHtml(
     text
@@ -44,16 +56,7 @@ export function renderAdminNotificationEmail(args: {
   const body = [...args.lines, '', variant].join('\n')
   const ctaHref = args.ctaHref ? args.ctaHref : `${args.appUrl}/admin/ops`
   const ctaLabel = args.ctaLabel ? args.ctaLabel : 'Open ops'
-  const logo = (() => {
-    const raw = (serverEnv.EMAIL_BRAND_IMAGE_URL ?? '').trim()
-    if (!raw) return null
-    try {
-      const u = new URL(raw)
-      return u.protocol === 'https:' ? u.toString() : null
-    } catch {
-      return null
-    }
-  })()
+  const logo = getEmailBrandLogoUrl()
   const header = logo
     ? `<div style="margin-bottom:10px;">
         <a href="${escapeHtml(args.appUrl)}" style="text-decoration:none;">
@@ -73,6 +76,99 @@ export function renderAdminNotificationEmail(args: {
           ${escapeHtml(ctaLabel)}
         </a>
       </div>
+    </div>
+  </body></html>`
+
+  return { subject, html, text }
+}
+
+function getEmailBrandLogoUrl(): string | null {
+  const raw = (serverEnv.EMAIL_BRAND_IMAGE_URL ?? '').trim()
+  if (!raw) return null
+  try {
+    const u = new URL(raw)
+    return u.protocol === 'https:' ? u.toString() : null
+  } catch {
+    return null
+  }
+}
+
+export function renderLeadCaptureConfirmationEmail(args: {
+  recipientName?: string | null
+  appUrl: string
+  formType: string
+  sourcePage: string
+  consentMarketing: boolean
+  company?: string | null
+  variationSeed?: string
+}): AdminNotificationEmail {
+  const opener = pickVariant(args.variationSeed, FOLLOW_UP_OPENERS)
+  const nextStep = pickVariant(args.variationSeed ? `next:${args.variationSeed}` : undefined, FOLLOW_UP_NEXT_STEPS)
+  const subject = 'LeadIntel received your request'
+  const logo = getEmailBrandLogoUrl()
+  const escapedAppUrl = escapeHtml(args.appUrl)
+  const pricingUrl = `${args.appUrl}/pricing`
+  const sampleUrl = `${args.appUrl}/#try-sample`
+  const header = logo
+    ? `<div style="margin-bottom:10px;">
+        <a href="${escapedAppUrl}" style="text-decoration:none;">
+          <img src="${escapeHtml(logo)}" alt="LeadIntel logo" style="max-width:190px;height:auto;border:0;display:block;">
+        </a>
+      </div>`
+    : '<div style="font-size:12px;color:#94a3b8;letter-spacing:0.12em;text-transform:uppercase;">LeadIntel</div>'
+
+  const contactMode = args.formType === 'pricing_question' ? 'pricing question' : args.formType === 'trial_help' ? 'trial help request' : 'demo request'
+  const recipient = args.recipientName && args.recipientName.trim().length > 0 ? args.recipientName.trim() : 'there'
+  const bodyLines = [
+    `Hi ${recipient},`,
+    '',
+    opener,
+    `Contact type: ${contactMode}.`,
+    args.company ? `Company: ${args.company}` : '',
+    `Source: ${args.sourcePage}`,
+    '',
+    nextStep,
+    '',
+    args.consentMarketing
+      ? 'You opted in to product updates. You can opt out any time by replying "unsubscribe".'
+      : 'You did not opt in to marketing updates. We will only use this email to follow up on your request.',
+  ].filter((line) => line.length > 0)
+
+  const text = [
+    subject,
+    '',
+    ...bodyLines,
+    '',
+    `Pricing: ${pricingUrl}`,
+    `Sample digest: ${sampleUrl}`,
+    `Email preferences: ${args.appUrl}/support#email-preferences`,
+  ].join('\n')
+
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#050a14;color:#e5e7eb;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
+    <div style="max-width:640px;margin:0 auto;">
+      ${header}
+      <h1 style="margin:10px 0 0 0;font-size:20px;color:#e5e7eb;">LeadIntel received your request</h1>
+      <p style="margin:10px 0 0 0;color:#cbd5e1;">${escapeHtml(opener)}</p>
+      <div style="margin-top:14px;border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:12px;background:#0b1220;">
+        <div style="font-size:13px;color:#cbd5e1;"><strong>Contact type:</strong> ${escapeHtml(contactMode)}</div>
+        ${args.company ? `<div style="margin-top:4px;font-size:13px;color:#cbd5e1;"><strong>Company:</strong> ${escapeHtml(args.company)}</div>` : ''}
+        <div style="margin-top:4px;font-size:13px;color:#cbd5e1;"><strong>Source:</strong> ${escapeHtml(args.sourcePage)}</div>
+      </div>
+      <p style="margin-top:14px;color:#cbd5e1;">${escapeHtml(nextStep)}</p>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="${escapeHtml(pricingUrl)}" style="display:inline-block; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:700; background:rgba(34,211,238,0.18); color:#67e8f9; border:1px solid rgba(34,211,238,0.35);">Review pricing</a>
+        <a href="${escapeHtml(sampleUrl)}" style="display:inline-block; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:700; background:rgba(148,163,184,0.15); color:#e2e8f0; border:1px solid rgba(148,163,184,0.35);">Generate another sample</a>
+      </div>
+      <p style="margin-top:14px;font-size:12px;color:#94a3b8;">
+        ${escapeHtml(
+          args.consentMarketing
+            ? 'You opted in to product updates. Reply "unsubscribe" any time to stop update emails.'
+            : 'You did not opt in to marketing updates. We will only use this email to follow up on your request.'
+        )}
+      </p>
+      <p style="margin-top:6px;font-size:12px;color:#94a3b8;">Manage email preferences: <a href="${escapeHtml(
+        `${args.appUrl}/support#email-preferences`
+      )}" style="color:#67e8f9;">${escapeHtml(`${args.appUrl}/support#email-preferences`)}</a></p>
     </div>
   </body></html>`
 
