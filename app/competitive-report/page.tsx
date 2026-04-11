@@ -22,11 +22,42 @@ import { UsageMeter } from '@/components/billing/UsageMeter'
 import { BlurredPremiumSection } from '@/components/gating/BlurredPremiumSection'
 import { RecentPremiumActivityPanel } from '@/components/billing/RecentPremiumActivityPanel'
 
-export const metadata: Metadata = {
-  title: 'Competitive Reports Hub | LeadIntel',
-  description:
-    'Learn how LeadIntel turns near real-time buying signals into AI-generated pitches, battlecards, and watchlists to help you create pipeline faster.',
-  alternates: { canonical: 'https://dazrael.com/competitive-report' },
+export async function generateMetadata(props: { searchParams?: Promise<SearchParams> }): Promise<Metadata> {
+  const sp = (await props.searchParams) ?? {}
+  const reportId = pickString(sp, 'id')
+  const create = pickString(sp, 'create')
+  const auto = pickString(sp, 'auto')
+  const source = pickString(sp, 'source')
+  const company = pickString(sp, 'company') ?? pickString(sp, 'name') ?? pickString(sp, 'company_name')
+  const ticker = pickString(sp, 'ticker') ?? pickString(sp, 'symbol')
+  const companyLabel = (company ?? ticker ?? '').trim().slice(0, 80)
+
+  let title = 'Competitive Reports Hub | LeadIntel'
+  let description =
+    'Generate, review, and compare competitive reports backed by real citations.'
+
+  if (source === 'reports') {
+    title = 'Reports Workspace | LeadIntel'
+    description = 'Legacy reports entrypoint redirected to the competitive reports workspace.'
+  } else if (reportId) {
+    title = 'Competitive Report Details | LeadIntel'
+    description = 'Review a saved competitive report and its source quality.'
+  } else if (create === '1') {
+    title = 'Create Competitive Report | LeadIntel'
+    description = 'Create a new competitive report from a company URL or ticker.'
+  } else if (auto === '1' && companyLabel) {
+    title = `Generating report for ${companyLabel} | LeadIntel`
+    description = `Auto-generating a competitive report for ${companyLabel}.`
+  } else if (companyLabel) {
+    title = `Competitive report draft for ${companyLabel} | LeadIntel`
+    description = `Prepare a competitive report draft for ${companyLabel}.`
+  }
+
+  return {
+    title,
+    description,
+    alternates: { canonical: 'https://dazrael.com/competitive-report' },
+  }
 }
 
 export const dynamic = 'force-dynamic'

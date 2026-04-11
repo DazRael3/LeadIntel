@@ -18,5 +18,15 @@ describe('normalizeReportInput', () => {
     const res = normalizeReportInput({ company_name: 'Acme Corp' })
     expect(res.companyKey.startsWith('name:')).toBe(true)
   })
+
+  it('rejects malformed hostname URLs', () => {
+    expect(() => normalizeReportInput({ company_name: 'Acer', input_url: 'https://acer' })).toThrow(
+      'VALIDATION_ERROR_INVALID_INPUT_URL'
+    )
+  })
+
+  it('rejects invalid ticker values', () => {
+    expect(() => normalizeReportInput({ ticker: 'bad ticker' })).toThrow('VALIDATION_ERROR_INVALID_TICKER')
+  })
 })
 

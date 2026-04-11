@@ -120,9 +120,8 @@ export class RedisNotConfiguredError extends Error {
 
 /**
  * Resolve the effective per-minute limit for a route policy.
- *
- * Public routes can be called by authenticated sessions too; when authPerMin is unset (0),
- * we intentionally fall back to ipPerMin to avoid hard-failing authenticated callers.
+ * Public routes with authPerMin=0 should still allow authenticated callers by
+ * falling back to the IP limit.
  */
 export function resolvePolicyRateLimit(policy: RoutePolicy, isAuthenticated: boolean): number {
   if (!isAuthenticated) return policy.rateLimit.ipPerMin

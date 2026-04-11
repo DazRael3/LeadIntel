@@ -4,7 +4,8 @@ import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { requireCapability } from '@/lib/billing/require-capability'
-import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { isSchemaError } from '@/lib/supabase/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,9 +20,12 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
     const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'governance_exports' })
     if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
-    await ensurePersonalWorkspace({ supabase, userId: user.id })
     const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
-    if (!workspace) return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+    if (!workspace) {
+      // Truthful empty state: if no workspace is currently resolvable, there are no jobs to list.
+      // This keeps page load stable while create flows can establish workspace context.
+      return ok({ workspace: null, jobs: [] }, undefined, bridge, requestId)
+    }
 
     const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
     if (!membership) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
@@ -34,7 +38,19 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       .order('created_at', { ascending: false })
       .limit(25)
 
-    if (error) return fail(ErrorCode.DATABASE_ERROR, 'Failed to load exports', undefined, undefined, bridge, requestId)
+    if (error) {
+      if (isSchemaError(error)) {
+        return fail(
+          ErrorCode.SCHEMA_MIGRATION_REQUIRED,
+          'Exports schema unavailable',
+          { reason: 'SCHEMA_NOT_EXPOSED' },
+          { status: 424 },
+          bridge,
+          requestId
+        )
+      }
+      return fail(ErrorCode.DATABASE_ERROR, 'Failed to load exports', undefined, undefined, bridge, requestId)
+    }
 
     return ok({ workspace, jobs: jobs ?? [] }, undefined, bridge, requestId)
   } catch (error) {

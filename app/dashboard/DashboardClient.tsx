@@ -143,7 +143,7 @@ export function DashboardClient({
   const marketSidebarPolicy = useMemo(() => getModulePolicy({ tier, module: 'market_sidebar' }), [tier])
 
   return (
-    <div className="min-h-screen bg-background terminal-grid" data-testid="dashboard-root">
+    <div className="min-h-screen bg-background terminal-grid overflow-x-clip" data-testid="dashboard-root">
       <InAppTourProvider autoStartEligible={autoStartEligible} serverTourCompletedAt={initialTourCompletedAt}>
         <DashboardHeader />
 
@@ -164,15 +164,15 @@ export function DashboardClient({
       />
 
       {/* Main Content */}
-      <div className="w-full" data-testid="dashboard-overflow-x">
-        <main className="container mx-auto px-4 sm:px-6 py-6">
+      <div className="w-full min-w-0 overflow-x-hidden" data-testid="dashboard-overflow-x">
+        <main className="container mx-auto min-w-0 px-4 sm:px-6 py-6">
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as DashboardTabKey)}
           className={isStarter ? 'space-y-5' : 'space-y-6'}
         >
-          <div className="max-w-full">
-            <TabsList className="flex h-auto w-full flex-wrap items-center justify-start gap-1 bg-background/50 border border-cyan-500/20 p-1">
+          <div className="w-full max-w-full overflow-x-auto pb-1" data-testid="dashboard-tabs-strip">
+            <TabsList className="flex h-auto w-max min-w-max max-w-full flex-nowrap items-center justify-start gap-1 border border-cyan-500/20 bg-background/50 p-1 sm:w-full sm:min-w-0 sm:flex-wrap">
               {tabs
                 .filter((t) => t.visible)
                 .map((t) => (

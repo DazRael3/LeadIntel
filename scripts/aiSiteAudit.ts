@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
+import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import {
@@ -592,9 +592,28 @@ async function runFlows(args: {
     try {
       await page.goto(new URL(step.route, args.baseUrl).toString(), { waitUntil: 'domcontentloaded' })
       if (step.id === 'public_sample_digest') {
-        // Best-effort: find a digest input and submit once. Never loops.
-        const input = page.locator('input[name="company"], input[name="companyUrl"], input[type="url"], input[placeholder*="company" i], input[placeholder*="website" i]').first()
-        if (await input.count()) {
+        // Prefer stable, explicit selectors for the sample company input.
+        // Never target disabled email fields in this flow.
+        const candidateSelectors = [
+          '#sample_company',
+          '[data-testid="sample-company-input"]',
+          'input[name="company"]',
+          'input[name="companyUrl"]',
+          'input[placeholder*="company" i]',
+          'input[placeholder*="website" i]',
+        ]
+        let input: Locator | null = null
+        for (const selector of candidateSelectors) {
+          const loc = page.locator(selector).first()
+          if (!(await loc.count())) continue
+          if (!(await loc.isVisible().catch(() => false))) continue
+          if (await loc.isDisabled().catch(() => false)) continue
+          const id = await loc.getAttribute('id').catch(() => null)
+          if (id === 'sample_email') continue
+          input = loc
+          break
+        }
+        if (input) {
           await input.fill('dell.com')
           const btn = page.locator('button:has-text("Generate"), button:has-text("Try"), button:has-text("Create"), button:has-text("Submit")').first()
           if (await btn.count()) {

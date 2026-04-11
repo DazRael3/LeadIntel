@@ -9,6 +9,14 @@ export type ReportInput = {
   ticker?: string | null
 }
 
+export type NormalizedReportDraftInput = {
+  companyName: string | null
+  inputUrl: string | null
+  ticker: string | null
+  hasInvalidInputUrl: boolean
+  hasInvalidTicker: boolean
+}
+
 function safeTrim(v: unknown): string | null {
   if (typeof v !== 'string') return null
   const s = v.trim()
@@ -26,6 +34,43 @@ function slug(input: string): string {
 
 const TICKER_RE = /^[A-Z0-9][A-Z0-9.\-]{0,10}$/
 
+function normalizeTicker(raw: string | null): string | null {
+  if (!raw) return null
+  const ticker = raw.toUpperCase()
+  return TICKER_RE.test(ticker) ? ticker : null
+}
+
+function normalizeReportInputUrl(raw: string | null): string | null {
+  if (!raw) return null
+  const normalized = normalizeInputUrl(raw)
+  if (!normalized) return null
+  try {
+    const host = new URL(normalized).hostname
+    const domain = normalizeCompanyDomain(host)
+    if (!domain) return null
+    return normalized
+  } catch {
+    return null
+  }
+}
+
+export function normalizeReportDraftInput(raw: ReportInput): NormalizedReportDraftInput {
+  const companyName = safeTrim(raw.company_name)?.slice(0, 120) ?? null
+  const inputUrlRaw = safeTrim(raw.input_url)
+  const tickerRaw = safeTrim(raw.ticker)
+
+  const inputUrl = normalizeReportInputUrl(inputUrlRaw)
+  const ticker = normalizeTicker(tickerRaw)
+
+  return {
+    companyName,
+    inputUrl,
+    ticker,
+    hasInvalidInputUrl: Boolean(inputUrlRaw) && !inputUrl,
+    hasInvalidTicker: Boolean(tickerRaw) && !ticker,
+  }
+}
+
 export function normalizeReportInput(raw: unknown): {
   companyName: string | null
   inputUrl: string | null
@@ -34,43 +79,54 @@ export function normalizeReportInput(raw: unknown): {
   companyKey: string
 } {
   const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-  const companyName = safeTrim(obj.company_name)?.slice(0, 120) ?? null
-  const inputUrl = safeTrim(obj.input_url)
-  const normalizedInputUrl = inputUrl ? normalizeInputUrl(inputUrl) : null
+  const inputUrlRaw = safeTrim(obj.input_url)
+  const tickerRaw = safeTrim(obj.ticker)
+  const companyDomainRaw = safeTrim(obj.company_domain)
+  const draft = normalizeReportDraftInput({
+    company_name: safeTrim(obj.company_name),
+    input_url: inputUrlRaw,
+    ticker: tickerRaw,
+  })
 
-  const domainFromUrl = normalizedInputUrl
+  if (inputUrlRaw && draft.hasInvalidInputUrl) {
+    throw new Error('VALIDATION_ERROR_INVALID_INPUT_URL')
+  }
+  if (tickerRaw && draft.hasInvalidTicker) {
+    throw new Error('VALIDATION_ERROR_INVALID_TICKER')
+  }
+
+  const domainFromUrl = draft.inputUrl
     ? (() => {
         try {
-          return new URL(normalizedInputUrl).hostname.replace(/^www\./i, '').toLowerCase()
+          return normalizeCompanyDomain(new URL(draft.inputUrl).hostname)
         } catch {
           return null
         }
       })()
     : null
 
-  const domainFromField = safeTrim(obj.company_domain)
-  const normalizedDomain = domainFromUrl ?? (domainFromField ? normalizeCompanyDomain(domainFromField) : null)
-
-  const tickerRaw = safeTrim(obj.ticker)
-  const ticker = tickerRaw ? tickerRaw.toUpperCase() : null
-  if (ticker && !TICKER_RE.test(ticker)) {
-    throw new Error('VALIDATION_ERROR_INVALID_TICKER')
+  const domainFromField = companyDomainRaw ? normalizeCompanyDomain(companyDomainRaw) : null
+  if (companyDomainRaw && !domainFromField) {
+    throw new Error('VALIDATION_ERROR_INVALID_COMPANY_DOMAIN')
   }
+  const normalizedDomain = domainFromUrl ?? domainFromField
+
+  const ticker = draft.ticker
 
   const companyKey =
     normalizedDomain
       ? normalizedDomain
       : ticker
         ? `ticker:${ticker}`
-        : companyName
-          ? `name:${slug(companyName)}`
+        : draft.companyName
+          ? `name:${slug(draft.companyName)}`
           : (() => {
               throw new Error('VALIDATION_ERROR_MISSING_INPUT')
             })()
 
   return {
-    companyName,
-    inputUrl: normalizedInputUrl,
+    companyName: draft.companyName,
+    inputUrl: draft.inputUrl,
     companyDomain: normalizedDomain,
     ticker,
     companyKey,
