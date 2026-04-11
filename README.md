@@ -204,9 +204,20 @@ RESEND_FROM_EMAIL=team@yourdomain.com
 RESEND_REPLY_TO_EMAIL=support@yourdomain.com
 EMAIL_BRAND_IMAGE_URL=https://yourdomain.com/brand/logo-email.png
 APP_URL=https://dazrael.com
+
+# Optional: net-new lead admin notifications (kept off by default)
+LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED=1
+LIFECYCLE_ADMIN_EMAILS=ops@dazrael.com
 ```
 
 If Resend keys are not set, lead records are still saved and API responses remain successful; follow-up email status is reported as disabled.
+
+### Consent + duplicate behavior
+
+- Non-consent follow-up is strictly transactional (request acknowledgment + support link only; no marketing CTA content).
+- Consent-enabled follow-up includes standard product next-step CTAs.
+- Duplicate submissions (same daily dedupe key) still return success and now best-effort merge richer fields (`name`, `company`, `role`, `message`, attribution, consent metadata) onto the existing lead row when service-role access is available.
+- Admin lead notifications use existing lifecycle admin email routing and only fire for net-new leads (not deduped repeats).
 
 ### Lead table fields (core)
 

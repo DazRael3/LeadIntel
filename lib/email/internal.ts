@@ -109,6 +109,9 @@ export function renderLeadCaptureConfirmationEmail(args: {
   const escapedAppUrl = escapeHtml(args.appUrl)
   const pricingUrl = `${args.appUrl}/pricing`
   const sampleUrl = `${args.appUrl}/#try-sample`
+  const supportUrl = `${args.appUrl}/support`
+  const preferencesUrl = `${args.appUrl}/support#email-preferences`
+  const transactionalOnly = !args.consentMarketing
   const header = logo
     ? `<div style="margin-bottom:10px;">
         <a href="${escapedAppUrl}" style="text-decoration:none;">
@@ -138,10 +141,9 @@ export function renderLeadCaptureConfirmationEmail(args: {
     subject,
     '',
     ...bodyLines,
-    '',
-    `Pricing: ${pricingUrl}`,
-    `Sample digest: ${sampleUrl}`,
-    `Email preferences: ${args.appUrl}/support#email-preferences`,
+    ...(transactionalOnly
+      ? ['', `Support: ${supportUrl}`, `Email preferences: ${preferencesUrl}`]
+      : ['', `Pricing: ${pricingUrl}`, `Sample digest: ${sampleUrl}`, `Email preferences: ${preferencesUrl}`]),
   ].join('\n')
 
   const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#050a14;color:#e5e7eb;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
@@ -155,10 +157,16 @@ export function renderLeadCaptureConfirmationEmail(args: {
         <div style="margin-top:4px;font-size:13px;color:#cbd5e1;"><strong>Source:</strong> ${escapeHtml(args.sourcePage)}</div>
       </div>
       <p style="margin-top:14px;color:#cbd5e1;">${escapeHtml(nextStep)}</p>
-      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+      ${
+        transactionalOnly
+          ? `<div style="margin-top:14px;">
+        <a href="${escapeHtml(supportUrl)}" style="display:inline-block; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:700; background:rgba(148,163,184,0.15); color:#e2e8f0; border:1px solid rgba(148,163,184,0.35);">Open support</a>
+      </div>`
+          : `<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
         <a href="${escapeHtml(pricingUrl)}" style="display:inline-block; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:700; background:rgba(34,211,238,0.18); color:#67e8f9; border:1px solid rgba(34,211,238,0.35);">Review pricing</a>
         <a href="${escapeHtml(sampleUrl)}" style="display:inline-block; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:700; background:rgba(148,163,184,0.15); color:#e2e8f0; border:1px solid rgba(148,163,184,0.35);">Generate another sample</a>
-      </div>
+      </div>`
+      }
       <p style="margin-top:14px;font-size:12px;color:#94a3b8;">
         ${escapeHtml(
           args.consentMarketing
@@ -167,8 +175,8 @@ export function renderLeadCaptureConfirmationEmail(args: {
         )}
       </p>
       <p style="margin-top:6px;font-size:12px;color:#94a3b8;">Manage email preferences: <a href="${escapeHtml(
-        `${args.appUrl}/support#email-preferences`
-      )}" style="color:#67e8f9;">${escapeHtml(`${args.appUrl}/support#email-preferences`)}</a></p>
+        preferencesUrl
+      )}" style="color:#67e8f9;">${escapeHtml(preferencesUrl)}</a></p>
     </div>
   </body></html>`
 

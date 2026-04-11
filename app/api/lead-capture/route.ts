@@ -57,6 +57,116 @@ function computeDedupeKey(args: { email: string; formType: string; sourcePage: s
   return crypto.createHash('sha256').update(normalized).digest('hex')
 }
 
+function normalizeOptionalText(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function chooseBetterText(existing: string | null | undefined, incoming: string | null | undefined): string | null {
+  const current = normalizeOptionalText(existing)
+  const next = normalizeOptionalText(incoming)
+  if (!current) return next
+  if (!next) return current
+  return next.length > current.length ? next : current
+}
+
+type DuplicateMergeInput = {
+  dedupeKey: string
+  userId: string | null
+  consentTimestamp: string | null
+  payload: z.infer<typeof LeadCaptureSchema>
+  sourcePage: string
+}
+
+type ExistingLeadCaptureRow = {
+  id: string
+  user_id: string | null
+  name: string | null
+  company: string | null
+  role: string | null
+  message: string | null
+  referrer: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  route: string
+  source_page: string
+  consent_marketing: boolean
+  consent_timestamp: string | null
+  viewport_w: number | null
+  viewport_h: number | null
+  device_class: 'mobile' | 'desktop' | 'unknown'
+}
+
+async function mergeDuplicateLeadCapture(input: DuplicateMergeInput): Promise<boolean> {
+  const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
+  if (!hasServiceRole) return false
+
+  try {
+    const admin = createSupabaseAdminClient({ schema: 'api' })
+    const { data: existingRaw, error: selectError } = await admin
+      .from('lead_captures')
+      .select(
+        'id,user_id,name,company,role,message,referrer,utm_source,utm_medium,utm_campaign,route,source_page,consent_marketing,consent_timestamp,viewport_w,viewport_h,device_class'
+      )
+      .eq('dedupe_key', input.dedupeKey)
+      .maybeSingle()
+    if (selectError || !existingRaw) return false
+    const existing = existingRaw as ExistingLeadCaptureRow
+
+    const mergedName = chooseBetterText(existing.name, input.payload.name)
+    const mergedCompany = chooseBetterText(existing.company, input.payload.company)
+    const mergedRole = chooseBetterText(existing.role, input.payload.role)
+    const mergedMessage = chooseBetterText(existing.message, input.payload.message)
+    const mergedReferrer = chooseBetterText(existing.referrer, input.payload.referrer)
+    const mergedUtmSource = chooseBetterText(existing.utm_source, input.payload.utm?.source)
+    const mergedUtmMedium = chooseBetterText(existing.utm_medium, input.payload.utm?.medium)
+    const mergedUtmCampaign = chooseBetterText(existing.utm_campaign, input.payload.utm?.campaign)
+    const mergedConsentMarketing = Boolean(existing.consent_marketing || input.payload.consentMarketing)
+    const mergedConsentTimestamp =
+      existing.consent_timestamp ??
+      (input.payload.consentMarketing && input.consentTimestamp ? input.consentTimestamp : null)
+    const mergedUserId = existing.user_id ?? input.userId
+    const mergedRoute = chooseBetterText(existing.route, input.payload.route) ?? input.payload.route
+    const mergedSourcePage = chooseBetterText(existing.source_page, input.sourcePage) ?? input.sourcePage
+    const mergedDeviceClass =
+      existing.device_class === 'unknown' && input.payload.deviceClass !== 'unknown'
+        ? input.payload.deviceClass
+        : existing.device_class
+    const mergedViewportW =
+      typeof existing.viewport_w === 'number' ? existing.viewport_w : (input.payload.viewport?.w ?? null)
+    const mergedViewportH =
+      typeof existing.viewport_h === 'number' ? existing.viewport_h : (input.payload.viewport?.h ?? null)
+
+    const updates: Record<string, string | number | boolean | null> = {}
+    if (mergedUserId !== existing.user_id) updates.user_id = mergedUserId
+    if (mergedName !== existing.name) updates.name = mergedName
+    if (mergedCompany !== existing.company) updates.company = mergedCompany
+    if (mergedRole !== existing.role) updates.role = mergedRole
+    if (mergedMessage !== existing.message) updates.message = mergedMessage
+    if (mergedReferrer !== existing.referrer) updates.referrer = mergedReferrer
+    if (mergedUtmSource !== existing.utm_source) updates.utm_source = mergedUtmSource
+    if (mergedUtmMedium !== existing.utm_medium) updates.utm_medium = mergedUtmMedium
+    if (mergedUtmCampaign !== existing.utm_campaign) updates.utm_campaign = mergedUtmCampaign
+    if (mergedRoute !== existing.route) updates.route = mergedRoute
+    if (mergedSourcePage !== existing.source_page) updates.source_page = mergedSourcePage
+    if (mergedConsentMarketing !== existing.consent_marketing) updates.consent_marketing = mergedConsentMarketing
+    if (mergedConsentTimestamp !== existing.consent_timestamp) updates.consent_timestamp = mergedConsentTimestamp
+    if (mergedDeviceClass !== existing.device_class) updates.device_class = mergedDeviceClass
+    if (mergedViewportW !== existing.viewport_w) updates.viewport_w = mergedViewportW
+    if (mergedViewportH !== existing.viewport_h) updates.viewport_h = mergedViewportH
+
+    if (Object.keys(updates).length === 0) return false
+
+    const { error: updateError } = await admin.from('lead_captures').update(updates).eq('id', existing.id)
+    return !updateError
+  } catch {
+    // Merge is best-effort. Duplicate submissions should still return success.
+    return false
+  }
+}
+
 async function sendLeadCaptureFollowUp(args: {
   email: string
   dedupeKey: string
@@ -101,12 +211,14 @@ async function sendLeadCaptureFollowUp(args: {
         template: 'lead_capture_followup',
         tags: [
           { name: 'kind', value: 'lead_capture' },
-          { name: 'flow', value: 'followup' },
+          { name: 'flow', value: args.consentMarketing ? 'followup_opt_in' : 'followup_transactional' },
+          { name: 'category', value: args.consentMarketing ? 'marketing' : 'transactional' },
         ],
         meta: {
           formType: args.formType,
           sourcePage: args.sourcePage,
           consentMarketing: args.consentMarketing,
+          transactionalOnly: !args.consentMarketing,
         },
       })
       if (send.ok && send.status === 'sent') return { sent: true }
@@ -123,7 +235,8 @@ async function sendLeadCaptureFollowUp(args: {
       text: email.text,
       tags: [
         { name: 'kind', value: 'lead_capture' },
-        { name: 'flow', value: 'followup' },
+        { name: 'flow', value: args.consentMarketing ? 'followup_opt_in' : 'followup_transactional' },
+        { name: 'category', value: args.consentMarketing ? 'marketing' : 'transactional' },
       ],
     })
     return direct.ok ? { sent: true } : { sent: false, reason: direct.errorMessage || 'send_failed' }
@@ -179,6 +292,7 @@ export const POST = withApiGuard(
 
       const { error } = await supabase.from('lead_captures').insert(insert)
       let wasDuplicate = false
+      let duplicateMerged = false
       if (error) {
         if (isSchemaError(error)) {
           return fail(
@@ -199,6 +313,13 @@ export const POST = withApiGuard(
           return fail(ErrorCode.DATABASE_ERROR, 'Failed to save request', undefined, { status: 500 }, bridge, rid)
         }
         wasDuplicate = true
+        duplicateMerged = await mergeDuplicateLeadCapture({
+          dedupeKey,
+          userId: user?.id ?? null,
+          consentTimestamp,
+          payload,
+          sourcePage,
+        })
       }
 
       let followUpSent = false
@@ -217,66 +338,70 @@ export const POST = withApiGuard(
         followUpReason = followUp.reason
       }
 
-      // Optional: operator notification (best-effort, deduped). Never block user success.
-      try {
-        const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
-        const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
-        const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean(from)
-        const admins = getLifecycleAdminEmails()
-        if (hasServiceRole && adminNotificationsEnabled() && admins.length > 0 && hasResend) {
-          const appUrl = getAppUrl()
-          const email = renderAdminNotificationEmail({
-            title: 'Lead capture',
-            appUrl,
-            ctaHref: `${appUrl}${payload.route}`,
-            ctaLabel: 'Open route',
-            lines: [
-              `intent: ${payload.intent}`,
-              payload.name ? `name: ${payload.name}` : '',
-              `email: ${payload.email}`,
-              payload.company ? `company: ${payload.company}` : '',
-              payload.role ? `role: ${payload.role}` : '',
-              `form_type: ${formType}`,
-              `source_page: ${sourcePage}`,
-              `consent_marketing: ${payload.consentMarketing ? 'yes' : 'no'}`,
-              payload.referrer ? `referrer: ${payload.referrer}` : '',
-              payload.utm?.source ? `utm_source: ${payload.utm.source}` : '',
-              payload.utm?.medium ? `utm_medium: ${payload.utm.medium}` : '',
-              payload.utm?.campaign ? `utm_campaign: ${payload.utm.campaign}` : '',
-              payload.message ? `message: ${payload.message}` : '(no message)',
-            ].filter((l) => l.length > 0),
-          })
-          const adminClient = createSupabaseAdminClient({ schema: 'api' })
-          await Promise.allSettled(
-            admins.map((toEmail) =>
-              sendEmailDeduped(adminClient, {
-                dedupeKey: `admin:lead_capture:${dedupeKey}:${toEmail}`,
-                userId: null,
-                toEmail,
-                fromEmail: from,
-                replyTo: getResendReplyToEmail(),
-                subject: email.subject,
-                html: email.html,
-                text: email.text,
-                kind: 'internal',
-                template: 'admin_lead_capture',
-                tags: [
-                  { name: 'kind', value: 'internal' },
-                  { name: 'type', value: 'lead_capture' },
-                ],
-                meta: { intent: payload.intent, route: payload.route },
-              })
+      if (!wasDuplicate) {
+        // Optional: operator notification for net-new leads only (best-effort, deduped).
+        // Duplicate submissions may still merge data, but should not fan out duplicate alerts.
+        try {
+          const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
+          const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
+          const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean(from)
+          const admins = getLifecycleAdminEmails()
+          if (hasServiceRole && adminNotificationsEnabled() && admins.length > 0 && hasResend) {
+            const appUrl = getAppUrl()
+            const email = renderAdminNotificationEmail({
+              title: 'Lead capture',
+              appUrl,
+              ctaHref: `${appUrl}${payload.route}`,
+              ctaLabel: 'Open route',
+              lines: [
+                `intent: ${payload.intent}`,
+                payload.name ? `name: ${payload.name}` : '',
+                `email: ${payload.email}`,
+                payload.company ? `company: ${payload.company}` : '',
+                payload.role ? `role: ${payload.role}` : '',
+                `form_type: ${formType}`,
+                `source_page: ${sourcePage}`,
+                `consent_marketing: ${payload.consentMarketing ? 'yes' : 'no'}`,
+                payload.referrer ? `referrer: ${payload.referrer}` : '',
+                payload.utm?.source ? `utm_source: ${payload.utm.source}` : '',
+                payload.utm?.medium ? `utm_medium: ${payload.utm.medium}` : '',
+                payload.utm?.campaign ? `utm_campaign: ${payload.utm.campaign}` : '',
+                payload.message ? `message: ${payload.message}` : '(no message)',
+              ].filter((l) => l.length > 0),
+            })
+            const adminClient = createSupabaseAdminClient({ schema: 'api' })
+            await Promise.allSettled(
+              admins.map((toEmail) =>
+                sendEmailDeduped(adminClient, {
+                  dedupeKey: `admin:lead_capture:${dedupeKey}:${toEmail}`,
+                  userId: null,
+                  toEmail,
+                  fromEmail: from,
+                  replyTo: getResendReplyToEmail(),
+                  subject: email.subject,
+                  html: email.html,
+                  text: email.text,
+                  kind: 'internal',
+                  template: 'admin_lead_capture',
+                  tags: [
+                    { name: 'kind', value: 'internal' },
+                    { name: 'type', value: 'lead_capture' },
+                  ],
+                  meta: { intent: payload.intent, route: payload.route },
+                })
+              )
             )
-          )
+          }
+        } catch {
+          // best-effort only
         }
-      } catch {
-        // best-effort only
       }
 
       return ok(
         {
           saved: true,
           deduped: wasDuplicate,
+          mergedOnDuplicate: duplicateMerged,
           followUp: {
             sent: followUpSent,
             ...(followUpReason ? { reason: followUpReason } : {}),
