@@ -1,9 +1,12 @@
-import { serverEnv } from '@/lib/env'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
+function isLikelyEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 export function getResendReplyToEmail(): string {
-  const v = (serverEnv.RESEND_REPLY_TO_EMAIL ?? '').trim()
-  if (v) return v
+  const v = (process.env.RESEND_REPLY_TO_EMAIL ?? '').trim()
+  if (v && isLikelyEmail(v)) return v
   return SUPPORT_EMAIL
 }
 

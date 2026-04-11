@@ -1,5 +1,4 @@
 import { escapeHtml } from '@/lib/email/templates'
-import { serverEnv } from '@/lib/env'
 
 export type AdminNotificationEmail = { subject: string; html: string; text: string }
 
@@ -83,7 +82,7 @@ export function renderAdminNotificationEmail(args: {
 }
 
 function getEmailBrandLogoUrl(): string | null {
-  const raw = (serverEnv.EMAIL_BRAND_IMAGE_URL ?? '').trim()
+  const raw = (process.env.EMAIL_BRAND_IMAGE_URL ?? '').trim()
   if (!raw) return null
   try {
     const u = new URL(raw)
