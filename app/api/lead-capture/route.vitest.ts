@@ -14,11 +14,15 @@ const fromMock = vi.fn(() => ({ insert: insertMock }))
 const adminMaybeSingleMock = vi.fn<
   () => Promise<{ data: Record<string, unknown> | null; error: { code?: string; message?: string } | null }>
 >(async () => ({ data: null, error: null }))
+const adminInsertMock = vi.fn<(_row: unknown) => Promise<{ error: { code?: string; message?: string; details?: string; hint?: string } | null }>>(
+  async () => ({ error: null })
+)
 const adminUpdateEqMock = vi.fn<() => Promise<{ error: { code?: string; message?: string } | null }>>(async () => ({ error: null }))
 const adminUpdateMock = vi.fn((_updates: Record<string, unknown>) => ({ eq: adminUpdateEqMock }))
 const adminSelectEqMock = vi.fn((_column: string, _value: string) => ({ maybeSingle: adminMaybeSingleMock }))
 const adminSelectMock = vi.fn((_columns: string) => ({ eq: adminSelectEqMock }))
 const adminFromMock = vi.fn((_table: string) => ({
+  insert: adminInsertMock,
   select: adminSelectMock,
   update: adminUpdateMock,
 }))
@@ -41,6 +45,7 @@ const originalResendReplyToEmail = process.env.RESEND_REPLY_TO_EMAIL
 const originalBrandImageUrl = process.env.EMAIL_BRAND_IMAGE_URL
 const originalAdminNotificationsEnabled = process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED
 const originalAdminEmails = process.env.LIFECYCLE_ADMIN_EMAILS
+const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 let requestIpCounter = 10
 
 function leadCaptureHeaders(): Record<string, string> {
@@ -92,6 +97,7 @@ describe('/api/lead-capture', () => {
     schemaInsertFromMock.mockImplementation(() => ({ insert: insertMock }))
     schemaMock.mockImplementation((_schema: string) => ({ from: schemaInsertFromMock }))
     adminMaybeSingleMock.mockResolvedValue({ data: null, error: null })
+    adminInsertMock.mockResolvedValue({ error: null })
     adminUpdateEqMock.mockResolvedValue({ error: null })
     sendEmailWithResendMock.mockResolvedValue({ ok: true, messageId: 'resend-msg-1' })
     sendEmailDedupedMock.mockResolvedValue({ ok: true, status: 'sent', messageId: 'dedupe-msg-1' })
@@ -102,6 +108,7 @@ describe('/api/lead-capture', () => {
     delete process.env.EMAIL_BRAND_IMAGE_URL
     delete process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED
     delete process.env.LIFECYCLE_ADMIN_EMAILS
+    process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl ?? 'https://example.supabase.co'
   })
 
   afterAll(() => {
@@ -119,6 +126,8 @@ describe('/api/lead-capture', () => {
     else process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED = originalAdminNotificationsEnabled
     if (originalAdminEmails === undefined) delete process.env.LIFECYCLE_ADMIN_EMAILS
     else process.env.LIFECYCLE_ADMIN_EMAILS = originalAdminEmails
+    if (originalSupabaseUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl
   })
 
   it('accepts a minimal payload and writes lead capture', async () => {
@@ -225,6 +234,7 @@ describe('/api/lead-capture', () => {
 
   it('saves successfully when admin notifications are misconfigured', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.RESEND_API_KEY = 're_test_key'
     process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
     process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED = '1'
@@ -251,6 +261,55 @@ describe('/api/lead-capture', () => {
     expect(res.status).toBe(201)
     expect(json.ok).toBe(true)
     expect(json.data?.saved).toBe(true)
+  })
+
+  it('public lead save prefers admin insert when service role is configured', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'admin-first@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; insertClient?: string } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.insertClient).toBe('admin')
+    expect(adminInsertMock).toHaveBeenCalledTimes(1)
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to route insert when admin client is unavailable', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    adminInsertMock.mockRejectedValueOnce(new Error('admin transport unavailable'))
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'admin-fallback@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; insertClient?: string } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.insertClient).toBe('route')
+    expect(adminInsertMock).toHaveBeenCalledTimes(1)
+    expect(insertMock).toHaveBeenCalledTimes(1)
   })
 
   it('accepts consent and source metadata', async () => {
@@ -299,11 +358,15 @@ describe('/api/lead-capture', () => {
     })
 
     const res = await POST(req)
-    const json = (await res.json()) as { ok?: boolean; data?: { deduped?: boolean; mergedOnDuplicate?: boolean } }
+    const json = (await res.json()) as {
+      ok?: boolean
+      data?: { deduped?: boolean; mergedOnDuplicate?: boolean; resultCode?: string }
+    }
     expect(res.status).toBe(201)
     expect(json.ok).toBe(true)
     expect(json.data?.deduped).toBe(true)
     expect(json.data?.mergedOnDuplicate).toBe(false)
+    expect(json.data?.resultCode).toBe('duplicate_submission')
   })
 
   it('continues with anonymous insert when auth lookup throws', async () => {
@@ -326,7 +389,8 @@ describe('/api/lead-capture', () => {
 
   it('merges useful fields on duplicate submissions when service role is configured', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
-    insertMock.mockResolvedValueOnce({
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    adminInsertMock.mockResolvedValueOnce({
       error: { code: '23505', message: 'duplicate key value violates unique constraint' },
     })
     adminMaybeSingleMock.mockResolvedValueOnce({
@@ -442,16 +506,19 @@ describe('/api/lead-capture', () => {
     const json = (await res.json()) as { ok?: boolean; error?: { code?: string; details?: { reason?: string } } }
     expect(json.ok).toBe(false)
     expect(json.error?.code).toBe('DATABASE_ERROR')
-    expect(json.error?.details?.reason).toBe('LEAD_CAPTURE_INSERT_FAILED')
+    expect(json.error?.details?.reason).toBe('lead_capture_insert_failed')
   })
 
-  it('returns 500 with permission/client failure reason when route client is unavailable', async () => {
-    schemaMock.mockImplementationOnce((_schema: string) => ({ from: schemaInsertFromMock }))
-    fromMock.mockImplementationOnce(() => ({
-      insert: insertMock,
-    }))
-    insertMock.mockResolvedValueOnce({
-      error: { code: 'ROUTE_CLIENT_UNAVAILABLE', message: 'route client unavailable' },
+  it('returns structured permission-denied diagnostics when admin insert fails', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    adminInsertMock.mockResolvedValueOnce({
+      error: {
+        code: '42501',
+        message: 'permission denied for table lead_captures',
+        details: 'new row violates row-level security policy',
+        hint: 'verify privileges',
+      },
     })
 
     const { POST } = await import('./route')
@@ -466,11 +533,57 @@ describe('/api/lead-capture', () => {
     })
 
     const res = await POST(req)
+    const json = (await res.json()) as {
+      ok?: boolean
+      error?: {
+        code?: string
+        details?: {
+          reason?: string
+          insertClient?: string
+          insertError?: { code?: string; message?: string; details?: string; hint?: string; schema?: string; table?: string; client?: string }
+        }
+      }
+    }
     expect(res.status).toBe(500)
-    const json = (await res.json()) as { ok?: boolean; error?: { code?: string; details?: { reason?: string } } }
     expect(json.ok).toBe(false)
     expect(json.error?.code).toBe('DATABASE_ERROR')
-    expect(json.error?.details?.reason).toBe('LEAD_CAPTURE_PERMISSION_OR_CLIENT_ERROR')
+    expect(json.error?.details?.reason).toBe('lead_capture_permission_denied')
+    expect(json.error?.details?.insertClient).toBe('admin')
+    expect(json.error?.details?.insertError).toEqual(
+      expect.objectContaining({
+        code: '42501',
+        message: 'permission denied for table lead_captures',
+        details: 'new row violates row-level security policy',
+        hint: 'verify privileges',
+        schema: 'api',
+        table: 'lead_captures',
+        client: 'admin',
+      })
+    )
+  })
+
+  it('does not return 500 when optional follow-up email send fails after save', async () => {
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
+    sendEmailWithResendMock.mockResolvedValueOnce({ ok: false, errorMessage: 'provider unavailable' })
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'followup-failure@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; followUp?: { sent?: boolean; reason?: string } } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.followUp?.sent).toBe(false)
+    expect(json.data?.followUp?.reason).toBe('send_failed')
   })
 })
 
