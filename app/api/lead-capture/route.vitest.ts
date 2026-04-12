@@ -195,8 +195,7 @@ describe('/api/lead-capture', () => {
 
     const res = await POST(req)
     expect(res.status).toBe(201)
-    expect(schemaMock).toHaveBeenCalledWith('api')
-    expect(insertMock).toHaveBeenCalledWith(
+    expect(adminInsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: null,
         email: 'buyer@example.com',
@@ -212,13 +211,20 @@ describe('/api/lead-capture', () => {
         dedupe_key: expect.any(String),
       })
     )
-    expect(sendEmailWithResendMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'buyer@example.com',
-        subject: expect.stringContaining('[LeadIntel Demo]['),
-        text: expect.stringContaining('Auto-generated demo outline:'),
-      })
-    )
+    const followUpCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => call[1] as { template?: string; toEmail?: string; subject?: string; text?: string } | undefined)
+      .filter((args) => args?.template === 'lead_capture_followup')
+    expect(followUpCalls.length).toBeGreaterThan(0)
+    expect(
+      followUpCalls.some(
+        (args) =>
+          args?.toEmail === 'buyer@example.com' &&
+          typeof args?.subject === 'string' &&
+          args.subject.includes('[LeadIntel Demo][') &&
+          typeof args?.text === 'string' &&
+          args.text.includes('Auto-generated demo outline:')
+      )
+    ).toBe(true)
     const adminNotificationCalls = sendEmailDedupedMock.mock.calls
       .map((call) => call[1] as { template?: string; text?: string } | undefined)
       .filter((args) => args?.template === 'admin_lead_capture')
@@ -1220,11 +1226,14 @@ describe('/api/lead-capture', () => {
     expect(json.ok).toBe(true)
     expect(json.data?.followUp?.sent).toBe(true)
     expect(json.data?.followUp?.demoPlanSource).toBe('fallback')
-    expect(sendEmailWithResendMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining('Expected time-to-value: 1-2 business days'),
-      })
-    )
+    const followUpCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => call[1] as { template?: string; text?: string } | undefined)
+      .filter((args) => args?.template === 'lead_capture_followup')
+    expect(
+      followUpCalls.some(
+        (args) => typeof args?.text === 'string' && args.text.includes('Expected time-to-value: 1-2 business days')
+      )
+    ).toBe(true)
     const adminNotificationCalls = sendEmailDedupedMock.mock.calls
       .map((call) => call[1] as { template?: string; text?: string } | undefined)
       .filter((args) => args?.template === 'admin_lead_capture')
