@@ -11,6 +11,7 @@ import { sendEmailWithResend } from '@/lib/email/resend'
 import { getResendReplyToEmail } from '@/lib/email/routing'
 import { getAppUrl } from '@/lib/app-url'
 import { isSchemaError } from '@/lib/supabase/schema'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import crypto from 'crypto'
 
 const LeadCaptureSchema = z.object({
@@ -398,6 +399,20 @@ function normalizeOptionalText(value: string | null | undefined): string | null 
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+function getLeadCaptureAdminRecipients(): string[] {
+  const normalized = new Set<string>()
+  const add = (value: string | null | undefined): void => {
+    if (typeof value !== 'string') return
+    const email = value.trim().toLowerCase()
+    if (!email || !email.includes('@') || !email.includes('.')) return
+    normalized.add(email)
+  }
+
+  add(SUPPORT_EMAIL)
+  getLifecycleAdminEmails().forEach((email) => add(email))
+  return Array.from(normalized)
 }
 
 function chooseBetterText(existing: string | null | undefined, incoming: string | null | undefined): string | null {
@@ -958,9 +973,9 @@ export const POST = withApiGuard(
         try {
           const from = getTrimmedEnv('RESEND_FROM_EMAIL')
           const hasResend = Boolean(getTrimmedEnv('RESEND_API_KEY')) && Boolean(from)
-          const admins = getLifecycleAdminEmails()
-          adminRecipients = admins.length
-          if (hasServiceRole && adminNotificationsEnabled() && admins.length > 0 && hasResend) {
+          const adminRecipientsList = getLeadCaptureAdminRecipients()
+          adminRecipients = adminRecipientsList.length
+          if (hasServiceRole && adminNotificationsEnabled() && adminRecipientsList.length > 0 && hasResend) {
             adminNotifyAttempted = true
             const appUrl = getAppUrl()
             const email = renderAdminNotificationEmail({
@@ -986,7 +1001,7 @@ export const POST = withApiGuard(
             })
             const adminClient = createSupabaseAdminClient({ schema: 'api' })
             const results = await Promise.allSettled(
-              admins.map((toEmail) =>
+              adminRecipientsList.map((toEmail) =>
                 sendEmailDeduped(adminClient, {
                   dedupeKey: `admin:lead_capture:${dedupeKey}:${toEmail}`,
                   userId: null,

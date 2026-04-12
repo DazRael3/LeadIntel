@@ -268,6 +268,33 @@ describe('/api/lead-capture', () => {
     expect(json.data?.saved).toBe(true)
   })
 
+  it('always includes support inbox in admin lead notifications', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
+    process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED = '1'
+    process.env.LIFECYCLE_ADMIN_EMAILS = 'ops@dazrael.com'
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'admin-inbox-check@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(201)
+    const adminNotificationCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => call[1] as { template?: string; toEmail?: string })
+      .filter((args) => args.template === 'admin_lead_capture')
+    expect(adminNotificationCalls.length).toBeGreaterThan(0)
+    expect(adminNotificationCalls.some((args) => args.toEmail === SUPPORT_EMAIL)).toBe(true)
+  })
+
   it('public lead save prefers admin insert when service role is configured', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
