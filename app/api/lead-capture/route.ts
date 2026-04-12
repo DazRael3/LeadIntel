@@ -86,19 +86,8 @@ type InsertFailureReason =
   | 'lead_capture_client_misconfigured'
   | 'lead_capture_insert_failed'
 
-const OPTIONAL_LEAD_CAPTURE_COLUMNS = new Set<string>([
-  'consent_marketing',
-  'consent_timestamp',
-  'utm_source',
-  'utm_medium',
-  'utm_campaign',
-  'referrer',
-  'device_class',
-  'viewport_w',
-  'viewport_h',
-  'form_type',
-  'source_page',
-])
+const CONSENT_COMPATIBILITY_COLUMNS = ['consent_marketing', 'consent_timestamp'] as const
+const CONSENT_COMPATIBILITY_COLUMN_SET = new Set<string>(CONSENT_COMPATIBILITY_COLUMNS)
 
 type LeadCaptureStage =
   | 'validation'
@@ -718,17 +707,24 @@ export const POST = withApiGuard(
       let error: DbLikeError | null = null
       const retryWithSchemaCompatiblePayload = async (client: unknown, clientName: InsertClient): Promise<void> => {
         if (!error) return
+        const code = getErrorCode(error).toLowerCase()
+        if (!code.includes('pgrst204')) return
         const missingColumn = getSchemaMissingColumn(error)
-        if (!missingColumn || !OPTIONAL_LEAD_CAPTURE_COLUMNS.has(missingColumn)) return
-        if (!(missingColumn in insertPayload)) return
+        if (!missingColumn || !CONSENT_COMPATIBILITY_COLUMN_SET.has(missingColumn)) return
+        const removedCompatibilityFields = CONSENT_COMPATIBILITY_COLUMNS.filter((column) => column in insertPayload)
+        if (removedCompatibilityFields.length === 0) return
         const reduced = { ...insertPayload }
-        delete reduced[missingColumn]
+        removedCompatibilityFields.forEach((column) => {
+          delete reduced[column]
+        })
         logLeadCapture('warn', {
           category: 'schema_not_ready',
           requestId: rid,
           meta: {
             schemaCompatibilityRetry: true,
-            droppedColumn: missingColumn,
+            schemaCompatibilityRetryMode: 'drop_known_optional_consent_fields',
+            removedCompatibilityFields,
+            triggerMissingColumn: missingColumn,
             insertClient: clientName,
           },
         })

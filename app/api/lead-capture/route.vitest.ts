@@ -521,7 +521,7 @@ describe('/api/lead-capture', () => {
     expect(insertMock).toHaveBeenCalledTimes(1)
   })
 
-  it('retries admin insert without missing optional column from schema cache error', async () => {
+  it('retries admin insert without both consent fields when consent_marketing is missing', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
     adminInsertMock
       .mockResolvedValueOnce({
@@ -554,7 +554,76 @@ describe('/api/lead-capture', () => {
     const firstInsert = adminInsertMock.mock.calls[0]?.[0] as Record<string, unknown>
     const secondInsert = adminInsertMock.mock.calls[1]?.[0] as Record<string, unknown>
     expect(firstInsert).toHaveProperty('consent_marketing', true)
+    expect(firstInsert).toHaveProperty('consent_timestamp')
     expect(secondInsert).not.toHaveProperty('consent_marketing')
+    expect(secondInsert).not.toHaveProperty('consent_timestamp')
+  })
+
+  it('retries admin insert without both consent fields when consent_timestamp is missing', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    adminInsertMock
+      .mockResolvedValueOnce({
+        error: {
+          code: 'PGRST204',
+          message: "Could not find the 'consent_timestamp' column of 'lead_captures' in the schema cache",
+        },
+      })
+      .mockResolvedValueOnce({ error: null })
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'schema-cache-retry-ts@example.com',
+        intent: 'demo',
+        route: '/contact',
+        consentMarketing: true,
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; insertClient?: string } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.insertClient).toBe('admin')
+    expect(adminInsertMock).toHaveBeenCalledTimes(2)
+    const secondInsert = adminInsertMock.mock.calls[1]?.[0] as Record<string, unknown>
+    expect(secondInsert).not.toHaveProperty('consent_marketing')
+    expect(secondInsert).not.toHaveProperty('consent_timestamp')
+  })
+
+  it('does not trigger consent compatibility retry for unrelated PGRST204 missing columns', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    adminInsertMock.mockResolvedValueOnce({
+      error: {
+        code: 'PGRST204',
+        message: "Could not find the 'utm_source' column of 'lead_captures' in the schema cache",
+      },
+    })
+    insertMock.mockResolvedValueOnce({ error: null })
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'schema-cache-non-consent@example.com',
+        intent: 'demo',
+        route: '/contact',
+        consentMarketing: true,
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; insertClient?: string } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.insertClient).toBe('route')
+    expect(adminInsertMock).toHaveBeenCalledTimes(1)
+    expect(insertMock).toHaveBeenCalledTimes(1)
   })
 
   it('handles supabase methods that require bound context', async () => {
