@@ -71,6 +71,57 @@ type LeadCaptureLogCategory =
   | 'auth_lookup'
   | 'unexpected'
 
+type DbLikeError = {
+  code?: string
+  message?: string
+}
+
+type DuplicateMergeStatus = 'merged' | 'unchanged' | 'failed'
+
+function getErrorCode(error: DbLikeError | null | undefined): string {
+  const code = (error?.code ?? '').trim()
+  return code.length > 0 ? code : 'unknown'
+}
+
+function getErrorMessage(error: DbLikeError | null | undefined): string {
+  return (error?.message ?? '').toLowerCase()
+}
+
+function isUniqueViolation(error: DbLikeError | null | undefined): boolean {
+  const code = getErrorCode(error)
+  const message = getErrorMessage(error)
+  return code === '23505' || message.includes('duplicate') || message.includes('unique')
+}
+
+function isSchemaOrTableMissing(error: DbLikeError | null | undefined): boolean {
+  if (!error) return false
+  const code = getErrorCode(error)
+  const message = getErrorMessage(error)
+  if (isSchemaError(error)) return true
+  return (
+    code === '42P01' || // undefined_table
+    code === '42703' || // undefined_column
+    code.toLowerCase().includes('pgrst204') ||
+    (message.includes('relation') && message.includes('does not exist')) ||
+    (message.includes('column') && message.includes('does not exist'))
+  )
+}
+
+function isPermissionOrClientFailure(error: DbLikeError | null | undefined): boolean {
+  if (!error) return false
+  const code = getErrorCode(error)
+  const message = getErrorMessage(error)
+  return (
+    code === '42501' || // insufficient_privilege
+    code === 'ROUTE_CLIENT_UNAVAILABLE' ||
+    code === 'ADMIN_CLIENT_UNAVAILABLE' ||
+    message.includes('permission denied') ||
+    message.includes('row-level security') ||
+    message.includes('insufficient privilege') ||
+    message.includes('client unavailable')
+  )
+}
+
 function logLeadCapture(
   level: 'info' | 'warn' | 'error',
   args: {
@@ -138,9 +189,9 @@ type ExistingLeadCaptureRow = {
   device_class: 'mobile' | 'desktop' | 'unknown'
 }
 
-async function mergeDuplicateLeadCapture(input: DuplicateMergeInput): Promise<boolean> {
+async function mergeDuplicateLeadCapture(input: DuplicateMergeInput): Promise<DuplicateMergeStatus> {
   const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
-  if (!hasServiceRole) return false
+  if (!hasServiceRole) return 'unchanged'
 
   try {
     const admin = createSupabaseAdminClient({ schema: 'api' })
@@ -151,7 +202,7 @@ async function mergeDuplicateLeadCapture(input: DuplicateMergeInput): Promise<bo
       )
       .eq('dedupe_key', input.dedupeKey)
       .maybeSingle()
-    if (selectError || !existingRaw) return false
+    if (selectError || !existingRaw) return 'failed'
     const existing = existingRaw as ExistingLeadCaptureRow
 
     const mergedName = chooseBetterText(existing.name, input.payload.name)
@@ -196,13 +247,13 @@ async function mergeDuplicateLeadCapture(input: DuplicateMergeInput): Promise<bo
     if (mergedViewportW !== existing.viewport_w) updates.viewport_w = mergedViewportW
     if (mergedViewportH !== existing.viewport_h) updates.viewport_h = mergedViewportH
 
-    if (Object.keys(updates).length === 0) return false
+    if (Object.keys(updates).length === 0) return 'unchanged'
 
     const { error: updateError } = await admin.from('lead_captures').update(updates).eq('id', existing.id)
-    return !updateError
+    return updateError ? 'failed' : 'merged'
   } catch {
     // Merge is best-effort. Duplicate submissions should still return success.
-    return false
+    return 'failed'
   }
 }
 
@@ -300,9 +351,26 @@ export const POST = withApiGuard(
     }
 
     try {
-      const supabase = createRouteClient(request, bridge)
+      logLeadCapture('info', {
+        category: 'validation',
+        requestId: rid,
+        meta: { validationPassed: true },
+      })
+      let supabase: ReturnType<typeof createRouteClient> | null = null
+      try {
+        supabase = createRouteClient(request, bridge)
+      } catch {
+        logLeadCapture('warn', {
+          category: 'supabase_insert',
+          requestId: rid,
+          meta: { insertAttempted: false, routeClientReady: false, subsystem: 'client_creation_failure' },
+        })
+      }
       let userId: string | null = null
       try {
+        if (!supabase) {
+          throw new Error('route client unavailable')
+        }
         const {
           data: { user },
           error: authError,
@@ -329,6 +397,7 @@ export const POST = withApiGuard(
       const sourcePage = payload.sourcePage ?? payload.route
       const dedupeKey = computeDedupeKey({ email: payload.email, formType, sourcePage })
       const consentTimestamp = payload.consentMarketing ? new Date().toISOString() : null
+      const hasServiceRole = Boolean(getTrimmedEnv('SUPABASE_SERVICE_ROLE_KEY'))
       const insert = {
         user_id: userId,
         email: payload.email.trim(),
@@ -354,15 +423,57 @@ export const POST = withApiGuard(
         meta: {},
       }
 
-      const { error } = await supabase.schema('api').from('lead_captures').insert(insert)
+      logLeadCapture('info', {
+        category: 'supabase_insert',
+        requestId: rid,
+        meta: {
+          insertAttempted: true,
+          routeClientReady: Boolean(supabase),
+          hasServiceRole,
+          insertClient: 'route',
+        },
+      })
+      let insertClient: 'route' | 'admin' = 'route'
+      let error: DbLikeError | null = null
+      if (supabase) {
+        const schemaFactory = (
+          supabase as unknown as {
+            schema?: (schema: string) => { from: (table: string) => { insert: (row: unknown) => Promise<{ error: DbLikeError | null }> } }
+            from: (table: string) => { insert: (row: unknown) => Promise<{ error: DbLikeError | null }> }
+          }
+        ).schema
+        if (typeof schemaFactory === 'function') {
+          const result = await schemaFactory('api').from('lead_captures').insert(insert)
+          error = result.error
+        } else {
+          const result = await (supabase as unknown as { from: (table: string) => { insert: (row: unknown) => Promise<{ error: DbLikeError | null }> } })
+            .from('lead_captures')
+            .insert(insert)
+          error = result.error
+        }
+      } else {
+        error = { code: 'ROUTE_CLIENT_UNAVAILABLE', message: 'route client unavailable' }
+      }
+
+      if (error && !isUniqueViolation(error) && !isSchemaOrTableMissing(error) && isPermissionOrClientFailure(error) && hasServiceRole) {
+        insertClient = 'admin'
+        try {
+          const adminClient = createSupabaseAdminClient({ schema: 'api' })
+          const fallback = await adminClient.from('lead_captures').insert(insert)
+          error = fallback.error
+        } catch {
+          error = { code: 'ADMIN_CLIENT_UNAVAILABLE', message: 'admin client unavailable' }
+        }
+      }
+
       let wasDuplicate = false
       let duplicateMerged = false
       if (error) {
-        if (isSchemaError(error)) {
+        if (isSchemaOrTableMissing(error)) {
           logLeadCapture('warn', {
             category: 'schema_not_ready',
             requestId: rid,
-            meta: { schemaReady: false },
+            meta: { schemaReady: false, insertClient, errorCode: getErrorCode(error) },
           })
           return fail(
             ErrorCode.INTERNAL_ERROR,
@@ -373,42 +484,54 @@ export const POST = withApiGuard(
             rid
           )
         }
-        // Unique violation (dedupe): treat as success to be user-friendly.
-        // PostgREST uses SQLSTATE 23505 for unique violations; surface may vary, so check both.
-        const msg = (error as { message?: string; code?: string } | null)?.message ?? ''
-        const code = (error as { code?: string } | null)?.code ?? ''
-        const isUnique = code === '23505' || msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique')
-        if (!isUnique) {
+        if (!isUniqueViolation(error)) {
+          const permissionOrClientFailure = isPermissionOrClientFailure(error)
           logLeadCapture('error', {
             category: 'supabase_insert',
             requestId: rid,
-            meta: { insertOk: false, duplicate: false, errorCode: code || 'unknown' },
+            meta: {
+              insertOk: false,
+              duplicate: false,
+              insertClient,
+              subsystem: permissionOrClientFailure ? 'permission_or_client_failure' : 'insert_failure',
+              errorCode: getErrorCode(error),
+            },
           })
-          return fail(ErrorCode.DATABASE_ERROR, 'Failed to save request', undefined, { status: 500 }, bridge, rid)
+          return fail(
+            ErrorCode.DATABASE_ERROR,
+            'Failed to save request',
+            {
+              reason: permissionOrClientFailure ? 'LEAD_CAPTURE_PERMISSION_OR_CLIENT_ERROR' : 'LEAD_CAPTURE_INSERT_FAILED',
+            },
+            { status: 500 },
+            bridge,
+            rid
+          )
         }
         wasDuplicate = true
         logLeadCapture('warn', {
           category: 'supabase_insert',
           requestId: rid,
-          meta: { insertOk: false, duplicate: true, errorCode: code || '23505' },
+          meta: { insertOk: false, duplicate: true, insertClient, errorCode: getErrorCode(error) },
         })
-        duplicateMerged = await mergeDuplicateLeadCapture({
+        const duplicateMergeStatus = await mergeDuplicateLeadCapture({
           dedupeKey,
           userId,
           consentTimestamp,
           payload,
           sourcePage,
         })
-        logLeadCapture(duplicateMerged ? 'info' : 'warn', {
+        duplicateMerged = duplicateMergeStatus === 'merged'
+        logLeadCapture(duplicateMergeStatus === 'failed' ? 'warn' : 'info', {
           category: 'duplicate_merge',
           requestId: rid,
-          meta: { duplicate: true, merged: duplicateMerged },
+          meta: { duplicate: true, merged: duplicateMerged, status: duplicateMergeStatus },
         })
       } else {
         logLeadCapture('info', {
           category: 'supabase_insert',
           requestId: rid,
-          meta: { insertOk: true, duplicate: false, schema: 'api' },
+          meta: { insertOk: true, duplicate: false, schema: 'api', insertClient },
         })
       }
 
@@ -447,7 +570,6 @@ export const POST = withApiGuard(
         // Optional: operator notification for net-new leads only (best-effort, deduped).
         // Duplicate submissions may still merge data, but should not fan out duplicate alerts.
         try {
-          const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
           const from = getTrimmedEnv('RESEND_FROM_EMAIL')
           const hasResend = Boolean(getTrimmedEnv('RESEND_API_KEY')) && Boolean(from)
           const admins = getLifecycleAdminEmails()
@@ -499,7 +621,7 @@ export const POST = withApiGuard(
               )
             )
             adminDelivered = results.filter((r) => r.status === 'fulfilled' && r.value.ok && r.value.status === 'sent').length
-            adminNotifyFailed = results.some((r) => r.status === 'rejected')
+            adminNotifyFailed = results.some((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok))
             logLeadCapture(adminNotifyFailed ? 'warn' : 'info', {
               category: 'admin_notify',
               requestId: rid,

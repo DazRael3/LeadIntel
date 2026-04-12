@@ -439,6 +439,38 @@ describe('/api/lead-capture', () => {
 
     const res = await POST(req)
     expect(res.status).toBe(500)
+    const json = (await res.json()) as { ok?: boolean; error?: { code?: string; details?: { reason?: string } } }
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('DATABASE_ERROR')
+    expect(json.error?.details?.reason).toBe('LEAD_CAPTURE_INSERT_FAILED')
+  })
+
+  it('returns 500 with permission/client failure reason when route client is unavailable', async () => {
+    schemaMock.mockImplementationOnce((_schema: string) => ({ from: schemaInsertFromMock }))
+    fromMock.mockImplementationOnce(() => ({
+      insert: insertMock,
+    }))
+    insertMock.mockResolvedValueOnce({
+      error: { code: 'ROUTE_CLIENT_UNAVAILABLE', message: 'route client unavailable' },
+    })
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'client-failure@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(500)
+    const json = (await res.json()) as { ok?: boolean; error?: { code?: string; details?: { reason?: string } } }
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('DATABASE_ERROR')
+    expect(json.error?.details?.reason).toBe('LEAD_CAPTURE_PERMISSION_OR_CLIENT_ERROR')
   })
 })
 
