@@ -72,10 +72,10 @@ type LeadCaptureLogCategory =
   | 'unexpected'
 
 type DbLikeError = {
-  code?: string
-  message?: string
-  details?: string
-  hint?: string
+  code?: unknown
+  message?: unknown
+  details?: unknown
+  hint?: unknown
 }
 
 type DuplicateMergeStatus = 'merged' | 'unchanged' | 'failed'
@@ -86,13 +86,43 @@ type InsertFailureReason =
   | 'lead_capture_client_misconfigured'
   | 'lead_capture_insert_failed'
 
+type LeadCaptureStage =
+  | 'validation'
+  | 'auth_lookup'
+  | 'insert_prepare'
+  | 'admin_insert'
+  | 'route_insert'
+  | 'duplicate_merge'
+  | 'followup_email'
+  | 'admin_notify'
+  | 'response'
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function normalizeDbError(error: unknown): DbLikeError | null {
+  const record = asRecord(error)
+  if (!record) return null
+  return {
+    code: record.code,
+    message: record.message,
+    details: record.details,
+    hint: record.hint,
+  }
+}
+
 function getErrorCode(error: DbLikeError | null | undefined): string {
-  const code = (error?.code ?? '').trim()
+  const code = asString(error?.code).trim()
   return code.length > 0 ? code : 'unknown'
 }
 
 function getErrorMessage(error: DbLikeError | null | undefined): string {
-  return (error?.message ?? '').toLowerCase()
+  return asString(error?.message).toLowerCase()
 }
 
 function sanitizeLogText(value: unknown): string | null {
@@ -111,6 +141,31 @@ function sanitizeDbError(error: DbLikeError | null | undefined, client: InsertCl
     schema: 'api',
     table: 'lead_captures',
     client,
+  }
+}
+
+function getUnexpectedErrorMeta(error: unknown): {
+  errorType: string
+  errorMessage: string | null
+  stackLine: string | null
+} {
+  if (error instanceof Error) {
+    const stackLines = error.stack
+      ?.split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+    return {
+      errorType: error.name || 'Error',
+      errorMessage: sanitizeLogText(error.message),
+      stackLine: sanitizeLogText((stackLines && stackLines.length > 1 ? stackLines[1] : null) ?? null),
+    }
+  }
+
+  const errorRecord = asRecord(error)
+  return {
+    errorType: typeof error,
+    errorMessage: sanitizeLogText(errorRecord?.message),
+    stackLine: null,
   }
 }
 
@@ -154,6 +209,8 @@ function isClientMisconfigured(error: DbLikeError | null | undefined): boolean {
     code === 'ROUTE_CLIENT_UNAVAILABLE' ||
     code === 'ADMIN_CLIENT_UNAVAILABLE' ||
     code === 'INSERT_CLIENT_MISCONFIGURED' ||
+    code === 'INSERT_RESULT_INVALID' ||
+    code === 'INSERT_OPERATION_THROWN' ||
     message.includes('missing supabase environment variables') ||
     message.includes('service role is not configured') ||
     message.includes('client unavailable')
@@ -230,18 +287,59 @@ async function insertLeadCaptureWithSchema(
   client: unknown,
   row: unknown
 ): Promise<{ error: DbLikeError | null }> {
-  const schemaFactory = (
-    client as {
-      schema?: (schema: string) => { from: (table: string) => { insert: (payload: unknown) => Promise<{ error: DbLikeError | null }> } }
-      from: (table: string) => { insert: (payload: unknown) => Promise<{ error: DbLikeError | null }> }
+  try {
+    const clientRecord = asRecord(client)
+    if (!clientRecord) {
+      return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'insert client is not an object' } }
     }
-  ).schema
-  if (typeof schemaFactory === 'function') {
-    return schemaFactory('api').from('lead_captures').insert(row)
+
+    const schemaFactory = clientRecord.schema
+    const readInsertResult = (value: unknown): { error: DbLikeError | null } => {
+      const resultRecord = asRecord(value)
+      if (!resultRecord) {
+        return { error: { code: 'INSERT_RESULT_INVALID', message: 'insert result missing' } }
+      }
+      if (!('error' in resultRecord)) {
+        return { error: { code: 'INSERT_RESULT_INVALID', message: 'insert result missing error field' } }
+      }
+      const rawError = resultRecord.error
+      if (rawError === null || rawError === undefined) return { error: null }
+      return { error: normalizeDbError(rawError) ?? { code: 'INSERT_RESULT_INVALID', message: 'insert error shape invalid' } }
+    }
+
+    if (typeof schemaFactory === 'function') {
+      const scopedClient = asRecord(schemaFactory('api'))
+      const fromFn = scopedClient?.from
+      if (typeof fromFn !== 'function') {
+        return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'schema-scoped client missing from()' } }
+      }
+      const tableClient = asRecord(fromFn('lead_captures'))
+      const insertFn = tableClient?.insert
+      if (typeof insertFn !== 'function') {
+        return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'table client missing insert()' } }
+      }
+      return readInsertResult(await insertFn(row))
+    }
+
+    const fromFn = clientRecord.from
+    if (typeof fromFn !== 'function') {
+      return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'client missing from()' } }
+    }
+    const tableClient = asRecord(fromFn('lead_captures'))
+    const insertFn = tableClient?.insert
+    if (typeof insertFn !== 'function') {
+      return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'table client missing insert()' } }
+    }
+    return readInsertResult(await insertFn(row))
+  } catch (error) {
+    const meta = getUnexpectedErrorMeta(error)
+    return {
+      error: {
+        code: 'INSERT_OPERATION_THROWN',
+        message: meta.errorMessage ?? 'insert operation threw',
+      },
+    }
   }
-  return (client as { from: (table: string) => { insert: (payload: unknown) => Promise<{ error: DbLikeError | null }> } })
-    .from('lead_captures')
-    .insert(row)
 }
 
 function normalizeOptionalText(value: string | null | undefined): string | null {
@@ -370,19 +468,18 @@ async function sendLeadCaptureFollowUp(args: {
     return { sent: false, reason: 'email_not_configured' }
   }
 
-  const appUrl = getAppUrl()
-  const email = renderLeadCaptureConfirmationEmail({
-    recipientName: args.recipientName,
-    appUrl,
-    formType: args.formType,
-    sourcePage: args.sourcePage,
-    consentMarketing: args.consentMarketing,
-    company: args.company,
-    variationSeed: args.dedupeKey,
-  })
-  const replyTo = getResendReplyToEmail()
-
   try {
+    const appUrl = getAppUrl()
+    const email = renderLeadCaptureConfirmationEmail({
+      recipientName: args.recipientName,
+      appUrl,
+      formType: args.formType,
+      sourcePage: args.sourcePage,
+      consentMarketing: args.consentMarketing,
+      company: args.company,
+      variationSeed: args.dedupeKey,
+    })
+    const replyTo = getResendReplyToEmail()
     const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
     if (hasServiceRole) {
       const admin = createSupabaseAdminClient({ schema: 'api' })
@@ -409,8 +506,13 @@ async function sendLeadCaptureFollowUp(args: {
           transactionalOnly: !args.consentMarketing,
         },
       })
-      if (send.ok && send.status === 'sent') return { sent: true }
-      if (send.ok && send.status === 'skipped') return { sent: false, reason: send.reason }
+      if (send && typeof send === 'object' && 'ok' in send && send.ok === true && 'status' in send && send.status === 'sent') {
+        return { sent: true }
+      }
+      if (send && typeof send === 'object' && 'ok' in send && send.ok === true && 'status' in send && send.status === 'skipped') {
+        const reason = 'reason' in send && typeof send.reason === 'string' ? send.reason : 'deduped'
+        return { sent: false, reason }
+      }
       return { sent: false, reason: 'send_failed' }
     }
 
@@ -427,7 +529,10 @@ async function sendLeadCaptureFollowUp(args: {
         { name: 'category', value: args.consentMarketing ? 'marketing' : 'transactional' },
       ],
     })
-    return direct.ok ? { sent: true } : { sent: false, reason: 'send_failed' }
+    if (direct && typeof direct === 'object' && 'ok' in direct && direct.ok === true) {
+      return { sent: true }
+    }
+    return { sent: false, reason: 'send_failed' }
   } catch {
     return { sent: false, reason: 'send_failed' }
   }
@@ -437,6 +542,7 @@ export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
     const bridge = createCookieBridge()
     const rid = requestId
+    let stage: LeadCaptureStage = 'validation'
 
     if (body === undefined) {
       logLeadCapture('warn', {
@@ -465,30 +571,44 @@ export const POST = withApiGuard(
       }
       let userId: string | null = null
       try {
+        stage = 'auth_lookup'
         if (!supabase) {
           throw new Error('route client unavailable')
         }
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser()
+        const authClient = asRecord(asRecord(supabase)?.auth)
+        const getUser = authClient?.getUser
+        if (typeof getUser !== 'function') {
+          throw new Error('auth client unavailable')
+        }
+        const authResult = await getUser()
+        const authRecord = asRecord(authResult)
+        const authData = asRecord(authRecord?.data)
+        const authUser = asRecord(authData?.user)
+        const authError = normalizeDbError(authRecord?.error)
         if (authError) {
           logLeadCapture('warn', {
             category: 'auth_lookup',
             requestId: rid,
-            meta: { authError: true },
+            meta: { authError: true, authCode: getErrorCode(authError) },
           })
         }
-        userId = user?.id ?? null
-      } catch {
+        userId = typeof authUser?.id === 'string' ? authUser.id : null
+      } catch (authLookupError) {
+        const authMeta = getUnexpectedErrorMeta(authLookupError)
         // Public lead capture should still save even if auth lookup fails.
         logLeadCapture('warn', {
           category: 'auth_lookup',
           requestId: rid,
-          meta: { authError: true, authLookupThrew: true },
+          meta: {
+            authError: true,
+            authLookupThrew: true,
+            authErrorType: authMeta.errorType,
+            authErrorMessage: authMeta.errorMessage,
+          },
         })
       }
 
+      stage = 'insert_prepare'
       const payload = body as z.infer<typeof LeadCaptureSchema>
       const formType = payload.formType ?? payload.intent
       const sourcePage = payload.sourcePage ?? payload.route
@@ -539,6 +659,7 @@ export const POST = withApiGuard(
 
       let adminClientUnavailable = false
       if (envStatus.adminInsertReady) {
+        stage = 'admin_insert'
         insertClient = 'admin'
         try {
           const adminClient = createSupabaseAdminClient({ schema: 'api' })
@@ -561,7 +682,9 @@ export const POST = withApiGuard(
         }
       }
 
-      if (adminClientUnavailable) {
+      const adminInsertMisconfigured = insertClient === 'admin' && Boolean(error) && isClientMisconfigured(error)
+      if (adminClientUnavailable || adminInsertMisconfigured) {
+        stage = 'route_insert'
         insertClient = 'route'
         logLeadCapture('warn', {
           category: 'supabase_insert',
@@ -569,7 +692,7 @@ export const POST = withApiGuard(
           meta: {
             insertOk: false,
             insertClient: 'admin',
-            subsystem: 'admin_client_unavailable',
+            subsystem: adminClientUnavailable ? 'admin_client_unavailable' : 'admin_insert_misconfigured',
             dbError: sanitizeDbError(error, 'admin'),
           },
         })
@@ -589,6 +712,7 @@ export const POST = withApiGuard(
       let duplicateMerged = false
       if (error) {
         if (isUniqueViolation(error)) {
+          stage = 'duplicate_merge'
           wasDuplicate = true
           logLeadCapture('warn', {
             category: 'supabase_insert',
@@ -608,11 +732,15 @@ export const POST = withApiGuard(
             payload,
             sourcePage,
           })
-          duplicateMerged = duplicateMergeStatus === 'merged'
-          logLeadCapture(duplicateMergeStatus === 'failed' ? 'warn' : 'info', {
+          const normalizedMergeStatus: DuplicateMergeStatus =
+            duplicateMergeStatus === 'merged' || duplicateMergeStatus === 'unchanged' || duplicateMergeStatus === 'failed'
+              ? duplicateMergeStatus
+              : 'failed'
+          duplicateMerged = normalizedMergeStatus === 'merged'
+          logLeadCapture(normalizedMergeStatus === 'failed' ? 'warn' : 'info', {
             category: 'duplicate_merge',
             requestId: rid,
-            meta: { duplicate: true, merged: duplicateMerged, status: duplicateMergeStatus },
+            meta: { duplicate: true, merged: duplicateMerged, status: normalizedMergeStatus },
           })
         } else {
           const insertFailureReason = classifyInsertFailure(error)
@@ -676,17 +804,36 @@ export const POST = withApiGuard(
       let followUpSent = false
       let followUpReason: string | undefined
       if (!wasDuplicate) {
-        const followUp = await sendLeadCaptureFollowUp({
-          email: payload.email.trim(),
-          dedupeKey,
-          recipientName: payload.name,
-          company: payload.company,
-          formType,
-          sourcePage,
-          consentMarketing: payload.consentMarketing,
-        })
-        followUpSent = followUp.sent
-        followUpReason = followUp.reason
+        stage = 'followup_email'
+        try {
+          const followUp = await sendLeadCaptureFollowUp({
+            email: payload.email.trim(),
+            dedupeKey,
+            recipientName: payload.name,
+            company: payload.company,
+            formType,
+            sourcePage,
+            consentMarketing: payload.consentMarketing,
+          })
+          const followUpRecord = asRecord(followUp)
+          followUpSent = followUpRecord?.sent === true
+          followUpReason = asString(followUpRecord?.reason) || (followUpSent ? undefined : 'send_failed')
+        } catch (followUpError) {
+          const followUpMeta = getUnexpectedErrorMeta(followUpError)
+          followUpSent = false
+          followUpReason = 'send_failed'
+          logLeadCapture('warn', {
+            category: 'followup_email',
+            requestId: rid,
+            meta: {
+              attempted: true,
+              sent: false,
+              reason: 'send_failed',
+              errorType: followUpMeta.errorType,
+              errorMessage: followUpMeta.errorMessage,
+            },
+          })
+        }
         logLeadCapture(followUpSent ? 'info' : 'warn', {
           category: 'followup_email',
           requestId: rid,
@@ -705,6 +852,7 @@ export const POST = withApiGuard(
       let adminRecipients = 0
       let adminDelivered = 0
       if (!wasDuplicate) {
+        stage = 'admin_notify'
         // Optional: operator notification for net-new leads only (best-effort, deduped).
         // Duplicate submissions may still merge data, but should not fan out duplicate alerts.
         try {
@@ -758,8 +906,16 @@ export const POST = withApiGuard(
                 })
               )
             )
-            adminDelivered = results.filter((r) => r.status === 'fulfilled' && r.value.ok && r.value.status === 'sent').length
-            adminNotifyFailed = results.some((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok))
+            adminDelivered = results.reduce((count, result) => {
+              if (result.status !== 'fulfilled') return count
+              const value = asRecord(result.value)
+              return value?.ok === true && value.status === 'sent' ? count + 1 : count
+            }, 0)
+            adminNotifyFailed = results.some((result) => {
+              if (result.status === 'rejected') return true
+              const value = asRecord(result.value)
+              return value?.ok !== true
+            })
             logLeadCapture(adminNotifyFailed ? 'warn' : 'info', {
               category: 'admin_notify',
               requestId: rid,
@@ -804,6 +960,7 @@ export const POST = withApiGuard(
         })
       }
 
+      stage = 'response'
       return ok(
         {
           saved: true,
@@ -821,10 +978,16 @@ export const POST = withApiGuard(
         rid
       )
     } catch (e) {
+      const unexpected = getUnexpectedErrorMeta(e)
       logLeadCapture('error', {
         category: 'unexpected',
         requestId: rid,
-        meta: { errorType: e instanceof Error ? e.name : 'unknown' },
+        meta: {
+          stage,
+          errorType: unexpected.errorType,
+          errorMessage: unexpected.errorMessage,
+          stackLine: unexpected.stackLine,
+        },
       })
       return fail(
         ErrorCode.INTERNAL_ERROR,

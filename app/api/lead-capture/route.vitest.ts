@@ -1,23 +1,27 @@
 import { describe, expect, it, vi, beforeEach, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 
-const insertMock = vi.fn<(_row: unknown) => Promise<{ error: { code?: string; message?: string } | null }>>(async () => ({
+type MockDbError = { code?: unknown; message?: unknown; details?: unknown; hint?: unknown }
+
+const insertMock = vi.fn<(_row: unknown) => Promise<{ error: MockDbError | null } | undefined>>(async () => ({
   error: null,
 }))
 const getUserMock = vi.fn<
-  () => Promise<{ data: { user: { id: string } | null }; error: { code?: string; message?: string } | null }>
+  () => Promise<{ data: { user: { id: string } | null } | null; error: MockDbError | null }>
 >(async () => ({ data: { user: null }, error: null }))
 const schemaInsertFromMock = vi.fn(() => ({ insert: insertMock }))
 const schemaMock = vi.fn((_schema: string) => ({ from: schemaInsertFromMock }))
 const fromMock = vi.fn(() => ({ insert: insertMock }))
-const adminMaybeSingleMock = vi.fn<
-  () => Promise<{ data: Record<string, unknown> | null; error: { code?: string; message?: string } | null }>
->(async () => ({ data: null, error: null }))
-const adminInsertMock = vi.fn<(_row: unknown) => Promise<{ error: { code?: string; message?: string; details?: string; hint?: string } | null }>>(
+const adminMaybeSingleMock = vi.fn<() => Promise<{ data: Record<string, unknown> | null; error: MockDbError | null }>>(async () => ({
+  data: null,
+  error: null,
+}))
+const adminInsertMock = vi.fn<(_row: unknown) => Promise<{ error: MockDbError | null } | undefined>>(
   async () => ({ error: null })
 )
-const adminUpdateEqMock = vi.fn<() => Promise<{ error: { code?: string; message?: string } | null }>>(async () => ({ error: null }))
+const adminUpdateEqMock = vi.fn<() => Promise<{ error: MockDbError | null }>>(async () => ({ error: null }))
 const adminUpdateMock = vi.fn((_updates: Record<string, unknown>) => ({ eq: adminUpdateEqMock }))
 const adminSelectEqMock = vi.fn((_column: string, _value: string) => ({ maybeSingle: adminMaybeSingleMock }))
 const adminSelectMock = vi.fn((_columns: string) => ({ eq: adminSelectEqMock }))
@@ -387,6 +391,71 @@ describe('/api/lead-capture', () => {
     expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ user_id: null }))
   })
 
+  it('continues when auth lookup returns malformed shape', async () => {
+    getUserMock.mockResolvedValueOnce({ error: null, data: null } as never)
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'auth-malformed@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+  })
+
+  it('falls back to route insert when admin client is malformed', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    vi.mocked(createSupabaseAdminClient).mockImplementationOnce(() => ({}) as never)
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'admin-malformed-client@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; insertClient?: string } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.insertClient).toBe('route')
+  })
+
+  it('falls back to route insert when admin insert returns malformed result shape', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    adminInsertMock.mockResolvedValueOnce(undefined as never)
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'admin-malformed-result@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; insertClient?: string } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.insertClient).toBe('route')
+    expect(insertMock).toHaveBeenCalledTimes(1)
+  })
+
   it('merges useful fields on duplicate submissions when service role is configured', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
@@ -562,6 +631,37 @@ describe('/api/lead-capture', () => {
     )
   })
 
+  it('does not crash when error object fields are non-string values', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    adminInsertMock.mockResolvedValueOnce({
+      error: {
+        code: 42501,
+        message: { text: 'permission denied' },
+        details: ['rls denied'],
+        hint: { next: 'check policy' },
+      },
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'nonstr-error@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; error?: { details?: { reason?: string } } }
+    expect(res.status).toBe(500)
+    expect(json.ok).toBe(false)
+    expect(json.error?.details?.reason).toBe('lead_capture_insert_failed')
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
   it('does not return 500 when optional follow-up email send fails after save', async () => {
     process.env.RESEND_API_KEY = 're_test_key'
     process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
@@ -584,6 +684,87 @@ describe('/api/lead-capture', () => {
     expect(json.data?.saved).toBe(true)
     expect(json.data?.followUp?.sent).toBe(false)
     expect(json.data?.followUp?.reason).toBe('send_failed')
+  })
+
+  it('does not crash when follow-up helper returns unexpected shape', async () => {
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
+    sendEmailWithResendMock.mockResolvedValueOnce(undefined as never)
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'followup-shape@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; followUp?: { sent?: boolean; reason?: string } } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.followUp?.sent).toBe(false)
+    expect(json.data?.followUp?.reason).toBe('send_failed')
+  })
+
+  it('keeps success when duplicate merge helper hits malformed admin shape', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    adminInsertMock.mockResolvedValueOnce({
+      error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+    })
+    vi.mocked(createSupabaseAdminClient)
+      .mockImplementationOnce(() => ({ from: adminFromMock }) as never)
+      .mockImplementationOnce(() => ({}) as never)
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'duplicate-merge-malformed@example.com',
+        intent: 'demo',
+        route: '/pricing',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { deduped?: boolean; mergedOnDuplicate?: boolean } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.deduped).toBe(true)
+    expect(json.data?.mergedOnDuplicate).toBe(false)
+  })
+
+  it('does not crash when admin notification helper returns unexpected shape', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
+    process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED = '1'
+    process.env.LIFECYCLE_ADMIN_EMAILS = 'ops@dazrael.com'
+    sendEmailDedupedMock.mockImplementation(async (_client, args) => {
+      if (args.template === 'admin_lead_capture') return undefined as never
+      return { ok: true, status: 'sent', messageId: 'followup-ok' }
+    })
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'admin-helper-shape@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
   })
 })
 
