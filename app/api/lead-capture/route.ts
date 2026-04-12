@@ -87,6 +87,7 @@ type InsertFailureReason =
   | 'lead_capture_insert_failed'
 
 const OPTIONAL_COMPATIBILITY_COLUMNS = [
+  'name',
   'consent_marketing',
   'consent_timestamp',
   'form_type',

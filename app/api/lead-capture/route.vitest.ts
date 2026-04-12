@@ -633,6 +633,44 @@ describe('/api/lead-capture', () => {
     expect(secondInsert).not.toHaveProperty('form_type')
   })
 
+  it('retries admin insert without optional compatibility fields when name is missing', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    adminInsertMock
+      .mockResolvedValueOnce({
+        error: {
+          code: 'PGRST204',
+          message: "Could not find the 'name' column of 'lead_captures' in the schema cache",
+        },
+      })
+      .mockResolvedValueOnce({ error: null })
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'schema-cache-retry-name@example.com',
+        name: 'Pat Demo',
+        intent: 'demo',
+        route: '/contact',
+        consentMarketing: true,
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; insertClient?: string } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.insertClient).toBe('admin')
+    expect(adminInsertMock).toHaveBeenCalledTimes(2)
+    const secondInsert = adminInsertMock.mock.calls[1]?.[0] as Record<string, unknown>
+    expect(secondInsert).not.toHaveProperty('consent_marketing')
+    expect(secondInsert).not.toHaveProperty('consent_timestamp')
+    expect(secondInsert).not.toHaveProperty('form_type')
+    expect(secondInsert).not.toHaveProperty('name')
+  })
+
   it('does not trigger optional compatibility fallback for unrelated PGRST204 missing columns', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
     adminInsertMock.mockResolvedValueOnce({
