@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createRouteClient } from '@/lib/supabase/route'
+import { renderLeadCaptureConfirmationEmail } from '@/lib/email/internal'
 
 type MockDbError = { code?: unknown; message?: unknown; details?: unknown; hint?: unknown }
 
@@ -42,6 +43,25 @@ const sendEmailDedupedMock = vi.fn<
       | { ok: false; status: 'failed'; error: string; retryable: boolean }
     >
 >(async () => ({ ok: true, status: 'sent', messageId: 'dedupe-msg-1' }))
+const createOpenAIMock = vi.fn(async () => ({
+  choices: [
+    {
+      message: {
+        content:
+          'Practical onboarding sequence for your team\nIdentify one high-signal ICP segment\nLaunch a first trigger-driven workflow\nReview outcomes and optimize daily priorities\nTime-to-value: 1 business day',
+      },
+    },
+  ],
+}))
+const OpenAIMock = vi.fn(function OpenAIMockConstructor() {
+  return {
+    chat: {
+      completions: {
+        create: createOpenAIMock,
+      },
+    },
+  }
+})
 
 const originalServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY
 const originalResendApiKey = process.env.RESEND_API_KEY
@@ -51,6 +71,7 @@ const originalBrandImageUrl = process.env.EMAIL_BRAND_IMAGE_URL
 const originalAdminNotificationsEnabled = process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED
 const originalAdminEmails = process.env.LIFECYCLE_ADMIN_EMAILS
 const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const originalOpenAiApiKey = process.env.OPENAI_API_KEY
 let requestIpCounter = 10
 
 function leadCaptureHeaders(): Record<string, string> {
@@ -86,6 +107,10 @@ vi.mock('@/lib/email/send-deduped', () => ({
   sendEmailDeduped: sendEmailDedupedMock,
 }))
 
+vi.mock('openai', () => ({
+  default: OpenAIMock,
+}))
+
 vi.mock('@/lib/supabase/schema', () => ({
   isSchemaError: vi.fn((err: unknown) => {
     const message = String((err as { message?: unknown } | null)?.message ?? '').toLowerCase()
@@ -96,6 +121,16 @@ vi.mock('@/lib/supabase/schema', () => ({
 describe('/api/lead-capture', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    createOpenAIMock.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content:
+              'Practical onboarding sequence for your team\nIdentify one high-signal ICP segment\nLaunch a first trigger-driven workflow\nReview outcomes and optimize daily priorities\nTime-to-value: 1 business day',
+          },
+        },
+      ],
+    })
     insertMock.mockResolvedValue({ error: null })
     getUserMock.mockResolvedValue({ data: { user: null }, error: null })
     fromMock.mockImplementation(() => ({ insert: insertMock }))
@@ -113,6 +148,7 @@ describe('/api/lead-capture', () => {
     delete process.env.EMAIL_BRAND_IMAGE_URL
     delete process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED
     delete process.env.LIFECYCLE_ADMIN_EMAILS
+    delete process.env.OPENAI_API_KEY
     process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl ?? 'https://example.supabase.co'
   })
 
@@ -133,9 +169,17 @@ describe('/api/lead-capture', () => {
     else process.env.LIFECYCLE_ADMIN_EMAILS = originalAdminEmails
     if (originalSupabaseUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
     else process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl
+    if (originalOpenAiApiKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = originalOpenAiApiKey
   })
 
   it('accepts a minimal payload and writes lead capture', async () => {
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
+    process.env.OPENAI_API_KEY = 'sk-test'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED = '1'
+    process.env.LIFECYCLE_ADMIN_EMAILS = 'ops@dazrael.com'
     const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/lead-capture', {
       method: 'POST',
@@ -151,8 +195,7 @@ describe('/api/lead-capture', () => {
 
     const res = await POST(req)
     expect(res.status).toBe(201)
-    expect(schemaMock).toHaveBeenCalledWith('api')
-    expect(insertMock).toHaveBeenCalledWith(
+    expect(adminInsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: null,
         email: 'buyer@example.com',
@@ -168,6 +211,27 @@ describe('/api/lead-capture', () => {
         dedupe_key: expect.any(String),
       })
     )
+    const followUpCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => call[1] as { template?: string; toEmail?: string; subject?: string; text?: string } | undefined)
+      .filter((args) => args?.template === 'lead_capture_followup')
+    expect(followUpCalls.length).toBeGreaterThan(0)
+    expect(
+      followUpCalls.some(
+        (args) =>
+          args?.toEmail === 'buyer@example.com' &&
+          typeof args?.subject === 'string' &&
+          args.subject.includes('[LeadIntel Demo][') &&
+          typeof args?.text === 'string' &&
+          args.text.includes('Auto-generated demo outline:')
+      )
+    ).toBe(true)
+    const adminNotificationCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => call[1] as { template?: string; text?: string } | undefined)
+      .filter((args) => args?.template === 'admin_lead_capture')
+    expect(adminNotificationCalls.length).toBeGreaterThan(0)
+    expect(
+      adminNotificationCalls.some((args) => typeof args?.text === 'string' && args.text.includes('followup_demo_plan_source: ai'))
+    ).toBe(true)
   })
 
   it('saves successfully when optional email env vars are missing', async () => {
@@ -1134,6 +1198,89 @@ describe('/api/lead-capture', () => {
     expect(res.status).toBe(201)
     expect(json.ok).toBe(true)
     expect(json.data?.saved).toBe(true)
+  })
+
+  it('falls back to deterministic demo plan when AI generation fails', async () => {
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
+    process.env.OPENAI_API_KEY = 'sk-test'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED = '1'
+    process.env.LIFECYCLE_ADMIN_EMAILS = 'ops@dazrael.com'
+    createOpenAIMock.mockRejectedValueOnce(new Error('provider unavailable'))
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'fallback@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { followUp?: { demoPlanSource?: string; sent?: boolean } } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.followUp?.sent).toBe(true)
+    expect(json.data?.followUp?.demoPlanSource).toBe('fallback')
+    const followUpCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => call[1] as { template?: string; text?: string } | undefined)
+      .filter((args) => args?.template === 'lead_capture_followup')
+    expect(
+      followUpCalls.some(
+        (args) => typeof args?.text === 'string' && args.text.includes('Expected time-to-value: 1-2 business days')
+      )
+    ).toBe(true)
+    const adminNotificationCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => call[1] as { template?: string; text?: string } | undefined)
+      .filter((args) => args?.template === 'admin_lead_capture')
+    expect(
+      adminNotificationCalls.some(
+        (args) => typeof args?.text === 'string' && args.text.includes('followup_demo_plan_source: fallback')
+      )
+    ).toBe(true)
+  })
+
+  it('uses deterministic fallback plan when OpenAI key is missing', async () => {
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.RESEND_FROM_EMAIL = 'team@dazrael.com'
+    delete process.env.OPENAI_API_KEY
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'no-key@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { followUp?: { demoPlanSource?: string; sent?: boolean } } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.followUp?.sent).toBe(true)
+    expect(json.data?.followUp?.demoPlanSource).toBe('fallback')
+    expect(OpenAIMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps transactional CTA rendering intact for non-consent follow-ups', () => {
+    const rendered = renderLeadCaptureConfirmationEmail({
+      appUrl: 'https://dazrael.com',
+      formType: 'demo',
+      sourcePage: '/contact',
+      consentMarketing: false,
+      recipientName: 'Alex',
+      company: 'Acme',
+      variationSeed: 'seed-1',
+    })
+    expect(rendered.text).toContain('Support: https://dazrael.com/support')
+    expect(rendered.text).not.toContain('Pricing: https://dazrael.com/pricing')
   })
 })
 

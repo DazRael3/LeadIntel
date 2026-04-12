@@ -165,7 +165,7 @@ export async function checkPolicyRateLimit(
   }
   
   const isAuthenticated = userId !== null
-  
+
   // Select appropriate limit based on authentication status
   const limit = resolvePolicyRateLimit(policy, isAuthenticated)
   
