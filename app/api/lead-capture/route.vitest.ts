@@ -97,6 +97,16 @@ describe('/api/lead-capture', () => {
       })
     )
     expect(sendEmailDedupedMock).toHaveBeenCalled()
+    const adminCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => {
+        const args = (call as unknown[])[1] as { template?: string; text?: string } | undefined
+        return args ?? {}
+      })
+      .filter((args) => args.template === 'admin_lead_capture')
+    expect(adminCalls.length).toBeGreaterThan(0)
+    expect(adminCalls.some((args) => typeof args.text === 'string' && args.text.includes('followup_demo_plan_source: ai'))).toBe(
+      true
+    )
   })
 
   it('rejects invalid payloads', async () => {
@@ -134,6 +144,16 @@ describe('/api/lead-capture', () => {
         text: expect.stringContaining('Expected time-to-value: 1-2 business days'),
       })
     )
+    const adminCalls = sendEmailDedupedMock.mock.calls
+      .map((call) => {
+        const args = (call as unknown[])[1] as { template?: string; text?: string } | undefined
+        return args ?? {}
+      })
+      .filter((args) => args.template === 'admin_lead_capture')
+    expect(adminCalls.length).toBeGreaterThan(0)
+    expect(
+      adminCalls.some((args) => typeof args.text === 'string' && args.text.includes('followup_demo_plan_source: fallback'))
+    ).toBe(true)
   })
 
   it('uses fallback plan when OpenAI key is missing', async () => {

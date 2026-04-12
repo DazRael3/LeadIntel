@@ -313,6 +313,9 @@ export const POST = withApiGuard(
             lines: [
               `intent: ${payload.intent}`,
               `email: ${payload.email}`,
+              `followup_sent: ${followUp.sent ? 'yes' : 'no'}`,
+              `followup_reason: ${followUp.reason ?? 'none'}`,
+              `followup_demo_plan_source: ${followUp.demoPlanSource ?? 'none'}`,
               payload.company ? `company: ${payload.company}` : '',
               payload.role ? `role: ${payload.role}` : '',
               payload.referrer ? `referrer: ${payload.referrer}` : '',
@@ -340,7 +343,13 @@ export const POST = withApiGuard(
                   { name: 'kind', value: 'internal' },
                   { name: 'type', value: 'lead_capture' },
                 ],
-                meta: { intent: payload.intent, route: payload.route },
+                meta: {
+                  intent: payload.intent,
+                  route: payload.route,
+                  followUpSent: followUp.sent,
+                  followUpReason: followUp.reason ?? null,
+                  followUpDemoPlanSource: followUp.demoPlanSource ?? null,
+                },
               })
             )
           )
