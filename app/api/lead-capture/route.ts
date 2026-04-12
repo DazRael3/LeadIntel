@@ -6,10 +6,13 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { serverEnv } from '@/lib/env'
 import { adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
-import { renderAdminNotificationEmail } from '@/lib/email/internal'
+import { renderAdminNotificationEmail, renderLeadCaptureConfirmationEmail, type LeadDemoPlan } from '@/lib/email/internal'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
+import { sendEmailWithResend } from '@/lib/email/resend'
 import { getResendReplyToEmail } from '@/lib/email/routing'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { getAppUrl } from '@/lib/app-url'
+import OpenAI from 'openai'
 import crypto from 'crypto'
 
 const LeadCaptureSchema = z.object({
@@ -49,6 +52,188 @@ function computeDedupeKey(args: { email: string; intent: string; route: string }
   // This is an opaque hash; no secrets.
   const normalized = `${args.email.trim().toLowerCase()}|${args.intent}|${args.route.trim()}|${dayKeyUtc()}`
   return crypto.createHash('sha256').update(normalized).digest('hex')
+}
+
+function getLeadCaptureAdminRecipients(): string[] {
+  const normalized = new Set<string>()
+  const add = (value: string | null | undefined): void => {
+    if (typeof value !== 'string') return
+    const email = value.trim().toLowerCase()
+    if (!email || !email.includes('@') || !email.includes('.')) return
+    normalized.add(email)
+  }
+  add(SUPPORT_EMAIL)
+  getLifecycleAdminEmails().forEach((email) => add(email))
+  return Array.from(normalized)
+}
+
+function buildFallbackDemoPlan(args: {
+  intent: 'demo' | 'pricing_question' | 'trial_help' | 'general'
+  company?: string
+  role?: string
+  message?: string
+}): LeadDemoPlan {
+  const companyLabel = args.company ? `${args.company}` : 'your team'
+  const roleLabel = args.role ? `for ${args.role}` : 'for your workflow'
+  const summary =
+    args.intent === 'demo'
+      ? `We prepared a practical LeadIntel walkthrough for ${companyLabel} ${roleLabel}.`
+      : `We prepared a focused response plan for ${companyLabel} ${roleLabel}.`
+  const steps = [
+    `Map your current outbound process and identify one repetitive bottleneck.`,
+    `Configure a short LeadIntel workflow to surface high-signal targets daily.`,
+    `Run one guided cycle and capture measurable lift in response speed or quality.`,
+  ]
+  if (args.message && args.message.trim()) {
+    steps[1] = `Align the workflow to your note: "${args.message.trim().slice(0, 120)}".`
+  }
+  return {
+    summary,
+    steps,
+    timeToValue: '1-2 business days',
+    aiGenerated: false,
+  }
+}
+
+function normalizePlanFromText(text: string): LeadDemoPlan {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const summary = lines[0] ?? 'We prepared a practical LeadIntel walkthrough tailored to your request.'
+  const stepLines = lines.slice(1).map((line) => line.replace(/^[-*\d.)\s]+/, '').trim())
+  const steps = stepLines.filter((line) => line.length > 0).slice(0, 3)
+  while (steps.length < 3) {
+    steps.push('Review your workflow goals and confirm the next high-value step.')
+  }
+  const lastLine = lines[lines.length - 1] ?? ''
+  const timeToValueMatch = lastLine.match(/time-to-value[:\s]+(.+)/i)
+  const timeToValue = timeToValueMatch?.[1]?.trim() || '1-2 business days'
+  return {
+    summary,
+    steps,
+    timeToValue,
+    aiGenerated: true,
+  }
+}
+
+function getOpenAiApiKey(): string {
+  const key = process.env.OPENAI_API_KEY
+  return typeof key === 'string' ? key.trim() : ''
+}
+
+function canGenerateAiDemoPlan(): boolean {
+  return getOpenAiApiKey().startsWith('sk-')
+}
+
+async function generateLeadDemoPlan(args: {
+  intent: 'demo' | 'pricing_question' | 'trial_help' | 'general'
+  company?: string
+  role?: string
+  message?: string
+  route: string
+}): Promise<LeadDemoPlan> {
+  const fallback = buildFallbackDemoPlan(args)
+  if (!canGenerateAiDemoPlan()) return fallback
+  try {
+    const apiKey = getOpenAiApiKey()
+    if (!apiKey) return fallback
+    const client = new OpenAI({ apiKey })
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.4,
+      max_tokens: 220,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You produce short B2B demo onboarding outlines. Return plain text with 5 lines only: line1 summary, line2 step1, line3 step2, line4 step3, line5 "Time-to-value: <duration>".',
+        },
+        {
+          role: 'user',
+          content: [
+            `Intent: ${args.intent}`,
+            `Company: ${args.company ?? 'Unknown'}`,
+            `Role: ${args.role ?? 'Unknown'}`,
+            `Route: ${args.route}`,
+            `Message: ${(args.message ?? '').slice(0, 300) || 'None'}`,
+            'Keep each step actionable and realistic for a first implementation pass.',
+          ].join('\n'),
+        },
+      ],
+    })
+    const content = response.choices[0]?.message?.content
+    if (!content || !content.trim()) return fallback
+    return normalizePlanFromText(content)
+  } catch {
+    return fallback
+  }
+}
+
+async function sendLeadCaptureFollowUp(args: {
+  email: string
+  dedupeKey: string
+  requestId: string
+  recipientName?: string
+  company?: string
+  role?: string
+  intent: 'demo' | 'pricing_question' | 'trial_help' | 'general'
+  route: string
+  message?: string
+}): Promise<{ sent: boolean; reason?: string; demoPlanSource?: 'ai' | 'fallback' }> {
+  const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
+  const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean(from)
+  if (!hasResend) return { sent: false, reason: 'email_not_configured' }
+
+  try {
+    const appUrl = getAppUrl()
+    const demoPlan =
+      args.intent === 'demo'
+        ? await generateLeadDemoPlan({
+            intent: args.intent,
+            company: args.company,
+            role: args.role,
+            message: args.message,
+            route: args.route,
+          })
+        : null
+    const email = renderLeadCaptureConfirmationEmail({
+      recipientName: args.recipientName,
+      appUrl,
+      intent: args.intent,
+      route: args.route,
+      company: args.company,
+      requestId: args.requestId,
+      variationSeed: args.dedupeKey,
+      demoPlan: demoPlan ?? undefined,
+    })
+    const direct = await sendEmailWithResend({
+      from,
+      to: args.email,
+      replyTo: getResendReplyToEmail(),
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      tags: [
+        { name: 'kind', value: 'lead_capture' },
+        { name: 'type', value: args.intent },
+        { name: 'demo_plan', value: demoPlan?.aiGenerated ? 'ai' : 'fallback' },
+      ],
+    })
+    if (!direct.ok) {
+      return {
+        sent: false,
+        reason: 'send_failed',
+        demoPlanSource: demoPlan ? (demoPlan.aiGenerated ? 'ai' : 'fallback') : undefined,
+      }
+    }
+    return {
+      sent: true,
+      demoPlanSource: demoPlan ? (demoPlan.aiGenerated ? 'ai' : 'fallback') : undefined,
+    }
+  } catch {
+    return { sent: false, reason: 'send_failed' }
+  }
 }
 
 export const POST = withApiGuard(
@@ -99,17 +284,30 @@ export const POST = withApiGuard(
         }
       }
 
+      const followUp = await sendLeadCaptureFollowUp({
+        email: payload.email.trim(),
+        dedupeKey,
+        requestId: rid,
+        recipientName: undefined,
+        company: payload.company,
+        role: payload.role,
+        intent: payload.intent,
+        route: payload.route,
+        message: payload.message,
+      })
+
       // Optional: operator notification (best-effort, deduped). Never block user success.
       try {
         const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
         const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim()
         const hasResend = Boolean((serverEnv.RESEND_API_KEY ?? '').trim()) && Boolean(from)
-        const admins = getLifecycleAdminEmails()
+        const admins = getLeadCaptureAdminRecipients()
         if (hasServiceRole && adminNotificationsEnabled() && admins.length > 0 && hasResend) {
           const appUrl = getAppUrl()
           const email = renderAdminNotificationEmail({
             title: 'Lead capture',
             appUrl,
+            requestId: rid,
             ctaHref: `${appUrl}${payload.route}`,
             ctaLabel: 'Open route',
             lines: [
@@ -151,7 +349,19 @@ export const POST = withApiGuard(
         // best-effort only
       }
 
-      return ok({ saved: true }, { status: HttpStatus.CREATED }, bridge, rid)
+      return ok(
+        {
+          saved: true,
+          followUp: {
+            sent: followUp.sent,
+            ...(followUp.reason ? { reason: followUp.reason } : {}),
+            ...(followUp.demoPlanSource ? { demoPlanSource: followUp.demoPlanSource } : {}),
+          },
+        },
+        { status: HttpStatus.CREATED },
+        bridge,
+        rid
+      )
     } catch (e) {
       return fail(
         ErrorCode.INTERNAL_ERROR,
