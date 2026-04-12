@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { createRouteClient } from '@/lib/supabase/route'
 
 type MockDbError = { code?: unknown; message?: unknown; details?: unknown; hint?: unknown }
 
@@ -411,6 +412,43 @@ describe('/api/lead-capture', () => {
     expect(json.data?.saved).toBe(true)
   })
 
+  it('continues when auth getUser requires bound context', async () => {
+    const getUserWithContext = vi.fn(function (this: { initializePromise?: Promise<void> }) {
+      if (!this?.initializePromise) {
+        throw new TypeError("Cannot read properties of undefined (reading 'initializePromise')")
+      }
+      return Promise.resolve({ data: { user: null }, error: null })
+    })
+    vi.mocked(createRouteClient).mockImplementationOnce(
+      () =>
+        ({
+          auth: {
+            initializePromise: Promise.resolve(),
+            getUser: getUserWithContext,
+          },
+          from: fromMock,
+          schema: schemaMock,
+        }) as never
+    )
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'auth-bound-context@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(getUserWithContext).toHaveBeenCalledTimes(1)
+  })
+
   it('falls back to route insert when admin client is malformed', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
     vi.mocked(createSupabaseAdminClient).mockImplementationOnce(() => ({}) as never)
@@ -431,6 +469,33 @@ describe('/api/lead-capture', () => {
     expect(json.ok).toBe(true)
     expect(json.data?.saved).toBe(true)
     expect(json.data?.insertClient).toBe('route')
+  })
+
+  it('returns client misconfigured when route-only client is malformed', async () => {
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    schemaMock.mockImplementationOnce((_schema: string) => ({}) as never)
+    fromMock.mockImplementationOnce(() => ({}) as never)
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'route-malformed-client@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as {
+      ok?: boolean
+      error?: { code?: string; details?: { reason?: string; insertClient?: string } }
+    }
+    expect(res.status).toBe(500)
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('DATABASE_ERROR')
+    expect(json.error?.details?.reason).toBe('lead_capture_client_misconfigured')
+    expect(json.error?.details?.insertClient).toBe('route')
   })
 
   it('falls back to route insert when admin insert returns malformed result shape', async () => {
@@ -454,6 +519,57 @@ describe('/api/lead-capture', () => {
     expect(json.data?.saved).toBe(true)
     expect(json.data?.insertClient).toBe('route')
     expect(insertMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('handles supabase methods that require bound context', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+
+    const adminTableClient = {
+      marker: true,
+      insert: vi.fn(function (this: { marker?: boolean }, _row: unknown) {
+        if (!this?.marker) {
+          throw new TypeError("Cannot read properties of undefined (reading 'rest')")
+        }
+        return Promise.resolve({ error: null })
+      }),
+    }
+    const adminClient = {
+      rest: {},
+      schema: vi.fn(function (this: { rest?: object }) {
+        if (!this?.rest) {
+          throw new TypeError("Cannot read properties of undefined (reading 'rest')")
+        }
+        return this
+      }),
+      from: vi.fn(function (this: { rest?: object }, _table: string) {
+        if (!this?.rest) {
+          throw new TypeError("Cannot read properties of undefined (reading 'rest')")
+        }
+        return adminTableClient
+      }),
+    }
+    vi.mocked(createSupabaseAdminClient).mockImplementationOnce(() => adminClient as never)
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/lead-capture', {
+      method: 'POST',
+      headers: leadCaptureHeaders(),
+      body: JSON.stringify({
+        email: 'bound-methods@example.com',
+        intent: 'demo',
+        route: '/contact',
+      }),
+    })
+
+    const res = await POST(req)
+    const json = (await res.json()) as { ok?: boolean; data?: { saved?: boolean; insertClient?: string } }
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data?.saved).toBe(true)
+    expect(json.data?.insertClient).toBe('admin')
+    expect(adminClient.schema).toHaveBeenCalledWith('api')
+    expect(adminClient.from).toHaveBeenCalledWith('lead_captures')
+    expect(adminTableClient.insert).toHaveBeenCalledTimes(1)
   })
 
   it('merges useful fields on duplicate submissions when service role is configured', async () => {

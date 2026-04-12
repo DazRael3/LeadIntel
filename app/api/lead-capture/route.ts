@@ -283,6 +283,28 @@ function logLeadCapture(
   console.log('[lead-capture] route event', payload)
 }
 
+function invokeMethod(
+  owner: Record<string, unknown>,
+  method: unknown,
+  args: unknown[]
+): { ok: true; value: unknown } | { ok: false; error: DbLikeError } {
+  if (typeof method !== 'function') {
+    return { ok: false, error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'method is not callable' } }
+  }
+  try {
+    return { ok: true, value: Reflect.apply(method, owner, args) }
+  } catch (error) {
+    const meta = getUnexpectedErrorMeta(error)
+    return {
+      ok: false,
+      error: {
+        code: 'INSERT_OPERATION_THROWN',
+        message: meta.errorMessage ?? 'method call threw',
+      },
+    }
+  }
+}
+
 async function insertLeadCaptureWithSchema(
   client: unknown,
   row: unknown
@@ -308,29 +330,39 @@ async function insertLeadCaptureWithSchema(
     }
 
     if (typeof schemaFactory === 'function') {
-      const scopedClient = asRecord(schemaFactory('api'))
+      const scoped = invokeMethod(clientRecord, schemaFactory, ['api'])
+      if (!scoped.ok) return { error: scoped.error }
+      const scopedClient = asRecord(scoped.value)
       const fromFn = scopedClient?.from
-      if (typeof fromFn !== 'function') {
-        return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'schema-scoped client missing from()' } }
+      if (!scopedClient || typeof fromFn !== 'function') {
+        return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'scoped client missing from()' } }
       }
-      const tableClient = asRecord(fromFn('lead_captures'))
+      const tableCall = invokeMethod(scopedClient, fromFn, ['lead_captures'])
+      if (!tableCall.ok) return { error: tableCall.error }
+      const tableClient = asRecord(tableCall.value)
       const insertFn = tableClient?.insert
-      if (typeof insertFn !== 'function') {
+      if (!tableClient || typeof insertFn !== 'function') {
         return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'table client missing insert()' } }
       }
-      return readInsertResult(await insertFn(row))
+      const insertCall = invokeMethod(tableClient, insertFn, [row])
+      if (!insertCall.ok) return { error: insertCall.error }
+      return readInsertResult(await insertCall.value)
     }
 
     const fromFn = clientRecord.from
     if (typeof fromFn !== 'function') {
       return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'client missing from()' } }
     }
-    const tableClient = asRecord(fromFn('lead_captures'))
+    const tableCall = invokeMethod(clientRecord, fromFn, ['lead_captures'])
+    if (!tableCall.ok) return { error: tableCall.error }
+    const tableClient = asRecord(tableCall.value)
     const insertFn = tableClient?.insert
-    if (typeof insertFn !== 'function') {
+    if (!tableClient || typeof insertFn !== 'function') {
       return { error: { code: 'INSERT_CLIENT_MISCONFIGURED', message: 'table client missing insert()' } }
     }
-    return readInsertResult(await insertFn(row))
+    const insertCall = invokeMethod(tableClient, insertFn, [row])
+    if (!insertCall.ok) return { error: insertCall.error }
+    return readInsertResult(await insertCall.value)
   } catch (error) {
     const meta = getUnexpectedErrorMeta(error)
     return {
@@ -577,10 +609,14 @@ export const POST = withApiGuard(
         }
         const authClient = asRecord(asRecord(supabase)?.auth)
         const getUser = authClient?.getUser
-        if (typeof getUser !== 'function') {
+        if (!authClient || typeof getUser !== 'function') {
           throw new Error('auth client unavailable')
         }
-        const authResult = await getUser()
+        const authCall = invokeMethod(authClient, getUser, [])
+        if (!authCall.ok) {
+          throw new Error(asString(authCall.error.message) || 'auth getUser threw')
+        }
+        const authResult = await authCall.value
         const authRecord = asRecord(authResult)
         const authData = asRecord(authRecord?.data)
         const authUser = asRecord(authData?.user)
