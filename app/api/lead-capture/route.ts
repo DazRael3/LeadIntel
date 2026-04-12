@@ -86,8 +86,20 @@ type InsertFailureReason =
   | 'lead_capture_client_misconfigured'
   | 'lead_capture_insert_failed'
 
-const CONSENT_COMPATIBILITY_COLUMNS = ['consent_marketing', 'consent_timestamp'] as const
-const CONSENT_COMPATIBILITY_COLUMN_SET = new Set<string>(CONSENT_COMPATIBILITY_COLUMNS)
+const OPTIONAL_COMPATIBILITY_COLUMNS = [
+  'consent_marketing',
+  'consent_timestamp',
+  'form_type',
+  'source_page',
+  'referrer',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'device_class',
+  'viewport_w',
+  'viewport_h',
+] as const
+const OPTIONAL_COMPATIBILITY_COLUMN_SET = new Set<string>(OPTIONAL_COMPATIBILITY_COLUMNS)
 
 type LeadCaptureStage =
   | 'validation'
@@ -665,16 +677,22 @@ export const POST = withApiGuard(
       const consentTimestamp = payload.consentMarketing ? new Date().toISOString() : null
       const envStatus = getInsertEnvStatus()
       const hasServiceRole = envStatus.hasServiceRole
-      let insertPayload: Record<string, unknown> = {
+      // Stable core payload for persistence; optional compatibility columns are retried away on schema-cache misses.
+      const coreInsertPayload: Record<string, unknown> = {
         user_id: userId,
         email: payload.email.trim(),
         name: payload.name ?? null,
         company: payload.company ?? null,
         role: payload.role ?? null,
         intent: payload.intent,
-        form_type: formType,
         message: payload.message ?? null,
         route: payload.route,
+        dedupe_key: dedupeKey,
+        status: 'new',
+        meta: {},
+      }
+      const optionalCompatibilityPayload: Record<string, unknown> = {
+        form_type: formType,
         source_page: sourcePage,
         consent_marketing: payload.consentMarketing,
         consent_timestamp: consentTimestamp,
@@ -685,9 +703,10 @@ export const POST = withApiGuard(
         device_class: payload.deviceClass,
         viewport_w: payload.viewport?.w ?? null,
         viewport_h: payload.viewport?.h ?? null,
-        dedupe_key: dedupeKey,
-        status: 'new',
-        meta: {},
+      }
+      let insertPayload: Record<string, unknown> = {
+        ...coreInsertPayload,
+        ...optionalCompatibilityPayload,
       }
 
       logLeadCapture('info', {
@@ -710,8 +729,8 @@ export const POST = withApiGuard(
         const code = getErrorCode(error).toLowerCase()
         if (!code.includes('pgrst204')) return
         const missingColumn = getSchemaMissingColumn(error)
-        if (!missingColumn || !CONSENT_COMPATIBILITY_COLUMN_SET.has(missingColumn)) return
-        const removedCompatibilityFields = CONSENT_COMPATIBILITY_COLUMNS.filter((column) => column in insertPayload)
+        if (!missingColumn || !OPTIONAL_COMPATIBILITY_COLUMN_SET.has(missingColumn)) return
+        const removedCompatibilityFields = OPTIONAL_COMPATIBILITY_COLUMNS.filter((column) => column in insertPayload)
         if (removedCompatibilityFields.length === 0) return
         const reduced = { ...insertPayload }
         removedCompatibilityFields.forEach((column) => {
@@ -722,7 +741,7 @@ export const POST = withApiGuard(
           requestId: rid,
           meta: {
             schemaCompatibilityRetry: true,
-            schemaCompatibilityRetryMode: 'drop_known_optional_consent_fields',
+            schemaCompatibilityRetryMode: 'drop_optional_compatibility_fields',
             removedCompatibilityFields,
             triggerMissingColumn: missingColumn,
             insertClient: clientName,
