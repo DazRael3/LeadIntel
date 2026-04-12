@@ -5,13 +5,14 @@ import { createCookieBridge, ok, fail, ErrorCode, HttpStatus } from '@/lib/api/h
 import { createRouteClient } from '@/lib/supabase/route'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { adminNotificationsEnabled, getLifecycleAdminEmails } from '@/lib/lifecycle/config'
-import { renderAdminNotificationEmail, renderLeadCaptureConfirmationEmail } from '@/lib/email/internal'
+import { renderAdminNotificationEmail, renderLeadCaptureConfirmationEmail, type LeadDemoPlan } from '@/lib/email/internal'
 import { sendEmailDeduped } from '@/lib/email/send-deduped'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { getResendReplyToEmail } from '@/lib/email/routing'
 import { getAppUrl } from '@/lib/app-url'
 import { isSchemaError } from '@/lib/supabase/schema'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import OpenAI from 'openai'
 import crypto from 'crypto'
 
 const LeadCaptureSchema = z.object({
@@ -415,6 +416,108 @@ function getLeadCaptureAdminRecipients(): string[] {
   return Array.from(normalized)
 }
 
+function buildFallbackDemoPlan(args: {
+  intent: 'demo' | 'pricing_question' | 'trial_help' | 'general'
+  company?: string
+  role?: string
+  message?: string
+}): LeadDemoPlan {
+  const companyLabel = args.company ? `${args.company}` : 'your team'
+  const roleLabel = args.role ? `for ${args.role}` : 'for your workflow'
+  const summary =
+    args.intent === 'demo'
+      ? `We prepared a practical LeadIntel walkthrough for ${companyLabel} ${roleLabel}.`
+      : `We prepared a focused response plan for ${companyLabel} ${roleLabel}.`
+  const steps = [
+    'Map your current outbound process and identify one repetitive bottleneck.',
+    'Configure a short LeadIntel workflow to surface high-signal targets daily.',
+    'Run one guided cycle and capture measurable lift in response speed or quality.',
+  ]
+  if (args.message && args.message.trim()) {
+    steps[1] = `Align the workflow to your note: "${args.message.trim().slice(0, 120)}".`
+  }
+  return {
+    summary,
+    steps,
+    timeToValue: '1-2 business days',
+    aiGenerated: false,
+  }
+}
+
+function normalizePlanFromText(text: string): LeadDemoPlan {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const summary = lines[0] ?? 'We prepared a practical LeadIntel walkthrough tailored to your request.'
+  const stepLines = lines.slice(1).map((line) => line.replace(/^[-*\d.)\s]+/, '').trim())
+  const steps = stepLines.filter((line) => line.length > 0).slice(0, 3)
+  while (steps.length < 3) {
+    steps.push('Review your workflow goals and confirm the next high-value step.')
+  }
+  const lastLine = lines[lines.length - 1] ?? ''
+  const timeToValueMatch = lastLine.match(/time-to-value[:\s]+(.+)/i)
+  const timeToValue = timeToValueMatch?.[1]?.trim() || '1-2 business days'
+  return {
+    summary,
+    steps,
+    timeToValue,
+    aiGenerated: true,
+  }
+}
+
+function getOpenAiApiKey(): string {
+  return getTrimmedEnv('OPENAI_API_KEY')
+}
+
+function canGenerateAiDemoPlan(): boolean {
+  return getOpenAiApiKey().startsWith('sk-')
+}
+
+async function generateLeadDemoPlan(args: {
+  intent: 'demo' | 'pricing_question' | 'trial_help' | 'general'
+  company?: string
+  role?: string
+  message?: string
+  route: string
+}): Promise<LeadDemoPlan> {
+  const fallback = buildFallbackDemoPlan(args)
+  if (!canGenerateAiDemoPlan()) return fallback
+  try {
+    const apiKey = getOpenAiApiKey()
+    if (!apiKey) return fallback
+    const client = new OpenAI({ apiKey })
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.4,
+      max_tokens: 220,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You produce short B2B demo onboarding outlines. Return plain text with 5 lines only: line1 summary, line2 step1, line3 step2, line4 step3, line5 "Time-to-value: <duration>".',
+        },
+        {
+          role: 'user',
+          content: [
+            `Intent: ${args.intent}`,
+            `Company: ${args.company ?? 'Unknown'}`,
+            `Role: ${args.role ?? 'Unknown'}`,
+            `Route: ${args.route}`,
+            `Message: ${(args.message ?? '').slice(0, 300) || 'None'}`,
+            'Keep each step actionable and realistic for a first implementation pass.',
+          ].join('\n'),
+        },
+      ],
+    })
+    const content = response.choices[0]?.message?.content
+    if (!content || !content.trim()) return fallback
+    return normalizePlanFromText(content)
+  } catch {
+    return fallback
+  }
+}
+
 function chooseBetterText(existing: string | null | undefined, incoming: string | null | undefined): string | null {
   const current = normalizeOptionalText(existing)
   const next = normalizeOptionalText(incoming)
@@ -522,12 +625,15 @@ async function mergeDuplicateLeadCapture(input: DuplicateMergeInput): Promise<Du
 async function sendLeadCaptureFollowUp(args: {
   email: string
   dedupeKey: string
+  requestId: string
   recipientName?: string
   company?: string
+  role?: string
   formType: 'demo' | 'pricing_question' | 'trial_help' | 'general'
   sourcePage: string
   consentMarketing: boolean
-}): Promise<{ sent: boolean; reason?: string }> {
+  message?: string
+}): Promise<{ sent: boolean; reason?: string; demoPlanSource?: 'ai' | 'fallback' }> {
   const resendApiKey = getTrimmedEnv('RESEND_API_KEY')
   const from = getTrimmedEnv('RESEND_FROM_EMAIL')
   const hasResend = Boolean(resendApiKey) && Boolean(from)
@@ -537,17 +643,32 @@ async function sendLeadCaptureFollowUp(args: {
 
   try {
     const appUrl = getAppUrl()
+    const demoPlan =
+      args.formType === 'demo'
+        ? await generateLeadDemoPlan({
+            intent: args.formType,
+            company: args.company,
+            role: args.role,
+            message: args.message,
+            route: args.sourcePage,
+          })
+        : null
     const email = renderLeadCaptureConfirmationEmail({
       recipientName: args.recipientName,
       appUrl,
+      intent: args.formType,
+      route: args.sourcePage,
       formType: args.formType,
       sourcePage: args.sourcePage,
       consentMarketing: args.consentMarketing,
       company: args.company,
+      requestId: args.requestId,
       variationSeed: args.dedupeKey,
+      demoPlan: demoPlan ?? undefined,
     })
     const replyTo = getResendReplyToEmail()
     const hasServiceRole = Boolean((process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim())
+    const demoPlanSource = demoPlan ? (demoPlan.aiGenerated ? 'ai' : 'fallback') : undefined
     if (hasServiceRole) {
       const admin = createSupabaseAdminClient({ schema: 'api' })
       const send = await sendEmailDeduped(admin, {
@@ -565,22 +686,24 @@ async function sendLeadCaptureFollowUp(args: {
           { name: 'kind', value: 'lead_capture' },
           { name: 'flow', value: args.consentMarketing ? 'followup_opt_in' : 'followup_transactional' },
           { name: 'category', value: args.consentMarketing ? 'marketing' : 'transactional' },
+          ...(demoPlanSource ? ([{ name: 'demo_plan', value: demoPlanSource }] as const) : []),
         ],
         meta: {
           formType: args.formType,
           sourcePage: args.sourcePage,
           consentMarketing: args.consentMarketing,
           transactionalOnly: !args.consentMarketing,
+          demoPlanSource: demoPlanSource ?? null,
         },
       })
       if (send && typeof send === 'object' && 'ok' in send && send.ok === true && 'status' in send && send.status === 'sent') {
-        return { sent: true }
+        return { sent: true, ...(demoPlanSource ? { demoPlanSource } : {}) }
       }
       if (send && typeof send === 'object' && 'ok' in send && send.ok === true && 'status' in send && send.status === 'skipped') {
         const reason = 'reason' in send && typeof send.reason === 'string' ? send.reason : 'deduped'
-        return { sent: false, reason }
+        return { sent: false, reason, ...(demoPlanSource ? { demoPlanSource } : {}) }
       }
-      return { sent: false, reason: 'send_failed' }
+      return { sent: false, reason: 'send_failed', ...(demoPlanSource ? { demoPlanSource } : {}) }
     }
 
     const direct = await sendEmailWithResend({
@@ -594,12 +717,13 @@ async function sendLeadCaptureFollowUp(args: {
         { name: 'kind', value: 'lead_capture' },
         { name: 'flow', value: args.consentMarketing ? 'followup_opt_in' : 'followup_transactional' },
         { name: 'category', value: args.consentMarketing ? 'marketing' : 'transactional' },
+        ...(demoPlanSource ? ([{ name: 'demo_plan', value: demoPlanSource }] as const) : []),
       ],
     })
     if (direct && typeof direct === 'object' && 'ok' in direct && direct.ok === true) {
-      return { sent: true }
+      return { sent: true, ...(demoPlanSource ? { demoPlanSource } : {}) }
     }
-    return { sent: false, reason: 'send_failed' }
+    return { sent: false, reason: 'send_failed', ...(demoPlanSource ? { demoPlanSource } : {}) }
   } catch {
     return { sent: false, reason: 'send_failed' }
   }
@@ -918,21 +1042,28 @@ export const POST = withApiGuard(
 
       let followUpSent = false
       let followUpReason: string | undefined
+      let followUpDemoPlanSource: 'ai' | 'fallback' | undefined
       if (!wasDuplicate) {
         stage = 'followup_email'
         try {
           const followUp = await sendLeadCaptureFollowUp({
             email: payload.email.trim(),
             dedupeKey,
+            requestId: rid,
             recipientName: payload.name,
             company: payload.company,
+            role: payload.role,
             formType,
             sourcePage,
             consentMarketing: payload.consentMarketing,
+            message: payload.message,
           })
           const followUpRecord = asRecord(followUp)
           followUpSent = followUpRecord?.sent === true
           followUpReason = asString(followUpRecord?.reason) || (followUpSent ? undefined : 'send_failed')
+          const rawDemoPlanSource = asString(followUpRecord?.demoPlanSource)
+          followUpDemoPlanSource =
+            rawDemoPlanSource === 'ai' || rawDemoPlanSource === 'fallback' ? rawDemoPlanSource : undefined
         } catch (followUpError) {
           const followUpMeta = getUnexpectedErrorMeta(followUpError)
           followUpSent = false
@@ -952,7 +1083,7 @@ export const POST = withApiGuard(
         logLeadCapture(followUpSent ? 'info' : 'warn', {
           category: 'followup_email',
           requestId: rid,
-          meta: { attempted: true, sent: followUpSent, reason: followUpReason ?? null },
+          meta: { attempted: true, sent: followUpSent, reason: followUpReason ?? null, demoPlanSource: followUpDemoPlanSource ?? null },
         })
       } else {
         logLeadCapture('info', {
@@ -987,6 +1118,9 @@ export const POST = withApiGuard(
                 `intent: ${payload.intent}`,
                 payload.name ? `name: ${payload.name}` : '',
                 `email: ${payload.email}`,
+                `followup_sent: ${followUpSent ? 'yes' : 'no'}`,
+                `followup_reason: ${followUpReason ?? 'none'}`,
+                `followup_demo_plan_source: ${followUpDemoPlanSource ?? 'none'}`,
                 payload.company ? `company: ${payload.company}` : '',
                 payload.role ? `role: ${payload.role}` : '',
                 `form_type: ${formType}`,
@@ -1017,7 +1151,13 @@ export const POST = withApiGuard(
                     { name: 'kind', value: 'internal' },
                     { name: 'type', value: 'lead_capture' },
                   ],
-                  meta: { intent: payload.intent, route: payload.route },
+                  meta: {
+                    intent: payload.intent,
+                    route: payload.route,
+                    followUpSent,
+                    followUpReason: followUpReason ?? null,
+                    followUpDemoPlanSource: followUpDemoPlanSource ?? null,
+                  },
                 })
               )
             )
@@ -1086,6 +1226,7 @@ export const POST = withApiGuard(
           followUp: {
             sent: followUpSent,
             ...(followUpReason ? { reason: followUpReason } : {}),
+            ...(followUpDemoPlanSource ? { demoPlanSource: followUpDemoPlanSource } : {}),
           },
         },
         { status: HttpStatus.CREATED },

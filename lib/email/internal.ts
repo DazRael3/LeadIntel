@@ -1,6 +1,12 @@
 import { escapeHtml } from '@/lib/email/templates'
 
 export type AdminNotificationEmail = { subject: string; html: string; text: string }
+export type LeadDemoPlan = {
+  summary: string
+  steps: string[]
+  timeToValue: string
+  aiGenerated: boolean
+}
 
 function stableVariantIndex(seed: string | undefined, count: number): number {
   if (count <= 1) return 0
@@ -16,6 +22,12 @@ function stableVariantIndex(seed: string | undefined, count: number): number {
 
 function pickVariant(seed: string | undefined, values: readonly string[]): string {
   return values[stableVariantIndex(seed, values.length)] ?? values[0] ?? ''
+}
+
+function appendSubjectTag(subject: string, requestId?: string): string {
+  const rid = (requestId ?? '').trim()
+  if (!rid) return subject
+  return `${subject} [LeadIntel Demo][${rid}]`
 }
 
 const INTERNAL_VARIANTS = [
@@ -49,8 +61,9 @@ export function renderAdminNotificationEmail(args: {
   ctaHref?: string
   ctaLabel?: string
   variationSeed?: string
+  requestId?: string
 }): AdminNotificationEmail {
-  const subject = `LeadIntel · ${args.title}`
+  const subject = appendSubjectTag(`LeadIntel · ${args.title}`, args.requestId)
   const variant = pickVariant(args.variationSeed, INTERNAL_VARIANTS)
   const body = [...args.lines, '', variant].join('\n')
   const ctaHref = args.ctaHref ? args.ctaHref : `${args.appUrl}/admin/ops`
@@ -95,22 +108,112 @@ function getEmailBrandLogoUrl(): string | null {
 export function renderLeadCaptureConfirmationEmail(args: {
   recipientName?: string | null
   appUrl: string
-  formType: string
-  sourcePage: string
-  consentMarketing: boolean
+  formType?: string
+  sourcePage?: string
+  consentMarketing?: boolean
+  intent?: 'demo' | 'pricing_question' | 'trial_help' | 'general'
+  route?: string
   company?: string | null
+  requestId?: string
   variationSeed?: string
+  demoPlan?: LeadDemoPlan | null
 }): AdminNotificationEmail {
+  if (args.intent) {
+    const subjectBase =
+      args.intent === 'pricing_question'
+        ? 'LeadIntel received your pricing question'
+        : args.intent === 'trial_help'
+          ? 'LeadIntel received your trial help request'
+          : args.intent === 'general'
+            ? 'LeadIntel received your request'
+            : 'Your LeadIntel demo outline'
+    const subject = appendSubjectTag(subjectBase, args.requestId)
+    const recipient = args.recipientName && args.recipientName.trim().length > 0 ? args.recipientName.trim() : 'there'
+    const intentLabel =
+      args.intent === 'pricing_question'
+        ? 'pricing question'
+        : args.intent === 'trial_help'
+          ? 'trial help request'
+          : args.intent === 'general'
+            ? 'general request'
+            : 'demo request'
+    const opener = pickVariant(args.variationSeed, FOLLOW_UP_OPENERS)
+    const demoPlan = args.intent === 'demo' ? args.demoPlan : null
+    const routeLabel = args.route ?? args.sourcePage ?? '/contact'
+    const textLines = [
+      subject,
+      '',
+      `Hi ${recipient},`,
+      '',
+      opener,
+      `Request type: ${intentLabel}.`,
+      args.company ? `Company: ${args.company}` : '',
+      `Route: ${routeLabel}`,
+      '',
+      demoPlan ? 'Auto-generated demo outline:' : '',
+      demoPlan ? `Summary: ${demoPlan.summary}` : '',
+      ...(demoPlan ? demoPlan.steps.map((step, index) => `Step ${index + 1}: ${step}`) : []),
+      demoPlan ? `Expected time-to-value: ${demoPlan.timeToValue}` : '',
+      '',
+      'Need changes before we walk through it? Reply to this email and we will tailor it.',
+      `Support: ${args.appUrl}/support`,
+    ].filter((line) => line.length > 0)
+
+    const logo = getEmailBrandLogoUrl()
+    const header = logo
+      ? `<div style="margin-bottom:10px;">
+        <a href="${escapeHtml(args.appUrl)}" style="text-decoration:none;">
+          <img src="${escapeHtml(logo)}" alt="LeadIntel logo" style="max-width:190px;height:auto;border:0;display:block;">
+        </a>
+      </div>`
+      : '<div style="font-size:12px;color:#94a3b8;letter-spacing:0.12em;text-transform:uppercase;">LeadIntel</div>'
+    const demoPlanHtml = demoPlan
+      ? `<div style="margin-top:14px;border:1px solid rgba(34,211,238,0.35);border-radius:10px;padding:12px;background:#0b1220;">
+        <div style="font-size:13px;color:#67e8f9;font-weight:700;">Auto-generated demo outline</div>
+        <p style="margin:8px 0 0 0;color:#cbd5e1;"><strong>Summary:</strong> ${escapeHtml(demoPlan.summary)}</p>
+        <ul style="margin:8px 0 0 18px;color:#cbd5e1;">
+          ${demoPlan.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}
+        </ul>
+        <p style="margin:8px 0 0 0;color:#cbd5e1;"><strong>Expected time-to-value:</strong> ${escapeHtml(
+          demoPlan.timeToValue
+        )}</p>
+      </div>`
+      : ''
+
+    const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#050a14;color:#e5e7eb;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
+    <div style="max-width:640px;margin:0 auto;">
+      ${header}
+      <h1 style="margin:10px 0 0 0;font-size:20px;color:#e5e7eb;">${escapeHtml(subjectBase)}</h1>
+      <p style="margin:10px 0 0 0;color:#cbd5e1;">Hi ${escapeHtml(recipient)},</p>
+      <p style="margin:8px 0 0 0;color:#cbd5e1;">${escapeHtml(opener)}</p>
+      <div style="margin-top:12px;border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:12px;background:#0b1220;">
+        <div style="font-size:13px;color:#cbd5e1;"><strong>Request type:</strong> ${escapeHtml(intentLabel)}</div>
+        ${args.company ? `<div style="margin-top:4px;font-size:13px;color:#cbd5e1;"><strong>Company:</strong> ${escapeHtml(args.company)}</div>` : ''}
+        <div style="margin-top:4px;font-size:13px;color:#cbd5e1;"><strong>Route:</strong> ${escapeHtml(routeLabel)}</div>
+      </div>
+      ${demoPlanHtml}
+      <p style="margin-top:14px;color:#cbd5e1;">Need changes before we walk through it? Reply to this email and we will tailor it.</p>
+      <p style="margin-top:8px;font-size:12px;color:#94a3b8;">Support: <a href="${escapeHtml(
+        `${args.appUrl}/support`
+      )}" style="color:#67e8f9;">${escapeHtml(`${args.appUrl}/support`)}</a></p>
+    </div>
+  </body></html>`
+    return { subject, text: textLines.join('\n'), html }
+  }
+
   const opener = pickVariant(args.variationSeed, FOLLOW_UP_OPENERS)
   const nextStep = pickVariant(args.variationSeed ? `next:${args.variationSeed}` : undefined, FOLLOW_UP_NEXT_STEPS)
-  const subject = 'LeadIntel received your request'
+  const subject = appendSubjectTag('LeadIntel received your request', args.requestId)
+  const formType = args.formType ?? 'demo'
+  const sourcePage = args.sourcePage ?? args.route ?? '/contact'
+  const consentMarketing = args.consentMarketing === true
   const logo = getEmailBrandLogoUrl()
   const escapedAppUrl = escapeHtml(args.appUrl)
   const pricingUrl = `${args.appUrl}/pricing`
   const sampleUrl = `${args.appUrl}/#try-sample`
   const supportUrl = `${args.appUrl}/support`
   const preferencesUrl = `${args.appUrl}/support#email-preferences`
-  const transactionalOnly = !args.consentMarketing
+  const transactionalOnly = !consentMarketing
   const header = logo
     ? `<div style="margin-bottom:10px;">
         <a href="${escapedAppUrl}" style="text-decoration:none;">
@@ -119,7 +222,7 @@ export function renderLeadCaptureConfirmationEmail(args: {
       </div>`
     : '<div style="font-size:12px;color:#94a3b8;letter-spacing:0.12em;text-transform:uppercase;">LeadIntel</div>'
 
-  const contactMode = args.formType === 'pricing_question' ? 'pricing question' : args.formType === 'trial_help' ? 'trial help request' : 'demo request'
+  const contactMode = formType === 'pricing_question' ? 'pricing question' : formType === 'trial_help' ? 'trial help request' : 'demo request'
   const recipient = args.recipientName && args.recipientName.trim().length > 0 ? args.recipientName.trim() : 'there'
   const bodyLines = [
     `Hi ${recipient},`,
@@ -127,11 +230,11 @@ export function renderLeadCaptureConfirmationEmail(args: {
     opener,
     `Contact type: ${contactMode}.`,
     args.company ? `Company: ${args.company}` : '',
-    `Source: ${args.sourcePage}`,
+    `Source: ${sourcePage}`,
     '',
     nextStep,
     '',
-    args.consentMarketing
+    consentMarketing
       ? 'You opted in to product updates. You can opt out any time by replying "unsubscribe".'
       : 'You did not opt in to marketing updates. We will only use this email to follow up on your request.',
   ].filter((line) => line.length > 0)
@@ -153,7 +256,7 @@ export function renderLeadCaptureConfirmationEmail(args: {
       <div style="margin-top:14px;border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:12px;background:#0b1220;">
         <div style="font-size:13px;color:#cbd5e1;"><strong>Contact type:</strong> ${escapeHtml(contactMode)}</div>
         ${args.company ? `<div style="margin-top:4px;font-size:13px;color:#cbd5e1;"><strong>Company:</strong> ${escapeHtml(args.company)}</div>` : ''}
-        <div style="margin-top:4px;font-size:13px;color:#cbd5e1;"><strong>Source:</strong> ${escapeHtml(args.sourcePage)}</div>
+        <div style="margin-top:4px;font-size:13px;color:#cbd5e1;"><strong>Source:</strong> ${escapeHtml(sourcePage)}</div>
       </div>
       <p style="margin-top:14px;color:#cbd5e1;">${escapeHtml(nextStep)}</p>
       ${
@@ -168,7 +271,7 @@ export function renderLeadCaptureConfirmationEmail(args: {
       }
       <p style="margin-top:14px;font-size:12px;color:#94a3b8;">
         ${escapeHtml(
-          args.consentMarketing
+          consentMarketing
             ? 'You opted in to product updates. Reply "unsubscribe" any time to stop update emails.'
             : 'You did not opt in to marketing updates. We will only use this email to follow up on your request.'
         )}
