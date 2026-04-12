@@ -61,6 +61,41 @@ function getTrimmedEnv(name: string): string {
   return typeof raw === 'string' ? raw.trim() : ''
 }
 
+type LeadCaptureLogCategory =
+  | 'validation'
+  | 'supabase_insert'
+  | 'schema_not_ready'
+  | 'duplicate_merge'
+  | 'followup_email'
+  | 'admin_notify'
+  | 'auth_lookup'
+  | 'unexpected'
+
+function logLeadCapture(
+  level: 'info' | 'warn' | 'error',
+  args: {
+    category: LeadCaptureLogCategory
+    requestId: string
+    meta?: Record<string, unknown>
+  }
+): void {
+  const payload = {
+    route: '/api/lead-capture',
+    requestId: args.requestId,
+    category: args.category,
+    ...(args.meta ?? {}),
+  }
+  if (level === 'error') {
+    console.error('[lead-capture] route event', payload)
+    return
+  }
+  if (level === 'warn') {
+    console.warn('[lead-capture] route event', payload)
+    return
+  }
+  console.log('[lead-capture] route event', payload)
+}
+
 function normalizeOptionalText(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
@@ -228,7 +263,7 @@ async function sendLeadCaptureFollowUp(args: {
       })
       if (send.ok && send.status === 'sent') return { sent: true }
       if (send.ok && send.status === 'skipped') return { sent: false, reason: send.reason }
-      return { sent: false, reason: send.error }
+      return { sent: false, reason: 'send_failed' }
     }
 
     const direct = await sendEmailWithResend({
@@ -244,9 +279,9 @@ async function sendLeadCaptureFollowUp(args: {
         { name: 'category', value: args.consentMarketing ? 'marketing' : 'transactional' },
       ],
     })
-    return direct.ok ? { sent: true } : { sent: false, reason: direct.errorMessage || 'send_failed' }
-  } catch (error) {
-    return { sent: false, reason: error instanceof Error ? error.message : 'send_failed' }
+    return direct.ok ? { sent: true } : { sent: false, reason: 'send_failed' }
+  } catch {
+    return { sent: false, reason: 'send_failed' }
   }
 }
 
@@ -256,14 +291,38 @@ export const POST = withApiGuard(
     const rid = requestId
 
     if (body === undefined) {
+      logLeadCapture('warn', {
+        category: 'validation',
+        requestId: rid,
+        meta: { bodyPresent: false },
+      })
       return fail(ErrorCode.VALIDATION_ERROR, 'Invalid lead capture payload', undefined, { status: 400 }, bridge, rid)
     }
 
     try {
       const supabase = createRouteClient(request, bridge)
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      let userId: string | null = null
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser()
+        if (authError) {
+          logLeadCapture('warn', {
+            category: 'auth_lookup',
+            requestId: rid,
+            meta: { authError: true },
+          })
+        }
+        userId = user?.id ?? null
+      } catch {
+        // Public lead capture should still save even if auth lookup fails.
+        logLeadCapture('warn', {
+          category: 'auth_lookup',
+          requestId: rid,
+          meta: { authError: true, authLookupThrew: true },
+        })
+      }
 
       const payload = body as z.infer<typeof LeadCaptureSchema>
       const formType = payload.formType ?? payload.intent
@@ -271,7 +330,7 @@ export const POST = withApiGuard(
       const dedupeKey = computeDedupeKey({ email: payload.email, formType, sourcePage })
       const consentTimestamp = payload.consentMarketing ? new Date().toISOString() : null
       const insert = {
-        user_id: user?.id ?? null,
+        user_id: userId,
         email: payload.email.trim(),
         name: payload.name ?? null,
         company: payload.company ?? null,
@@ -295,11 +354,16 @@ export const POST = withApiGuard(
         meta: {},
       }
 
-      const { error } = await supabase.from('lead_captures').insert(insert)
+      const { error } = await supabase.schema('api').from('lead_captures').insert(insert)
       let wasDuplicate = false
       let duplicateMerged = false
       if (error) {
         if (isSchemaError(error)) {
+          logLeadCapture('warn', {
+            category: 'schema_not_ready',
+            requestId: rid,
+            meta: { schemaReady: false },
+          })
           return fail(
             ErrorCode.INTERNAL_ERROR,
             'Lead capture schema is not ready. Apply latest migrations and retry.',
@@ -315,15 +379,36 @@ export const POST = withApiGuard(
         const code = (error as { code?: string } | null)?.code ?? ''
         const isUnique = code === '23505' || msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique')
         if (!isUnique) {
+          logLeadCapture('error', {
+            category: 'supabase_insert',
+            requestId: rid,
+            meta: { insertOk: false, duplicate: false, errorCode: code || 'unknown' },
+          })
           return fail(ErrorCode.DATABASE_ERROR, 'Failed to save request', undefined, { status: 500 }, bridge, rid)
         }
         wasDuplicate = true
+        logLeadCapture('warn', {
+          category: 'supabase_insert',
+          requestId: rid,
+          meta: { insertOk: false, duplicate: true, errorCode: code || '23505' },
+        })
         duplicateMerged = await mergeDuplicateLeadCapture({
           dedupeKey,
-          userId: user?.id ?? null,
+          userId,
           consentTimestamp,
           payload,
           sourcePage,
+        })
+        logLeadCapture(duplicateMerged ? 'info' : 'warn', {
+          category: 'duplicate_merge',
+          requestId: rid,
+          meta: { duplicate: true, merged: duplicateMerged },
+        })
+      } else {
+        logLeadCapture('info', {
+          category: 'supabase_insert',
+          requestId: rid,
+          meta: { insertOk: true, duplicate: false, schema: 'api' },
         })
       }
 
@@ -341,8 +426,23 @@ export const POST = withApiGuard(
         })
         followUpSent = followUp.sent
         followUpReason = followUp.reason
+        logLeadCapture(followUpSent ? 'info' : 'warn', {
+          category: 'followup_email',
+          requestId: rid,
+          meta: { attempted: true, sent: followUpSent, reason: followUpReason ?? null },
+        })
+      } else {
+        logLeadCapture('info', {
+          category: 'followup_email',
+          requestId: rid,
+          meta: { attempted: false, sent: false, reason: 'duplicate_submission' },
+        })
       }
 
+      let adminNotifyAttempted = false
+      let adminNotifyFailed = false
+      let adminRecipients = 0
+      let adminDelivered = 0
       if (!wasDuplicate) {
         // Optional: operator notification for net-new leads only (best-effort, deduped).
         // Duplicate submissions may still merge data, but should not fan out duplicate alerts.
@@ -351,7 +451,9 @@ export const POST = withApiGuard(
           const from = getTrimmedEnv('RESEND_FROM_EMAIL')
           const hasResend = Boolean(getTrimmedEnv('RESEND_API_KEY')) && Boolean(from)
           const admins = getLifecycleAdminEmails()
+          adminRecipients = admins.length
           if (hasServiceRole && adminNotificationsEnabled() && admins.length > 0 && hasResend) {
+            adminNotifyAttempted = true
             const appUrl = getAppUrl()
             const email = renderAdminNotificationEmail({
               title: 'Lead capture',
@@ -375,7 +477,7 @@ export const POST = withApiGuard(
               ].filter((l) => l.length > 0),
             })
             const adminClient = createSupabaseAdminClient({ schema: 'api' })
-            await Promise.allSettled(
+            const results = await Promise.allSettled(
               admins.map((toEmail) =>
                 sendEmailDeduped(adminClient, {
                   dedupeKey: `admin:lead_capture:${dedupeKey}:${toEmail}`,
@@ -396,10 +498,50 @@ export const POST = withApiGuard(
                 })
               )
             )
+            adminDelivered = results.filter((r) => r.status === 'fulfilled' && r.value.ok && r.value.status === 'sent').length
+            adminNotifyFailed = results.some((r) => r.status === 'rejected')
+            logLeadCapture(adminNotifyFailed ? 'warn' : 'info', {
+              category: 'admin_notify',
+              requestId: rid,
+              meta: {
+                attempted: adminNotifyAttempted,
+                recipients: adminRecipients,
+                delivered: adminDelivered,
+                failed: adminNotifyFailed,
+              },
+            })
+          } else {
+            logLeadCapture('info', {
+              category: 'admin_notify',
+              requestId: rid,
+              meta: {
+                attempted: false,
+                recipients: adminRecipients,
+                delivered: 0,
+                skipped: true,
+              },
+            })
           }
         } catch {
           // best-effort only
+          adminNotifyFailed = true
+          logLeadCapture('warn', {
+            category: 'admin_notify',
+            requestId: rid,
+            meta: {
+              attempted: adminNotifyAttempted,
+              recipients: adminRecipients,
+              delivered: adminDelivered,
+              failed: true,
+            },
+          })
         }
+      } else {
+        logLeadCapture('info', {
+          category: 'admin_notify',
+          requestId: rid,
+          meta: { attempted: false, recipients: 0, delivered: 0, skipped: true, duplicate: true },
+        })
       }
 
       return ok(
@@ -417,10 +559,15 @@ export const POST = withApiGuard(
         rid
       )
     } catch (e) {
+      logLeadCapture('error', {
+        category: 'unexpected',
+        requestId: rid,
+        meta: { errorType: e instanceof Error ? e.name : 'unknown' },
+      })
       return fail(
         ErrorCode.INTERNAL_ERROR,
         'Failed to submit request',
-        e instanceof Error ? { message: e.message } : undefined,
+        undefined,
         { status: 500 },
         bridge,
         rid
