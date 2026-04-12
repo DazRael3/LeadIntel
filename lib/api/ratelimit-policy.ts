@@ -107,6 +107,12 @@ export interface PolicyRateLimitResult {
   reset: number
 }
 
+export function resolvePolicyRateLimit(policy: RoutePolicy, isAuthenticated: boolean): number {
+  if (!isAuthenticated) return policy.rateLimit.ipPerMin
+  if (policy.authRequired) return policy.rateLimit.authPerMin
+  return policy.rateLimit.authPerMin > 0 ? policy.rateLimit.authPerMin : policy.rateLimit.ipPerMin
+}
+
 /**
  * Special error type to indicate Redis is not configured
  * Used to return 503 in production when Redis env vars are missing
@@ -153,9 +159,9 @@ export async function checkPolicyRateLimit(
   }
   
   const isAuthenticated = userId !== null
-  
+
   // Select appropriate limit based on authentication status
-  const limit = isAuthenticated ? policy.rateLimit.authPerMin : policy.rateLimit.ipPerMin
+  const limit = resolvePolicyRateLimit(policy, isAuthenticated)
   
   // For webhooks (Tier WEBHOOK), always use IP-based
   const effectiveUserId = policy.tier === 'WEBHOOK' ? null : userId
