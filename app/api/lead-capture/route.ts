@@ -92,13 +92,7 @@ const OPTIONAL_COMPATIBILITY_COLUMNS = [
   'consent_timestamp',
   'form_type',
   'source_page',
-  'referrer',
-  'utm_source',
-  'utm_medium',
-  'utm_campaign',
-  'device_class',
-  'viewport_w',
-  'viewport_h',
+  'status',
 ] as const
 const OPTIONAL_COMPATIBILITY_COLUMN_SET = new Set<string>(OPTIONAL_COMPATIBILITY_COLUMNS)
 
