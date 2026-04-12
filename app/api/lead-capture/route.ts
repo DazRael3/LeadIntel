@@ -86,6 +86,20 @@ type InsertFailureReason =
   | 'lead_capture_client_misconfigured'
   | 'lead_capture_insert_failed'
 
+const OPTIONAL_LEAD_CAPTURE_COLUMNS = new Set<string>([
+  'consent_marketing',
+  'consent_timestamp',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'referrer',
+  'device_class',
+  'viewport_w',
+  'viewport_h',
+  'form_type',
+  'source_page',
+])
+
 type LeadCaptureStage =
   | 'validation'
   | 'auth_lookup'
@@ -247,6 +261,16 @@ function classifyInsertFailure(error: DbLikeError | null | undefined): InsertFai
   if (isPermissionDenied(error)) return 'lead_capture_permission_denied'
   if (isClientMisconfigured(error)) return 'lead_capture_client_misconfigured'
   return 'lead_capture_insert_failed'
+}
+
+function getSchemaMissingColumn(error: DbLikeError | null | undefined): string | null {
+  const message = asString(error?.message)
+  if (!message) return null
+  const singleQuote = message.match(/'([a-zA-Z0-9_]+)' column/i)
+  if (singleQuote && singleQuote[1]) return singleQuote[1]
+  const doubleQuote = message.match(/column \"([a-zA-Z0-9_]+)\"/i)
+  if (doubleQuote && doubleQuote[1]) return doubleQuote[1]
+  return null
 }
 
 function isValidUrl(value: string): boolean {
@@ -652,7 +676,7 @@ export const POST = withApiGuard(
       const consentTimestamp = payload.consentMarketing ? new Date().toISOString() : null
       const envStatus = getInsertEnvStatus()
       const hasServiceRole = envStatus.hasServiceRole
-      const insert = {
+      let insertPayload: Record<string, unknown> = {
         user_id: userId,
         email: payload.email.trim(),
         name: payload.name ?? null,
@@ -692,15 +716,39 @@ export const POST = withApiGuard(
 
       let insertClient: InsertClient = 'route'
       let error: DbLikeError | null = null
+      const retryWithSchemaCompatiblePayload = async (client: unknown, clientName: InsertClient): Promise<void> => {
+        if (!error) return
+        const missingColumn = getSchemaMissingColumn(error)
+        if (!missingColumn || !OPTIONAL_LEAD_CAPTURE_COLUMNS.has(missingColumn)) return
+        if (!(missingColumn in insertPayload)) return
+        const reduced = { ...insertPayload }
+        delete reduced[missingColumn]
+        logLeadCapture('warn', {
+          category: 'schema_not_ready',
+          requestId: rid,
+          meta: {
+            schemaCompatibilityRetry: true,
+            droppedColumn: missingColumn,
+            insertClient: clientName,
+          },
+        })
+        const retried = await insertLeadCaptureWithSchema(client, reduced)
+        error = retried.error
+        if (!error) {
+          insertPayload = reduced
+        }
+      }
 
       let adminClientUnavailable = false
+      let adminClient: unknown = null
       if (envStatus.adminInsertReady) {
         stage = 'admin_insert'
         insertClient = 'admin'
         try {
-          const adminClient = createSupabaseAdminClient({ schema: 'api' })
-          const result = await insertLeadCaptureWithSchema(adminClient, insert)
+          adminClient = createSupabaseAdminClient({ schema: 'api' })
+          const result = await insertLeadCaptureWithSchema(adminClient, insertPayload)
           error = result.error
+          await retryWithSchemaCompatiblePayload(adminClient, 'admin')
         } catch (adminError) {
           adminClientUnavailable = true
           error = {
@@ -719,7 +767,8 @@ export const POST = withApiGuard(
       }
 
       const adminInsertMisconfigured = insertClient === 'admin' && Boolean(error) && isClientMisconfigured(error)
-      if (adminClientUnavailable || adminInsertMisconfigured) {
+      const adminSchemaNotReady = insertClient === 'admin' && Boolean(error) && isSchemaOrTableMissing(error)
+      if (adminClientUnavailable || adminInsertMisconfigured || adminSchemaNotReady) {
         stage = 'route_insert'
         insertClient = 'route'
         logLeadCapture('warn', {
@@ -728,14 +777,19 @@ export const POST = withApiGuard(
           meta: {
             insertOk: false,
             insertClient: 'admin',
-            subsystem: adminClientUnavailable ? 'admin_client_unavailable' : 'admin_insert_misconfigured',
+            subsystem: adminClientUnavailable
+              ? 'admin_client_unavailable'
+              : adminInsertMisconfigured
+                ? 'admin_insert_misconfigured'
+                : 'admin_schema_not_ready',
             dbError: sanitizeDbError(error, 'admin'),
           },
         })
 
         if (supabase) {
-          const fallback = await insertLeadCaptureWithSchema(supabase, insert)
+          const fallback = await insertLeadCaptureWithSchema(supabase, insertPayload)
           error = fallback.error
+          await retryWithSchemaCompatiblePayload(supabase, 'route')
         } else {
           error = {
             code: envStatus.routeInsertReady ? 'ROUTE_CLIENT_UNAVAILABLE' : 'INSERT_CLIENT_MISCONFIGURED',
