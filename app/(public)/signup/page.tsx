@@ -6,11 +6,11 @@ import { LoginClient } from '../login/LoginClient'
 export const metadata: Metadata = {
   title: 'Sign up | LeadIntel',
   description: 'Create a LeadIntel account.',
-  alternates: { canonical: 'https://dazrael.com/signup' },
+  alternates: { canonical: 'https://raelinfo.com/signup' },
   openGraph: {
     title: 'Sign up | LeadIntel',
     description: 'Create a LeadIntel account.',
-    url: 'https://dazrael.com/signup',
+    url: 'https://raelinfo.com/signup',
   },
 }
 

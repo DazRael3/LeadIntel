@@ -42,8 +42,8 @@ Maintain separate environments for staging and production:
 | Environment | Purpose | Database | Stripe Mode | Domain |
 |------------|---------|----------|-------------|--------|
 | **Development** | Local development | Supabase (dev project) | Test mode | `localhost:3000` |
-| **Staging** | Pre-production testing | Supabase (staging project) | Test mode | `staging.leadintel.com` |
-| **Production** | Live application | Supabase (prod project) | Live mode | `leadintel.com` |
+| **Staging** | Pre-production testing | Supabase (staging project) | Test mode | `staging.raelinfo.com` |
+| **Production** | Live application | Supabase (prod project) | Live mode | `raelinfo.com` |
 
 ### Environment Variables by Environment
 
@@ -67,14 +67,14 @@ OPENAI_API_KEY=sk-production-key
 
 # Resend
 RESEND_API_KEY=re_staging-key
-RESEND_FROM_EMAIL=noreply@staging.leadintel.com
+RESEND_FROM_EMAIL=noreply@staging.raelinfo.com
 
 # Clearbit
 CLEARBIT_REVEAL_API_KEY=staging-key
 CLEARBIT_API_KEY=staging-key
 
 # Application
-NEXT_PUBLIC_SITE_URL=https://staging.leadintel.com
+NEXT_PUBLIC_SITE_URL=https://staging.raelinfo.com
 NODE_ENV=production
 ```
 
@@ -98,14 +98,14 @@ OPENAI_API_KEY=sk-production-key
 
 # Resend
 RESEND_API_KEY=re_prod-key
-RESEND_FROM_EMAIL=noreply@leadintel.com
+RESEND_FROM_EMAIL=noreply@raelinfo.com
 
 # Clearbit
 CLEARBIT_REVEAL_API_KEY=prod-key
 CLEARBIT_API_KEY=prod-key
 
 # Application
-NEXT_PUBLIC_SITE_URL=https://leadintel.com
+NEXT_PUBLIC_SITE_URL=https://raelinfo.com
 NODE_ENV=production
 ```
 
@@ -184,8 +184,8 @@ node -e "const crypto=require('crypto');const s=process.env.CRON_SIGNING_SECRET;
 
 Then configure the cron job URL like:
 
-- `https://dazrael.com/api/cron/lifecycle?cron_token=YOUR_TOKEN`
-- `https://dazrael.com/api/digest/run?cron_token=YOUR_TOKEN_FOR_DIGEST`
+- `https://raelinfo.com/api/cron/lifecycle?cron_token=YOUR_TOKEN`
+- `https://raelinfo.com/api/digest/run?cron_token=YOUR_TOKEN_FOR_DIGEST`
 
 ### Example schedules
 
@@ -196,7 +196,7 @@ Then configure the cron job URL like:
 
 - `RESEND_API_KEY` (optional; if missing, lifecycle send will no-op safely)
 - `RESEND_FROM_EMAIL` (required to actually send emails)
-- `APP_URL` (recommended for correct links; falls back to `NEXT_PUBLIC_SITE_URL`, then `https://dazrael.com`)
+- `APP_URL` (recommended for correct links; falls back to `NEXT_PUBLIC_SITE_URL`, then `https://raelinfo.com`)
 - `CRON_SIGNING_SECRET` and/or `CRON_SECRET`
 
 #### Option 2: Vercel CLI (Repeatable Deployment)
@@ -346,14 +346,14 @@ Stripe webhooks must be configured for each environment (staging and production)
 
 1. **Get Staging Webhook URL:**
    ```
-   https://staging.leadintel.com/api/stripe/webhook
+   https://staging.raelinfo.com/api/stripe/webhook
    ```
 
 2. **Configure in Stripe Dashboard:**
    - Go to [Stripe Dashboard](https://dashboard.stripe.com) → **Test Mode**
    - Navigate to: Developers → Webhooks
    - Click "Add endpoint"
-   - Endpoint URL: `https://staging.leadintel.com/api/stripe/webhook`
+   - Endpoint URL: `https://staging.raelinfo.com/api/stripe/webhook`
    - Events to send:
      - `checkout.session.completed`
      - `customer.subscription.created`
@@ -370,14 +370,14 @@ Stripe webhooks must be configured for each environment (staging and production)
 
 1. **Get Production Webhook URL:**
    ```
-   https://leadintel.com/api/stripe/webhook
+   https://raelinfo.com/api/stripe/webhook
    ```
 
 2. **Configure in Stripe Dashboard:**
    - Go to [Stripe Dashboard](https://dashboard.stripe.com) → **Live Mode**
    - Navigate to: Developers → Webhooks
    - Click "Add endpoint"
-   - Endpoint URL: `https://leadintel.com/api/stripe/webhook`
+   - Endpoint URL: `https://raelinfo.com/api/stripe/webhook`
    - Events to send: Same as staging
 
 3. **Get Webhook Signing Secret:**
@@ -753,7 +753,7 @@ The following environment variables **must** be set in production. The applicati
 The following variables are optional and can be set based on your needs:
 
 #### Application
-- `NEXT_PUBLIC_SITE_URL` - Your site URL (e.g., `https://leadintel.com`)
+- `NEXT_PUBLIC_SITE_URL` - Your site URL (e.g., `https://raelinfo.com`)
 - `NEXT_PUBLIC_SUPABASE_DB_SCHEMA` - Database schema name (defaults to `api`)
 - `ALLOWED_ORIGINS` - Comma-separated list of allowed CORS origins
 

@@ -12,11 +12,11 @@ import { OperationalReadiness } from '@/components/marketing/OperationalReadines
 export const metadata: Metadata = {
   title: 'Trust Center | LeadIntel',
   description: 'Security, privacy, policies, and operational transparency.',
-  alternates: { canonical: 'https://dazrael.com/trust' },
+  alternates: { canonical: 'https://raelinfo.com/trust' },
   openGraph: {
     title: 'Trust Center | LeadIntel',
     description: 'Security, privacy, policies, and operational transparency.',
-    url: 'https://dazrael.com/trust',
+    url: 'https://raelinfo.com/trust',
     images: [
       {
         url: '/api/og?title=Trust%20Center&subtitle=Security%2C%20privacy%2C%20and%20operational%20transparency',

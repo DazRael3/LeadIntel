@@ -213,7 +213,7 @@ export async function generateCompetitiveIntelligenceReport(
           'Hard rules (must follow):',
           '- Do NOT invent factual claims about the company (no funding, layoffs, partnerships, product launches, numbers, customers, pricing, market share, tech stack) unless it is explicitly provided under "Verified signals".',
           '- If you do not have verified sources, write in hypotheses and explicitly label them as hypotheses or "needs verification".',
-          '- Do NOT include any calls-to-action to view a report on a website. Do NOT include the URL https://dazrael.com/competitive-report.',
+          '- Do NOT include any calls-to-action to view a report on a website. Do NOT include the URL https://raelinfo.com/competitive-report.',
           '- No placeholder tokens like [COMPANY] or [NAME].',
           '- The output must be useful without external data: provide analysis frameworks, outreach angles, objection handling, and a sequence that uses questions/assumptions rather than claims.',
           '',
@@ -418,7 +418,10 @@ function renderReportMarkdown(companyName: string, sections: CompetitiveReportSe
     '',
   ]
 
-  // Final safety: remove the self-link if the model tried to sneak it in.
-  return md.join('\n').replace(/https?:\/\/dazrael\.com\/competitive-report\S*/gi, '').trim() + '\n'
+  // Final safety: remove known self-links (legacy + current domains) if the model tried to sneak them in.
+  return md
+    .join('\n')
+    .replace(/https?:\/\/(?:www\.)?[\w.-]+\/competitive-report\S*/gi, '')
+    .trim() + '\n'
 }
 

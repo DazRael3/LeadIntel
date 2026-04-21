@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   if (!page) return {}
 
   const title = `LeadIntel vs ${page.competitorName} | Why-now outbound comparison`
-  const url = `https://dazrael.com/compare/${page.slug}`
+  const url = `https://raelinfo.com/compare/${page.slug}`
   const og = `/api/og?title=${encodeURIComponent(`LeadIntel vs ${page.competitorName}`)}&subtitle=${encodeURIComponent(
     'Why-now signals → send-ready outreach'
   )}`
@@ -45,10 +45,10 @@ export default async function CompareDetailPage({ params }: { params: Promise<Pa
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: `LeadIntel vs ${page.competitorName}`,
-    url: `https://dazrael.com/compare/${page.slug}`,
+    url: `https://raelinfo.com/compare/${page.slug}`,
     description: page.description,
     about: [
-      { '@type': 'SoftwareApplication', name: 'LeadIntel', url: 'https://dazrael.com' },
+      { '@type': 'SoftwareApplication', name: 'LeadIntel', url: 'https://raelinfo.com' },
       { '@type': 'Thing', name: page.competitorName },
     ],
   }

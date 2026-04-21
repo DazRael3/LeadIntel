@@ -4,7 +4,7 @@ import { permanentRedirect } from 'next/navigation'
 export const metadata: Metadata = {
   title: 'Reports Redirect | LeadIntel',
   description: 'Legacy reports route redirecting to the competitive reports hub.',
-  alternates: { canonical: 'https://dazrael.com/competitive-report' },
+  alternates: { canonical: 'https://raelinfo.com/competitive-report' },
   robots: { index: false, follow: true },
 }
 

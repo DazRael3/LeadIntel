@@ -5,11 +5,11 @@ import PricingClientPage from './PricingClientPage'
 export const metadata: Metadata = {
   title: 'Pricing | LeadIntel',
   description: 'Choose the outbound workflow that fits your team.',
-  alternates: { canonical: 'https://dazrael.com/pricing' },
+  alternates: { canonical: 'https://raelinfo.com/pricing' },
   openGraph: {
     title: 'Pricing | LeadIntel',
     description: 'Choose the outbound workflow that fits your team.',
-    url: 'https://dazrael.com/pricing',
+    url: 'https://raelinfo.com/pricing',
     images: [
       {
         url: '/api/og?title=Pricing&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20drafts',
@@ -25,8 +25,8 @@ export default function PricingPage() {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: 'LeadIntel Pricing',
-    url: 'https://dazrael.com/pricing',
-    isPartOf: { '@type': 'WebSite', name: 'LeadIntel', url: 'https://dazrael.com' },
+    url: 'https://raelinfo.com/pricing',
+    isPartOf: { '@type': 'WebSite', name: 'LeadIntel', url: 'https://raelinfo.com' },
     mainEntity: {
       '@type': 'OfferCatalog',
       name: 'LeadIntel plans',
@@ -36,28 +36,28 @@ export default function PricingPage() {
           name: 'Starter',
           price: '0',
           priceCurrency: 'USD',
-          url: 'https://dazrael.com/pricing',
+          url: 'https://raelinfo.com/pricing',
         },
         {
           '@type': 'Offer',
           name: 'Closer',
           price: '79',
           priceCurrency: 'USD',
-          url: 'https://dazrael.com/pricing',
+          url: 'https://raelinfo.com/pricing',
         },
         {
           '@type': 'Offer',
           name: 'Closer+',
           price: '149',
           priceCurrency: 'USD',
-          url: 'https://dazrael.com/pricing',
+          url: 'https://raelinfo.com/pricing',
         },
         {
           '@type': 'Offer',
           name: 'Team (base)',
           price: '249',
           priceCurrency: 'USD',
-          url: 'https://dazrael.com/pricing',
+          url: 'https://raelinfo.com/pricing',
         },
       ],
     },

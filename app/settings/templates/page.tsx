@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Team templates | LeadIntel',
     description: 'Team templates and approvals.',
-    url: 'https://dazrael.com/settings/templates',
+    url: 'https://raelinfo.com/settings/templates',
   },
 }
 

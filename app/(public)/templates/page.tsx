@@ -12,11 +12,11 @@ import { TEMPLATE_LIBRARY, TEMPLATE_TOKENS } from '@/lib/templates/registry'
 export const metadata: Metadata = {
   title: 'Templates | LeadIntel',
   description: 'Copy/paste outreach templates you can adapt to your ICP and timing signals.',
-  alternates: { canonical: 'https://dazrael.com/templates' },
+  alternates: { canonical: 'https://raelinfo.com/templates' },
   openGraph: {
     title: 'Templates | LeadIntel',
     description: 'Copy/paste outreach templates you can adapt to your ICP and timing signals.',
-    url: 'https://dazrael.com/templates',
+    url: 'https://raelinfo.com/templates',
     images: [
       {
         url: '/api/og?title=Templates&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
@@ -48,7 +48,7 @@ export default function TemplatesPage() {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: 'Templates',
-    url: 'https://dazrael.com/templates',
+    url: 'https://raelinfo.com/templates',
     description: 'Copy/paste outreach templates you can adapt to your ICP and timing signals.',
   }
 

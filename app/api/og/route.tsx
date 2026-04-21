@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       try {
         return new URL(request.url).hostname
       } catch {
-        return 'leadintel.com'
+        return 'raelinfo.com'
       }
     })()
 

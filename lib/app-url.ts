@@ -5,7 +5,7 @@ export function getAppUrl(): string {
   const fromSite = (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim()
   if (fromSite) return fromSite.replace(/\/$/, '')
 
-  return 'https://dazrael.com'
+  return 'https://raelinfo.com'
 }
 
 /**

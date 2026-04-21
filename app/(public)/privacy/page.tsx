@@ -10,11 +10,11 @@ import { buildMailto } from '@/lib/mailto'
 export const metadata: Metadata = {
   title: 'Privacy | LeadIntel',
   description: 'What LeadIntel collects, how it is used, and how to request access or deletion.',
-  alternates: { canonical: 'https://dazrael.com/privacy' },
+  alternates: { canonical: 'https://raelinfo.com/privacy' },
   openGraph: {
     title: 'Privacy | LeadIntel',
     description: 'What LeadIntel collects, how it is used, and how to request access or deletion.',
-    url: 'https://dazrael.com/privacy',
+    url: 'https://raelinfo.com/privacy',
     images: [
       {
         url: '/api/og?title=Privacy&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',

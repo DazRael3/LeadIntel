@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Integrations | LeadIntel',
     description: 'Webhooks and exports.',
-    url: 'https://dazrael.com/settings/integrations',
+    url: 'https://raelinfo.com/settings/integrations',
   },
 }
 

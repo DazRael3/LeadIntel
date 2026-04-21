@@ -72,7 +72,7 @@ function lifecycle(
       const out = renderFn({ appUrl })
       return { subject: out.subject, html: out.html, text: out.text, templateName: type, kind: 'lifecycle' }
     },
-    sampleArgs: { appUrl: 'https://dazrael.com' },
+    sampleArgs: { appUrl: 'https://raelinfo.com' },
   }
 }
 
@@ -186,7 +186,7 @@ export const EMAIL_TEMPLATES: EmailTemplateRegistryEntry[] = [
       })
       return { subject: out.subject, html: out.html, text: out.text, templateName: 'internal_admin_notification', kind: 'internal' }
     },
-    sampleArgs: { appUrl: 'https://dazrael.com' },
+    sampleArgs: { appUrl: 'https://raelinfo.com' },
   },
   {
     meta: {
@@ -209,7 +209,7 @@ export const EMAIL_TEMPLATES: EmailTemplateRegistryEntry[] = [
       })
       return { subject: out.subject, html: out.html, text: out.text, templateName: 'prospect_watch_daily_digest', kind: 'prospect_watch' }
     },
-    sampleArgs: { appUrl: 'https://dazrael.com' },
+    sampleArgs: { appUrl: 'https://raelinfo.com' },
   },
   {
     meta: {
@@ -232,7 +232,7 @@ export const EMAIL_TEMPLATES: EmailTemplateRegistryEntry[] = [
       })
       return { subject: out.subject, html: out.html, text: out.text, templateName: 'prospect_watch_high_priority', kind: 'prospect_watch' }
     },
-    sampleArgs: { appUrl: 'https://dazrael.com' },
+    sampleArgs: { appUrl: 'https://raelinfo.com' },
   },
 ]
 

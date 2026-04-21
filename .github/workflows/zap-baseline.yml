@@ -22,7 +22,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}/reports/zap:/zap/wrk:rw \
             ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py -t https://dazrael.com -J zap.json -r zap.html -w zap.md -m 5 -j -a
+            zap-baseline.py -t https://raelinfo.com -J zap.json -r zap.html -w zap.md -m 5 -j -a
 
       - name: Upload ZAP reports
         if: always()

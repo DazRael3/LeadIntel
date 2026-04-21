@@ -14,7 +14,7 @@ describe('renderLeadCaptureConfirmationEmail', () => {
 
   it('keeps non-consent follow-ups strictly transactional', () => {
     const rendered = renderLeadCaptureConfirmationEmail({
-      appUrl: 'https://dazrael.com',
+      appUrl: 'https://raelinfo.com',
       formType: 'demo',
       sourcePage: '/contact',
       consentMarketing: false,
@@ -23,10 +23,10 @@ describe('renderLeadCaptureConfirmationEmail', () => {
       variationSeed: 'seed-1',
     })
 
-    expect(rendered.text).toContain('Support: https://dazrael.com/support')
-    expect(rendered.text).toContain('Email preferences: https://dazrael.com/support#email-preferences')
-    expect(rendered.text).not.toContain('Pricing: https://dazrael.com/pricing')
-    expect(rendered.text).not.toContain('Sample digest: https://dazrael.com/#try-sample')
+    expect(rendered.text).toContain('Support: https://raelinfo.com/support')
+    expect(rendered.text).toContain('Email preferences: https://raelinfo.com/support#email-preferences')
+    expect(rendered.text).not.toContain('Pricing: https://raelinfo.com/pricing')
+    expect(rendered.text).not.toContain('Sample digest: https://raelinfo.com/#try-sample')
     expect(rendered.html).toContain('Open support')
     expect(rendered.html).not.toContain('Review pricing')
     expect(rendered.html).not.toContain('Generate another sample')
@@ -34,7 +34,7 @@ describe('renderLeadCaptureConfirmationEmail', () => {
 
   it('keeps marketing CTAs when consent is granted', () => {
     const rendered = renderLeadCaptureConfirmationEmail({
-      appUrl: 'https://dazrael.com',
+      appUrl: 'https://raelinfo.com',
       formType: 'demo',
       sourcePage: '/contact',
       consentMarketing: true,
@@ -43,8 +43,8 @@ describe('renderLeadCaptureConfirmationEmail', () => {
       variationSeed: 'seed-2',
     })
 
-    expect(rendered.text).toContain('Pricing: https://dazrael.com/pricing')
-    expect(rendered.text).toContain('Sample digest: https://dazrael.com/#try-sample')
+    expect(rendered.text).toContain('Pricing: https://raelinfo.com/pricing')
+    expect(rendered.text).toContain('Sample digest: https://raelinfo.com/#try-sample')
     expect(rendered.html).toContain('Review pricing')
     expect(rendered.html).toContain('Generate another sample')
   })
@@ -52,7 +52,7 @@ describe('renderLeadCaptureConfirmationEmail', () => {
   it('ignores invalid brand image env values safely', () => {
     process.env.EMAIL_BRAND_IMAGE_URL = 'not-a-valid-url'
     const rendered = renderLeadCaptureConfirmationEmail({
-      appUrl: 'https://dazrael.com',
+      appUrl: 'https://raelinfo.com',
       formType: 'demo',
       sourcePage: '/contact',
       consentMarketing: true,

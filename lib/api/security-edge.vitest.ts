@@ -19,7 +19,7 @@ describe('applySecurityHeadersEdge', () => {
     }
 
     const res = NextResponse.next()
-    const req = makeReq('https://dazrael.com/')
+    const req = makeReq('https://raelinfo.com/')
 
     expect(() => applySecurityHeadersEdge(res, req)).not.toThrow()
     // Default: report-only unless explicitly enabled.
@@ -33,12 +33,12 @@ describe('applySecurityHeadersEdge', () => {
     process.env = { ...oldEnv, NODE_ENV: 'production' }
 
     const res = NextResponse.next()
-    const req = makeReq('https://dazrael.com/', { 'x-forwarded-proto': 'https' })
+    const req = makeReq('https://raelinfo.com/', { 'x-forwarded-proto': 'https' })
     applySecurityHeadersEdge(res, req)
     expect(res.headers.get('Strict-Transport-Security')).toContain('max-age=')
 
     const res2 = NextResponse.next()
-    const req2 = makeReq('http://dazrael.com/', { 'x-forwarded-proto': 'http' })
+    const req2 = makeReq('http://raelinfo.com/', { 'x-forwarded-proto': 'http' })
     applySecurityHeadersEdge(res2, req2)
     expect(res2.headers.get('Strict-Transport-Security')).toBeNull()
 
@@ -50,7 +50,7 @@ describe('applySecurityHeadersEdge', () => {
     process.env = { ...oldEnv, NODE_ENV: 'production', ENFORCE_CSP: '1' }
 
     const res = NextResponse.next()
-    const req = makeReq('https://dazrael.com/', { 'x-forwarded-proto': 'https' })
+    const req = makeReq('https://raelinfo.com/', { 'x-forwarded-proto': 'https' })
     applySecurityHeadersEdge(res, req)
     expect(res.headers.get('Content-Security-Policy')).toBeTruthy()
     expect(res.headers.get('Content-Security-Policy-Report-Only')).toBeNull()

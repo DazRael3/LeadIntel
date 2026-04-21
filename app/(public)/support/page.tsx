@@ -12,11 +12,11 @@ import { SupportContactActions } from '@/components/support/SupportContactAction
 export const metadata: Metadata = {
   title: 'Support | LeadIntel',
   description: 'Get help with billing, upgrades, and using LeadIntel.',
-  alternates: { canonical: 'https://dazrael.com/support' },
+  alternates: { canonical: 'https://raelinfo.com/support' },
   openGraph: {
     title: 'Support | LeadIntel',
     description: 'Get help with billing, upgrades, and using LeadIntel.',
-    url: 'https://dazrael.com/support',
+    url: 'https://raelinfo.com/support',
     images: [
       {
         url: '/api/og?title=Support&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',

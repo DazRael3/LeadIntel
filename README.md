@@ -203,7 +203,7 @@ RESEND_FROM_EMAIL=team@yourdomain.com
 # Optional, strongly recommended
 RESEND_REPLY_TO_EMAIL=support@yourdomain.com
 EMAIL_BRAND_IMAGE_URL=https://yourdomain.com/brand/logo-email.png
-APP_URL=https://dazrael.com
+APP_URL=https://raelinfo.com
 
 # Optional: net-new lead admin notifications (kept off by default)
 LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED=1
@@ -675,7 +675,7 @@ Auth options:
 
 Recommended env vars:
 - `CRON_SECRET` and/or `CRON_SIGNING_SECRET`
-- `APP_URL` (falls back to `NEXT_PUBLIC_SITE_URL`, then `https://dazrael.com`)
+- `APP_URL` (falls back to `NEXT_PUBLIC_SITE_URL`, then `https://raelinfo.com`)
 - `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (otherwise lifecycle runs no-op safely)
 
 ### Run locally

@@ -11,11 +11,11 @@ import { buildMailto } from '@/lib/mailto'
 export const metadata: Metadata = {
   title: 'Buyer readiness | LeadIntel',
   description: 'Truthful controls and questions larger buyers usually ask.',
-  alternates: { canonical: 'https://dazrael.com/trust/buyer-readiness' },
+  alternates: { canonical: 'https://raelinfo.com/trust/buyer-readiness' },
   openGraph: {
     title: 'Buyer readiness | LeadIntel',
     description: 'Truthful controls and questions larger buyers usually ask.',
-    url: 'https://dazrael.com/trust/buyer-readiness',
+    url: 'https://raelinfo.com/trust/buyer-readiness',
     images: [
       {
         url: '/api/og?title=Buyer%20readiness&subtitle=Controls%20today%20(no%20overclaims)',

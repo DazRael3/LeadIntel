@@ -56,7 +56,7 @@ export async function generateMetadata(props: { searchParams?: Promise<SearchPar
   return {
     title,
     description,
-    alternates: { canonical: 'https://dazrael.com/competitive-report' },
+    alternates: { canonical: 'https://raelinfo.com/competitive-report' },
   }
 }
 

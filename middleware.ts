@@ -8,15 +8,15 @@ import { getReviewSessionFromRequest, clearReviewSessionCookies } from '@/lib/re
 
 function shouldRedirectWwwToApex(request: NextRequest): boolean {
   // Always keep canonical host on apex to prevent split SEO + cookie/origin drift.
-  // Only redirect in production and only for www.dazrael.com.
+  // Only redirect in production and only for www.raelinfo.com.
   if ((process.env.NODE_ENV ?? 'development') !== 'production') return false
   const host = request.headers.get('host') ?? ''
-  return host.toLowerCase() === 'www.dazrael.com'
+  return host.toLowerCase() === 'www.raelinfo.com'
 }
 
 function redirectWwwToApex(request: NextRequest): NextResponse {
   const url = request.nextUrl.clone()
-  url.hostname = 'dazrael.com'
+  url.hostname = 'raelinfo.com'
   // Preserve path/query; enforce https scheme.
   url.protocol = 'https:'
   return NextResponse.redirect(url, 308)

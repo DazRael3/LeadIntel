@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Audit log | LeadIntel',
     description: 'Admin visibility across workspace activity.',
-    url: 'https://dazrael.com/settings/audit',
+    url: 'https://raelinfo.com/settings/audit',
   },
 }
 
