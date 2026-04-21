@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Team | LeadIntel',
     description: 'Manage members and roles.',
-    url: 'https://dazrael.com/settings/team',
+    url: 'https://raelinfo.com/settings/team',
   },
 }
 

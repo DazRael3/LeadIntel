@@ -11,11 +11,11 @@ import { InteractiveWorkspaceDemo } from '@/components/marketing/InteractiveWork
 export const metadata: Metadata = {
   title: 'Product tour | LeadIntel',
   description: 'Interactive product preview: why-now signals, daily shortlist, explainable scoring, and send-ready outreach.',
-  alternates: { canonical: 'https://dazrael.com/tour' },
+  alternates: { canonical: 'https://raelinfo.com/tour' },
   openGraph: {
     title: 'Product tour | LeadIntel',
     description: 'Interactive product preview: why-now signals, daily shortlist, explainable scoring, and send-ready outreach.',
-    url: 'https://dazrael.com/tour',
+    url: 'https://raelinfo.com/tour',
     images: [
       {
         url: '/api/og?title=Product%20tour&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20outreach',
@@ -31,7 +31,7 @@ export default function TourPage() {
     '@context': 'https://schema.org',
     '@type': 'CreativeWork',
     name: 'LeadIntel product tour',
-    url: 'https://dazrael.com/tour',
+    url: 'https://raelinfo.com/tour',
     description: 'From signals to send-ready outreach in minutes.',
   }
 

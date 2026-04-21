@@ -7,7 +7,7 @@ import { CompetitiveReportNewClient } from './ui/CompetitiveReportNewClient'
 export const metadata: Metadata = {
   title: 'Competitive Report Redirect | LeadIntel',
   description: 'Legacy route redirecting to the competitive reports hub.',
-  alternates: { canonical: 'https://dazrael.com/competitive-report' },
+  alternates: { canonical: 'https://raelinfo.com/competitive-report' },
   robots: { index: false, follow: true },
 }
 

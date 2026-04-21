@@ -51,7 +51,7 @@ function safeTrim(v: unknown): string {
 }
 
 function withoutSelfLinks(text: string): string {
-  return text.replace(/https?:\/\/dazrael\.com\/competitive-report\S*/gi, '').trim()
+  return text.replace(/https?:\/\/(?:www\.)?[\w.-]+\/competitive-report\S*/gi, '').trim()
 }
 
 function citationIndex(citations: NormalizedCitation[]): Map<string, number> {
@@ -265,7 +265,7 @@ function markdownFromModel(args: {
   }
   blocks.push('')
 
-  return blocks.join('\n').replace(/https?:\/\/dazrael\.com\/competitive-report\S*/gi, '').trim() + '\n'
+  return blocks.join('\n').replace(/https?:\/\/(?:www\.)?[\w.-]+\/competitive-report\S*/gi, '').trim() + '\n'
 }
 
 export async function generateCompetitiveIntelligenceReportSourced(
@@ -318,7 +318,7 @@ export async function generateCompetitiveIntelligenceReportSourced(
           'Hard rules:',
           '- Do NOT invent factual claims about the company. Any factual claim must cite at least one URL from Allowed citations.',
           '- If you do not have a citation for a factual claim, do not include that claim as fact.',
-          '- Do NOT include any CTA linking to /competitive-report or dazrael.com/competitive-report.',
+          '- Do NOT include any CTA linking to /competitive-report or raelinfo.com/competitive-report.',
           '- No bracket placeholders like [COMPANY] or [NAME].',
           '- Do NOT include Subject:, Dear, Best regards, or any email-style closing.',
           '- Do NOT include a "Hypotheses" section. Framework-only output is disallowed.',

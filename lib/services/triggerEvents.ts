@@ -200,7 +200,7 @@ export async function seedDemoTriggerEventsIfEmpty(input: TriggerEventInput): Pr
     const now = new Date().toISOString()
     const companyUrl = input.companyDomain ? `https://${input.companyDomain}` : null
     const name = input.companyName ?? input.companyDomain ?? 'This company'
-    const sourceUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://leadintel.com'
+    const sourceUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://raelinfo.com'
 
     const rows = [
       {

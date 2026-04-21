@@ -11,11 +11,11 @@ import { StatusAutoRefresh } from './status-auto-refresh'
 export const metadata: Metadata = {
   title: 'Status | LeadIntel',
   description: 'Service status and basic health checks for LeadIntel.',
-  alternates: { canonical: 'https://dazrael.com/status' },
+  alternates: { canonical: 'https://raelinfo.com/status' },
   openGraph: {
     title: 'Status | LeadIntel',
     description: 'Service status and basic health checks for LeadIntel.',
-    url: 'https://dazrael.com/status',
+    url: 'https://raelinfo.com/status',
     images: [
       {
         url: '/api/og?title=Status&subtitle=Lightweight%20health%20checks%20(without%20secrets)',

@@ -31,7 +31,7 @@ describe('withApiGuard origin error handling', () => {
       }
     )
 
-    const req = new NextRequest('https://dazrael.com/api/sample-digest', {
+    const req = new NextRequest('https://raelinfo.com/api/sample-digest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', origin: 'https://evil.example' },
       body: JSON.stringify({ companyOrUrl: 'Google' }),

@@ -38,7 +38,7 @@ export function EmailSequence({
   recipientEmail
 }: EmailSequenceProps) {
   const reportCta = useMemo(
-    () => 'View more about our intelligence platform here: https://dazrael.com/competitive-report',
+    () => 'View more about our intelligence platform here: https://raelinfo.com/competitive-report',
     []
   )
   const [sequence, setSequence] = useState<SequenceData | null>(null)

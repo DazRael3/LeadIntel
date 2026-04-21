@@ -84,16 +84,16 @@ export function formatPlatformExamples(): {
   if (windows) {
     return {
       publicAudit: [
-        '$env:AUDIT_BASE_URL = "https://dazrael.com"',
+        '$env:AUDIT_BASE_URL = "https://raelinfo.com"',
         '$env:AUDIT_SCOPE = "public"',
         `& "C:\\Program Files\\nodejs\\${npm}" run audit:ai`,
       ].join('\n'),
       storageCapture: [
-        '$env:AUDIT_BASE_URL = "https://dazrael.com"',
+        '$env:AUDIT_BASE_URL = "https://raelinfo.com"',
         `& "C:\\Program Files\\nodejs\\${npm}" run audit:storage`,
       ].join('\n'),
       fullAudit: [
-        '$env:AUDIT_BASE_URL = "https://dazrael.com"',
+        '$env:AUDIT_BASE_URL = "https://raelinfo.com"',
         '$env:AUDIT_SCOPE = "all"',
         '$env:AUDIT_STORAGE_STATE = "admin-reports/ai-site-audit/storageState.json"',
         `& "C:\\Program Files\\nodejs\\${npm}" run audit:ai`,
@@ -102,10 +102,10 @@ export function formatPlatformExamples(): {
   }
 
   return {
-    publicAudit: ['AUDIT_BASE_URL="https://dazrael.com" AUDIT_SCOPE="public" npm run audit:ai'].join('\n'),
-    storageCapture: ['AUDIT_BASE_URL="https://dazrael.com" npm run audit:storage'].join('\n'),
+    publicAudit: ['AUDIT_BASE_URL="https://raelinfo.com" AUDIT_SCOPE="public" npm run audit:ai'].join('\n'),
+    storageCapture: ['AUDIT_BASE_URL="https://raelinfo.com" npm run audit:storage'].join('\n'),
     fullAudit: [
-      'AUDIT_BASE_URL="https://dazrael.com" AUDIT_SCOPE="all" AUDIT_STORAGE_STATE="admin-reports/ai-site-audit/storageState.json" npm run audit:ai',
+      'AUDIT_BASE_URL="https://raelinfo.com" AUDIT_SCOPE="all" AUDIT_STORAGE_STATE="admin-reports/ai-site-audit/storageState.json" npm run audit:ai',
     ].join('\n'),
   }
 }

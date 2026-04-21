@@ -147,7 +147,7 @@ describe('PitchGenerator', () => {
           JSON.stringify({
             ok: true,
             data: {
-              pitch: 'Hello from pitch https://dazrael.com/competitive-report',
+              pitch: 'Hello from pitch https://raelinfo.com/competitive-report',
               reportCtaHref: '/competitive-report?company=Acme&auto=1',
               warnings: [],
             },

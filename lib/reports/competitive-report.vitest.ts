@@ -23,7 +23,7 @@ describe('generateCompetitiveIntelligenceReport', () => {
     expect(md).toContain('## Suggested 7-touch sequence (email + linkedin + call openers)')
     expect(md).toContain('## Next steps checklist')
     expect(md).toContain('## Verification checklist (to avoid guessing)')
-    expect(md.toLowerCase()).not.toContain('dazrael.com/competitive-report')
+    expect(md.toLowerCase()).not.toContain('/competitive-report')
 
     expect(res.reportJson.sections.length).toBe(10)
   })

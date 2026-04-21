@@ -1,3 +1,5 @@
+const SELF_REFERENTIAL_REPORT_LINK_PATTERN = /https?:\/\/(?:www\.)?[^/\s]+\/competitive-report/i
+
 export function looksLikeEmail(markdown: string): boolean {
   const text = (markdown ?? '').trim()
   if (!text) return false
@@ -11,7 +13,9 @@ export function looksLikeEmail(markdown: string): boolean {
 
   // Self-referential links are a pitch-email artifact; a report should not contain them.
   if (top.includes('view the report here')) return true
-  if (top.includes('dazrael.com/competitive-report')) return true
+  if (SELF_REFERENTIAL_REPORT_LINK_PATTERN.test(top)) {
+    return true
+  }
 
   return false
 }
@@ -21,7 +25,7 @@ export function stripSelfReferentialLinks(markdown: string): string {
   const out: string[] = []
   for (const line of lines) {
     const l = line.toLowerCase()
-    if (l.includes('dazrael.com/competitive-report')) continue
+    if (SELF_REFERENTIAL_REPORT_LINK_PATTERN.test(l)) continue
     if (l.includes('view the report here')) continue
     if (l.includes('view more about our intelligence platform here')) continue
     out.push(line)

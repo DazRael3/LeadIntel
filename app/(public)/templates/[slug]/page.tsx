@@ -10,7 +10,7 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
   const { slug } = await props.params
   const t = getTemplateBySlug(slug)
   if (!t) return {}
-  const url = `https://dazrael.com/templates/${t.slug}`
+  const url = `https://raelinfo.com/templates/${t.slug}`
   return {
     title: `${t.title} | LeadIntel Templates`,
     description: 'Copy/paste outreach template with evidence-based tokens and a clean “why now” angle.',
@@ -41,7 +41,7 @@ export default async function TemplateDetailPage(props: { params: Promise<{ slug
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: t.title,
-    url: `https://dazrael.com/templates/${t.slug}`,
+    url: `https://raelinfo.com/templates/${t.slug}`,
     description: 'Copy/paste outreach template with evidence-based tokens and a clean “why now” angle.',
   }
 

@@ -2,16 +2,16 @@
   "ci": {
     "collect": {
       "url": [
-        "https://dazrael.com/",
-        "https://dazrael.com/pricing",
-        "https://dazrael.com/use-cases",
-        "https://dazrael.com/compare",
-        "https://dazrael.com/tour",
-        "https://dazrael.com/trust",
-        "https://dazrael.com/support",
-        "https://dazrael.com/how-scoring-works",
-        "https://dazrael.com/status",
-        "https://dazrael.com/version"
+        "https://raelinfo.com/",
+        "https://raelinfo.com/pricing",
+        "https://raelinfo.com/use-cases",
+        "https://raelinfo.com/compare",
+        "https://raelinfo.com/tour",
+        "https://raelinfo.com/trust",
+        "https://raelinfo.com/support",
+        "https://raelinfo.com/how-scoring-works",
+        "https://raelinfo.com/status",
+        "https://raelinfo.com/version"
       ],
       "numberOfRuns": 3
     },

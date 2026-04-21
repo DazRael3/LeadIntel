@@ -8,11 +8,11 @@ import { getBuildInfo } from '@/lib/debug/buildInfo'
 export const metadata: Metadata = {
   title: 'Version | LeadIntel',
   description: 'Public, non-sensitive build and version information.',
-  alternates: { canonical: 'https://dazrael.com/version' },
+  alternates: { canonical: 'https://raelinfo.com/version' },
   openGraph: {
     title: 'Version | LeadIntel',
     description: 'Public, non-sensitive build and version information.',
-    url: 'https://dazrael.com/version',
+    url: 'https://raelinfo.com/version',
     images: [
       {
         url: '/api/og?title=Version&subtitle=Public%20build%20information',

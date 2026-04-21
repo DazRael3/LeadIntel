@@ -6,7 +6,7 @@
 import OpenAI from 'openai'
 import { getAppUrl } from '@/lib/app-url'
 
-const DEFAULT_WEBSITE_URL = 'https://leadintel.com'
+const DEFAULT_WEBSITE_URL = 'https://raelinfo.com'
 const WEBSITE_URL =
   typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL && process.env.NEXT_PUBLIC_SITE_URL.trim()
     ? process.env.NEXT_PUBLIC_SITE_URL.trim()
@@ -15,7 +15,7 @@ const WEBSITE_HOST = (() => {
   try {
     return new URL(WEBSITE_URL).hostname
   } catch {
-    return 'leadintel.com'
+    return 'raelinfo.com'
   }
 })()
 
@@ -387,9 +387,8 @@ End with a clear link to ${COMPETITIVE_REPORT_URL} encouraging them to generate 
       .replace(/^View your\s+.*report.*here.*$/gim, ctaLine)
       .replace(/^View it here:\s*https?:\/\/\S+.*$/gim, ctaLine)
       .replace(/specifi\w+/gi, 'specific')
-      .replace(/https?:\/\/dazrael\.com\/competitive-report\/new\S*/gi, COMPETITIVE_REPORT_URL)
-      .replace(/https?:\/\/dazrael\.com\/competitive-report(?!\/new)\S*/gi, COMPETITIVE_REPORT_URL)
-      .replace(/https?:\/\/dazrael\.com(?!\/competitive-report)\S*/gi, getAppUrl())
+      .replace(/https?:\/\/(?:www\.)?[^/\s]+\/competitive-report\/new\S*/gi, COMPETITIVE_REPORT_URL)
+      .replace(/https?:\/\/(?:www\.)?[^/\s]+\/competitive-report(?!\/new)\S*/gi, COMPETITIVE_REPORT_URL)
 
     if (!pitch.includes(COMPETITIVE_REPORT_URL)) {
       pitch = `${pitch.trim()}\n\n${ctaLine}`

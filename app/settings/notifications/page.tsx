@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Email preferences | LeadIntel',
     description: 'Control onboarding tips and digest emails.',
-    url: 'https://dazrael.com/settings/notifications',
+    url: 'https://raelinfo.com/settings/notifications',
     images: [
       {
         url: '/api/og?title=Email%20preferences&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',

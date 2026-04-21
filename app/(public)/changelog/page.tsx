@@ -6,11 +6,11 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'Changelog | LeadIntel',
   description: 'Product updates and notable changes.',
-  alternates: { canonical: 'https://dazrael.com/changelog' },
+  alternates: { canonical: 'https://raelinfo.com/changelog' },
   openGraph: {
     title: 'Changelog | LeadIntel',
     description: 'Product updates and notable changes.',
-    url: 'https://dazrael.com/changelog',
+    url: 'https://raelinfo.com/changelog',
     images: [
       {
         url: '/api/og?title=Changelog&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',

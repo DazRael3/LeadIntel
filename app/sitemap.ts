@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next'
 import { COMPARE_PAGES } from '@/lib/compare/registry'
 import { TEMPLATE_LIBRARY } from '@/lib/templates/registry'
 
-const DEFAULT_BASE_URL = 'https://dazrael.com'
+const DEFAULT_BASE_URL = 'https://raelinfo.com'
 
 // Always include these core routes (content audit depends on their presence).
 const REQUIRED_ROUTES = [

@@ -125,8 +125,8 @@ Keep verification lightweight and production-oriented. Validate the matrix below
 
 ### Apex / www parity (must match)
 For each action below, verify behavior is identical when accessed from:
-- `https://dazrael.com`
-- `https://www.dazrael.com`
+- `https://raelinfo.com`
+- `https://www.raelinfo.com`
 
 **Key POST/actions**
 - Sample digest: `POST /api/sample-digest`
@@ -296,10 +296,10 @@ External scheduler steps (required before claiming these are active):
 1) Configure scheduler auth header on every request:
 - `Authorization: Bearer $EXTERNAL_CRON_SECRET`
 2) Add jobs:
-- prospect ingest: `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50` (2x/day)
-- prospect digest: `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest` (2x/day)
-- sources refresh: `GET https://dazrael.com/api/cron/run?job=sources_refresh&limit=20` (1x/day)
-- webhook delivery worker: `POST https://dazrael.com/api/cron/webhooks` body `{"limit":50}` (every 5-15 minutes)
+- prospect ingest: `GET https://raelinfo.com/api/cron/run?job=prospect_watch&limit=50` (2x/day)
+- prospect digest: `GET https://raelinfo.com/api/cron/run?job=prospect_watch_digest` (2x/day)
+- sources refresh: `GET https://raelinfo.com/api/cron/run?job=sources_refresh&limit=20` (1x/day)
+- webhook delivery worker: `POST https://raelinfo.com/api/cron/webhooks` body `{"limit":50}` (every 5-15 minutes)
 3) Verify run evidence in production:
 - `api.job_runs` rows for each `job_name`
 - `/admin/ops` run-health cards and webhook delivery health

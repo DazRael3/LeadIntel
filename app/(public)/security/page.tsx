@@ -11,12 +11,12 @@ export const metadata: Metadata = {
   title: 'Security | LeadIntel',
   description:
     'How LeadIntel handles authentication, billing, access controls, rate limiting, logging, and data handling.',
-  alternates: { canonical: 'https://dazrael.com/security' },
+  alternates: { canonical: 'https://raelinfo.com/security' },
   openGraph: {
     title: 'Security | LeadIntel',
     description:
       'How LeadIntel handles authentication, billing, access controls, rate limiting, logging, and data handling.',
-    url: 'https://dazrael.com/security',
+    url: 'https://raelinfo.com/security',
     images: [
       {
         url: '/api/og?title=Security&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',
