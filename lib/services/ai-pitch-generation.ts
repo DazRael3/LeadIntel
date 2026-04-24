@@ -57,12 +57,57 @@ type GenerateLeadPitchBundleResult = {
   estimatedCostUsd: number
 }
 
+const OPENAI_MAX_RETRIES = 2
+const OPENAI_RETRY_BASE_DELAY_MS = 300
+
+type RetryableOpenAiError = {
+  status?: number
+  code?: string
+}
+
 function getOpenAiClient(): OpenAI {
   const apiKey = (serverEnv.OPENAI_API_KEY ?? '').trim()
   if (!apiKey) {
     throw new Error('openai_not_configured')
   }
   return new OpenAI({ apiKey })
+}
+
+function isRetryableOpenAiError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const err = error as RetryableOpenAiError
+  const status = typeof err.status === 'number' ? err.status : null
+  const code = typeof err.code === 'string' ? err.code : null
+  if (status === 408 || status === 409 || status === 429) return true
+  if (status !== null && status >= 500 && status <= 599) return true
+  return code === 'rate_limit_exceeded' || code === 'timeout'
+}
+
+async function createCompletionWithRetry(args: {
+  openai: OpenAI
+  prompt: string
+}): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  let attempts = 0
+  while (true) {
+    try {
+      return await args.openai.chat.completions.create({
+        model: AI_PITCH_MODEL,
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: GENERATION_SYSTEM_PROMPT },
+          { role: 'user', content: args.prompt },
+        ],
+      })
+    } catch (error) {
+      if (attempts >= OPENAI_MAX_RETRIES || !isRetryableOpenAiError(error)) {
+        throw error
+      }
+      const backoffMs = OPENAI_RETRY_BASE_DELAY_MS * 2 ** attempts
+      attempts += 1
+      await new Promise((resolve) => setTimeout(resolve, backoffMs))
+    }
+  }
 }
 
 function extractCompletionText(content: string | Array<{ text?: string; type?: string }> | null | undefined): string {
@@ -134,15 +179,9 @@ function buildUserPrompt(args: GenerateLeadPitchBundleArgs): string {
 export async function generateLeadPitchBundle(args: GenerateLeadPitchBundleArgs): Promise<GenerateLeadPitchBundleResult> {
   const promptInput = AiPitchPromptInputSchema.parse(args.promptInput)
   const openai = getOpenAiClient()
-
-  const completion = await openai.chat.completions.create({
-    model: AI_PITCH_MODEL,
-    temperature: 0.3,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: GENERATION_SYSTEM_PROMPT },
-      { role: 'user', content: buildUserPrompt({ ...args, promptInput }) },
-    ],
+  const completion = await createCompletionWithRetry({
+    openai,
+    prompt: buildUserPrompt({ ...args, promptInput }),
   })
 
   const rawContent = extractCompletionText(completion.choices[0]?.message?.content)

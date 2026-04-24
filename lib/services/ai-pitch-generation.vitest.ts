@@ -1,7 +1,28 @@
-import { describe, expect, it } from 'vitest'
-import { AiPitchPromptInputSchema, estimateTokenCostUsd } from '@/lib/services/ai-pitch-generation'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AiPitchPromptInputSchema, estimateTokenCostUsd, generateLeadPitchBundle } from '@/lib/services/ai-pitch-generation'
+
+const completionCreateMock = vi.fn()
+
+vi.mock('openai', () => {
+  class OpenAiMock {
+    chat = {
+      completions: {
+        create: completionCreateMock,
+      },
+    }
+  }
+
+  return {
+    default: OpenAiMock,
+  }
+})
 
 describe('ai-pitch-generation prompt input validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.OPENAI_API_KEY = 'sk-test-openai-key'
+  })
+
   it('accepts optional empty payload', () => {
     const parsed = AiPitchPromptInputSchema.safeParse({})
     expect(parsed.success).toBe(true)
@@ -39,5 +60,67 @@ describe('ai-pitch-generation token cost estimation', () => {
   it('clamps invalid token input to zero-safe estimate', () => {
     const estimate = estimateTokenCostUsd({ promptTokens: -1, completionTokens: Number.NaN })
     expect(estimate).toBe(0)
+  })
+})
+
+describe('ai-pitch-generation retries', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.OPENAI_API_KEY = 'sk-test-openai-key'
+  })
+
+  it('retries retryable OpenAI errors and succeeds', async () => {
+    completionCreateMock
+      .mockRejectedValueOnce({ status: 429, code: 'rate_limit_exceeded' })
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                shortEmailOpener: 'Short opener that is long enough to satisfy validation.',
+                fullColdEmail:
+                  'Full cold email content that is sufficiently long to pass validation and contains context for the lead.',
+                linkedinDm: 'LinkedIn DM content with practical ask and clear relevance.',
+                painPointSummary: 'Pain point summary with clear context and supporting details.',
+                recommendedOfferAngle: 'Offer angle tailored to the account context and goals.',
+                objectionHandlingNotes:
+                  'Handle objections by anchoring on context, reducing risk with scoped pilot, and proposing one measurable next step.',
+              }),
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 200,
+          completion_tokens: 100,
+          total_tokens: 300,
+        },
+      })
+
+    const result = await generateLeadPitchBundle({
+      companyName: 'Acme',
+      companyDomain: 'acme.com',
+      companyUrl: 'https://acme.com',
+      existingPitchDraft: null,
+      promptInput: {},
+    })
+
+    expect(result.outputs.shortEmailOpener).toContain('Short opener')
+    expect(completionCreateMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry non-retryable OpenAI errors', async () => {
+    completionCreateMock.mockRejectedValueOnce({ status: 400, code: 'invalid_request_error' })
+
+    await expect(
+      generateLeadPitchBundle({
+        companyName: 'Acme',
+        companyDomain: 'acme.com',
+        companyUrl: 'https://acme.com',
+        existingPitchDraft: null,
+        promptInput: {},
+      })
+    ).rejects.toBeTruthy()
+
+    expect(completionCreateMock).toHaveBeenCalledTimes(1)
   })
 })
