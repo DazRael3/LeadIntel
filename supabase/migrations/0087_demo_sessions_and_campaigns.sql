@@ -4,6 +4,9 @@ set local search_path = public, extensions, api;
 
 create extension if not exists pgcrypto;
 
+-- Renumbered from 0083 to avoid schema_migrations version collisions.
+-- SQL body is unchanged and remains idempotent.
+
 -- -------------------------------------------------------------------
 -- Demo handoff sessions (server-only claim flow)
 -- -------------------------------------------------------------------
