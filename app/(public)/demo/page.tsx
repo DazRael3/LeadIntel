@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
-import { MarketingPage } from '@/components/marketing/MarketingPage'
-import { TrySampleDigest } from '@/components/landing/TrySampleDigest'
+import { DemoClient } from './DemoClient'
 
 export const metadata: Metadata = {
   title: 'Lead generation demo | LeadIntel',
@@ -14,14 +13,5 @@ export const metadata: Metadata = {
 }
 
 export default function DemoPage() {
-  return (
-    <MarketingPage
-      title="Generate your first leads"
-      subtitle="Search one account, review partial results, then unlock full workflow in dashboard."
-    >
-      <div className="mx-auto max-w-5xl space-y-6">
-        <TrySampleDigest />
-      </div>
-    </MarketingPage>
-  )
+  return <DemoClient />
 }

@@ -74,7 +74,7 @@ describe('/competitive-report page', () => {
     )
 
     expect(screen.getByText(/your latest leadintel report/i)).toBeInTheDocument()
-    expect(screen.getByText(/starter \(limited\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/free \(limited\)/i)).toBeInTheDocument()
     const card = within(screen.getByTestId('latest-report-card'))
     expect(card.getByTestId('report-teaser-masked')).toBeInTheDocument()
     expect(card.getByText(/locked sections in this report/i)).toBeInTheDocument()
