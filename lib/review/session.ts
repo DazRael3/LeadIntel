@@ -1,8 +1,6 @@
 import type { NextRequest, NextResponse } from 'next/server'
 import { signReviewToken, verifyReviewToken } from '@/lib/review/security'
-
-export const REVIEW_SESSION_COOKIE = 'li_review_session'
-export const REVIEW_MODE_COOKIE = 'li_review_mode'
+import { REVIEW_MODE_COOKIE, REVIEW_SESSION_COOKIE, clearReviewSessionCookies } from '@/lib/review/cookies'
 
 export type ReviewSession = {
   linkId: string
@@ -44,9 +42,6 @@ export function setReviewSessionCookies(args: {
   })
 }
 
-export function clearReviewSessionCookies(response: NextResponse): void {
-  const secure = process.env.NODE_ENV === 'production'
-  response.cookies.set(REVIEW_SESSION_COOKIE, '', { path: '/', maxAge: 0, secure, sameSite: 'lax', httpOnly: true })
-  response.cookies.set(REVIEW_MODE_COOKIE, '', { path: '/', maxAge: 0, secure, sameSite: 'lax', httpOnly: false })
-}
+export { REVIEW_MODE_COOKIE, REVIEW_SESSION_COOKIE }
+export { clearReviewSessionCookies }
 
