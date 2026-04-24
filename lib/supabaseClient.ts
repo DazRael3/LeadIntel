@@ -93,6 +93,31 @@ export interface Subscription {
   updated_at: string
 }
 
+export interface AIGeneration {
+  id: string
+  user_id: string
+  lead_id: string
+  generation_type:
+    | 'short_email_opener'
+    | 'full_cold_email'
+    | 'linkedin_dm'
+    | 'pain_point_summary'
+    | 'recommended_offer_angle'
+    | 'objection_handling_notes'
+    | 'pitch_bundle'
+  prompt_input: Record<string, unknown>
+  output_text: string
+  model: string
+  prompt_version: string
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  estimated_cost_usd: number
+  meta: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
 export interface WebsiteVisitor {
   id: string
   ip_address: string

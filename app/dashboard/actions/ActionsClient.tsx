@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
 import { CommentThreadPanel } from '@/components/collab/CommentThreadPanel'
+import { LeadAiPitchPanel } from '@/components/account/LeadAiPitchPanel'
 
 type ActionQueueItem = {
   id: string
@@ -37,6 +38,7 @@ export function ActionsClient() {
   const [loading, setLoading] = useState(true)
   const [deliveringId, setDeliveringId] = useState<string | null>(null)
   const [openCommentsForId, setOpenCommentsForId] = useState<string | null>(null)
+  const [selectedLeadIdForPitch, setSelectedLeadIdForPitch] = useState<string | null>(null)
 
   const readyCount = useMemo(() => items.filter((i) => i.status === 'ready').length, [items])
 
@@ -135,15 +137,49 @@ export function ActionsClient() {
                               <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
                                 Comments
                               </Button>
+                              {typeof i.lead_id === 'string' && i.lead_id.length > 0 ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-xs"
+                                  onClick={() => setSelectedLeadIdForPitch(i.lead_id)}
+                                >
+                                  AI pitches
+                                </Button>
+                              ) : null}
                             </>
                           ) : i.status === 'ready' ? (
-                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
-                              Comments
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                                Comments
+                              </Button>
+                              {typeof i.lead_id === 'string' && i.lead_id.length > 0 ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-xs"
+                                  onClick={() => setSelectedLeadIdForPitch(i.lead_id)}
+                                >
+                                  AI pitches
+                                </Button>
+                              ) : null}
+                            </div>
                           ) : (
-                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
-                              View
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                                View
+                              </Button>
+                              {typeof i.lead_id === 'string' && i.lead_id.length > 0 ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-xs"
+                                  onClick={() => setSelectedLeadIdForPitch(i.lead_id)}
+                                >
+                                  AI pitches
+                                </Button>
+                              ) : null}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -190,19 +226,53 @@ export function ActionsClient() {
                                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
                                     Comments
                                   </Button>
+                                  {typeof i.lead_id === 'string' && i.lead_id.length > 0 ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-xs"
+                                      onClick={() => setSelectedLeadIdForPitch(i.lead_id)}
+                                    >
+                                      AI pitches
+                                    </Button>
+                                  ) : null}
                                 </div>
                               ) : i.status === 'ready' && i.action_type === 'export_delivery' ? (
                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => (window.location.href = '/settings/exports')}>
                                   Open exports
                                 </Button>
                               ) : i.status === 'ready' ? (
-                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
-                                  Comments
-                                </Button>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>
+                                    Comments
+                                  </Button>
+                                  {typeof i.lead_id === 'string' && i.lead_id.length > 0 ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-xs"
+                                      onClick={() => setSelectedLeadIdForPitch(i.lead_id)}
+                                    >
+                                      AI pitches
+                                    </Button>
+                                  ) : null}
+                                </div>
                               ) : i.error ? (
                                 <span className="text-muted-foreground">{i.error}</span>
                               ) : (
-                                <span className="text-muted-foreground">—</span>
+                                <div className="flex flex-wrap gap-2">
+                                  <span className="text-muted-foreground">—</span>
+                                  {typeof i.lead_id === 'string' && i.lead_id.length > 0 ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-xs"
+                                      onClick={() => setSelectedLeadIdForPitch(i.lead_id)}
+                                    >
+                                      AI pitches
+                                    </Button>
+                                  ) : null}
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -215,6 +285,17 @@ export function ActionsClient() {
             )}
           </CardContent>
         </Card>
+
+        {selectedLeadIdForPitch ? (
+          <div className="mt-6">
+            <LeadAiPitchPanel leadId={selectedLeadIdForPitch} companyName={null} />
+            <div className="mt-2 flex justify-end">
+              <Button size="sm" variant="ghost" onClick={() => setSelectedLeadIdForPitch(null)}>
+                Close AI pitches
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {openCommentsForId ? (

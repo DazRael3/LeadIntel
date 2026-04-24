@@ -17,6 +17,8 @@ describe('API Policy', () => {
     'DELETE:/api/tags',
     'POST:/api/leads/[leadId]/tags',
     'DELETE:/api/leads/[leadId]/tags',
+    'GET:/api/leads/[leadId]/ai-pitch',
+    'POST:/api/leads/[leadId]/ai-pitch',
     'POST:/api/stripe/checkout',
     'POST:/api/checkout',
     'GET:/api/history',
