@@ -7,6 +7,7 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import {
   CampaignAttachLeadsSchema,
+  type CampaignRow,
   CampaignUpdateSchema,
   canManageCampaign,
   detachLeadFromCampaign,
@@ -17,6 +18,7 @@ import {
   deleteCampaignRecord,
   attachLeadsToCampaign,
 } from '@/lib/services/campaigns'
+import type { User } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,16 +43,37 @@ const CampaignPostActionSchema = z.discriminatedUnion('action', [
   }),
 ])
 
+type RouteSupabase = ReturnType<typeof createRouteClient>
+type WorkspaceMembership = Awaited<ReturnType<typeof getWorkspaceMembership>>
+type Workspace = NonNullable<Awaited<ReturnType<typeof getCurrentWorkspace>>>
+
+type CampaignContextSuccess = {
+  ok: true
+  bridge: ReturnType<typeof createCookieBridge>
+  user: User
+  supabase: RouteSupabase
+  workspace: Workspace
+  membership: NonNullable<WorkspaceMembership>
+  campaign: CampaignRow
+}
+
+type CampaignContextError = {
+  ok: false
+  bridge: ReturnType<typeof createCookieBridge>
+  response: ReturnType<typeof fail>
+}
+
 async function resolveCampaignContext(args: {
   request: NextRequest
   campaignId: string
   requestId: string
-}) {
+}): Promise<CampaignContextSuccess | CampaignContextError> {
   const bridge = createCookieBridge()
   const supabase = createRouteClient(args.request, bridge)
   const user = await getUserSafe(supabase)
   if (!user) {
     return {
+      ok: false,
       bridge,
       response: fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, args.requestId),
     }
@@ -60,6 +83,7 @@ async function resolveCampaignContext(args: {
   const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
   if (!workspace) {
     return {
+      ok: false,
       bridge,
       response: fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, args.requestId),
     }
@@ -68,6 +92,7 @@ async function resolveCampaignContext(args: {
   const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
   if (!membership) {
     return {
+      ok: false,
       bridge,
       response: fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, args.requestId),
     }
@@ -80,12 +105,14 @@ async function resolveCampaignContext(args: {
   })
   if (!campaign) {
     return {
+      ok: false,
       bridge,
       response: fail(ErrorCode.NOT_FOUND, 'Campaign not found', undefined, { status: 404 }, bridge, args.requestId),
     }
   }
 
   return {
+    ok: true,
     bridge,
     user,
     supabase,
@@ -115,7 +142,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ campaig
         campaignId,
         requestId,
       })
-      if ('response' in context) return context.response
+      if (!context.ok) return context.response
 
       const joins = await listCampaignLeadJoins({
         supabase: context.supabase,
@@ -171,7 +198,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ campa
           campaignId,
           requestId,
         })
-        if ('response' in context) return context.response
+        if (!context.ok) return context.response
 
         if (!canManageCampaign(context.membership.role, context.campaign.created_by, context.user.id)) {
           return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, context.bridge, requestId)
@@ -216,7 +243,7 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ camp
         campaignId,
         requestId,
       })
-      if ('response' in context) return context.response
+      if (!context.ok) return context.response
 
       if (!canManageCampaign(context.membership.role, context.campaign.created_by, context.user.id)) {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, context.bridge, requestId)
@@ -260,7 +287,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ campai
           campaignId,
           requestId,
         })
-        if ('response' in context) return context.response
+        if (!context.ok) return context.response
 
         if (!canManageCampaign(context.membership.role, context.campaign.created_by, context.user.id)) {
           return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, context.bridge, requestId)

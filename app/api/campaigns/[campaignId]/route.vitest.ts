@@ -192,7 +192,8 @@ describe('/api/campaigns/[campaignId]', () => {
     const { POST } = await import('./export/route')
     const req = new NextRequest('http://localhost:3000/api/campaigns/campaign_1/export', {
       method: 'POST',
-      headers: { origin: 'http://localhost:3000' },
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({}),
     })
     const res = await POST(req, { params: Promise.resolve({ campaignId: '247f89b6-0ff6-4f8a-9f89-fa3e0c8b4ac4' }) })
     expect(res.status).toBe(403)

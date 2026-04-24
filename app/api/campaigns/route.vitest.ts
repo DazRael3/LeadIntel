@@ -7,7 +7,9 @@ let mockUser: { id: string; email?: string | null } | null = { id: 'user_1', ema
 let mockMembershipRole: 'owner' | 'admin' | 'manager' | 'rep' | 'viewer' | null = 'owner'
 let mockWorkspaceId: string | null = 'ws_1'
 let mockCampaigns: Array<Record<string, unknown>> = []
-let availableLeadIds = new Set<string>(['lead_1', 'lead_2'])
+const LEAD_ID_1 = '8ee95b88-e2d5-401f-8bdc-1b0592afb573'
+const LEAD_ID_2 = '1e7f934f-cd5f-442d-8d81-b6d2cadfa3cb'
+let availableLeadIds = new Set<string>([LEAD_ID_1, LEAD_ID_2])
 
 const createCampaignRecordMock = vi.fn(async () => {
   return {
@@ -101,7 +103,7 @@ describe('/api/campaigns', () => {
     mockMembershipRole = 'owner'
     mockWorkspaceId = 'ws_1'
     mockCampaigns = []
-    availableLeadIds = new Set<string>(['lead_1', 'lead_2'])
+    availableLeadIds = new Set<string>([LEAD_ID_1, LEAD_ID_2])
   })
 
   it('creates campaign with attached leads', async () => {
@@ -109,7 +111,7 @@ describe('/api/campaigns', () => {
     const req = new NextRequest('http://localhost:3000/api/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
-      body: JSON.stringify({ name: 'Q2 Campaign', leadIds: ['lead_1'] }),
+      body: JSON.stringify({ name: 'Q2 Campaign', leadIds: [LEAD_ID_1] }),
     })
     const res = await POST(req)
     expect(res.status).toBe(201)
@@ -120,12 +122,12 @@ describe('/api/campaigns', () => {
   })
 
   it('rejects when attached leads are not all owned', async () => {
-    availableLeadIds = new Set<string>(['lead_1'])
+    availableLeadIds = new Set<string>([LEAD_ID_1])
     const { POST } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
-      body: JSON.stringify({ name: 'Q2 Campaign', leadIds: ['lead_1', 'lead_2'] }),
+      body: JSON.stringify({ name: 'Q2 Campaign', leadIds: [LEAD_ID_1, LEAD_ID_2] }),
     })
     const res = await POST(req)
     expect(res.status).toBe(403)
