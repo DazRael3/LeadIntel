@@ -21,7 +21,8 @@ import {
   X,
   Download,
   Eye,
-  Star
+  Star,
+  Trash2
 } from "lucide-react"
 import { LeadDetailView } from "@/components/LeadDetailView"
 import { addLeadToWatchlist } from "@/components/Watchlist"
@@ -29,9 +30,27 @@ import { computeStarterLeadUsage, STARTER_MAX_LEADS } from '@/lib/billing/leads-
 import { COPY } from "@/lib/copy/leadintel"
 import { markUpgradeNudgeShown, shouldShowUpgradeNudge } from '@/lib/growth/nudge-cap'
 import { getActiveWorkspaceIdForUser, ensureDefaultWatchlist, listWatchlistItems, removeLeadFromWatchlist as removeLeadFromWatchlistV2 } from "@/lib/watchlists-v2/service"
+import { LeadGenerationWorkflow } from "@/components/LeadGenerationWorkflow"
 
 type WatchlistRow = {
   lead_id: string
+}
+
+type LeadFitSummary = {
+  score: number | null
+  explanation: string
+}
+
+function parseLeadFitSummary(pitch: string): LeadFitSummary {
+  const firstLine = pitch.split('\n')[0] ?? ''
+  const matched = firstLine.match(/^\[LeadIntel Fit (\d{1,3})\/100\]\s*(.+)$/)
+  if (!matched) return { score: null, explanation: '' }
+  const score = Number.parseInt(matched[1], 10)
+  if (!Number.isFinite(score)) return { score: null, explanation: matched[2] ?? '' }
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    explanation: (matched[2] ?? '').trim(),
+  }
 }
 
 interface LeadLibraryProps {
@@ -45,10 +64,11 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
   const { leads, isLoading: loading, error, refresh } = useLeadLibrary()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedEventType, setSelectedEventType] = useState<string | null>(null)
-  const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null)
+  const [minFitScore, setMinFitScore] = useState<number>(0)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [starredLeads, setStarredLeads] = useState<Set<string>>(new Set())
+  const [isDeletingLeadId, setIsDeletingLeadId] = useState<string | null>(null)
 
   const loadStarredLeads = useCallback(async () => {
     if (!isPro) return
@@ -153,7 +173,7 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
     }
   }
 
-  // Get unique event types and industries
+  // Get unique event types
   const eventTypes = useMemo(() => {
     const types = new Set(
       leads
@@ -162,12 +182,6 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
     )
     return Array.from(types).sort()
   }, [leads])
-
-  const industries = useMemo(() => {
-    // Extract industry from company name or use placeholder
-    // In production, you'd have an industry field
-    return ['Technology', 'Finance', 'Healthcare', 'Manufacturing', 'Retail']
-  }, [])
 
   // Filter and sort leads based on view mode
   const filteredLeads = useMemo(() => {
@@ -202,6 +216,14 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
       })
     }
 
+    if (minFitScore > 0) {
+      filtered = filtered.filter((lead) => {
+        const parsed = parseLeadFitSummary(lead.ai_personalized_pitch)
+        const score = typeof lead.fit_score === 'number' ? lead.fit_score : parsed.score ?? 0
+        return score >= minFitScore
+      })
+    }
+
     // Industry filter (placeholder - would use actual industry field)
     // For now, skip industry filter
 
@@ -214,7 +236,7 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
     })
 
     return filtered
-  }, [leads, searchQuery, selectedEventType, isPro])
+  }, [leads, searchQuery, selectedEventType, isPro, minFitScore])
 
   const handleCopyPitch = async (pitch: string, leadId: string) => {
     try {
@@ -226,18 +248,43 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
     }
   }
 
+  const handleDeleteLead = async (leadId: string) => {
+    setIsDeletingLeadId(leadId)
+    try {
+      const response = await fetch('/api/leads/discover', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId }),
+      })
+      if (!response.ok) {
+        throw new Error('delete_failed')
+      }
+      await refresh()
+    } catch {
+      // Intentionally fail-soft in UI; list is still refreshable.
+    } finally {
+      setIsDeletingLeadId(null)
+    }
+  }
+
   const exportLeads = () => {
     const csv = [
-      ['Company', 'Domain', 'URL', 'Latest Signal', 'Created At'].join(','),
-      ...filteredLeads.map(lead =>
-        [
+      ['Company', 'Domain', 'URL', 'Contact Email', 'Fit Score', 'Fit Explanation', 'Latest Signal', 'Created At'].join(','),
+      ...filteredLeads.map((lead) => {
+        const parsed = parseLeadFitSummary(lead.ai_personalized_pitch ?? '')
+        const fitScore = typeof lead.fit_score === 'number' ? String(lead.fit_score) : parsed.score !== null ? String(parsed.score) : ''
+        const fitExplanation = parsed.explanation
+        return [
           `"${lead.company_name}"`,
           `"${lead.company_domain || ''}"`,
           `"${lead.company_url || ''}"`,
+          `"${lead.prospect_email || ''}"`,
+          `"${fitScore}"`,
+          `"${fitExplanation.replace(/"/g, '""')}"`,
           `"${((lead as unknown as { latestSignal?: { type?: string; detectedAt?: string } }).latestSignal?.type ?? '')}"`,
-          `"${lead.created_at}"`
+          `"${lead.created_at}"`,
         ].join(',')
-      )
+      }),
     ].join('\n')
 
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -295,6 +342,8 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
           <StarterLimitNudge />
         ) : null}
 
+        <LeadGenerationWorkflow onGenerated={() => refresh()} />
+
         {/* Search and Filters */}
         <div className="space-y-3">
           <div className="relative">
@@ -336,14 +385,28 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
               ))}
             </div>
 
+            <div className="flex gap-2 flex-wrap">
+              {[0, 60, 80].map((score) => (
+                <Button
+                  key={`fit-${score}`}
+                  size="sm"
+                  variant={minFitScore === score ? 'default' : 'outline'}
+                  onClick={() => setMinFitScore(score)}
+                  className="h-7 text-xs"
+                >
+                  {score === 0 ? 'All Fits' : `Fit ${score}+`}
+                </Button>
+              ))}
+            </div>
+
             {/* Clear Filters */}
-            {(selectedEventType || selectedIndustry) && (
+            {(selectedEventType || minFitScore > 0) && (
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => {
                   setSelectedEventType(null)
-                  setSelectedIndustry(null)
+                  setMinFitScore(0)
                 }}
                 className="h-7 text-xs"
               >
@@ -402,7 +465,7 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
                     onClick={() => {
                       setSearchQuery('')
                       setSelectedEventType(null)
-                      setSelectedIndustry(null)
+                      setMinFitScore(0)
                     }}
                   >
                     {COPY.states.empty.noResults.primary}
@@ -420,6 +483,8 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
               <thead>
                 <tr className="border-b border-cyan-500/20">
                   <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Company</th>
+                  <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Fit</th>
+                  <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Why Fit</th>
                   <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Latest Signal</th>
                   <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Date</th>
                   <th className="text-left py-3 px-4 text-cyan-400 uppercase text-xs tracking-wider">Actions</th>
@@ -434,6 +499,8 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
                     viewMode === 'startup'
                       ? 'border-l-2 border-l-green-500/10'
                       : 'border-l-2 border-l-blue-500/10'
+                  const fitSummary = parseLeadFitSummary(lead.ai_personalized_pitch ?? '')
+                  const fitScore = typeof lead.fit_score === 'number' ? lead.fit_score : fitSummary.score
                   
                   return (
                     <tr
@@ -448,6 +515,25 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
                           {lead.company_domain ? (
                             <div className="text-xs text-muted-foreground">{lead.company_domain}</div>
                           ) : null}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${
+                            (fitScore ?? 0) >= 80
+                              ? 'border-green-500/30 text-green-300 bg-green-500/10'
+                              : (fitScore ?? 0) >= 60
+                                ? 'border-yellow-500/30 text-yellow-300 bg-yellow-500/10'
+                                : 'border-cyan-500/30 text-cyan-300 bg-cyan-500/10'
+                          }`}
+                        >
+                          {fitScore !== null && fitScore !== undefined ? `${fitScore}/100` : 'n/a'}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 max-w-[220px]">
+                        <div className={`text-xs text-muted-foreground line-clamp-2 ${shouldBlur ? 'blur-sm' : ''}`}>
+                          {fitSummary.explanation || 'Fit explanation unavailable.'}
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -524,6 +610,16 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
                                 Copy
                               </>
                             )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void handleDeleteLead(lead.id)}
+                            className="h-7 text-xs hover:bg-red-500/10 text-red-400 whitespace-nowrap"
+                            disabled={shouldBlur || isDeletingLeadId === lead.id}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            {isDeletingLeadId === lead.id ? 'Deleting' : 'Delete'}
                           </Button>
                         </div>
                       </td>
