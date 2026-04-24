@@ -20,6 +20,7 @@ import { renderAdminNotificationEmail } from '@/lib/email/internal'
 import { getResendReplyToEmail } from '@/lib/email/routing'
 import { recordStripeWebhookEventIfFirst } from '@/lib/webhooks/stripe-idempotency'
 import { resolveUserSubscriptionTierFromStripe } from '@/lib/billing/stripe-subscription-tier'
+import { logProductEvent } from '@/lib/services/analytics'
 
 /**
  * Stripe Webhook Handler
@@ -187,6 +188,25 @@ export const POST = withApiGuard(
             })
             recordCounter('webhook.stripe.error', 1, { stage: 'upsert_subscription' })
             captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
+          }
+
+          if (userId) {
+            try {
+              await logProductEvent({
+                userId,
+                eventName: 'subscription_created',
+                eventProps: {
+                  source: 'stripe_webhook',
+                  eventType: event.type,
+                  status: subscription.status,
+                  subscriptionTier: resolvedSubscriptionTier,
+                  stripePriceId: subscriptionPriceId,
+                  stripeCustomerId: customerId,
+                },
+              })
+            } catch {
+              // best-effort
+            }
           }
 
           // Best-effort: send upgrade confirmation email (deduped) + mark lifecycle_state.

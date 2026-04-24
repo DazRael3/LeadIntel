@@ -84,6 +84,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
     try {
       if (mode === 'signup') {
         track('signup_submitted')
+        track('signup_started', { source: 'auth_form', mode: 'signup' })
         // Sign up with email confirmation redirect
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,

@@ -60,7 +60,7 @@ export function PublicMobileNavMenu(props: { isLoggedIn: boolean; onNavigate?: (
               <CardContent className="space-y-3 text-sm">
                 <nav className="grid grid-cols-2 gap-2">
                   <MenuLink href="/pricing" label="Pricing" icon={<DollarSign className="h-4 w-4" />} onClick={close} />
-                  <MenuLink href="/contact" label="Book demo" icon={<Briefcase className="h-4 w-4" />} onClick={close} />
+                  <MenuLink href="/demo" label="Lead demo" icon={<Briefcase className="h-4 w-4" />} onClick={close} />
                   <MenuLink href="/use-cases" label="Use Cases" icon={<Briefcase className="h-4 w-4" />} onClick={close} />
                   <MenuLink href="/tour" label="Tour" icon={<Compass className="h-4 w-4" />} onClick={close} />
                   <MenuLink href="/trust" label="Trust" icon={<ShieldCheck className="h-4 w-4" />} onClick={close} />

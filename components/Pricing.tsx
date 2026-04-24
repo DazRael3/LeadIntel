@@ -217,6 +217,12 @@ export function Pricing() {
     try {
       track('pricing_cta_clicked', { source: 'pricing', planId })
       track('upgrade_clicked', { source: 'pricing', planId, billingCycle, seats: planId === 'team' ? teamSeats : undefined })
+      track('checkout_started', {
+        source: 'pricing',
+        planId,
+        billingCycle,
+        seats: planId === 'team' ? teamSeats : undefined,
+      })
       // Check authentication before calling /api/checkout
       const user = await getUserSafe(supabase)
       if (!user) {

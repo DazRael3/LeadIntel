@@ -93,8 +93,9 @@ export function TopNav() {
               asChild
               variant="ghost"
               className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
+              onClick={() => track('demo_started', { source: 'top_nav', cta: 'generate_first_leads' })}
             >
-              <Link href="/pricing">Pricing</Link>
+              <Link href="/demo">Generate My First Leads</Link>
             </Button>
             <Button
               asChild
@@ -102,7 +103,7 @@ export function TopNav() {
               className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
               onClick={() => track('public_nav_cta_clicked', { cta: 'book_demo' })}
             >
-              <Link href="/contact">Book demo</Link>
+              <Link href="/demo">Book demo</Link>
             </Button>
             <Button
               asChild

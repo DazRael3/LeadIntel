@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { JsonLd } from '@/components/seo/JsonLd'
 import PricingClientPage from './PricingClientPage'
+import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 
 export const metadata: Metadata = {
   title: 'Pricing | LeadIntel',
@@ -104,6 +105,7 @@ export default function PricingPage() {
 
   return (
     <>
+      <PageViewTrack event="pricing_variant_seen" props={{ surface: 'pricing_page' }} />
       <JsonLd data={offersJsonLd} />
       <JsonLd data={faqJsonLd} />
       <PricingClientPage />

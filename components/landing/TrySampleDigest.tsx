@@ -182,6 +182,12 @@ export function TrySampleDigest() {
       deviceClass,
       host,
     })
+    track('demo_started', {
+      source: 'landing_try_sample',
+      hasEmailRequested: wantsEmail,
+      deviceClass,
+      host,
+    })
     track('sample_started', { source: 'landing_try_sample' })
     if (wantsEmail) track('landing_sample_email_requested')
 
@@ -215,6 +221,12 @@ export function TrySampleDigest() {
 
       setResult(payload.data)
       track('landing_sample_generated', { score: payload.data.sample.score, deviceClass, host })
+      track('lead_search_completed', {
+        source: 'landing_try_sample',
+        score: payload.data.sample.score,
+        deviceClass,
+        host,
+      })
       track('sample_completed', { score: payload.data.sample.score })
       if (payload.data.email.requested && payload.data.email.sent) {
         track('landing_sample_email_sent')
@@ -438,6 +450,12 @@ export function TrySampleDigest() {
                     onClick={() => track('cta_signup_clicked', { source: 'sample_next_steps' })}
                   >
                     <Link
+                      onClick={() =>
+                        track('signup_started', {
+                          source: 'sample_next_steps',
+                          redirect: '/onboarding',
+                        })
+                      }
                       href={`/signup?redirect=${encodeURIComponent(
                         `/onboarding?from=sample&company=${encodeURIComponent(companyOrUrl.trim() || result.sample.company)}`
                       )}`}

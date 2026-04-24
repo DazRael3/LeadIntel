@@ -11,7 +11,7 @@ export const COPY = {
       subhead:
         'LeadIntel turns fresh buying signals into a daily shortlist, an explainable 0–100 score, and review-first draft copy SDRs and AEs can personalize and send without starting from a blank page.',
       support: 'Track target accounts, see why now, and take action from one workspace.',
-      primaryCta: 'Generate a sample digest',
+      primaryCta: 'Generate My First Leads',
       secondaryCta: 'See pricing',
       microTrust: 'No signup required for the sample.',
     },

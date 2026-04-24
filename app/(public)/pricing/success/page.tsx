@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CheckCircle, Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatErrorMessage } from '@/lib/utils/format-error'
+import { track } from '@/lib/analytics'
 
 type PollStatus = 'pending' | 'pro' | 'timeout' | 'error'
 
@@ -46,6 +47,7 @@ function PricingSuccessContent() {
           if (!cancelled) {
             setStatus('pro')
             setError(null)
+            track('subscription_created', { source: 'pricing_success', sessionIdPresent: Boolean(sessionId) })
             setTimeout(() => router.push('/dashboard'), 800)
           }
           return
