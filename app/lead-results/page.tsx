@@ -5,6 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { LeadResultsPageTrack } from '@/components/funnel/LeadResultsPageTrack'
+import { cookies } from 'next/headers'
+import { DEMO_HANDOFF_COOKIE } from '@/lib/demo/handoff'
+import { claimDemoHandoffFromCookieToken } from '@/lib/demo/claim'
 
 export const metadata: Metadata = {
   title: 'Lead Results | LeadIntel',
@@ -21,6 +24,21 @@ export default async function LeadResultsPage() {
 
   if (!user) {
     redirect('/login?mode=signin&redirect=/lead-results')
+  }
+
+  // Safety-net claim for direct login flows that bypass the email callback route.
+  try {
+    const cookieStore = await cookies()
+    const handoffToken = cookieStore.get(DEMO_HANDOFF_COOKIE)?.value ?? null
+    if (handoffToken) {
+      await claimDemoHandoffFromCookieToken({
+        token: handoffToken,
+        userId: user.id,
+        supabase,
+      })
+    }
+  } catch {
+    // Never block lead-results render on best-effort handoff claim.
   }
 
   return (

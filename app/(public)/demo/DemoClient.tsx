@@ -44,7 +44,7 @@ export function DemoClient() {
         body: JSON.stringify({ companyOrUrl: companyOrUrl.trim() }),
       })
       const json = (await res.json().catch(() => null)) as
-        | { ok?: true; data?: { sample?: DemoSearchResult } }
+        | { ok?: true; data?: { sample?: DemoSearchResult; handoff?: { stored?: boolean } } }
         | { ok?: false; error?: { message?: string } }
         | null
 
@@ -58,6 +58,7 @@ export function DemoClient() {
         source: 'demo_page',
         score: json.data.sample.score,
         companyLen: json.data.sample.company.length,
+        handoffStored: Boolean(json.data.handoff?.stored),
       })
     } catch {
       setError('Search failed. Try another company.')

@@ -6,9 +6,9 @@ import { generateSampleDigest } from '@/lib/sampleDigest'
 import { checkPublicRateLimit } from '@/lib/rateLimit'
 import { sendEmailWithResend } from '@/lib/email/resend'
 import { serverEnv } from '@/lib/env'
-import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { parseTarget } from '@/lib/onboarding/targets'
 import { getResendReplyToEmail } from '@/lib/email/routing'
+import { createDemoSessionHandoff, setDemoHandoffCookie } from '@/lib/demo/handoff'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +59,17 @@ export const POST = withApiGuard(
       }
 
       const sample = generateSampleDigest(target.name)
+      const handoff = await createDemoSessionHandoff({
+        request,
+        payload: {
+          version: 1,
+          capturedAt: new Date().toISOString(),
+          companyName: target.name,
+          companyDomain: target.domain,
+          companyUrl: target.url,
+          sample,
+        },
+      })
 
       const emailRequested = Boolean(parsed.emailMe) && typeof parsed.email === 'string' && parsed.email.length > 0
       let emailSent = false
@@ -122,9 +133,12 @@ export const POST = withApiGuard(
         }
       }
 
-      return ok(
+      const response = ok(
         {
           sample,
+          handoff: {
+            stored: Boolean(handoff),
+          },
           email: {
             requested: emailRequested,
             sent: emailSent,
@@ -135,6 +149,10 @@ export const POST = withApiGuard(
         bridge,
         requestId
       )
+      if (handoff) {
+        setDemoHandoffCookie({ response, token: handoff.token })
+      }
+      return response
     } catch (err) {
       return asHttpError(err, '/api/sample-digest', undefined, bridge, requestId)
     }

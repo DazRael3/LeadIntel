@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { CampaignPageTrack } from '@/components/funnel/CampaignPageTrack'
+import { CampaignPageClient } from './CampaignPageClient'
 
 export const metadata: Metadata = {
   title: 'Campaign | LeadIntel',
@@ -34,6 +35,8 @@ export default async function CampaignPage() {
             Build campaigns from high-fit leads, sequence outreach, and move execution into Actions.
           </p>
         </header>
+
+        <CampaignPageClient />
 
         <Card className="border-cyan-500/20 bg-card/50">
           <CardHeader>
