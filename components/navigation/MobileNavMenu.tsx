@@ -82,6 +82,7 @@ export function MobileNavMenu() {
                     </>
                   ) : null}
                   <MenuLink href="/learn" label="Learn" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)} />
+                  <MenuLink href="/settings/billing" label="Billing" icon={<DollarSign className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   {showTeam ? (
                     <MenuLink href="/settings/experiments" label="Experiments" icon={<FlaskConical className="h-4 w-4" />} onClick={() => setOpen(false)} />
                   ) : null}

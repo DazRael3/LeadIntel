@@ -52,6 +52,14 @@ const CheckoutBodySchema = z.object({
     .optional(),
 })
 
+function normalizeCheckoutPlanId(rawPlanId: string): PaidPlanId | null {
+  const normalized = rawPlanId.trim().toLowerCase()
+  if (normalized === 'pro' || normalized === 'closer') return 'pro'
+  if (normalized === 'agency' || normalized === 'team') return 'team'
+  if (normalized === 'closer_plus') return 'closer_plus'
+  return null
+}
+
 const POST_GUARDED = withApiGuard(
   async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
@@ -120,14 +128,7 @@ const POST_GUARDED = withApiGuard(
     const isOwnerDebug = isHouseCloserEmail(user.email ?? null, process.env.HOUSE_CLOSER_EMAILS)
 
     const rawPlanId = parsedBody.planId
-    const planId: PaidPlanId | null =
-      rawPlanId === 'pro' || rawPlanId === 'closer'
-        ? 'pro'
-        : rawPlanId === 'closer_plus'
-          ? 'closer_plus'
-          : rawPlanId === 'team'
-            ? 'team'
-            : null
+    const planId = normalizeCheckoutPlanId(rawPlanId)
 
     if (!planId) {
       return fail(
@@ -295,6 +296,7 @@ const POST_GUARDED = withApiGuard(
           user_id: user.id,
           email: user.email ?? '',
           plan_id: planId,
+          product_plan: planId === 'team' ? 'agency' : 'pro',
           billing_cycle: billingCycle,
           seats: typeof seats === 'number' ? String(seats) : '',
         },

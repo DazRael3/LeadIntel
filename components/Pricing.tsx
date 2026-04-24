@@ -148,18 +148,18 @@ export function Pricing() {
   }, [])
 
   const currentPlanLabel =
-    tier === 'team' ? 'Team' : tier === 'closer_plus' ? 'Closer+' : tier === 'closer' ? 'Closer' : 'Starter'
+    tier === 'team' ? 'Agency' : tier === 'closer_plus' ? 'Pro+' : tier === 'closer' ? 'Pro' : 'Free'
 
   const recommendedTarget: PaidPlanId | null =
     tier === 'starter' ? 'pro' : tier === 'closer' ? 'closer_plus' : tier === 'closer_plus' ? 'team' : null
 
   const recommendedLabel =
     recommendedTarget === 'pro'
-      ? 'Upgrade to Closer'
+      ? 'Upgrade to Pro'
       : recommendedTarget === 'closer_plus'
-        ? 'Upgrade to Closer+'
+        ? 'Upgrade to Pro+'
         : recommendedTarget === 'team'
-          ? 'Upgrade to Team'
+          ? 'Upgrade to Agency'
           : null
 
   const recommendedAnchor =
@@ -428,7 +428,7 @@ export function Pricing() {
           <div id="plan-starter">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
-              <CardTitle className="text-2xl bloomberg-font">Starter</CardTitle>
+              <CardTitle className="text-2xl bloomberg-font">Free</CardTitle>
               <div className="mt-1 text-xs font-semibold text-muted-foreground">Validate the workflow</div>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">$0</span>
@@ -481,7 +481,7 @@ export function Pricing() {
 
             <CardHeader className="relative z-10">
               <div className="flex items-center justify-between mb-2">
-                <CardTitle className="text-2xl bloomberg-font">Closer</CardTitle>
+              <CardTitle className="text-2xl bloomberg-font">Pro</CardTitle>
                 <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Most Popular</Badge>
               </div>
               <div className="text-xs font-semibold text-muted-foreground">Daily prioritization and faster execution</div>
@@ -562,7 +562,7 @@ export function Pricing() {
                 ) : (
                   <>
                     <Zap className="h-5 w-5 mr-2" />
-                    Upgrade to Closer
+                    Upgrade to Pro
                   </>
                 )}
               </Button>
@@ -579,7 +579,7 @@ export function Pricing() {
               <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-500/20 to-transparent w-32 h-32 blur-3xl" />
               <CardHeader className="relative z-10">
                 <div className="flex items-center justify-between mb-2">
-                  <CardTitle className="text-2xl bloomberg-font">Closer+</CardTitle>
+                  <CardTitle className="text-2xl bloomberg-font">Pro+</CardTitle>
                   <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/25">Power user</Badge>
                 </div>
                 <div className="text-xs font-semibold text-muted-foreground">Deeper context for operators</div>
@@ -603,7 +603,7 @@ export function Pricing() {
                       <Check className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <p className="font-medium">Everything in Closer</p>
+                      <p className="font-medium">Everything in Pro</p>
                       <p className="text-sm text-muted-foreground">Plus deeper competitive report workflow</p>
                     </div>
                   </li>
@@ -640,7 +640,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <TrendingUp className="h-5 w-5 mr-2" />
-                      Upgrade to Closer+
+                      Upgrade to Pro+
                     </>
                   )}
                 </Button>
@@ -654,7 +654,7 @@ export function Pricing() {
               <div className="absolute top-0 left-0 bg-gradient-to-r from-slate-500/10 to-transparent w-32 h-32 blur-3xl" />
               <CardHeader className="relative z-10">
                 <div className="flex items-center justify-between mb-2">
-                  <CardTitle className="text-2xl bloomberg-font">Team</CardTitle>
+                  <CardTitle className="text-2xl bloomberg-font">Agency</CardTitle>
                   <Badge className="bg-slate-500/10 text-slate-200 border-slate-500/20">Seats</Badge>
                 </div>
                 <div className="text-xs font-semibold text-muted-foreground">Governance and rollout</div>
@@ -689,7 +689,7 @@ export function Pricing() {
                     value={teamSeats}
                     onChange={(e) => setTeamSeats(Number(e.target.value))}
                     className="w-full"
-                    aria-label="Team seat count"
+                    aria-label="Agency seat count"
                   />
                   <div className="text-[11px] text-muted-foreground">
                     Checkout uses seat quantity. If you configure base + seat prices, we’ll include both line items.
@@ -749,7 +749,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <Shield className="h-5 w-5 mr-2" />
-                      Start Team
+                      Start Agency
                     </>
                   )}
                 </Button>
@@ -779,7 +779,7 @@ export function Pricing() {
                     ['More tracked accounts', 'Move from a sample workflow to daily execution across your watchlist.'],
                     ['Full pitch/report access', 'Unlock full content and reuse outputs without locked sections.'],
                     ['Saved workflow outputs', 'Keep briefs, reports, and drafts available for reopening and iteration.'],
-                    ['Team standardization', 'Shared templates and approvals keep messaging consistent across reps.'],
+                    ['Agency standardization', 'Shared templates and approvals keep messaging consistent across reps.'],
                     ['Webhook/export operations', 'Handoff packages, workspace queue, and delivery history to fit your operating system.'],
                     ['Audit visibility', 'Admin visibility for governance and rollout workflows.'],
                   ].map(([reason, detail]) => (
@@ -829,9 +829,9 @@ export function Pricing() {
                 </div>
               </div>
               <div>
-                <div className="font-medium text-foreground">How do Team seats work?</div>
+                <div className="font-medium text-foreground">How do Agency seats work?</div>
                 <div className="mt-1">
-                  Team includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later
+                  Agency includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later
                   in Stripe.
                 </div>
               </div>

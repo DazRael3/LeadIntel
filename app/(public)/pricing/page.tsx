@@ -33,28 +33,28 @@ export default function PricingPage() {
       itemListElement: [
         {
           '@type': 'Offer',
-          name: 'Starter',
+          name: 'Free',
           price: '0',
           priceCurrency: 'USD',
           url: 'https://dazrael.com/pricing',
         },
         {
           '@type': 'Offer',
-          name: 'Closer',
+          name: 'Pro',
           price: '79',
           priceCurrency: 'USD',
           url: 'https://dazrael.com/pricing',
         },
         {
           '@type': 'Offer',
-          name: 'Closer+',
+          name: 'Pro+',
           price: '149',
           priceCurrency: 'USD',
           url: 'https://dazrael.com/pricing',
         },
         {
           '@type': 'Offer',
-          name: 'Team (base)',
+          name: 'Agency (base)',
           price: '249',
           priceCurrency: 'USD',
           url: 'https://dazrael.com/pricing',
@@ -85,10 +85,10 @@ export default function PricingPage() {
       },
       {
         '@type': 'Question',
-        name: 'How do Team seats work?',
+        name: 'How do Agency seats work?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'Team includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later in Stripe.',
+          text: 'Agency includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later in Stripe.',
         },
       },
       {

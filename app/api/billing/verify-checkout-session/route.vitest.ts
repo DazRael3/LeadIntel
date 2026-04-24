@@ -54,6 +54,12 @@ vi.mock('@/lib/supabase/route', () => ({
 }))
 
 const adminUpdateEq = vi.fn(async () => ({ error: null }))
+const adminUpdate = vi.fn((payload: { subscription_tier?: string }) => ({
+  eq: async (_col: string, id: string) => {
+    db.api.users.set(id, { ...(db.api.users.get(id) ?? {}), ...payload })
+    return adminUpdateEq()
+  },
+}))
 const adminUpsert = vi.fn(async () => ({ error: null }))
 vi.mock('@/lib/supabase/admin', () => ({
   createSupabaseAdminClient: (_opts?: { schema?: string }) => ({
@@ -67,12 +73,7 @@ vi.mock('@/lib/supabase/admin', () => ({
             // If someone calls maybeSingle() without eq() (not expected), return null.
             maybeSingle: async () => ({ data: null, error: null }),
           }),
-          update: (payload: { subscription_tier?: string }) => ({
-            eq: async (_col: string, id: string) => {
-              db.api.users.set(id, { ...(db.api.users.get(id) ?? {}), ...payload })
-              return adminUpdateEq()
-            },
-          }),
+          update: adminUpdate,
         }
       }
       if (table === 'subscriptions') {
@@ -170,7 +171,81 @@ describe('/api/billing/verify-checkout-session', () => {
     expect(json.data?.verified).toBe(true)
     expect(json.data?.plan).toBe('pro')
     expect(adminUpdateEq).toHaveBeenCalled()
+    expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'pro' }))
     expect(adminUpsert).toHaveBeenCalled()
+  })
+
+  it('persists closer_plus subscription tier when Stripe price maps to closer_plus', async () => {
+    process.env.STRIPE_PRICE_ID_CLOSER_PLUS = 'price_plus_123'
+    retrieve.mockResolvedValue({
+      id: 'cs_test_plus',
+      client_reference_id: 'user_1',
+      metadata: { user_id: 'user_1' },
+      payment_status: 'paid',
+      status: 'complete',
+      customer: 'cus_123',
+      subscription: {
+        id: 'sub_plus',
+        status: 'active',
+        current_period_start: 1700000000,
+        current_period_end: 1700003600,
+        cancel_at_period_end: false,
+        trial_end: null,
+        items: { data: [{ price: { id: 'price_plus_123' } }] },
+      },
+    })
+    listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_plus_123' } }],
+    })
+
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_plus', {
+      method: 'GET',
+    })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'closer_plus' }))
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.plan).toBe('pro')
+  })
+
+  it('returns agency product plan when Stripe price maps to team', async () => {
+    process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
+    retrieve.mockResolvedValue({
+      id: 'cs_test_team',
+      client_reference_id: 'user_1',
+      metadata: { user_id: 'user_1' },
+      payment_status: 'paid',
+      status: 'complete',
+      customer: 'cus_123',
+      subscription: {
+        id: 'sub_team',
+        status: 'active',
+        current_period_start: 1700000000,
+        current_period_end: 1700003600,
+        cancel_at_period_end: false,
+        trial_end: null,
+        items: { data: [{ price: { id: 'price_team_123' } }] },
+      },
+    })
+    listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_team_123' } }],
+    })
+
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_team', {
+      method: 'GET',
+    })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.verified).toBe(true)
+    expect(json.data?.tier).toBe('team')
+    expect(json.data?.planId).toBe('team')
+    expect(json.data?.plan).toBe('agency')
+    expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'team' }))
   })
 
   it('persists to api schema so /api/plan resolves closer immediately', async () => {

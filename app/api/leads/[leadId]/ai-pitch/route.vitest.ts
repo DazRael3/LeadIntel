@@ -284,4 +284,44 @@ describe('/api/leads/[leadId]/ai-pitch', () => {
     expect(json.ok).toBe(false)
     expect(json.error.code).toBe('AI_PITCH_LIMIT_REACHED')
   })
+
+  it('POST enforces pro monthly AI pitch limit', async () => {
+    mockTier = 'closer'
+    for (let index = 0; index < 300; index += 1) {
+      mockAiRows.push({
+        id: `gen-pro-${index + 1}`,
+        user_id: 'user-1',
+        lead_id: MOCK_LEAD_ID,
+        generation_type: 'pitch_bundle',
+        output_text: JSON.stringify({
+          shortEmailOpener: 'Opener',
+          fullColdEmail: 'Cold email with context',
+          linkedinDm: 'LinkedIn DM message',
+          painPointSummary: 'Pain summary',
+          recommendedOfferAngle: 'Offer angle',
+          objectionHandlingNotes: 'Objection notes paragraph',
+        }),
+        model: 'gpt-4o-mini',
+        prompt_version: 'v1',
+        prompt_tokens: 100,
+        completion_tokens: 80,
+        total_tokens: 180,
+        estimated_cost_usd: 0.00009,
+        created_at: new Date().toISOString(),
+      })
+    }
+
+    const { POST } = await import('./route')
+    const req = new NextRequest(`http://localhost:3000/api/leads/${MOCK_LEAD_ID}/ai-pitch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({}),
+    })
+    const res = await POST(req, { params: Promise.resolve({ leadId: MOCK_LEAD_ID }) })
+    const json = await res.json()
+
+    expect(res.status).toBe(429)
+    expect(json.ok).toBe(false)
+    expect(json.error.code).toBe('AI_PITCH_LIMIT_REACHED')
+  })
 })

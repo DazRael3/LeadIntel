@@ -18,7 +18,7 @@ function LatestReportCard({
 }) {
   const planMeta = getDisplayPlanMeta(tier ? { tier } : null)
   const isStarter = planMeta.tier === 'starter'
-  const badgeText = isStarter ? 'Starter (Limited)' : `${tierLabel(planMeta.tier)} (Full access)`
+  const badgeText = isStarter ? 'Free (Limited)' : `${tierLabel(planMeta.tier)} (Full access)`
   const tierValue = planMeta.tier
 
   if (!latestPitch) {
@@ -208,7 +208,7 @@ function LatestReportCard({
 
             {isStarter && (
               <div className="pt-2 text-xs text-muted-foreground">
-                You’re on the Starter plan. Upgrade to unlock full competitive analysis, trigger events, and account-ready email copy.
+                You’re on the Free plan. Upgrade to unlock full competitive analysis, trigger events, and account-ready email copy.
               </div>
             )}
           </div>
@@ -232,7 +232,7 @@ export function CompetitiveReportContent({
   return (
     <div className="min-h-screen bg-background terminal-grid">
       <TopNav />
-      <CompetitiveReportViewTracker isLoggedIn={isLoggedIn} tier={(tier as 'starter' | 'closer' | null) ?? null} />
+      <CompetitiveReportViewTracker isLoggedIn={isLoggedIn} tier={tier} />
       <main className="container mx-auto px-6 py-16">
         <section className="mx-auto max-w-4xl">
           <header className="text-center">

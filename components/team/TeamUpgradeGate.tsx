@@ -16,6 +16,7 @@ export function TeamUpgradeGate(props: {
   continueCtaLabel?: string
   currentTier?: Tier
   sessionEmail?: string | null
+  unlockPlanLabel?: string
 } = {}) {
   const heading = props.heading ?? 'Team features'
   const subtitle =
@@ -29,6 +30,7 @@ export function TeamUpgradeGate(props: {
   const secondaryCtaLabel = props.secondaryCtaLabel ?? 'See pricing'
   const continueCtaHref = props.continueCtaHref ?? '/dashboard'
   const continueCtaLabel = props.continueCtaLabel ?? 'Continue in Dashboard'
+  const unlockPlanLabel = props.unlockPlanLabel ?? 'Team / Agency'
   const lockedOn = props.currentTier ? tierLabel(props.currentTier) : 'your current plan'
   const tierGuidance =
     !props.currentTier
@@ -40,6 +42,7 @@ export function TeamUpgradeGate(props: {
       : props.currentTier === 'team'
       ? 'Your account should already have Team access. If this lock persists, contact support.'
       : 'You are on Starter. Team unlocks shared workflows, governance controls, and team-level operations.'
+  const isProUnlock = unlockPlanLabel.toLowerCase().includes('pro')
 
   return (
     <div className="min-h-screen bg-background terminal-grid">
@@ -57,9 +60,14 @@ export function TeamUpgradeGate(props: {
             <p>{whyLocked}</p>
             <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs">
               <div>
-                <span className="font-medium text-foreground">Unlock plan:</span> Team
+                <span className="font-medium text-foreground">Unlock plan:</span> {unlockPlanLabel}
               </div>
               <div className="mt-1">{tierGuidance}</div>
+              {isProUnlock ? (
+                <div className="mt-1">
+                  Pro unlocks exports and campaign automation; Agency adds multi-workspace controls and advanced tracking.
+                </div>
+              ) : null}
             </div>
             {props.sessionEmail ? (
               <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs text-muted-foreground">

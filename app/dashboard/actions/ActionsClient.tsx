@@ -241,6 +241,10 @@ export function ActionsClient() {
                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => (window.location.href = '/settings/exports')}>
                                   Open exports
                                 </Button>
+                              ) : i.status === 'ready' && i.action_type === 'manual_review_required' ? (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => (window.location.href = '/dashboard/actions')}>
+                                  Open actions
+                                </Button>
                               ) : i.status === 'ready' ? (
                                 <div className="flex flex-wrap gap-2">
                                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenCommentsForId(i.id)}>

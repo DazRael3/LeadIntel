@@ -105,6 +105,8 @@ export function getTierCapabilities(tier: Tier): Capabilities {
       watchlist_reminders: true,
       why_now_digest_in_app: true,
       why_now_digest_email: true,
+      action_queue: true,
+      governance_exports: true,
     }
   }
 

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
 import { resetAllRateLimits } from '@/lib/api/ratelimit-memory'
 
 type LeadRow = {
@@ -258,7 +257,7 @@ describe('/api/leads/discover', () => {
     expect(json.data.generation.duplicatesAgainstExisting).toBe(1)
   })
 
-  it('enforces starter lead usage limit', async () => {
+  it('enforces free lead usage limit', async () => {
     mockTier = 'starter'
     dbLeads.push(
       {
@@ -325,6 +324,57 @@ describe('/api/leads/discover', () => {
     expect(res.status).toBe(429)
   })
 
+  it('enforces pro lead usage limit', async () => {
+    mockTier = 'closer'
+    for (let index = 0; index < 250; index += 1) {
+      dbLeads.push({
+        id: `pro-${index + 1}`,
+        user_id: 'user-1',
+        company_name: `Company ${index + 1}`,
+        company_domain: `company-${index + 1}.com`,
+        company_url: `https://company-${index + 1}.com`,
+        prospect_email: null,
+        ai_personalized_pitch: null,
+        created_at: new Date().toISOString(),
+      })
+    }
+
+    mockCandidates = [
+      {
+        companyName: 'Pro Overflow',
+        companyDomain: 'pro-overflow.com',
+        companyUrl: 'https://pro-overflow.com',
+        contactEmail: 'vp@pro-overflow.com',
+        targetRole: 'VP Sales',
+        industry: 'Healthcare',
+        location: 'Chicago',
+        companySize: '200-500',
+      },
+    ]
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/leads/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        targetIndustry: 'Healthcare',
+        location: 'Chicago',
+        companySize: '200-500',
+        targetRole: 'VP Sales',
+        painPoint: 'slow pipeline velocity',
+        offerService: 'AI lead prioritization',
+        numberOfLeads: 1,
+      }),
+    })
+
+    const res = await POST(req)
+    const json = await res.json()
+    expect(res.status).toBe(429)
+    expect(json.ok).toBe(false)
+    expect(json.error?.code).toBe('LEAD_GENERATION_LIMIT_REACHED')
+    expect(json.error?.message).toContain('Pro')
+  })
+
   it('GET returns list and supports minScore filter', async () => {
     dbLeads.push({
       id: 'lead-list-1',
@@ -387,7 +437,7 @@ describe('/api/leads/discover', () => {
     expect(dbLeads.some((row) => row.id === '123e4567-e89b-12d3-a456-426614174000')).toBe(false)
   })
 
-  it('starter tier only inserts remaining lead slots', async () => {
+  it('free tier only inserts remaining lead slots', async () => {
     mockTier = 'starter'
     dbLeads.push(
       {
@@ -455,8 +505,78 @@ describe('/api/leads/discover', () => {
 
     expect(res.status).toBe(201)
     expect(json.ok).toBe(true)
-    expect(json.data.leads).toHaveLength(STARTER_PITCH_CAP_LIMIT - 2)
+    expect(json.data.leads).toHaveLength(1)
     expect(json.data.usage.remaining).toBe(0)
+    expect(json.data.usage.productPlan).toBe('free')
+  })
+
+  it('agency tier has unlimited lead generation', async () => {
+    mockTier = 'team'
+    mockCandidates = [
+      {
+        companyName: 'Agency One',
+        companyDomain: 'agency-one.com',
+        companyUrl: 'https://agency-one.com',
+        contactEmail: 'one@agency.com',
+        targetRole: 'VP Sales',
+        industry: 'Healthcare',
+        location: 'Chicago',
+        companySize: '200-500',
+      },
+      {
+        companyName: 'Agency Two',
+        companyDomain: 'agency-two.com',
+        companyUrl: 'https://agency-two.com',
+        contactEmail: 'two@agency.com',
+        targetRole: 'VP Sales',
+        industry: 'Healthcare',
+        location: 'Chicago',
+        companySize: '200-500',
+      },
+      {
+        companyName: 'Agency Three',
+        companyDomain: 'agency-three.com',
+        companyUrl: 'https://agency-three.com',
+        contactEmail: 'three@agency.com',
+        targetRole: 'VP Sales',
+        industry: 'Healthcare',
+        location: 'Chicago',
+        companySize: '200-500',
+      },
+      {
+        companyName: 'Agency Four',
+        companyDomain: 'agency-four.com',
+        companyUrl: 'https://agency-four.com',
+        contactEmail: 'four@agency.com',
+        targetRole: 'VP Sales',
+        industry: 'Healthcare',
+        location: 'Chicago',
+        companySize: '200-500',
+      },
+    ]
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/leads/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        targetIndustry: 'Healthcare',
+        location: 'Chicago',
+        companySize: '200-500',
+        targetRole: 'VP Sales',
+        painPoint: 'slow pipeline velocity',
+        offerService: 'AI lead prioritization',
+        numberOfLeads: 4,
+      }),
+    })
+
+    const res = await POST(req)
+    const json = await res.json()
+    expect(res.status).toBe(201)
+    expect(json.ok).toBe(true)
+    expect(json.data.leads).toHaveLength(4)
+    expect(json.data.usage.limit).toBeNull()
+    expect(json.data.usage.productPlan).toBe('agency')
   })
 
   it('requires authentication for POST', async () => {

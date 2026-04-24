@@ -5,7 +5,7 @@ import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { getUserTierForGating } from '@/lib/team/gating'
-import { STARTER_PITCH_CAP_LIMIT } from '@/lib/billing/constants'
+import { getProductPlanDetailsForTier } from '@/lib/billing/product-plan'
 import { makeNameCompanyKey } from '@/lib/company-key'
 import { logger } from '@/lib/observability/logger'
 import {
@@ -266,15 +266,17 @@ const POST_HANDLER = withApiGuard(
       const parsedBody = body as LeadGenerationRequest
 
       const tier = await getUserTierForGating({ userId: user.id, sessionEmail: user.email ?? null, supabase })
+      const planDetails = getProductPlanDetailsForTier(tier)
       const existingRows = await getExistingLeadsForUser(supabase, user.id)
       const currentLeadCount = existingRows.length
 
-      const starterRemaining = Math.max(0, STARTER_PITCH_CAP_LIMIT - currentLeadCount)
-      if (tier === 'starter' && starterRemaining <= 0) {
+      const leadLimit = planDetails.leadGenerationLimit
+      const remainingByPlanLimit = typeof leadLimit === 'number' ? Math.max(0, leadLimit - currentLeadCount) : null
+      if (typeof remainingByPlanLimit === 'number' && remainingByPlanLimit <= 0) {
         return fail(
           'LEAD_GENERATION_LIMIT_REACHED',
-          'Starter lead limit reached. Upgrade to generate more leads.',
-          { tier, limit: STARTER_PITCH_CAP_LIMIT, used: currentLeadCount, remaining: 0 },
+          `${planDetails.label} lead generation limit reached. Upgrade to generate more leads.`,
+          { tier, productPlan: planDetails.plan, limit: leadLimit, used: currentLeadCount, remaining: 0 },
           { status: 429 },
           bridge,
           requestId
@@ -282,7 +284,8 @@ const POST_HANDLER = withApiGuard(
       }
 
       const requested = parsedBody.numberOfLeads
-      const maxInsertable = tier === 'starter' ? Math.min(requested, starterRemaining) : requested
+      const maxInsertable =
+        typeof remainingByPlanLimit === 'number' ? Math.min(requested, remainingByPlanLimit) : requested
       const effectiveInput: LeadGenerationRequest = {
         ...parsedBody,
         numberOfLeads: maxInsertable,
@@ -378,8 +381,8 @@ const POST_HANDLER = withApiGuard(
       })
 
       const usageUsed = currentLeadCount + insertedResponseRows.length
-      const usageLimit = tier === 'starter' ? STARTER_PITCH_CAP_LIMIT : null
-      const usageRemaining = tier === 'starter' ? Math.max(0, STARTER_PITCH_CAP_LIMIT - usageUsed) : null
+      const usageLimit = leadLimit
+      const usageRemaining = typeof usageLimit === 'number' ? Math.max(0, usageLimit - usageUsed) : null
 
       return ok(
         {
@@ -387,6 +390,7 @@ const POST_HANDLER = withApiGuard(
           leads: insertedResponseRows,
           usage: {
             tier,
+            productPlan: planDetails.plan,
             used: usageUsed,
             limit: usageLimit,
             remaining: usageRemaining,

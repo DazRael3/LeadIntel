@@ -10,7 +10,7 @@ import { formatErrorMessage } from '@/lib/utils/format-error'
 type PollStatus = 'pending' | 'pro' | 'timeout' | 'error'
 
 type VerifyResponse =
-  | { ok: true; data: { verified: boolean; plan: 'free' | 'pro'; tier?: string; planId?: string } }
+  | { ok: true; data: { verified: boolean; plan: 'free' | 'pro' | 'agency'; tier?: string; planId?: string } }
   | { ok: false; error?: { message?: string } }
 
 function PricingSuccessContent() {
@@ -41,9 +41,8 @@ function PricingSuccessContent() {
         const resp = await fetch(url, { method: 'GET', cache: 'no-store', credentials: 'include' })
         if (!resp.ok) throw new Error(`Status ${resp.status}`)
         const data = (await resp.json()) as VerifyResponse
-        const plan = data.ok === true ? data.data.plan : null
-
-        if (plan === 'pro') {
+        const verified = data.ok === true ? data.data.verified === true : false
+        if (verified) {
           if (!cancelled) {
             setStatus('pro')
             setError(null)

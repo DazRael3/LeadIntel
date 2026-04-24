@@ -1,4 +1,5 @@
 import type { Tier } from '@/lib/billing/resolve-tier'
+import { getProductPlanDetailsForTier } from '@/lib/billing/product-plan'
 
 export type AiPitchLimitWindow = 'monthly'
 
@@ -7,15 +8,9 @@ export type AiPitchTierLimit = {
   limit: number | null
 }
 
-const AI_PITCH_LIMITS_BY_TIER: Record<Tier, AiPitchTierLimit> = {
-  starter: { window: 'monthly', limit: 10 },
-  closer: { window: 'monthly', limit: 200 },
-  closer_plus: { window: 'monthly', limit: 600 },
-  team: { window: 'monthly', limit: null },
-}
-
 export function getAiPitchLimitForTier(tier: Tier): AiPitchTierLimit {
-  return AI_PITCH_LIMITS_BY_TIER[tier]
+  const plan = getProductPlanDetailsForTier(tier)
+  return { window: 'monthly', limit: plan.aiPitchLimit }
 }
 
 export function getCurrentMonthlyUsageWindowStart(now: Date = new Date()): string {

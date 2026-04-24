@@ -19,6 +19,7 @@ import { adminNotificationsEnabled, getLifecycleAdminEmails, lifecycleEmailsEnab
 import { renderAdminNotificationEmail } from '@/lib/email/internal'
 import { getResendReplyToEmail } from '@/lib/email/routing'
 import { recordStripeWebhookEventIfFirst } from '@/lib/webhooks/stripe-idempotency'
+import { resolveUserSubscriptionTierFromStripe } from '@/lib/billing/stripe-subscription-tier'
 
 /**
  * Stripe Webhook Handler
@@ -125,8 +126,13 @@ export const POST = withApiGuard(
           }
 
           // Update user subscription tier and customer id.
+          const subscriptionPriceId = subscription.items.data[0]?.price?.id ?? null
+          const resolvedSubscriptionTier = resolveUserSubscriptionTierFromStripe({
+            status: subscription.status,
+            stripePriceId: subscriptionPriceId,
+          })
           const userUpdate = {
-            subscription_tier: 'pro',
+            subscription_tier: resolvedSubscriptionTier,
             stripe_customer_id: customerId,
           }
           const userUpdateQuery = supabaseAdmin.from('users').update(userUpdate)
@@ -166,7 +172,7 @@ export const POST = withApiGuard(
               current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
               cancel_at_period_end: subscription.cancel_at_period_end,
               trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
-              stripe_price_id: subscription.items.data[0]?.price?.id ?? null,
+              stripe_price_id: subscriptionPriceId,
             }, {
               onConflict: 'stripe_subscription_id'
             })
@@ -303,18 +309,15 @@ export const POST = withApiGuard(
             captureException(subError, { route: '/api/stripe/webhook', requestId, eventType: event.type })
           }
 
-          // Update user tier based on subscription status
-          if (subscription.status === 'active' || subscription.status === 'trialing') {
-            await supabaseAdmin
-              .from('users')
-              .update({ subscription_tier: 'pro' })
-              .eq('stripe_customer_id', customerId)
-          } else {
-            await supabaseAdmin
-              .from('users')
-              .update({ subscription_tier: 'free' })
-              .eq('stripe_customer_id', customerId)
-          }
+          // Update user tier based on subscription status + Stripe price mapping.
+          const resolvedSubscriptionTier = resolveUserSubscriptionTierFromStripe({
+            status: subscription.status,
+            stripePriceId: subscription.items.data[0]?.price?.id ?? null,
+          })
+          await supabaseAdmin
+            .from('users')
+            .update({ subscription_tier: resolvedSubscriptionTier })
+            .eq('stripe_customer_id', customerId)
 
           // Workspace webhooks (best-effort): only emit when we can resolve a workspace.
           if (userId) {
