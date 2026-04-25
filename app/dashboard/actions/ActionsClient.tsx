@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
 import { CommentThreadPanel } from '@/components/collab/CommentThreadPanel'
 import { LeadAiPitchPanel } from '@/components/account/LeadAiPitchPanel'
+import { OutboundExecutionPanel } from '@/components/dashboard/OutboundExecutionPanel'
 
 type ActionQueueItem = {
   id: string
@@ -289,6 +290,8 @@ export function ActionsClient() {
             )}
           </CardContent>
         </Card>
+
+        <OutboundExecutionPanel />
 
         {selectedLeadIdForPitch ? (
           <div className="mt-6">
