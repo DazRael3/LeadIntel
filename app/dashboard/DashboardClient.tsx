@@ -41,6 +41,7 @@ import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed'
 import { ValueMomentsCard } from '@/components/dashboard/ValueMomentsCard'
 import { UpgradeReasonsCard } from '@/components/dashboard/UpgradeReasonsCard'
 import { ActionQueueCard } from '@/components/dashboard/ActionQueueCard'
+import { DailyRetentionCard } from '@/components/dashboard/DailyRetentionCard'
 import { MobileShortlistView } from '@/components/mobile/MobileShortlistView'
 import { FeedbackCard } from '@/components/feedback/FeedbackCard'
 import { SampleModeCard } from '@/components/sample/SampleModeCard'
@@ -266,6 +267,11 @@ export function DashboardClient({
                   <ActivationChecklist />
                   <RecentActivityFeed />
                 </div>
+
+                <DailyRetentionCard
+                  totalLeads={totalLeads}
+                  nicheLabel={initialHasIcp ? 'your ICP' : 'your recent behavior'}
+                />
 
                 {leadActivitySummary ? (
                   <Card className="border-cyan-500/20 bg-card/50">
