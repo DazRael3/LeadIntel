@@ -126,5 +126,43 @@ describe('/api/sample-digest', () => {
     const setCookie = res.headers.get('set-cookie') ?? ''
     expect(setCookie.includes('li_demo_handoff=token_1234567890token_1234567890')).toBe(true)
   })
+
+  it('returns free limit response after 2 runs in a day', async () => {
+    const { POST } = await import('./route')
+
+    const requestWithCookie = (cookie: string) =>
+      new NextRequest('http://localhost:3000/api/sample-digest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          origin: 'http://localhost:3000',
+          cookie,
+        },
+        body: JSON.stringify({ companyOrUrl: 'acme.com' }),
+      })
+
+    const firstRes = await POST(
+      requestWithCookie(
+        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId: 'test-session', date: '2026-04-25', runs: 1 }))}`
+      )
+    )
+    expect(firstRes.status).toBe(200)
+    const firstJson = await firstRes.json()
+    expect(firstJson.ok).toBe(true)
+    expect(firstJson.data?.usage?.runsToday).toBe(2)
+    expect(firstJson.data?.usage?.maxRunsPerDay).toBe(2)
+
+    const blockedRes = await POST(
+      requestWithCookie(
+        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId: 'test-session', date: '2026-04-25', runs: 2 }))}`
+      )
+    )
+    expect(blockedRes.status).toBe(429)
+    const blockedJson = await blockedRes.json()
+    expect(blockedJson.ok).toBe(false)
+    expect(blockedJson.error?.code).toBe('RATE_LIMIT_EXCEEDED')
+    expect(blockedJson.error?.details?.runsToday).toBe(2)
+    expect(blockedJson.error?.details?.maxRunsPerDay).toBe(2)
+  })
 })
 
