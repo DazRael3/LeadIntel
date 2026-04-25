@@ -204,6 +204,17 @@ export const POST = withApiGuard(
                   stripeCustomerId: customerId,
                 },
               })
+              await logProductEvent({
+                userId,
+                eventName: 'payment_completed',
+                eventProps: {
+                  source: 'stripe_webhook',
+                  eventType: event.type,
+                  status: subscription.status,
+                  subscriptionTier: resolvedSubscriptionTier,
+                  stripePriceId: subscriptionPriceId,
+                },
+              })
             } catch {
               // best-effort
             }

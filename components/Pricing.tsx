@@ -12,6 +12,7 @@ import { formatErrorMessage } from "@/lib/utils/format-error"
 import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { COPY } from '@/lib/copy/leadintel'
+import { usePublicAbVariant } from '@/lib/experiments/usePublicAbVariant'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { OutcomePricingIntro } from '@/components/marketing/OutcomePricingIntro'
 import { LeadCaptureCard } from '@/components/marketing/LeadCaptureCard'
@@ -129,6 +130,11 @@ export function Pricing() {
   const [teamSeats, setTeamSeats] = useState<number>(5)
   const [addOnLeadPacks, setAddOnLeadPacks] = useState<number>(0)
   const upgradeRef = useRef<HTMLDivElement | null>(null)
+  const pricingAb = usePublicAbVariant({
+    key: 'pricing_copy_test_v1',
+    variants: ['control', 'value_focused'],
+    fallback: 'control',
+  })
 
   const closerPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.closerMonthly) : PRICING.closerMonthly
   const closerPlusPrice =
@@ -377,8 +383,16 @@ export function Pricing() {
         </div>
 
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">{COPY.pricing.hero.headline}</h1>
-          <p className="text-muted-foreground text-lg">{COPY.pricing.hero.subhead}</p>
+          <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">
+            {pricingAb.variant === 'value_focused'
+              ? 'Turn lead signals into predictable revenue'
+              : COPY.pricing.hero.headline}
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            {pricingAb.variant === 'value_focused'
+              ? 'Choose a plan built for conversion velocity, pipeline consistency, and faster closed-won cycles.'
+              : COPY.pricing.hero.subhead}
+          </p>
           <div className="mt-6 max-w-3xl mx-auto">
             <ul className="text-sm text-muted-foreground space-y-1">
               {COPY.pricing.hero.bullets.map((b) => (
@@ -387,11 +401,13 @@ export function Pricing() {
             </ul>
             <div className="mt-4 text-xs text-muted-foreground">{COPY.pricing.hero.trustStrip(SUPPORT_EMAIL)}</div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-              <Button asChild size="lg" className="neon-border hover:glow-effect">
-                <a href="/signup?redirect=/onboarding">{COPY.pricing.hero.primaryCta}</a>
+                  <Button asChild size="lg" className="neon-border hover:glow-effect">
+                    <a href="/signup?redirect=/onboarding">
+                      {pricingAb.variant === 'value_focused' ? 'Start converting leads' : COPY.pricing.hero.primaryCta}
+                    </a>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <a href="#plan-pro">{COPY.pricing.hero.secondaryCta}</a>
+                <a href="#plan-pro">{pricingAb.variant === 'value_focused' ? 'Compare conversion plans' : COPY.pricing.hero.secondaryCta}</a>
               </Button>
             </div>
           </div>
@@ -430,6 +446,10 @@ export function Pricing() {
 
         <div className="max-w-6xl mx-auto mb-8">
           <OutcomePricingIntro />
+          <div className="mt-4 rounded border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-muted-foreground">
+            <div className="font-medium text-foreground">Optimize your path</div>
+            <p className="mt-1">{pricingCopyVariant === 'roi' ? 'Most teams recover annual cost with one closed deal.' : 'Start with a daily workflow and scale into predictable pipeline growth.'}</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 max-w-6xl mx-auto">

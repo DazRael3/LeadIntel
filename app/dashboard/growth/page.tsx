@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Growth | LeadIntel',
-  description: 'Directional growth insights and experiment exposures.',
+  description: 'Directional growth insights, funnel conversion rates, active users, and revenue trends.',
 }
 
 export default async function GrowthDashboardPage() {

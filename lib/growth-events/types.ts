@@ -1,6 +1,8 @@
 export type GrowthEventName =
+  | 'page_view'
   | 'landing_viewed'
   | 'demo_started'
+  | 'results_viewed'
   | 'lead_search_completed'
   | 'visitor_entry'
   | 'sample_flow_started'
@@ -8,6 +10,7 @@ export type GrowthEventName =
   | 'signup_started'
   | 'signup_completed'
   | 'checkout_started'
+  | 'payment_completed'
   | 'subscription_created'
   | 'onboarding_started'
   | 'onboarding_variant_seen'

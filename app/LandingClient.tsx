@@ -19,9 +19,28 @@ import { ProofLayer } from '@/components/marketing/ProofLayer'
 import { MigrationStories } from '@/components/marketing/MigrationStories'
 import { track } from '@/lib/analytics'
 import { COPY } from '@/lib/copy/leadintel'
+import { usePublicAbVariant } from '@/lib/experiments/usePublicAbVariant'
 
 export default function LandingClient() {
+  const { variant: headlineVariant } = usePublicAbVariant({
+    key: 'landing_headline_ab',
+    variants: ['control', 'value_velocity'],
+  })
+  const { variant: ctaVariant } = usePublicAbVariant({
+    key: 'landing_cta_ab',
+    variants: ['control', 'book_demo_first'],
+  })
+
+  const heroHeadline =
+    headlineVariant === 'value_velocity'
+      ? 'Find high-intent leads and outreach in one workflow'
+      : COPY.home.hero.headline
+  const primaryCtaLabel = ctaVariant === 'book_demo_first' ? 'Book a demo' : COPY.home.hero.primaryCta
+  const primaryCtaHref = ctaVariant === 'book_demo_first' ? '/contact' : '/demo'
+  const primaryCtaType = ctaVariant === 'book_demo_first' ? 'book_demo' : 'find_my_leads_now'
+
   useEffect(() => {
+    track('page_view', { path: '/', surface: 'landing' })
     track('landing_view', { path: '/' })
     track('landing_viewed', { path: '/', surface: 'landing' })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run once on mount
@@ -34,19 +53,19 @@ export default function LandingClient() {
           <section className="pt-2 md:pt-6">
             <div className="grid grid-cols-1 gap-8 items-start">
               <div className="max-w-4xl">
-                <h1 className="text-4xl md:text-5xl font-bold tracking-tight">{COPY.home.hero.headline}</h1>
+                <h1 className="text-4xl md:text-5xl font-bold tracking-tight">{heroHeadline}</h1>
                 <p className="mt-4 text-lg text-muted-foreground max-w-3xl">{COPY.home.hero.subhead}</p>
                 <p className="mt-3 text-sm text-muted-foreground max-w-3xl">{COPY.home.hero.support}</p>
                 <div className="flex flex-col sm:flex-row gap-3 mt-6">
                   <Button asChild size="lg" className="neon-border hover:glow-effect">
                     <Link
-                      href="/demo"
+                      href={primaryCtaHref}
                       onClick={() => {
-                        track('homepage_primary_cta_clicked', { location: 'hero', cta: 'find_my_leads_now' })
+                        track('homepage_primary_cta_clicked', { location: 'hero', cta: primaryCtaType })
                         track('demo_started', { source: 'landing_hero_cta' })
                       }}
                     >
-                      {COPY.home.hero.primaryCta}
+                      {primaryCtaLabel}
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">

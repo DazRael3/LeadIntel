@@ -66,6 +66,11 @@ export function DemoClient() {
         companyLen: json.data.sample.company.length,
         handoffStored: Boolean(json.data.handoff?.stored),
       })
+      track('results_viewed', {
+        source: 'demo_page',
+        surface: 'demo_results',
+        companyLen: json.data.sample.company.length,
+      })
     } catch {
       setError('Search failed. Try another company.')
     } finally {
@@ -87,6 +92,7 @@ export function DemoClient() {
   function openLeadResultsPreview(): void {
     const company = companyOrUrl.trim().length > 0 ? companyOrUrl.trim() : result?.company ?? 'acme.com'
     track('demo_preview_opened', { source: 'demo_page', companyLen: company.length })
+    track('results_viewed', { source: 'demo_page', surface: 'lead_results_preview_opened', companyLen: company.length })
     router.push(`/lead-results?company=${encodeURIComponent(company)}`)
   }
 

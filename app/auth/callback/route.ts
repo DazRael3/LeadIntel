@@ -4,6 +4,8 @@ import {
   clearDemoHandoffCookieOnResponse,
   claimDemoHandoffFromRequest,
 } from '@/lib/demo/claim'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { logCanonicalFunnelEvent } from '@/lib/analytics/funnel-events'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
@@ -38,6 +40,24 @@ export async function GET(request: NextRequest) {
       } catch {
         // Never block auth callback redirect for demo handoff failures.
       }
+
+      // Best-effort canonical funnel event for email-confirmed signups.
+      try {
+        const admin = createSupabaseAdminClient({ schema: 'api' })
+        await logCanonicalFunnelEvent({
+          supabase: admin,
+          userId: user.id,
+          eventName: 'signup_completed',
+          eventProps: {
+            source: 'auth_callback',
+            method: 'email_confirmation',
+            next,
+          },
+        })
+      } catch {
+        // best-effort only
+      }
+
     }
   }
 

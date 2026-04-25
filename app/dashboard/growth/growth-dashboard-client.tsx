@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
 import { ExperimentResultsTable, type DirectionalExperimentResults } from '@/components/growth/ExperimentResultsTable'
+import { ScalingMetricsCard } from '@/components/dashboard/ScalingMetricsCard'
 
 type ExperimentStatus = 'draft' | 'running' | 'paused' | 'completed' | 'archived' | 'rolled_out' | 'reverted'
 type Experiment = {
@@ -147,6 +148,8 @@ export function GrowthDashboardClient() {
             <div className="text-xs text-muted-foreground">{okData.note}</div>
           </CardContent>
         </Card>
+
+        <ScalingMetricsCard />
 
         {okData.lifecycle ? (
           <Card className="border-cyan-500/20 bg-card/50">

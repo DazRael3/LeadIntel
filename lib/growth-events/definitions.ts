@@ -7,8 +7,10 @@ export type GrowthEventDefinition = {
 }
 
 export const GROWTH_EVENT_DEFS: Record<GrowthEventName, GrowthEventDefinition> = {
+  page_view: { name: 'page_view', dedupeRecommended: false },
   landing_viewed: { name: 'landing_viewed', dedupeRecommended: true },
   demo_started: { name: 'demo_started', dedupeRecommended: false },
+  results_viewed: { name: 'results_viewed', dedupeRecommended: false },
   lead_search_completed: { name: 'lead_search_completed', dedupeRecommended: false },
   visitor_entry: { name: 'visitor_entry', dedupeRecommended: true },
   sample_flow_started: { name: 'sample_flow_started', dedupeRecommended: true },
@@ -16,6 +18,7 @@ export const GROWTH_EVENT_DEFS: Record<GrowthEventName, GrowthEventDefinition> =
   signup_started: { name: 'signup_started', dedupeRecommended: true },
   signup_completed: { name: 'signup_completed', dedupeRecommended: true },
   checkout_started: { name: 'checkout_started', dedupeRecommended: false },
+  payment_completed: { name: 'payment_completed', dedupeRecommended: true },
   subscription_created: { name: 'subscription_created', dedupeRecommended: true },
   onboarding_started: { name: 'onboarding_started', dedupeRecommended: true },
   onboarding_variant_seen: { name: 'onboarding_variant_seen', dedupeRecommended: false },
