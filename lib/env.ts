@@ -11,14 +11,53 @@
 import { z } from 'zod'
 import { isTestLikeEnv } from '@/lib/runtimeFlags'
 
+function isNodeProductionEnv(): boolean {
+  return process.env.NODE_ENV === 'production' && !isTestLikeEnv()
+}
+
+function isStrictProductionEnv(): boolean {
+  const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? '').trim().toLowerCase()
+  return isNodeProductionEnv() && appEnv === 'production'
+}
+
+function isEnabledFlag(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === '1' || normalized === 'true'
+}
+
+function isDisabledFlag(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === '0' || normalized === 'false'
+}
+
+function hasNonEmptyValue(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function parseCsvEmails(value: unknown): string[] {
+  if (typeof value !== 'string') return []
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .filter((entry) => entry.includes('@') && entry.includes('.'))
+}
+
 function requiredInProduction<T extends z.ZodTypeAny>(schema: T): z.ZodTypeAny {
   // In production we enforce strict env validation for ops safety.
   // In test-like environments (unit/E2E/CI), allow missing secrets so the app can run
   // with in-memory shims and without external integrations.
   // Preview/staging should behave like production in terms of URL/origin safety,
   // but MUST NOT require every integration secret globally (feature-scoped).
-  return process.env.NODE_ENV === 'production' && !isTestLikeEnv() ? schema : schema.optional()
+  return isNodeProductionEnv() ? schema : schema.optional()
 }
+
+const publicAppEnvSchema = z.preprocess(
+  (v) => (typeof v === 'string' ? v.trim().toLowerCase() : ''),
+  z.enum(['development', 'staging', 'production']).or(z.literal(''))
+)
 
 const siteUrlSchema = z
   .preprocess((v) => (typeof v === 'string' ? v.trim() : ''), z.string().url().or(z.literal('')))
@@ -59,6 +98,7 @@ const clientEnvSchema = z.object({
   
   // Application
   NEXT_PUBLIC_SITE_URL: siteUrlSchema,
+  NEXT_PUBLIC_APP_ENV: publicAppEnvSchema,
   // Debug UI (optional): if "true", show /api/whoami debug panel in dashboard.
   NEXT_PUBLIC_ENABLE_DEBUG_UI: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
@@ -83,12 +123,14 @@ const clientEnvSchema = z.object({
  * Server-only environment variables (secrets, never exposed to client)
  * These are only available in server-side code (API routes, server components).
  */
-const serverEnvSchema = z.object({
+const serverEnvSchema = z
+  .object({
   // Public env (validated here too so serverEnv can be a single source for ops checks)
   NEXT_PUBLIC_SUPABASE_URL: publicSupabaseUrlSchema,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: publicSupabaseAnonKeySchema,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: publicStripePublishableKeySchema,
   NEXT_PUBLIC_SITE_URL: siteUrlSchema,
+  NEXT_PUBLIC_APP_ENV: publicAppEnvSchema,
 
   // Supabase (server-only secrets)
   // Service role is required for key background/admin paths, but we do not hard-require it
@@ -349,12 +391,141 @@ const serverEnvSchema = z.object({
   // Node Environment (automatically set by Next.js)
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 })
+  .superRefine((env, ctx) => {
+    if (!isNodeProductionEnv()) return
+
+    if (!hasNonEmptyValue(env.NEXT_PUBLIC_APP_ENV)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['NEXT_PUBLIC_APP_ENV'],
+        message: 'NEXT_PUBLIC_APP_ENV must be set in production (development|staging|production).',
+      })
+      return
+    }
+
+    if (!isStrictProductionEnv()) return
+
+    // Checkout correctness in production: /pricing exposes monthly + annual toggles
+    // for Pro, Pro+, and Agency. Missing IDs would cause runtime CHECKOUT_NOT_CONFIGURED.
+    const hasProMonthly = hasNonEmptyValue(env.STRIPE_PRICE_ID_PRO) || hasNonEmptyValue(env.STRIPE_PRICE_ID)
+    if (!hasProMonthly) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_PRICE_ID_PRO'],
+        message: 'Missing production Pro monthly Stripe price (set STRIPE_PRICE_ID_PRO or STRIPE_PRICE_ID).',
+      })
+    }
+
+    if (!hasNonEmptyValue(env.STRIPE_PRICE_ID_CLOSER_ANNUAL)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_PRICE_ID_CLOSER_ANNUAL'],
+        message: 'Missing production Pro annual Stripe price.',
+      })
+    }
+
+    if (!hasNonEmptyValue(env.STRIPE_PRICE_ID_CLOSER_PLUS)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_PRICE_ID_CLOSER_PLUS'],
+        message: 'Missing production Pro+ monthly Stripe price.',
+      })
+    }
+
+    if (!hasNonEmptyValue(env.STRIPE_PRICE_ID_CLOSER_PLUS_ANNUAL)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_PRICE_ID_CLOSER_PLUS_ANNUAL'],
+        message: 'Missing production Pro+ annual Stripe price.',
+      })
+    }
+
+    const hasTeamMonthly =
+      hasNonEmptyValue(env.STRIPE_PRICE_ID_TEAM) ||
+      (hasNonEmptyValue(env.STRIPE_PRICE_ID_TEAM_BASE) && hasNonEmptyValue(env.STRIPE_PRICE_ID_TEAM_SEAT))
+    if (!hasTeamMonthly) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_PRICE_ID_TEAM'],
+        message:
+          'Missing production Agency monthly Stripe price (set STRIPE_PRICE_ID_TEAM or both STRIPE_PRICE_ID_TEAM_BASE + STRIPE_PRICE_ID_TEAM_SEAT).',
+      })
+    }
+
+    const hasTeamAnnual =
+      hasNonEmptyValue(env.STRIPE_PRICE_ID_TEAM_ANNUAL) ||
+      (hasNonEmptyValue(env.STRIPE_PRICE_ID_TEAM_BASE_ANNUAL) &&
+        hasNonEmptyValue(env.STRIPE_PRICE_ID_TEAM_SEAT_ANNUAL))
+    if (!hasTeamAnnual) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_PRICE_ID_TEAM_ANNUAL'],
+        message:
+          'Missing production Agency annual Stripe price (set STRIPE_PRICE_ID_TEAM_ANNUAL or both STRIPE_PRICE_ID_TEAM_BASE_ANNUAL + STRIPE_PRICE_ID_TEAM_SEAT_ANNUAL).',
+      })
+    }
+
+    // Stripe webhook processing defaults to enabled unless explicitly disabled.
+    // Require signature secret when webhook processing is active.
+    const stripeWebhookDisabled = isDisabledFlag(env.FEATURE_STRIPE_WEBHOOK_ENABLED)
+    if (!stripeWebhookDisabled && !hasNonEmptyValue(env.STRIPE_WEBHOOK_SECRET)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_WEBHOOK_SECRET'],
+        message: 'Missing STRIPE_WEBHOOK_SECRET while Stripe webhook processing is enabled.',
+      })
+    }
+
+    // AI generation is a core production surface.
+    if (!hasNonEmptyValue(env.OPENAI_API_KEY)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['OPENAI_API_KEY'],
+        message: 'OPENAI_API_KEY is required in production.',
+      })
+    }
+
+    // Email checks:
+    // - If either Resend var is set, enforce the pair.
+    // - If lifecycle sends are enabled, enforce full Resend config.
+    const hasResendKey = hasNonEmptyValue(env.RESEND_API_KEY)
+    const hasResendFrom = hasNonEmptyValue(env.RESEND_FROM_EMAIL)
+    if (hasResendKey && !hasResendFrom) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['RESEND_FROM_EMAIL'],
+        message: 'RESEND_FROM_EMAIL is required when RESEND_API_KEY is set.',
+      })
+    }
+    if (hasResendFrom && !hasResendKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['RESEND_API_KEY'],
+        message: 'RESEND_API_KEY is required when RESEND_FROM_EMAIL is set.',
+      })
+    }
+
+    const lifecycleEmailEnabled = isEnabledFlag(env.LIFECYCLE_EMAILS_ENABLED)
+    const lifecycleAdminNotifyEnabled = isEnabledFlag(env.LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED)
+    if ((lifecycleEmailEnabled || lifecycleAdminNotifyEnabled) && (!hasResendKey || !hasResendFrom)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['LIFECYCLE_EMAILS_ENABLED'],
+        message:
+          'Lifecycle email features require RESEND_API_KEY and RESEND_FROM_EMAIL in production.',
+      })
+    }
+    if (lifecycleAdminNotifyEnabled && parseCsvEmails(env.LIFECYCLE_ADMIN_EMAILS).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['LIFECYCLE_ADMIN_EMAILS'],
+        message:
+          'LIFECYCLE_ADMIN_EMAILS must contain at least one valid email when LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED is true.',
+      })
+    }
+  })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>
-/**
- * Combined schema for validation
- */
-const envSchema = clientEnvSchema.merge(serverEnvSchema)
 
 /**
  * Memoized server environment getter.
@@ -376,6 +547,7 @@ function buildServerEnv(): ServerEnv {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     SUPABASE_DB_SCHEMA: process.env.SUPABASE_DB_SCHEMA,
     SUPABASE_DB_SCHEMA_FALLBACK: process.env.SUPABASE_DB_SCHEMA_FALLBACK,
@@ -518,6 +690,7 @@ function buildClientEnv(): ClientEnv {
     NEXT_PUBLIC_SUPABASE_DB_SCHEMA: process.env.NEXT_PUBLIC_SUPABASE_DB_SCHEMA,
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
     NEXT_PUBLIC_ENABLE_DEBUG_UI: process.env.NEXT_PUBLIC_ENABLE_DEBUG_UI,
     NEXT_PUBLIC_ENABLE_AUTOPILOT_UI: process.env.NEXT_PUBLIC_ENABLE_AUTOPILOT_UI,
     NEXT_PUBLIC_ANALYTICS_ENABLED: process.env.NEXT_PUBLIC_ANALYTICS_ENABLED,
