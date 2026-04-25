@@ -753,7 +753,7 @@ export function OutboundExecutionPanel() {
                 <span className="font-medium text-foreground">Day 4:</span> Double down on best niche, send 25 messages, book calls.
               </li>
               <li>
-                <span className="font-medium text-foreground">Day 5:</span> Offer live demo: "I can generate 5 leads for you right now."
+                <span className="font-medium text-foreground">Day 5:</span> Offer live demo: &quot;I can generate 5 leads for you right now.&quot;
               </li>
               <li>
                 <span className="font-medium text-foreground">Day 6:</span> Follow up all interested prospects and push checkout/demo.
