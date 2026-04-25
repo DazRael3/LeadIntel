@@ -89,6 +89,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ campai
           company_url: lead.company_url ?? '',
           prospect_email: lead.prospect_email ?? '',
           created_at: lead.created_at ?? '',
+          attribution: 'Generated with RaelInfo',
         }))
       )
 

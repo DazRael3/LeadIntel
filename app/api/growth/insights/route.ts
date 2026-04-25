@@ -25,6 +25,34 @@ function parseWindowDays(raw: string | undefined): number {
   return Math.max(7, Math.min(90, n))
 }
 
+function parseIsoDate(value: string): Date | null {
+  const ms = Date.parse(value)
+  if (!Number.isFinite(ms)) return null
+  return new Date(ms)
+}
+
+function toIsoDay(value: string): string | null {
+  const date = parseIsoDate(value)
+  if (!date) return null
+  return date.toISOString().slice(0, 10)
+}
+
+function estimateRevenueFromEventProps(eventProps: unknown): number {
+  if (!eventProps || typeof eventProps !== 'object') return 79
+  const props = eventProps as Record<string, unknown>
+  const explicitAmount = props.amount
+  if (typeof explicitAmount === 'number' && Number.isFinite(explicitAmount) && explicitAmount >= 0) {
+    return explicitAmount
+  }
+
+  const tier = typeof props.subscriptionTier === 'string' ? props.subscriptionTier : null
+  if (!tier) return 79
+  if (tier === 'team') return 249
+  if (tier === 'closer_plus') return 149
+  if (tier === 'pro' || tier === 'closer' || tier === 'starter') return 79
+  return 79
+}
+
 export const GET = withApiGuard(
   async (request: NextRequest, { requestId, userId, query }) => {
     const bridge = createCookieBridge()
@@ -77,17 +105,66 @@ export const GET = withApiGuard(
       const { data: growthEvents } = await supabase
         .schema('api')
         .from('growth_events')
-        .select('event_name, created_at')
+        .select('event_name, user_id, created_at, event_props')
         .eq('workspace_id', ws.id)
         .gte('created_at', since)
         .order('created_at', { ascending: false })
         .limit(5000)
 
       const eventsAgg: Record<string, number> = {}
-      for (const row of (growthEvents ?? []) as Array<{ event_name?: unknown }>) {
+      const activeUsers = new Set<string>()
+      const dailyUsers = new Set<string>()
+      const revenueByDay = new Map<string, number>()
+      const dailyCutoffMs = Date.now() - 24 * 60 * 60 * 1000
+      for (const row of (growthEvents ?? []) as Array<{
+        event_name?: unknown
+        user_id?: unknown
+        created_at?: unknown
+        event_props?: unknown
+      }>) {
         const name = typeof row.event_name === 'string' ? row.event_name : null
         if (!name) continue
         eventsAgg[name] = (eventsAgg[name] ?? 0) + 1
+        const userId = typeof row.user_id === 'string' ? row.user_id : null
+        if (userId) activeUsers.add(userId)
+        const createdAt = typeof row.created_at === 'string' ? row.created_at : null
+        if (userId && createdAt) {
+          const createdMs = Date.parse(createdAt)
+          if (Number.isFinite(createdMs) && createdMs >= dailyCutoffMs) {
+            dailyUsers.add(userId)
+          }
+        }
+
+        if (name === 'payment_completed') {
+          if (!createdAt) continue
+          const day = toIsoDay(createdAt)
+          if (!day) continue
+          const amount = estimateRevenueFromEventProps(row.event_props)
+          revenueByDay.set(day, (revenueByDay.get(day) ?? 0) + amount)
+        }
+      }
+
+      const pageViews = eventsAgg.page_view ?? 0
+      const demoStarts = eventsAgg.demo_started ?? 0
+      const signupCompleted = eventsAgg.signup_completed ?? 0
+      const paymentCompleted = eventsAgg.payment_completed ?? 0
+      const demoRatePct = pageViews > 0 ? (demoStarts / pageViews) * 100 : 0
+      const signupRatePct = demoStarts > 0 ? (signupCompleted / demoStarts) * 100 : 0
+      const paidConversionRatePct = signupCompleted > 0 ? (paymentCompleted / signupCompleted) * 100 : 0
+
+      const sinceDate = parseIsoDate(since) ?? new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
+      const today = new Date()
+      const revenueTrend: Array<{ date: string; revenue: number }> = []
+      for (
+        let cursor = new Date(Date.UTC(sinceDate.getUTCFullYear(), sinceDate.getUTCMonth(), sinceDate.getUTCDate()));
+        cursor <= today;
+        cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
+      ) {
+        const day = cursor.toISOString().slice(0, 10)
+        revenueTrend.push({
+          date: day,
+          revenue: revenueByDay.get(day) ?? 0,
+        })
       }
 
       const directionalResults = await computeDirectionalExperimentResults({
@@ -111,6 +188,14 @@ export const GET = withApiGuard(
           experiments,
           exposures: exposuresAgg,
           growthEventCounts: eventsAgg,
+          dailyUsers: dailyUsers.size,
+          demoRatePct: Number.parseFloat(demoRatePct.toFixed(2)),
+          signupRatePct: Number.parseFloat(signupRatePct.toFixed(2)),
+          paidConversions: paymentCompleted,
+          paidConversionRatePct: Number.parseFloat(paidConversionRatePct.toFixed(2)),
+          conversionRatePct: Number.parseFloat(paidConversionRatePct.toFixed(2)),
+          activeUsers: activeUsers.size,
+          revenueTrend,
           directionalResults,
           lifecycle,
           retention,

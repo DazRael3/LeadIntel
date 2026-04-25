@@ -106,6 +106,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         if (data.session) {
           track('signup_success', { method: 'password' })
           track('signup_completed', { method: 'password' })
+          track('funnel_event', { canonical: 'signup_completed', source: 'auth_signup' })
           identifyClientUser(data.session.user.id, { email: data.session.user.email ?? null })
           try {
             await claimDemoSession()

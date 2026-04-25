@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,11 @@ type DemoSearchResult = {
   score: number
   triggers: string[]
   whyNow: string
+  outreach: {
+    channel: 'email' | 'linkedin'
+    subject?: string
+    body: string
+  }
 }
 
 function isValidEmail(value: string): boolean {
@@ -60,6 +66,11 @@ export function DemoClient() {
         companyLen: json.data.sample.company.length,
         handoffStored: Boolean(json.data.handoff?.stored),
       })
+      track('results_viewed', {
+        source: 'demo_page',
+        surface: 'demo_results',
+        companyLen: json.data.sample.company.length,
+      })
     } catch {
       setError('Search failed. Try another company.')
     } finally {
@@ -73,19 +84,58 @@ export function DemoClient() {
       return
     }
     track('signup_started', { source: 'demo_page', flow: 'landing_to_demo_to_signup' })
-    const redirect = `/lead-results?company=${encodeURIComponent(companyOrUrl.trim())}&email=${encodeURIComponent(workEmail.trim())}`
+    const company = companyOrUrl.trim().length > 0 ? companyOrUrl.trim() : result?.company ?? 'acme.com'
+    const redirect = `/lead-results?company=${encodeURIComponent(company)}&email=${encodeURIComponent(workEmail.trim())}`
     router.push(`/signup?redirect=${encodeURIComponent(redirect)}`)
+  }
+
+  function openLeadResultsPreview(): void {
+    const company = companyOrUrl.trim().length > 0 ? companyOrUrl.trim() : result?.company ?? 'acme.com'
+    track('demo_preview_opened', { source: 'demo_page', companyLen: company.length })
+    track('results_viewed', { source: 'demo_page', surface: 'lead_results_preview_opened', companyLen: company.length })
+    router.push(`/lead-results?company=${encodeURIComponent(company)}`)
   }
 
   return (
     <div className="min-h-screen bg-background terminal-grid">
       <main className="container mx-auto max-w-5xl px-4 py-12 space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl md:text-4xl font-bold">Lead generation demo</h1>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="border-cyan-500/20 bg-cyan-500/10 text-cyan-200">
+              Leads refresh daily
+            </Badge>
+            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-200">
+              Limited preview
+            </Badge>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold">Find your next leads in under a minute</h1>
           <p className="text-muted-foreground">
-            Test one search in under a minute. See partial results, then continue to full workflow.
+            Run a sample search with no login required. Preview fit, outreach, and campaign intent before signup.
           </p>
         </header>
+
+        <Card className="border-cyan-500/20 bg-card/60">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Step progress</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-3">
+              <div className="text-xs uppercase tracking-wide text-cyan-200">Step 1</div>
+              <div className="mt-1 font-medium text-foreground">Search a target account</div>
+              <div className="text-xs text-muted-foreground">No signup required</div>
+            </div>
+            <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-3">
+              <div className="text-xs uppercase tracking-wide text-cyan-200">Step 2</div>
+              <div className="mt-1 font-medium text-foreground">Preview lead quality + outreach</div>
+              <div className="text-xs text-muted-foreground">Copy the AI message instantly</div>
+            </div>
+            <div className="rounded border border-border bg-background/40 p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Step 3</div>
+              <div className="mt-1 font-medium text-foreground">Unlock full campaigns</div>
+              <div className="text-xs text-muted-foreground">Save leads and track execution</div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="border-cyan-500/20 bg-card/60">
           <CardHeader className="pb-3">
@@ -105,6 +155,7 @@ export function DemoClient() {
             <Button onClick={() => void runSearch()} disabled={!canSearch} className="neon-border hover:glow-effect">
               {loading ? 'Searching…' : 'Run demo lead search'}
             </Button>
+            <div className="text-xs text-muted-foreground">No signup required to see your first lead preview.</div>
             {error ? <div className="text-sm text-red-300">{error}</div> : null}
           </CardContent>
         </Card>
@@ -123,6 +174,10 @@ export function DemoClient() {
                   <span className="text-muted-foreground">Lead score:</span> <span className="font-medium">{result.score}/100</span>
                 </div>
                 <div>
+                  <div className="text-muted-foreground">Why this lead is a good fit:</div>
+                  <div className="text-foreground">{result.whyNow}</div>
+                </div>
+                <div>
                   <div className="text-muted-foreground">Top signals:</div>
                   <ul className="list-disc pl-5">
                     {result.triggers.slice(0, 2).map((signal) => (
@@ -131,7 +186,28 @@ export function DemoClient() {
                   </ul>
                 </div>
                 <div className="rounded border border-cyan-500/10 bg-card/50 p-3 text-muted-foreground">
-                  {result.whyNow}
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">AI-generated outreach message</div>
+                  {result.outreach.subject ? (
+                    <div className="mt-2 text-foreground text-sm">
+                      <span className="font-medium">Subject:</span> {result.outreach.subject}
+                    </div>
+                  ) : null}
+                  <p className="mt-2 whitespace-pre-wrap text-sm">{result.outreach.body}</p>
+                </div>
+              </div>
+
+              <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-4">
+                <div className="font-medium text-foreground">Want to see all matched leads?</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Open your limited preview now. Leads refresh daily and only a small set is visible before upgrade.
+                </p>
+                <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                  <Button onClick={openLeadResultsPreview} className="neon-border hover:glow-effect">
+                    View lead results
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href="/pricing">See upgrade options</Link>
+                  </Button>
                 </div>
               </div>
 
@@ -155,7 +231,9 @@ export function DemoClient() {
                   Already have an account?{' '}
                   <Link
                     href={`/login?mode=signin&redirect=${encodeURIComponent(
-                      `/lead-results?company=${encodeURIComponent(companyOrUrl.trim())}&email=${encodeURIComponent(workEmail.trim())}`
+                      `/lead-results?company=${encodeURIComponent(
+                        companyOrUrl.trim().length > 0 ? companyOrUrl.trim() : result?.company ?? 'acme.com'
+                      )}&email=${encodeURIComponent(workEmail.trim())}`
                     )}`}
                     className="text-cyan-300 hover:underline"
                   >

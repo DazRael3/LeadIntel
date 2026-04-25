@@ -61,6 +61,8 @@ export async function getLearningContextForWorkspace(args: {
     wrong_timing: 0,
     no_response: 0,
     manual_dismissal: 0,
+    converted_yes: 0,
+    converted_no: 0,
   }
   let lastOut: string | null = null
   for (const r of (outRes.data ?? []) as unknown as Array<{ outcome?: unknown; recorded_at?: unknown }>) {

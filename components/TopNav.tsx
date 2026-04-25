@@ -95,7 +95,7 @@ export function TopNav() {
               className="hidden md:inline-flex text-muted-foreground hover:text-foreground hover:bg-cyan-500/10"
               onClick={() => track('demo_started', { source: 'top_nav', cta: 'generate_first_leads' })}
             >
-              <Link href="/demo">Generate My First Leads</Link>
+              <Link href="/demo">Find My Leads Now</Link>
             </Button>
             <Button
               asChild

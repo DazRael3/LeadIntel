@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
-export const CampaignStatusSchema = z.enum(['draft', 'active', 'paused', 'archived'])
+export const CampaignStatusSchema = z.enum(['new', 'contacted', 'responded', 'closed', 'active', 'paused', 'archived'])
 export type CampaignStatus = z.infer<typeof CampaignStatusSchema>
 
 export const CampaignCreateSchema = z.object({
@@ -54,6 +54,12 @@ export type CampaignLeadRow = {
   created_at: string | null
 }
 
+export type CampaignProgressSummary = {
+  total: number
+  byStatus: Record<CampaignStatus, number>
+  completionPct: number
+}
+
 export function canCreateCampaign(role: string): boolean {
   return role === 'owner' || role === 'admin' || role === 'manager' || role === 'rep'
 }
@@ -76,6 +82,34 @@ export async function listCampaignsForWorkspace(args: {
 
   if (error) throw error
   return (data ?? []) as CampaignRow[]
+}
+
+export function summarizeCampaignStatuses(campaigns: CampaignRow[]): CampaignProgressSummary {
+  const byStatus: Record<CampaignStatus, number> = {
+    new: 0,
+    contacted: 0,
+    responded: 0,
+    closed: 0,
+    active: 0,
+    paused: 0,
+    archived: 0,
+  }
+
+  for (const campaign of campaigns) {
+    if (campaign.status in byStatus) {
+      byStatus[campaign.status] += 1
+    }
+  }
+
+  const total = campaigns.length
+  const completionBase = byStatus.responded + byStatus.closed
+  const completionPct = total > 0 ? Math.round((completionBase / total) * 100) : 0
+
+  return {
+    total,
+    byStatus,
+    completionPct,
+  }
 }
 
 export async function getCampaignById(args: {
@@ -109,7 +143,7 @@ export async function createCampaignRecord(args: {
       created_by: args.userId,
       name: args.input.name,
       objective: args.input.objective ?? null,
-      status: args.input.status ?? 'draft',
+      status: args.input.status ?? 'new',
     })
     .select('id, workspace_id, created_by, name, objective, status, created_at, updated_at')
     .single()

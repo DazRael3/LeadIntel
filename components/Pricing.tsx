@@ -12,10 +12,19 @@ import { formatErrorMessage } from "@/lib/utils/format-error"
 import { track } from '@/lib/analytics'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { COPY } from '@/lib/copy/leadintel'
+import { usePublicAbVariant } from '@/lib/experiments/usePublicAbVariant'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
 import { OutcomePricingIntro } from '@/components/marketing/OutcomePricingIntro'
 import { LeadCaptureCard } from '@/components/marketing/LeadCaptureCard'
 import { useStripePortal } from '@/app/dashboard/hooks/useStripePortal'
+
+type UpgradeBlockerReason =
+  | 'too_expensive'
+  | 'unclear_value'
+  | 'missing_feature'
+  | 'timing'
+  | 'just_exploring'
+  | 'other'
 
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
@@ -127,7 +136,18 @@ export function Pricing() {
   const { openPortal } = useStripePortal()
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [teamSeats, setTeamSeats] = useState<number>(5)
+  const [addOnLeadPacks, setAddOnLeadPacks] = useState<number>(0)
+  const [upgradeBlockerReason, setUpgradeBlockerReason] = useState<UpgradeBlockerReason>('too_expensive')
+  const [upgradeBlockerDetail, setUpgradeBlockerDetail] = useState('')
+  const [isSubmittingUpgradeFeedback, setIsSubmittingUpgradeFeedback] = useState(false)
+  const [upgradeFeedbackSubmitted, setUpgradeFeedbackSubmitted] = useState(false)
+  const [upgradeFeedbackError, setUpgradeFeedbackError] = useState<string | null>(null)
   const upgradeRef = useRef<HTMLDivElement | null>(null)
+  const pricingAb = usePublicAbVariant({
+    key: 'pricing_copy_test_v1',
+    variants: ['control', 'value_focused'],
+    fallback: 'control',
+  })
 
   const closerPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.closerMonthly) : PRICING.closerMonthly
   const closerPlusPrice =
@@ -135,6 +155,7 @@ export function Pricing() {
   const teamBasePrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.teamBaseMonthly) : PRICING.teamBaseMonthly
   const teamSeatPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.teamSeatMonthly) : PRICING.teamSeatMonthly
   const cadenceLabel = billingCycle === 'annual' ? '/year' : '/month'
+  const leadPackUnitPrice = billingCycle === 'annual' ? annualFromMonthly(29) : 29
 
   useEffect(() => {
     // Client-only query parsing (avoid useSearchParams() suspense requirement during prerender).
@@ -317,6 +338,43 @@ export function Pricing() {
     }
   }
 
+  const submitUpgradeBlockerFeedback = async () => {
+    if (isSubmittingUpgradeFeedback || upgradeFeedbackSubmitted) return
+    setUpgradeFeedbackError(null)
+    setIsSubmittingUpgradeFeedback(true)
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          route: '/pricing',
+          surface: 'pricing_upgrade_blocker_prompt',
+          sentiment: 'note',
+          message: `What stopped you from upgrading? reason=${upgradeBlockerReason}; detail=${upgradeBlockerDetail.trim() || 'n/a'}`,
+          deviceClass: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
+          viewport:
+            typeof window !== 'undefined'
+              ? { w: Math.floor(window.innerWidth), h: Math.floor(window.innerHeight) }
+              : undefined,
+        }),
+      })
+      if (!response.ok) {
+        setUpgradeFeedbackError('Could not send feedback. Please try again.')
+        return
+      }
+      track('upgrade_feedback_submitted', {
+        source: 'pricing',
+        reason: upgradeBlockerReason,
+      })
+      setUpgradeFeedbackSubmitted(true)
+      setUpgradeBlockerDetail('')
+    } catch {
+      setUpgradeFeedbackError('Could not send feedback. Please try again.')
+    } finally {
+      setIsSubmittingUpgradeFeedback(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background terminal-grid py-20">
       <div className="container mx-auto px-6">
@@ -375,8 +433,16 @@ export function Pricing() {
         </div>
 
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">{COPY.pricing.hero.headline}</h1>
-          <p className="text-muted-foreground text-lg">{COPY.pricing.hero.subhead}</p>
+          <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">
+            {pricingAb.variant === 'value_focused'
+              ? 'Turn lead signals into predictable revenue'
+              : COPY.pricing.hero.headline}
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            {pricingAb.variant === 'value_focused'
+              ? 'Choose a plan built for conversion velocity, pipeline consistency, and faster closed-won cycles.'
+              : COPY.pricing.hero.subhead}
+          </p>
           <div className="mt-6 max-w-3xl mx-auto">
             <ul className="text-sm text-muted-foreground space-y-1">
               {COPY.pricing.hero.bullets.map((b) => (
@@ -385,11 +451,13 @@ export function Pricing() {
             </ul>
             <div className="mt-4 text-xs text-muted-foreground">{COPY.pricing.hero.trustStrip(SUPPORT_EMAIL)}</div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-              <Button asChild size="lg" className="neon-border hover:glow-effect">
-                <a href="/signup?redirect=/onboarding">{COPY.pricing.hero.primaryCta}</a>
+                  <Button asChild size="lg" className="neon-border hover:glow-effect">
+                    <a href="/signup?redirect=/onboarding">
+                      {pricingAb.variant === 'value_focused' ? 'Start converting leads' : COPY.pricing.hero.primaryCta}
+                    </a>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <a href="#plan-closer">{COPY.pricing.hero.secondaryCta}</a>
+                <a href="#plan-pro">{pricingAb.variant === 'value_focused' ? 'Compare conversion plans' : COPY.pricing.hero.secondaryCta}</a>
               </Button>
             </div>
           </div>
@@ -428,6 +496,14 @@ export function Pricing() {
 
         <div className="max-w-6xl mx-auto mb-8">
           <OutcomePricingIntro />
+          <div className="mt-4 rounded border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-muted-foreground">
+            <div className="font-medium text-foreground">Optimize your path</div>
+            <p className="mt-1">
+              {pricingAb.variant === 'value_focused'
+                ? 'Most teams recover annual cost with one closed deal.'
+                : 'Start with a daily workflow and scale into predictable pipeline growth.'}
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
@@ -435,7 +511,7 @@ export function Pricing() {
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
               <CardTitle className="text-2xl bloomberg-font">Free</CardTitle>
-              <div className="mt-1 text-xs font-semibold text-muted-foreground">Validate the workflow</div>
+              <div className="mt-1 text-xs font-semibold text-muted-foreground">Test the system</div>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">$0</span>
                 <span className="text-muted-foreground">/month</span>
@@ -446,31 +522,27 @@ export function Pricing() {
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Validate the workflow with a sample digest
+                  Test lead + outreach workflow with limited preview
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Free plan: 3 preview generations total
+                  Unlock up to 3 preview leads
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Generate up to 3 pitch/report previews on Free
+                  Limited preview outreach drafts
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Browse the templates library
+                  See pipeline growth workflow before upgrading
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Full premium content stays locked until you upgrade
+                  Limited preview
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Usage is shared across pitches and reports
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Upgrade anytime
+                  No credit card for demo
                 </li>
               </ul>
               <Button asChild variant="outline" className="w-full h-11">
@@ -480,17 +552,17 @@ export function Pricing() {
           </Card>
           </div>
 
-          <div id="plan-closer">
-          <Card className="border-cyan-500/30 bg-card/80 glow-effect relative overflow-hidden">
+          <div id="plan-pro">
+          <Card className="border-cyan-400/70 bg-card/90 glow-effect relative overflow-hidden ring-2 ring-cyan-400/40 scale-[1.01]">
             <div className="absolute top-0 right-0 bg-gradient-to-l from-cyan-500/20 to-transparent w-32 h-32 blur-3xl" />
             <div className="absolute bottom-0 left-0 bg-gradient-to-r from-blue-500/20 to-transparent w-32 h-32 blur-3xl" />
 
             <CardHeader className="relative z-10">
               <div className="flex items-center justify-between mb-2">
               <CardTitle className="text-2xl bloomberg-font">Pro</CardTitle>
-                <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Most Popular</Badge>
+                <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Default choice</Badge>
               </div>
-              <div className="text-xs font-semibold text-muted-foreground">Daily prioritization and faster execution</div>
+                <div className="text-xs font-semibold text-muted-foreground">Get consistent leads + outreach</div>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">{formatCurrency(closerPrice)}</span>
                 <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -510,8 +582,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Daily shortlist for your watchlist</p>
-                    <p className="text-sm text-muted-foreground">A ranked list of accounts to action today</p>
+                    <p className="font-medium">Leads + outreach every day</p>
+                    <p className="text-sm text-muted-foreground">Move from lead list to send-ready outreach faster</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -519,8 +591,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Lead scoring (0–100) with reasons</p>
-                    <p className="text-sm text-muted-foreground">Deterministic ranking — no guesswork</p>
+                    <p className="font-medium">Pipeline growth tracking</p>
+                    <p className="text-sm text-muted-foreground">Prioritize conversations that close more customers</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -528,8 +600,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Send-ready drafts (email, DM, call opener)</p>
-                    <p className="text-sm text-muted-foreground">Generate first touches without a blank page</p>
+                    <p className="font-medium">Full outreach sequences</p>
+                    <p className="text-sm text-muted-foreground">Launch email + DM outreach without blank-page friction</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -537,11 +609,16 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Unlimited competitive reports</p>
-                    <p className="text-sm text-muted-foreground">Save and reuse sourced reports in one hub</p>
+                    <p className="font-medium">50+ leads and reusable playbooks</p>
+                    <p className="text-sm text-muted-foreground">Scale repeatable pipeline growth week after week</p>
                   </div>
                 </li>
               </ul>
+              <div className="rounded border border-cyan-500/20 bg-background/40 p-3 text-xs text-muted-foreground">
+                <div>1 closed deal pays for 12 months.</div>
+                <div>Less than cost of 1 agency lead.</div>
+                <div>Leads refresh daily.</div>
+              </div>
 
               {checkoutError && (
                 <div className="p-4 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400">
@@ -554,7 +631,7 @@ export function Pricing() {
                 </div>
               )}
 
-              <Button 
+              <Button
                 onClick={() => void handleCheckout('pro')}
                 disabled={isCheckoutLoading}
                 className="w-full h-12 text-lg font-bold neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
@@ -568,7 +645,7 @@ export function Pricing() {
                 ) : (
                   <>
                     <Zap className="h-5 w-5 mr-2" />
-                    Upgrade to Pro
+                    Get consistent leads + outreach
                   </>
                 )}
               </Button>
@@ -588,7 +665,7 @@ export function Pricing() {
                   <CardTitle className="text-2xl bloomberg-font">Pro+</CardTitle>
                   <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/25">Power user</Badge>
                 </div>
-                <div className="text-xs font-semibold text-muted-foreground">Deeper context for operators</div>
+                <div className="text-xs font-semibold text-muted-foreground">Pipeline growth for high-volume operators</div>
                 <div className="flex items-baseline gap-2 mt-4">
                   <span className="text-5xl font-bold text-purple-200">{formatCurrency(closerPlusPrice)}</span>
                   <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -599,7 +676,7 @@ export function Pricing() {
                   </div>
                 )}
                 <CardDescription>
-                  Deeper source-backed context and premium report workflow for operators.
+                  Scale leads + outreach with deeper context and faster iteration.
                 </CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 space-y-6">
@@ -610,7 +687,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Everything in Pro</p>
-                      <p className="text-sm text-muted-foreground">Plus deeper competitive report workflow</p>
+                      <p className="text-sm text-muted-foreground">Plus deeper pipeline growth controls</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -619,7 +696,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Sources &amp; freshness visibility</p>
-                      <p className="text-sm text-muted-foreground">See what was fetched and when, with citations</p>
+                      <p className="text-sm text-muted-foreground">Close more customers with better timing context</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -628,7 +705,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Refresh sources + regenerate</p>
-                      <p className="text-sm text-muted-foreground">Pull current citations and rebuild the report</p>
+                      <p className="text-sm text-muted-foreground">Keep outreach relevant as pipeline conditions change</p>
                     </div>
                   </li>
                 </ul>
@@ -646,7 +723,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <TrendingUp className="h-5 w-5 mr-2" />
-                      Upgrade to Pro+
+                      Scale pipeline with Pro+
                     </>
                   )}
                 </Button>
@@ -660,10 +737,10 @@ export function Pricing() {
               <div className="absolute top-0 left-0 bg-gradient-to-r from-slate-500/10 to-transparent w-32 h-32 blur-3xl" />
               <CardHeader className="relative z-10">
                 <div className="flex items-center justify-between mb-2">
-                  <CardTitle className="text-2xl bloomberg-font">Agency</CardTitle>
+                  <CardTitle className="text-2xl bloomberg-font">Team</CardTitle>
                   <Badge className="bg-slate-500/10 text-slate-200 border-slate-500/20">Seats</Badge>
                 </div>
-                <div className="text-xs font-semibold text-muted-foreground">Governance and rollout</div>
+                <div className="text-xs font-semibold text-muted-foreground">Scale pipeline</div>
                 <div className="mt-4 flex flex-col gap-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-5xl font-bold text-slate-100">{formatCurrency(teamBasePrice)}</span>
@@ -679,7 +756,7 @@ export function Pricing() {
                   </div>
                 )}
                 <CardDescription>
-                  For teams that need shared reporting, consistent messaging, and rollout across reps.
+                  For teams scaling leads + outreach and pipeline growth across reps.
                 </CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 space-y-6">
@@ -701,6 +778,24 @@ export function Pricing() {
                     Checkout uses seat quantity. If you configure base + seat prices, we’ll include both line items.
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Add-on lead packs (prep)</div>
+                    <div className="text-xs text-muted-foreground">{addOnLeadPacks}</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    value={addOnLeadPacks}
+                    onChange={(e) => setAddOnLeadPacks(Number(e.target.value))}
+                    className="w-full"
+                    aria-label="Add-on lead packs preview"
+                  />
+                  <div className="text-[11px] text-muted-foreground">
+                    Optional add-on packs: {formatCurrency(leadPackUnitPrice)} each{billingCycle === 'annual' ? '/year' : '/month'} (preview only).
+                  </div>
+                </div>
 
                 <ul className="space-y-4">
                   <li className="flex items-start gap-3">
@@ -709,7 +804,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Standardized team workflow</p>
-                      <p className="text-sm text-muted-foreground">Governance and rollout across reps</p>
+                      <p className="text-sm text-muted-foreground">Scale pipeline and close more customers as a team</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -718,7 +813,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Shared templates with approvals</p>
-                      <p className="text-sm text-muted-foreground">Draft → approve → reuse across reps</p>
+                      <p className="text-sm text-muted-foreground">Maintain consistent leads + outreach execution</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -727,7 +822,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Audit logs</p>
-                      <p className="text-sm text-muted-foreground">Admin visibility on member and template actions</p>
+                      <p className="text-sm text-muted-foreground">Track where pipeline growth accelerates or stalls</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -736,7 +831,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Webhooks + exports</p>
-                      <p className="text-sm text-muted-foreground">Handoff packages + workspace queue + delivery history (via webhook/export workflows)</p>
+                      <p className="text-sm text-muted-foreground">Operational handoff for campaign delivery at scale</p>
                     </div>
                   </li>
                 </ul>
@@ -755,7 +850,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <Shield className="h-5 w-5 mr-2" />
-                      Start Agency
+                      Scale pipeline with Team
                     </>
                   )}
                 </Button>
@@ -805,9 +900,9 @@ export function Pricing() {
             <CardContent className="pt-6">
               <h2 className="text-xl font-bold">The ROI is speed-to-action.</h2>
               <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <p>• Spend less time deciding who to contact today.</p>
-                <p>• Move from “signal” to “send-ready” without blank-page writing.</p>
-                <p>• Keep the daily loop consistent: shortlist → explain → draft → action.</p>
+                <p>• 1 closed deal pays for 12 months.</p>
+                <p>• Less than cost of 1 agency lead.</p>
+                <p>• Keep the daily loop consistent: leads + outreach → pipeline growth → close more customers.</p>
               </div>
             </CardContent>
           </Card>
@@ -854,6 +949,107 @@ export function Pricing() {
 
         <div className="mt-12 max-w-6xl mx-auto">
           <LeadCaptureCard surface="pricing" />
+        </div>
+
+        <div className="mt-10 max-w-6xl mx-auto">
+          <Card className="border-cyan-500/20 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">What stopped you from upgrading?</CardTitle>
+              <CardDescription>Quick feedback helps us improve the upgrade experience.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'too_expensive'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('too_expensive')}
+                >
+                  Too expensive
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'unclear_value'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('unclear_value')}
+                >
+                  Value not clear yet
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'missing_feature'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('missing_feature')}
+                >
+                  Missing feature
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'timing'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('timing')}
+                >
+                  Bad timing
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'just_exploring'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('just_exploring')}
+                >
+                  Just exploring
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'other'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('other')}
+                >
+                  Other
+                </button>
+              </div>
+              <textarea
+                className="w-full rounded border border-cyan-500/10 bg-background/40 px-3 py-2 text-sm text-foreground"
+                rows={3}
+                placeholder="Optional details"
+                value={upgradeBlockerDetail}
+                onChange={(event) => setUpgradeBlockerDetail(event.target.value)}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void submitUpgradeBlockerFeedback()}
+                  disabled={isSubmittingUpgradeFeedback || upgradeFeedbackSubmitted}
+                >
+                  {upgradeFeedbackSubmitted
+                    ? 'Thanks for the feedback'
+                    : isSubmittingUpgradeFeedback
+                      ? 'Sending...'
+                      : 'Send feedback'}
+                </Button>
+                {upgradeFeedbackError ? <span className="text-xs text-red-300">{upgradeFeedbackError}</span> : null}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="mt-10 max-w-6xl mx-auto">
@@ -968,7 +1164,7 @@ export function Pricing() {
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">
               <TrendingUp className="h-8 w-8 mx-auto mb-3 text-green-400" />
-              <h3 className="font-bold mb-2">Built for daily execution</h3>
+              <h3 className="font-bold mb-2">Built for pipeline growth</h3>
               <p className="text-sm text-muted-foreground">
                 {COPY.pricing.plans.replacementClaim}
               </p>
@@ -977,9 +1173,9 @@ export function Pricing() {
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">
               <Zap className="h-8 w-8 mx-auto mb-3 text-purple-400" />
-              <h3 className="font-bold mb-2">Instant Access</h3>
+              <h3 className="font-bold mb-2">No credit card for demo</h3>
               <p className="text-sm text-muted-foreground">
-                Get started immediately after subscription.
+                Test the system before upgrading.
               </p>
             </CardContent>
           </Card>

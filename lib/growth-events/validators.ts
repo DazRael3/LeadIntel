@@ -39,3 +39,23 @@ export function sanitizeGrowthEventProps(input: unknown): Record<string, unknown
   return out
 }
 
+export function normalizeGrowthEventName(name: string): GrowthEventName | null {
+  const normalized = name.trim()
+  const aliases: Record<string, GrowthEventName> = {
+    page_view: 'page_view',
+    landing_view: 'page_view',
+    landing_viewed: 'page_view',
+    demo_started: 'demo_started',
+    lead_search_completed: 'results_viewed',
+    results_viewed: 'results_viewed',
+    signup_completed: 'signup_completed',
+    subscription_created: 'payment_completed',
+    payment_completed: 'payment_completed',
+    checkout_started: 'checkout_started',
+    upgrade_clicked: 'checkout_started',
+  }
+  const mapped = aliases[normalized] ?? null
+  if (!mapped) return null
+  return isGrowthEventName(mapped) ? mapped : null
+}
+

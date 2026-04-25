@@ -81,6 +81,8 @@ export const OutcomeKindSchema = z.enum([
   'wrong_timing',
   'no_response',
   'manual_dismissal',
+  'converted_yes',
+  'converted_no',
 ])
 export type OutcomeKind = z.infer<typeof OutcomeKindSchema>
 

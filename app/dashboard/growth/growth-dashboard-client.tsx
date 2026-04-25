@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
 import { ExperimentResultsTable, type DirectionalExperimentResults } from '@/components/growth/ExperimentResultsTable'
+import { ScalingMetricsCard } from '@/components/dashboard/ScalingMetricsCard'
 
 type ExperimentStatus = 'draft' | 'running' | 'paused' | 'completed' | 'archived' | 'rolled_out' | 'reverted'
 type Experiment = {
@@ -31,6 +32,14 @@ type Envelope =
         experiments: Experiment[]
         exposures: Record<string, { total: number; byVariant: Record<string, number> }>
         growthEventCounts: Record<string, number>
+        dailyUsers: number
+        demoRatePct: number
+        signupRatePct: number
+        paidConversions: number
+        paidConversionRatePct: number
+        conversionRatePct: number
+        activeUsers: number
+        revenueTrend: Array<{ date: string; revenue: number }>
         directionalResults?: DirectionalExperimentResults[]
         lifecycle?: { counts: Record<string, number>; sampleSize: number; note: string }
         retention?: { signals: Array<{ key: string; label: string; state: 'good' | 'caution'; detail: string }>; note: string }
@@ -147,6 +156,14 @@ export function GrowthDashboardClient() {
             <div className="text-xs text-muted-foreground">{okData.note}</div>
           </CardContent>
         </Card>
+
+        <ScalingMetricsCard
+          windowDays={okData.windowDays}
+          dailyUsers={okData.dailyUsers ?? 0}
+          demoRatePct={okData.demoRatePct ?? 0}
+          signupRatePct={okData.signupRatePct ?? 0}
+          paidConversions={okData.paidConversions ?? 0}
+        />
 
         {okData.lifecycle ? (
           <Card className="border-cyan-500/20 bg-card/50">

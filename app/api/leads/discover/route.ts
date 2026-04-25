@@ -9,7 +9,8 @@ import { getProductPlanDetailsForTier } from '@/lib/billing/product-plan'
 import { makeNameCompanyKey } from '@/lib/company-key'
 import { logger } from '@/lib/observability/logger'
 import {
-  LeadGenerationRequestSchema,
+  LeadSearchPayloadSchema,
+  type LeadSearchPayload,
   type LeadGenerationRequest,
   type GeneratedLeadCandidate,
   deduplicateLeadCandidates,
@@ -19,6 +20,11 @@ import {
   normalizeEmail,
   scoreLeadFit,
 } from '@/lib/services/lead-generation'
+import { markSavedSearchRun } from '@/lib/services/saved-searches'
+import { getServerEnv } from '@/lib/env'
+import { sendEmailWithResend } from '@/lib/email/resend'
+import { getResendReplyToEmail } from '@/lib/email/routing'
+import { insertEmailLog } from '@/lib/email/email-logs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,6 +48,10 @@ type DiscoverLeadResponseRow = {
   fitScore: number
   fitExplanation: string
   createdAt: string
+}
+
+type UserSettingsNotificationRow = {
+  digest_emails_opt_in: boolean | null
 }
 
 const ListQuerySchema = z.object({
@@ -212,6 +222,102 @@ async function enrichCandidatesWithProviders(candidates: GeneratedLeadCandidate[
   return { candidates: enriched, provider: 'clearbit', enrichedCount }
 }
 
+async function sendSavedSearchLeadsEmail(args: {
+  supabase: ReturnType<typeof createRouteClient>
+  userId: string
+  toEmail: string | null | undefined
+  insertedLeads: DiscoverLeadResponseRow[]
+  savedSearchName: string
+  requestId: string
+}): Promise<void> {
+  const recipient = typeof args.toEmail === 'string' ? args.toEmail.trim() : ''
+  if (!recipient) return
+  if (args.insertedLeads.length === 0) return
+
+  let notifications: UserSettingsNotificationRow | null = null
+  try {
+    const { data } = await args.supabase
+      .schema('api')
+      .from('user_settings')
+      .select('digest_emails_opt_in')
+      .eq('user_id', args.userId)
+      .maybeSingle()
+    notifications = (data ?? null) as UserSettingsNotificationRow | null
+  } catch {
+    notifications = null
+  }
+  if (notifications && notifications.digest_emails_opt_in === false) return
+
+  const env = getServerEnv()
+  const fromEmail = (env.RESEND_FROM_EMAIL ?? '').trim()
+  if (!fromEmail) return
+
+  const topRows = args.insertedLeads.slice(0, 5)
+  const leadList = topRows
+    .map((lead) => `- ${lead.companyName} (fit ${lead.fitScore}/100)`)
+    .join('\n')
+  const total = args.insertedLeads.length
+  const subject = `New leads found for "${args.savedSearchName}"`
+  const text = [
+    `LeadIntel found ${total} new lead${total === 1 ? '' : 's'} for your saved search "${args.savedSearchName}".`,
+    '',
+    'Top leads:',
+    leadList,
+    '',
+    'Open dashboard: /dashboard?tab=leads',
+  ].join('\n')
+  const html = `<div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
+    <h2 style="margin:0 0 10px;">New leads found for "${escapeHtml(args.savedSearchName)}"</h2>
+    <p style="margin:0 0 10px;">LeadIntel found <strong>${total}</strong> new lead${total === 1 ? '' : 's'}.</p>
+    <ul style="margin:0 0 12px; padding-left:18px;">
+      ${topRows
+        .map((lead) => `<li>${escapeHtml(lead.companyName)} (fit ${lead.fitScore}/100)</li>`)
+        .join('')}
+    </ul>
+    <p style="margin:0;"><a href="/dashboard?tab=leads">Open dashboard</a></p>
+  </div>`
+
+  const send = await sendEmailWithResend({
+    from: fromEmail,
+    to: recipient,
+    replyTo: getResendReplyToEmail(),
+    subject,
+    html,
+    text,
+    tags: [{ name: 'kind', value: 'saved_search_leads' }],
+  })
+
+  await insertEmailLog(args.supabase, {
+    userId: args.userId,
+    toEmail: recipient,
+    fromEmail,
+    subject,
+    provider: 'resend',
+    status: send.ok ? 'sent' : 'failed',
+    error: send.ok ? null : send.errorMessage,
+    resendMessageId: send.ok ? send.messageId : null,
+    kind: 'digest',
+  })
+
+  if (!send.ok) {
+    logger.warn({
+      scope: 'lead-generation',
+      message: 'saved_search_notification_failed',
+      requestId: args.requestId,
+      userId: args.userId,
+    })
+  }
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 const GET_HANDLER = withApiGuard(
   async (request: NextRequest, { requestId, query }) => {
     const bridge = createCookieBridge()
@@ -263,7 +369,16 @@ const POST_HANDLER = withApiGuard(
       const user = await getUserSafe(supabase)
       if (!user) return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
 
-      const parsedBody = body as LeadGenerationRequest
+      const parsedBody = body as LeadSearchPayload
+      const generationInput: LeadGenerationRequest = {
+        targetIndustry: parsedBody.targetIndustry,
+        location: parsedBody.location,
+        companySize: parsedBody.companySize,
+        targetRole: parsedBody.targetRole,
+        painPoint: parsedBody.painPoint,
+        offerService: parsedBody.offerService,
+        numberOfLeads: parsedBody.numberOfLeads,
+      }
 
       const tier = await getUserTierForGating({ userId: user.id, sessionEmail: user.email ?? null, supabase })
       const planDetails = getProductPlanDetailsForTier(tier)
@@ -283,11 +398,11 @@ const POST_HANDLER = withApiGuard(
         )
       }
 
-      const requested = parsedBody.numberOfLeads
+      const requested = generationInput.numberOfLeads
       const maxInsertable =
         typeof remainingByPlanLimit === 'number' ? Math.min(requested, remainingByPlanLimit) : requested
       const effectiveInput: LeadGenerationRequest = {
-        ...parsedBody,
+        ...generationInput,
         numberOfLeads: maxInsertable,
       }
 
@@ -297,8 +412,8 @@ const POST_HANDLER = withApiGuard(
         fitNotes: [
           ...(candidate.fitNotes ?? []),
           `Lead strategy: ${generated.strategy.query}`,
-          `Pain point focus: ${parsedBody.painPoint}`,
-          `Offer fit: ${parsedBody.offerService}`,
+          `Pain point focus: ${generationInput.painPoint}`,
+          `Offer fit: ${generationInput.offerService}`,
         ].slice(0, 6),
       }))
       const enriched = await enrichCandidatesWithProviders(generatedCandidates)
@@ -316,7 +431,7 @@ const POST_HANDLER = withApiGuard(
       for (const candidate of dedupedCandidates) {
         if (candidatesToInsert.length >= maxInsertable) break
         const duplicate = findDuplicate(existingMaps, candidate)
-        const score = scoreLeadFit(parsedBody, candidate)
+        const score = scoreLeadFit(generationInput, candidate)
         const draft = buildLeadDraft({ input: parsedBody, candidate, score })
 
         if (duplicate) {
@@ -384,10 +499,41 @@ const POST_HANDLER = withApiGuard(
       const usageLimit = leadLimit
       const usageRemaining = typeof usageLimit === 'number' ? Math.max(0, usageLimit - usageUsed) : null
 
+      let savedSearch = null as Awaited<ReturnType<typeof markSavedSearchRun>> | null
+      if (parsedBody.savedSearchId) {
+        try {
+          savedSearch = await markSavedSearchRun({
+            supabase,
+            userId: user.id,
+            id: parsedBody.savedSearchId,
+          })
+        } catch {
+          savedSearch = null
+        }
+      }
+
+      if (savedSearch && insertedResponseRows.length > 0) {
+        await sendSavedSearchLeadsEmail({
+          supabase,
+          userId: user.id,
+          toEmail: user.email,
+          insertedLeads: insertedResponseRows,
+          savedSearchName: savedSearch.name,
+          requestId,
+        })
+      }
+
       return ok(
         {
           strategy: generated.strategy,
           leads: insertedResponseRows,
+          savedSearch: savedSearch
+            ? {
+                id: savedSearch.id,
+                name: savedSearch.name,
+                lastRunAt: savedSearch.last_run_at,
+              }
+            : null,
           usage: {
             tier,
             productPlan: planDetails.plan,
@@ -419,7 +565,7 @@ const POST_HANDLER = withApiGuard(
       return asHttpError(error, '/api/leads/discover', undefined, bridge, requestId)
     }
   },
-  { bodySchema: LeadGenerationRequestSchema }
+  { bodySchema: LeadSearchPayloadSchema }
 )
 
 const DELETE_HANDLER = withApiGuard(

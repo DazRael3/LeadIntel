@@ -48,6 +48,8 @@ function PricingSuccessContent() {
             setStatus('pro')
             setError(null)
             track('subscription_created', { source: 'pricing_success', sessionIdPresent: Boolean(sessionId) })
+            track('payment_completed', { source: 'pricing_success', sessionIdPresent: Boolean(sessionId) })
+            track('conversion', { source: 'pricing_success', event: 'subscription_created', sessionIdPresent: Boolean(sessionId) })
             setTimeout(() => router.push('/dashboard'), 800)
           }
           return

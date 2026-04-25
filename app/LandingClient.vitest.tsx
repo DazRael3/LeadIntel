@@ -30,7 +30,8 @@ describe('LandingClient', () => {
     const LandingClient = (await import('./LandingClient')).default
     render(<LandingClient />)
 
-    expect(screen.getByRole('heading', { name: /why-now signals for outbound teams/i })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /find & close your next customers in 60 seconds/i })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /find my leads now/i })).toBeTruthy()
     expect(screen.getByRole('heading', { name: /Why teams switch to LeadIntel/i })).toBeTruthy()
     expect(screen.getByRole('heading', { name: /Evidence, not hype/i })).toBeTruthy()
     expect(screen.getByText(/Proof you can inspect today/i)).toBeTruthy()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ import { COPY } from "@/lib/copy/leadintel"
 import { markUpgradeNudgeShown, shouldShowUpgradeNudge } from '@/lib/growth/nudge-cap'
 import { getActiveWorkspaceIdForUser, ensureDefaultWatchlist, listWatchlistItems, removeLeadFromWatchlist as removeLeadFromWatchlistV2 } from "@/lib/watchlists-v2/service"
 import { LeadGenerationWorkflow } from "@/components/LeadGenerationWorkflow"
+import type { LeadGenerationResponse } from "@/components/LeadGenerationWorkflow"
 
 type WatchlistRow = {
   lead_id: string
@@ -39,6 +40,28 @@ type WatchlistRow = {
 type LeadFitSummary = {
   score: number | null
   explanation: string
+}
+
+type SavedSearchRow = {
+  id: string
+  name: string
+  query_payload: {
+    targetIndustry?: string
+    location?: string
+    companySize?: string
+    targetRole?: string
+    painPoint?: string
+    offerService?: string
+    numberOfLeads?: number
+    savedSearchId?: string
+  } | null
+  last_run_at: string | null
+  updated_at: string
+}
+
+type LeadActivitySummary = {
+  newLeadsSinceLastVisit: number
+  campaignsAwaitingAction: number
 }
 
 function parseLeadFitSummary(pitch: string): LeadFitSummary {
@@ -69,6 +92,22 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [starredLeads, setStarredLeads] = useState<Set<string>>(new Set())
   const [isDeletingLeadId, setIsDeletingLeadId] = useState<string | null>(null)
+  const [savedSearches, setSavedSearches] = useState<SavedSearchRow[]>([])
+  const [savedSearchName, setSavedSearchName] = useState('')
+  const [selectedSavedSearchId, setSelectedSavedSearchId] = useState<string | null>(null)
+  const [isSavingSearch, setIsSavingSearch] = useState(false)
+  const [activitySummary, setActivitySummary] = useState<LeadActivitySummary | null>(null)
+  const [runAgainSignal, setRunAgainSignal] = useState(0)
+  const [draftSearchPayload, setDraftSearchPayload] = useState<{
+    targetIndustry: string
+    location: string
+    companySize: string
+    targetRole: string
+    painPoint: string
+    offerService: string
+    numberOfLeads: number
+  } | null>(null)
+  const hasStampedVisit = useRef(false)
 
   const loadStarredLeads = useCallback(async () => {
     if (!isPro) return
@@ -110,9 +149,60 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
     void loadStarredLeads()
   }, [loadStarredLeads])
 
+  const loadSavedSearches = useCallback(async () => {
+    try {
+      const response = await fetch('/api/saved-searches', { cache: 'no-store' })
+      const payload = (await response.json().catch(() => null)) as
+        | { ok: true; data: { savedSearches: SavedSearchRow[] } }
+        | { ok: false }
+        | null
+      if (!response.ok || !payload || payload.ok !== true) return
+      const rows = payload.data.savedSearches ?? []
+      setSavedSearches(rows)
+      if (rows.length > 0 && !selectedSavedSearchId) {
+        setSelectedSavedSearchId(rows[0].id)
+      }
+    } catch {
+      // fail-soft
+    }
+  }, [selectedSavedSearchId])
+
+  const loadActivitySummary = useCallback(async () => {
+    try {
+      const response = await fetch('/api/lead-activity', { cache: 'no-store' })
+      const payload = (await response.json().catch(() => null)) as
+        | { ok: true; data: { summary: LeadActivitySummary } }
+        | { ok: false }
+        | null
+      if (!response.ok || !payload || payload.ok !== true) return
+      setActivitySummary(payload.data.summary)
+    } catch {
+      // fail-soft
+    }
+  }, [])
+
+  const stampLeadLibraryVisit = useCallback(async () => {
+    if (hasStampedVisit.current) return
+    hasStampedVisit.current = true
+    try {
+      await fetch('/api/lead-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    } catch {
+      // fail-soft
+    }
+  }, [])
+
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    void loadSavedSearches()
+    void loadActivitySummary()
+    void stampLeadLibraryVisit()
+  }, [loadSavedSearches, loadActivitySummary, stampLeadLibraryVisit])
 
   useEffect(() => {
     track('lead_library_viewed')
@@ -240,7 +330,8 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
 
   const handleCopyPitch = async (pitch: string, leadId: string) => {
     try {
-      await navigator.clipboard.writeText(pitch)
+      const withAttribution = `${pitch}\n\nGenerated with RaelInfo`
+      await navigator.clipboard.writeText(withAttribution)
       setCopiedId(leadId)
       setTimeout(() => setCopiedId(null), 2000)
     } catch (error) {
@@ -269,7 +360,7 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
 
   const exportLeads = () => {
     const csv = [
-      ['Company', 'Domain', 'URL', 'Contact Email', 'Fit Score', 'Fit Explanation', 'Latest Signal', 'Created At'].join(','),
+      ['Company', 'Domain', 'URL', 'Contact Email', 'Fit Score', 'Fit Explanation', 'Latest Signal', 'Created At', 'Attribution'].join(','),
       ...filteredLeads.map((lead) => {
         const parsed = parseLeadFitSummary(lead.ai_personalized_pitch ?? '')
         const fitScore = typeof lead.fit_score === 'number' ? String(lead.fit_score) : parsed.score !== null ? String(parsed.score) : ''
@@ -283,6 +374,7 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
           `"${fitExplanation.replace(/"/g, '""')}"`,
           `"${((lead as unknown as { latestSignal?: { type?: string; detectedAt?: string } }).latestSignal?.type ?? '')}"`,
           `"${lead.created_at}"`,
+          '"Generated with RaelInfo"',
         ].join(',')
       }),
     ].join('\n')
@@ -306,6 +398,57 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
     if (leads.length < STARTER_MAX_LEADS) return false
     return true
   }, [isPro, leads.length])
+
+  const selectedSavedSearch = useMemo(
+    () => savedSearches.find((row) => row.id === selectedSavedSearchId) ?? null,
+    [savedSearches, selectedSavedSearchId]
+  )
+
+  const savedSearchPreset = useMemo(() => {
+    if (!selectedSavedSearch || !selectedSavedSearch.query_payload) return null
+    const payload = selectedSavedSearch.query_payload
+    return {
+      targetIndustry: payload.targetIndustry ?? '',
+      location: payload.location ?? '',
+      companySize: payload.companySize ?? '',
+      targetRole: payload.targetRole ?? '',
+      painPoint: payload.painPoint ?? '',
+      offerService: payload.offerService ?? '',
+      numberOfLeads: typeof payload.numberOfLeads === 'number' ? payload.numberOfLeads : 10,
+      savedSearchId: selectedSavedSearch.id,
+    }
+  }, [selectedSavedSearch])
+
+  const handleSaveCurrentSearch = useCallback(
+    async (result: LeadGenerationResponse) => {
+      const payload = result.savedSearch
+      if (payload) {
+        await loadSavedSearches()
+        return
+      }
+      if (!savedSearchName.trim()) return
+      if (!draftSearchPayload) return
+
+      setIsSavingSearch(true)
+      try {
+        const response = await fetch('/api/saved-searches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: savedSearchName.trim(),
+            queryPayload: draftSearchPayload,
+          }),
+        })
+        if (response.ok) {
+          setSavedSearchName('')
+          await loadSavedSearches()
+        }
+      } finally {
+        setIsSavingSearch(false)
+      }
+    },
+    [draftSearchPayload, loadSavedSearches, savedSearchName]
+  )
 
   return (
     <Card className="border-cyan-500/20 bg-card/50">
@@ -342,7 +485,119 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
           <StarterLimitNudge />
         ) : null}
 
-        <LeadGenerationWorkflow onGenerated={() => refresh()} />
+        <div className="rounded border border-cyan-500/20 bg-background/30 p-3 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs uppercase tracking-wide text-cyan-300">Retention loop guidance</div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">Step 1: Find leads</Badge>
+              <Badge variant="outline">Step 2: Generate outreach</Badge>
+              <Badge variant="outline">Step 3: Add to campaign</Badge>
+              <Badge variant="outline">Step 4: Track progress</Badge>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Leads refresh daily. New opportunities available when you rerun saved searches.
+          </div>
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+            <div className="text-xs text-foreground">Invite a friend &rarr; get more leads</div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 h-7 text-xs"
+              onClick={() => {
+                track('upgrade_clicked', { source: 'lead_library_referral_hook' })
+                window.location.href = '/settings/team'
+              }}
+            >
+              Invite a friend
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline">
+              New leads since last visit: {activitySummary?.newLeadsSinceLastVisit ?? 0}
+            </Badge>
+            <Badge variant="outline">
+              Campaigns awaiting action: {activitySummary?.campaignsAwaitingAction ?? 0}
+            </Badge>
+          </div>
+        </div>
+
+        <div className="rounded border border-cyan-500/20 bg-background/30 p-3 space-y-3">
+          <div className="text-xs uppercase tracking-wide text-cyan-300">Saved searches</div>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <Input
+              placeholder="Name this search (e.g. Fintech RevOps ICP)"
+              value={savedSearchName}
+              onChange={(event) => setSavedSearchName(event.target.value)}
+              className="md:max-w-sm"
+            />
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={selectedSavedSearchId ?? ''}
+              onChange={(event) => setSelectedSavedSearchId(event.target.value || null)}
+            >
+              <option value="">No saved search selected</option>
+              {savedSearches.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!selectedSavedSearch}
+              onClick={() => {
+                if (!selectedSavedSearch) return
+                setSelectedSavedSearchId(selectedSavedSearch.id)
+                setRunAgainSignal((prev) => prev + 1)
+                const panel = document.querySelector('[data-lead-generation-workflow="true"]')
+                if (panel instanceof HTMLElement) {
+                  panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+              }}
+            >
+              Run Again
+            </Button>
+          </div>
+          {selectedSavedSearch?.last_run_at ? (
+            <div className="text-xs text-muted-foreground">
+              Last run: {formatDate(selectedSavedSearch.last_run_at)}
+            </div>
+          ) : null}
+        </div>
+
+        <div data-lead-generation-workflow="true">
+          <LeadGenerationWorkflow
+            onGenerated={async () => {
+              await refresh()
+              await loadSavedSearches()
+              await loadActivitySummary()
+              await stampLeadLibraryVisit()
+            }}
+            preset={savedSearchPreset}
+            defaultSavedSearchId={selectedSavedSearchId}
+            modeLabel={selectedSavedSearch ? `Run Again: ${selectedSavedSearch.name}` : 'Lead Generation Workflow'}
+            runSignal={runAgainSignal}
+            onPayloadChange={(payload) => {
+              setDraftSearchPayload({
+                targetIndustry: payload.targetIndustry,
+                location: payload.location,
+                companySize: payload.companySize,
+                targetRole: payload.targetRole,
+                painPoint: payload.painPoint,
+                offerService: payload.offerService,
+                numberOfLeads: payload.numberOfLeads,
+              })
+            }}
+            onResult={(result) => {
+              void handleSaveCurrentSearch(result)
+            }}
+          />
+        </div>
+        {isSavingSearch ? (
+          <div className="text-xs text-muted-foreground">Saving search preset…</div>
+        ) : null}
 
         {/* Search and Filters */}
         <div className="space-y-3">

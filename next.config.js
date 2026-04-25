@@ -31,6 +31,14 @@ const nextConfig = {
   reactStrictMode: true,
   // Next 15 dev warning: allow local dev/test origins explicitly.
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
+  async rewrites() {
+    return [
+      {
+        source: '/ai-lead-generation-:niche',
+        destination: '/ai-lead-generation/:niche',
+      },
+    ];
+  },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

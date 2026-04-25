@@ -121,7 +121,7 @@ export default function UseCasesPage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <Button asChild className="neon-border hover:glow-effect">
-              <Link href="/demo">Generate My First Leads</Link>
+              <Link href="/demo">Find My Leads Now</Link>
             </Button>
             <Button asChild variant="outline">
               <Link href="/pricing">See pricing</Link>

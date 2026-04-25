@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Check, Copy, Loader2, RefreshCcw, Sparkles } from 'lucide-react'
+import { track } from '@/lib/analytics'
 
 type PitchOutputs = {
   shortEmailOpener: string
@@ -36,11 +37,20 @@ type LatestGeneration = {
   generatedAt: string
 }
 
+type IterationHistoryRow = {
+  id: string
+  generationId: string
+  outputs: PitchOutputs
+  improveContext: string | null
+  createdAt: string
+}
+
 type GetEnvelope =
   | {
       ok: true
       data: {
         generation: LatestGeneration | null
+        history?: IterationHistoryRow[]
         usage: UsageSummary
       }
     }
@@ -54,6 +64,7 @@ type PostEnvelope =
       ok: true
       data: {
         generation: LatestGeneration
+        history?: IterationHistoryRow[]
         usage: UsageSummary
       }
     }
@@ -89,11 +100,14 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
   const [error, setError] = useState<string | null>(null)
   const [latest, setLatest] = useState<LatestGeneration | null>(null)
   const [usage, setUsage] = useState<UsageSummary | null>(null)
+  const [history, setHistory] = useState<IterationHistoryRow[]>([])
   const [copiedKey, setCopiedKey] = useState<CopyTarget | null>(null)
+  const [copiedWithAttribution, setCopiedWithAttribution] = useState(false)
   const [painPoint, setPainPoint] = useState('')
   const [offerService, setOfferService] = useState('')
   const [campaignObjective, setCampaignObjective] = useState('')
   const [callToAction, setCallToAction] = useState('')
+  const [improveContext, setImproveContext] = useState('')
 
   const canGenerate = useMemo(() => {
     if (!usage) return true
@@ -119,6 +133,7 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
         return
       }
       setLatest(payload.data.generation)
+      setHistory(payload.data.history ?? [])
       setUsage(payload.data.usage)
     } catch {
       setError('Unable to load AI pitch generation.')
@@ -146,6 +161,7 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
             offerService: sanitizeInput(offerService) || undefined,
             campaignObjective: sanitizeInput(campaignObjective) || undefined,
             callToAction: sanitizeInput(callToAction) || undefined,
+            improveContext: sanitizeInput(improveContext) || undefined,
           },
         }),
       })
@@ -159,7 +175,13 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
         return
       }
       setLatest(payload.data.generation)
+      setHistory(payload.data.history ?? [])
       setUsage(payload.data.usage)
+      track(regenerate ? 'lead_ai_pitch_improved' : 'lead_ai_pitch_generated', {
+        leadId,
+        companyName: companyName ?? null,
+        hasImproveContext: sanitizeInput(improveContext).length > 0,
+      })
     } catch {
       setError('AI pitch generation failed.')
     } finally {
@@ -169,11 +191,52 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
 
   const handleCopy = async (key: CopyTarget) => {
     if (!latest) return
-    const text = latest.outputs[key]
+    const text = [
+      latest.outputs[key],
+      '',
+      'Generated with RaelInfo',
+      'https://dazrael.com',
+    ].join('\n')
     try {
       await navigator.clipboard.writeText(text)
       setCopiedKey(key)
       window.setTimeout(() => setCopiedKey(null), 1200)
+      track('lead_ai_pitch_copied', { leadId, field: key })
+    } catch {
+      // fail-soft
+    }
+  }
+
+  const handleCopyWithAttribution = async () => {
+    if (!latest) return
+    const body = [
+      latest.outputs.shortEmailOpener,
+      '',
+      latest.outputs.fullColdEmail,
+      '',
+      latest.outputs.linkedinDm,
+      '',
+      'Generated with RaelInfo',
+      'https://dazrael.com',
+    ].join('\n')
+    try {
+      await navigator.clipboard.writeText(body)
+      setCopiedWithAttribution(true)
+      window.setTimeout(() => setCopiedWithAttribution(false), 1500)
+      track('lead_ai_pitch_copied_with_attribution', { leadId })
+    } catch {
+      // fail-soft
+    }
+  }
+
+  const handleGenerateShareLink = async () => {
+    const base = typeof window !== 'undefined' ? window.location.origin : ''
+    const link = `${base}/lead-results`
+    try {
+      await navigator.clipboard.writeText(link)
+      track('lead_ai_pitch_share_link_copied', { leadId, companyName: companyName ?? null })
+      setCopiedWithAttribution(true)
+      window.setTimeout(() => setCopiedWithAttribution(false), 1500)
     } catch {
       // fail-soft
     }
@@ -222,6 +285,11 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
             onChange={(event) => setCallToAction(event.target.value)}
             placeholder="Call-to-action preference (optional)"
           />
+          <Input
+            value={improveContext}
+            onChange={(event) => setImproveContext(event.target.value)}
+            placeholder="Improve message focus (optional)"
+          />
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -250,12 +318,34 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
             disabled={loading || generating || !canGenerate}
           >
             <RefreshCcw className="h-4 w-4 mr-2" />
-            Regenerate
+            Improve message
+          </Button>
+          <Button type="button" variant="outline" onClick={() => void handleCopyWithAttribution()} disabled={!latest}>
+            {copiedWithAttribution ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Copied with attribution
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy with attribution
+              </>
+            )}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => void handleGenerateShareLink()} disabled={!latest}>
+            Share link
           </Button>
           <Button type="button" variant="ghost" onClick={() => void loadLatest()} disabled={loading || generating}>
             Refresh
           </Button>
         </div>
+
+        {latest ? (
+          <div className="rounded border border-purple-500/20 bg-purple-500/5 px-3 py-2 text-xs text-muted-foreground">
+            You unlocked message copy. Upgrade for 50+ leads and full outreach sequences.
+          </div>
+        ) : null}
 
         {!canGenerate ? (
           <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -304,6 +394,23 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
                 <Textarea value={latest.outputs[key]} readOnly className="min-h-24 text-xs" />
               </div>
             ))}
+
+            {history.length > 0 ? (
+              <div className="rounded border border-cyan-500/10 bg-background/30 p-3">
+                <div className="text-xs font-medium text-cyan-300">Iteration history</div>
+                <div className="mt-2 space-y-2">
+                  {history.slice(0, 5).map((row, index) => (
+                    <div key={row.id} className="rounded border border-cyan-500/10 px-2 py-2 text-xs">
+                      <div className="text-muted-foreground">
+                        Version {history.length - index} • {formatDate(row.createdAt)}
+                        {row.improveContext ? ` • Focus: ${row.improveContext}` : ''}
+                      </div>
+                      <div className="mt-1 line-clamp-2 text-foreground">{row.outputs.shortEmailOpener}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </CardContent>

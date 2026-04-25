@@ -114,6 +114,13 @@ const clientEnvSchema = z.object({
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
     z.enum(['0', '1', 'true', 'false']).optional()
   ),
+  // Optional retargeting pixel IDs (client-safe identifiers).
+  NEXT_PUBLIC_META_PIXEL_ID: z.string().optional(),
+  NEXT_PUBLIC_TIKTOK_PIXEL_ID: z.string().optional(),
+  // Optional public A/B controls for acquisition surfaces.
+  NEXT_PUBLIC_AB_LANDING_HEADLINE: z.string().optional(),
+  NEXT_PUBLIC_AB_LANDING_CTA: z.string().optional(),
+  NEXT_PUBLIC_AB_PRICING_COPY: z.string().optional(),
   // CORS/Origin validation (comma-separated list of allowed origins)
   // Example: "https://app.example.com,https://www.example.com"
   ALLOWED_ORIGINS: z.string().optional(),

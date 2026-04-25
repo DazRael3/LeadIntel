@@ -7,6 +7,7 @@ import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import {
   CampaignCreateSchema,
+  summarizeCampaignStatuses,
   canCreateCampaign,
   createCampaignRecord,
   getOwnedLeadRows,
@@ -49,9 +50,10 @@ export const GET = withApiGuard(
 
       const includeLeads = (query as z.infer<typeof QuerySchema> | undefined)?.includeLeads ?? false
       const campaigns = await listCampaignsForWorkspace({ supabase, workspaceId: workspace.id })
+      const progress = summarizeCampaignStatuses(campaigns)
 
       if (!includeLeads) {
-        return ok({ workspace, campaigns }, undefined, bridge, requestId)
+        return ok({ workspace, campaigns, progress, campaignProgress: progress }, undefined, bridge, requestId)
       }
 
       const withLeads = await Promise.all(
@@ -71,7 +73,7 @@ export const GET = withApiGuard(
         })
       )
 
-      return ok({ workspace, campaigns: withLeads }, undefined, bridge, requestId)
+      return ok({ workspace, campaigns: withLeads, progress, campaignProgress: progress }, undefined, bridge, requestId)
     } catch (error) {
       return asHttpError(error, '/api/campaigns', userId ?? undefined, bridge, requestId)
     }
