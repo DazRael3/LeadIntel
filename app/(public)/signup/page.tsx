@@ -28,7 +28,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: 'LeadIntel Signup',
-    url: 'https://dazrael.com/signup',
+    url: 'https://raelinfo.com/signup',
     description: 'Create your LeadIntel account to unlock full lead results and campaign automation.',
   }
   return (
