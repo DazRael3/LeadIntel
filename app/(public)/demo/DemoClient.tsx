@@ -38,6 +38,7 @@ export function DemoClient() {
   const [result, setResult] = useState<DemoSearchResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [messageVariant, setMessageVariant] = useState<'default' | 'shorter' | 'aggressive'>('default')
+  const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action'>('results_loaded')
 
   const canSearch = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
 
@@ -65,6 +66,7 @@ export function DemoClient() {
       }
 
       setResult(json.data.sample)
+      setUpgradePromptReason('results_loaded')
       track('lead_search_completed', {
         source: 'demo_page',
         score: json.data.sample.score,
@@ -142,6 +144,7 @@ export function DemoClient() {
     try {
       await navigator.clipboard.writeText(message)
       setCopied(true)
+      setUpgradePromptReason('copy_action')
       setTimeout(() => setCopied(false), 1800)
       track('demo_preview_outreach_copied', { source: 'demo_page', companyLen: result.company.length })
     } catch {
@@ -264,16 +267,30 @@ export function DemoClient() {
               </div>
 
               <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-4">
-                <div className="font-medium text-foreground">Unlock full lead list + daily pipeline</div>
-                <p className="mt-1 text-sm text-muted-foreground">Open full preview and keep your outreach loop running daily.</p>
+                <div className="text-xs uppercase tracking-wide text-cyan-200">Step 3 of 3</div>
+                <div className="mt-2 font-semibold text-foreground">You&apos;ve unlocked 3 high-quality leads.</div>
+                <p className="mt-1 text-sm text-foreground">These companies are actively growing and hiring.</p>
+                <div className="mt-3 text-sm text-muted-foreground">
+                  {upgradePromptReason === 'copy_action'
+                    ? "You've already found and copied a high-intent lead message - don't lose momentum now."
+                    : "You've already found high-intent leads in minutes - don't lose momentum now."}{' '}
+                  Unlock 50+ more leads with no manual research.
+                </div>
+                <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                  <li>✔ 50+ similar leads</li>
+                  <li>✔ Full contact data</li>
+                  <li>✔ AI outreach sequences</li>
+                  <li>✔ Daily new opportunities</li>
+                </ul>
                 <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  <Button onClick={openLeadResultsPreview} className="neon-border hover:glow-effect">
+                  <Button asChild className="neon-border hover:glow-effect">
+                    <Link href="/pricing">Unlock All Leads</Link>
+                  </Button>
+                  <Button onClick={openLeadResultsPreview} variant="outline">
                     View lead results
                   </Button>
-                  <Button asChild variant="outline">
-                    <Link href="/pricing">See upgrade options</Link>
-                  </Button>
                 </div>
+                <div className="mt-3 text-xs text-muted-foreground">Leads refresh daily • Cancel anytime</div>
               </div>
 
               <div className="rounded border border-amber-500/20 bg-amber-500/5 p-4">

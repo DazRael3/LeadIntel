@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,10 +28,10 @@ type LeadResultsPreviewClientProps = {
 const FREE_PREVIEW_LIMIT = 3
 
 export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewClientProps) {
-  const router = useRouter()
   const [copiedLeadId, setCopiedLeadId] = useState<string | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [copiedShareLink, setCopiedShareLink] = useState(false)
+  const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action' | 'campaign_action'>('results_loaded')
   const visibleLeads = useMemo(() => leads.slice(0, FREE_PREVIEW_LIMIT), [leads])
   const hiddenLeadCount = Math.max(0, leads.length - FREE_PREVIEW_LIMIT)
 
@@ -54,6 +53,8 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
     try {
       await navigator.clipboard.writeText(message)
       setCopiedLeadId(lead.id)
+      setUpgradePromptReason('copy_action')
+      setShowUpgradeModal(true)
       setTimeout(() => setCopiedLeadId((curr) => (curr === lead.id ? null : curr)), 2000)
       track('demo_preview_outreach_copied', { source: 'lead_results_preview', leadId: lead.id })
     } catch {
@@ -117,7 +118,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
             <div className="text-xs text-muted-foreground">Previewing top {FREE_PREVIEW_LIMIT} leads</div>
           </div>
           <div className="rounded border border-border bg-background/40 p-3">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Step 3</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Step 3 of 3</div>
             <div className="mt-1 font-medium text-foreground">Unlock full workflow</div>
             <div className="text-xs text-muted-foreground">Save leads, campaigns, and tracking</div>
           </div>
@@ -184,8 +185,9 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
                 <Button
                   type="button"
                   onClick={() => {
+                    setUpgradePromptReason('campaign_action')
+                    setShowUpgradeModal(true)
                     track('demo_preview_add_to_campaign_clicked', { source: 'lead_results_preview', leadId: lead.id })
-                    router.push(signupRedirect)
                   }}
                   className="neon-border hover:glow-effect"
                 >
@@ -202,23 +204,33 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <div className="font-semibold text-foreground flex items-center gap-2">
+                <div className="text-xs uppercase tracking-wide text-amber-200">Step 3 of 3</div>
+                <div className="mt-2 font-semibold text-foreground flex items-center gap-2">
                   <Lock className="h-4 w-4 text-amber-300" />
-                  {hiddenLeadCount} more leads are locked in limited preview
+                  You&apos;ve unlocked 3 high-quality leads.
                 </div>
+                <p className="mt-1 text-sm text-foreground">These companies are actively growing and hiring.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Upgrade to unlock full lead lists, AI outreach at scale, and campaign tracking.
+                  You&apos;ve already found qualified opportunities. Don&apos;t lose momentum - unlock 50+ more leads with no manual research.
                 </p>
+                <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                  <li>✔ 50+ similar leads</li>
+                  <li>✔ Full contact data</li>
+                  <li>✔ AI outreach sequences</li>
+                  <li>✔ Daily new opportunities</li>
+                </ul>
+                <div className="mt-3 text-xs text-muted-foreground">Leads refresh daily • Cancel anytime</div>
               </div>
               <Button
                 type="button"
                 className="neon-border hover:glow-effect"
                 onClick={() => {
+                  setUpgradePromptReason('results_loaded')
                   setShowUpgradeModal(true)
                   track('demo_preview_paywall_opened', { source: 'lead_results_preview', hiddenLeadCount })
                 }}
               >
-                View Upgrade Options
+                Unlock All Leads
               </Button>
             </div>
           </CardContent>
@@ -250,24 +262,34 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <Card className="w-full max-w-xl border-cyan-500/30 bg-card">
             <CardHeader>
-              <CardTitle className="text-xl">Limited preview reached</CardTitle>
-              <CardDescription>Unlock the full conversion workflow.</CardDescription>
+              <CardTitle className="text-xl">Step 3 of 3</CardTitle>
+              <CardDescription>Unlock all leads and keep your outbound momentum.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-3 text-sm text-foreground">
-                Get full outcomes, not just samples:
+                <div className="font-semibold">You&apos;ve unlocked 3 high-quality leads.</div>
+                <p className="mt-1 text-sm">These companies are actively growing and hiring.</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {upgradePromptReason === 'copy_action'
+                    ? "You&apos;ve already copied outreach for a high-intent lead - don't lose momentum now."
+                    : upgradePromptReason === 'campaign_action'
+                      ? "You&apos;ve already found campaign-ready leads - don't lose momentum now."
+                      : "You&apos;ve already found high-intent leads - don't lose momentum now."}{' '}
+                  Unlock 50+ more leads with no manual research.
+                </p>
                 <ul className="mt-2 list-disc pl-5 text-muted-foreground space-y-1">
-                  <li>More qualified leads beyond the limited preview</li>
-                  <li>AI outreach drafts you can reuse and iterate quickly</li>
-                  <li>Campaign tracking to monitor execution and follow-up</li>
+                  <li>✔ 50+ similar leads</li>
+                  <li>✔ Full contact data</li>
+                  <li>✔ AI outreach sequences</li>
+                  <li>✔ Daily new opportunities</li>
                 </ul>
               </div>
-              <div className="text-xs text-muted-foreground">Leads refresh daily. Preview access remains limited until you upgrade.</div>
+              <div className="text-xs text-muted-foreground">Leads refresh daily • Cancel anytime</div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button asChild className="neon-border hover:glow-effect">
                   <Link href="/pricing?target=closer">
                     <TrendingUp className="h-4 w-4 mr-2" />
-                    Upgrade for full access
+                    Unlock All Leads
                   </Link>
                 </Button>
                 <Button asChild variant="outline">
