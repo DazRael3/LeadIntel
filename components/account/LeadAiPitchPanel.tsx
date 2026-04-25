@@ -336,6 +336,12 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
           </Button>
         </div>
 
+        {latest ? (
+          <div className="rounded border border-purple-500/20 bg-purple-500/5 px-3 py-2 text-xs text-muted-foreground">
+            You unlocked message copy. Upgrade for 50+ leads and full outreach sequences.
+          </div>
+        ) : null}
+
         {!canGenerate ? (
           <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
             Usage limit reached for your current plan window.

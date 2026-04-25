@@ -127,6 +127,7 @@ export function Pricing() {
   const { openPortal } = useStripePortal()
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [teamSeats, setTeamSeats] = useState<number>(5)
+  const [addOnLeadPacks, setAddOnLeadPacks] = useState<number>(0)
   const upgradeRef = useRef<HTMLDivElement | null>(null)
 
   const closerPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.closerMonthly) : PRICING.closerMonthly
@@ -135,6 +136,7 @@ export function Pricing() {
   const teamBasePrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.teamBaseMonthly) : PRICING.teamBaseMonthly
   const teamSeatPrice = billingCycle === 'annual' ? annualFromMonthly(PRICING.teamSeatMonthly) : PRICING.teamSeatMonthly
   const cadenceLabel = billingCycle === 'annual' ? '/year' : '/month'
+  const leadPackUnitPrice = billingCycle === 'annual' ? annualFromMonthly(29) : 29
 
   useEffect(() => {
     // Client-only query parsing (avoid useSearchParams() suspense requirement during prerender).
@@ -389,7 +391,7 @@ export function Pricing() {
                 <a href="/signup?redirect=/onboarding">{COPY.pricing.hero.primaryCta}</a>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <a href="#plan-closer">{COPY.pricing.hero.secondaryCta}</a>
+                <a href="#plan-pro">{COPY.pricing.hero.secondaryCta}</a>
               </Button>
             </div>
           </div>
@@ -435,7 +437,7 @@ export function Pricing() {
           <Card className="border-cyan-500/10 bg-card/50">
             <CardHeader>
               <CardTitle className="text-2xl bloomberg-font">Free</CardTitle>
-              <div className="mt-1 text-xs font-semibold text-muted-foreground">Validate the workflow</div>
+              <div className="mt-1 text-xs font-semibold text-muted-foreground">Test the system</div>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">$0</span>
                 <span className="text-muted-foreground">/month</span>
@@ -446,31 +448,27 @@ export function Pricing() {
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Validate the workflow with a sample digest
+                  Test lead + outreach workflow with limited preview
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Free plan: 3 preview generations total
+                  Unlock up to 3 preview leads
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Generate up to 3 pitch/report previews on Free
+                  Limited preview outreach drafts
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Browse the templates library
+                  See pipeline growth workflow before upgrading
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Full premium content stays locked until you upgrade
+                  Limited preview
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Usage is shared across pitches and reports
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-green-400 mt-0.5" />
-                  Upgrade anytime
+                  No credit card for demo
                 </li>
               </ul>
               <Button asChild variant="outline" className="w-full h-11">
@@ -480,17 +478,17 @@ export function Pricing() {
           </Card>
           </div>
 
-          <div id="plan-closer">
-          <Card className="border-cyan-500/30 bg-card/80 glow-effect relative overflow-hidden">
+          <div id="plan-pro">
+          <Card className="border-cyan-400/70 bg-card/90 glow-effect relative overflow-hidden ring-2 ring-cyan-400/40 scale-[1.01]">
             <div className="absolute top-0 right-0 bg-gradient-to-l from-cyan-500/20 to-transparent w-32 h-32 blur-3xl" />
             <div className="absolute bottom-0 left-0 bg-gradient-to-r from-blue-500/20 to-transparent w-32 h-32 blur-3xl" />
 
             <CardHeader className="relative z-10">
               <div className="flex items-center justify-between mb-2">
               <CardTitle className="text-2xl bloomberg-font">Pro</CardTitle>
-                <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Most Popular</Badge>
+                <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Default choice</Badge>
               </div>
-                <div className="text-xs font-semibold text-muted-foreground">Faster lead-to-outreach outcomes</div>
+                <div className="text-xs font-semibold text-muted-foreground">Get consistent leads + outreach</div>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">{formatCurrency(closerPrice)}</span>
                 <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -510,8 +508,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Daily shortlist for your highest-intent accounts</p>
-                    <p className="text-sm text-muted-foreground">Know who to contact today to keep pipeline moving</p>
+                    <p className="font-medium">Leads + outreach every day</p>
+                    <p className="text-sm text-muted-foreground">Move from lead list to send-ready outreach faster</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -519,8 +517,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Lead scoring (0–100) with reasons</p>
-                    <p className="text-sm text-muted-foreground">Prioritize the right conversations first</p>
+                    <p className="font-medium">Pipeline growth tracking</p>
+                    <p className="text-sm text-muted-foreground">Prioritize conversations that close more customers</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -528,8 +526,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Send-ready drafts (email, DM, call opener)</p>
-                    <p className="text-sm text-muted-foreground">Launch outreach faster without blank-page friction</p>
+                    <p className="font-medium">Full outreach sequences</p>
+                    <p className="text-sm text-muted-foreground">Launch email + DM outreach without blank-page friction</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -537,11 +535,16 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Unlimited competitive reports</p>
-                    <p className="text-sm text-muted-foreground">Arm reps with context that improves reply quality</p>
+                    <p className="font-medium">50+ leads and reusable playbooks</p>
+                    <p className="text-sm text-muted-foreground">Scale repeatable pipeline growth week after week</p>
                   </div>
                 </li>
               </ul>
+              <div className="rounded border border-cyan-500/20 bg-background/40 p-3 text-xs text-muted-foreground">
+                <div>1 closed deal pays for 12 months.</div>
+                <div>Less than cost of 1 agency lead.</div>
+                <div>Leads refresh daily.</div>
+              </div>
 
               {checkoutError && (
                 <div className="p-4 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400">
@@ -554,7 +557,7 @@ export function Pricing() {
                 </div>
               )}
 
-              <Button 
+              <Button
                 onClick={() => void handleCheckout('pro')}
                 disabled={isCheckoutLoading}
                 className="w-full h-12 text-lg font-bold neon-border hover:glow-effect bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400"
@@ -568,7 +571,7 @@ export function Pricing() {
                 ) : (
                   <>
                     <Zap className="h-5 w-5 mr-2" />
-                    Upgrade to Pro
+                    Get consistent leads + outreach
                   </>
                 )}
               </Button>
@@ -588,7 +591,7 @@ export function Pricing() {
                   <CardTitle className="text-2xl bloomberg-font">Pro+</CardTitle>
                   <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/25">Power user</Badge>
                 </div>
-                <div className="text-xs font-semibold text-muted-foreground">Higher-conviction execution for power users</div>
+                <div className="text-xs font-semibold text-muted-foreground">Pipeline growth for high-volume operators</div>
                 <div className="flex items-baseline gap-2 mt-4">
                   <span className="text-5xl font-bold text-purple-200">{formatCurrency(closerPlusPrice)}</span>
                   <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -599,7 +602,7 @@ export function Pricing() {
                   </div>
                 )}
                 <CardDescription>
-                  Deeper source-backed context and premium report workflow for operators.
+                  Scale leads + outreach with deeper context and faster iteration.
                 </CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 space-y-6">
@@ -610,7 +613,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Everything in Pro</p>
-                      <p className="text-sm text-muted-foreground">Plus deeper context to improve conversion quality</p>
+                      <p className="text-sm text-muted-foreground">Plus deeper pipeline growth controls</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -619,7 +622,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Sources &amp; freshness visibility</p>
-                      <p className="text-sm text-muted-foreground">Keep outreach confidence high with source-backed context</p>
+                      <p className="text-sm text-muted-foreground">Close more customers with better timing context</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -628,7 +631,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Refresh sources + regenerate</p>
-                      <p className="text-sm text-muted-foreground">Refresh positioning quickly when target context changes</p>
+                      <p className="text-sm text-muted-foreground">Keep outreach relevant as pipeline conditions change</p>
                     </div>
                   </li>
                 </ul>
@@ -646,7 +649,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <TrendingUp className="h-5 w-5 mr-2" />
-                      Upgrade to Pro+
+                      Scale pipeline with Pro+
                     </>
                   )}
                 </Button>
@@ -660,10 +663,10 @@ export function Pricing() {
               <div className="absolute top-0 left-0 bg-gradient-to-r from-slate-500/10 to-transparent w-32 h-32 blur-3xl" />
               <CardHeader className="relative z-10">
                 <div className="flex items-center justify-between mb-2">
-                  <CardTitle className="text-2xl bloomberg-font">Agency</CardTitle>
+                  <CardTitle className="text-2xl bloomberg-font">Team</CardTitle>
                   <Badge className="bg-slate-500/10 text-slate-200 border-slate-500/20">Seats</Badge>
                 </div>
-                <div className="text-xs font-semibold text-muted-foreground">Team-wide outcomes and consistent execution</div>
+                <div className="text-xs font-semibold text-muted-foreground">Scale pipeline</div>
                 <div className="mt-4 flex flex-col gap-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-5xl font-bold text-slate-100">{formatCurrency(teamBasePrice)}</span>
@@ -679,7 +682,7 @@ export function Pricing() {
                   </div>
                 )}
                 <CardDescription>
-                  For teams that need shared reporting, consistent messaging, and rollout across reps.
+                  For teams scaling leads + outreach and pipeline growth across reps.
                 </CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 space-y-6">
@@ -701,6 +704,24 @@ export function Pricing() {
                     Checkout uses seat quantity. If you configure base + seat prices, we’ll include both line items.
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Add-on lead packs (prep)</div>
+                    <div className="text-xs text-muted-foreground">{addOnLeadPacks}</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    value={addOnLeadPacks}
+                    onChange={(e) => setAddOnLeadPacks(Number(e.target.value))}
+                    className="w-full"
+                    aria-label="Add-on lead packs preview"
+                  />
+                  <div className="text-[11px] text-muted-foreground">
+                    Optional add-on packs: {formatCurrency(leadPackUnitPrice)} each{billingCycle === 'annual' ? '/year' : '/month'} (preview only).
+                  </div>
+                </div>
 
                 <ul className="space-y-4">
                   <li className="flex items-start gap-3">
@@ -709,7 +730,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Standardized team workflow</p>
-                      <p className="text-sm text-muted-foreground">Keep multi-rep execution consistent and measurable</p>
+                      <p className="text-sm text-muted-foreground">Scale pipeline and close more customers as a team</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -718,7 +739,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Shared templates with approvals</p>
-                      <p className="text-sm text-muted-foreground">Scale winning messaging without quality drift</p>
+                      <p className="text-sm text-muted-foreground">Maintain consistent leads + outreach execution</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -727,7 +748,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Audit logs</p>
-                      <p className="text-sm text-muted-foreground">See what is converting and where execution stalls</p>
+                      <p className="text-sm text-muted-foreground">Track where pipeline growth accelerates or stalls</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -736,7 +757,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Webhooks + exports</p>
-                      <p className="text-sm text-muted-foreground">Operational handoff with campaign visibility and delivery history</p>
+                      <p className="text-sm text-muted-foreground">Operational handoff for campaign delivery at scale</p>
                     </div>
                   </li>
                 </ul>
@@ -755,7 +776,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <Shield className="h-5 w-5 mr-2" />
-                      Start Agency
+                      Scale pipeline with Team
                     </>
                   )}
                 </Button>
@@ -805,9 +826,9 @@ export function Pricing() {
             <CardContent className="pt-6">
               <h2 className="text-xl font-bold">The ROI is speed-to-action.</h2>
               <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <p>• Spend less time deciding who to contact today.</p>
-                <p>• Move from “signal” to “send-ready” without blank-page writing.</p>
-                <p>• Keep the daily loop consistent: shortlist → explain → draft → action.</p>
+                <p>• 1 closed deal pays for 12 months.</p>
+                <p>• Less than cost of 1 agency lead.</p>
+                <p>• Keep the daily loop consistent: leads + outreach → pipeline growth → close more customers.</p>
               </div>
             </CardContent>
           </Card>
@@ -968,7 +989,7 @@ export function Pricing() {
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">
               <TrendingUp className="h-8 w-8 mx-auto mb-3 text-green-400" />
-              <h3 className="font-bold mb-2">Built for daily execution</h3>
+              <h3 className="font-bold mb-2">Built for pipeline growth</h3>
               <p className="text-sm text-muted-foreground">
                 {COPY.pricing.plans.replacementClaim}
               </p>
@@ -977,9 +998,9 @@ export function Pricing() {
           <Card className="border-cyan-500/10 bg-card/50 text-center">
             <CardContent className="pt-6">
               <Zap className="h-8 w-8 mx-auto mb-3 text-purple-400" />
-              <h3 className="font-bold mb-2">Instant Access</h3>
+              <h3 className="font-bold mb-2">No credit card for demo</h3>
               <p className="text-sm text-muted-foreground">
-                Get started immediately after subscription.
+                Test the system before upgrading.
               </p>
             </CardContent>
           </Card>

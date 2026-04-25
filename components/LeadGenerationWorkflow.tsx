@@ -34,6 +34,13 @@ export type LeadGenerationResponse = {
   } | null
 }
 
+type UpgradePrompt = {
+  title: string
+  body: string
+  cta: string
+  href: string
+}
+
 type LeadGenerationWorkflowProps = {
   onGenerated: () => Promise<void> | void
   preset?: {
@@ -81,6 +88,7 @@ export function LeadGenerationWorkflow({
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<LeadGenerationResponse | null>(null)
   const lastRunSignal = useRef(runSignal)
+  const [showLeadResultUpgradePrompt, setShowLeadResultUpgradePrompt] = useState(false)
 
   useEffect(() => {
     setTargetIndustry(preset?.targetIndustry ?? '')
@@ -142,6 +150,11 @@ export function LeadGenerationWorkflow({
       }
 
       setResult(payload.data)
+      if (payload.data.usage.tier === 'starter') {
+        setShowLeadResultUpgradePrompt(true)
+      } else {
+        setShowLeadResultUpgradePrompt(false)
+      }
       onResult?.(payload.data)
       await onGenerated()
     } catch {
@@ -149,6 +162,13 @@ export function LeadGenerationWorkflow({
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const leadResultUpgradePrompt: UpgradePrompt = {
+    title: 'Scale beyond limited preview',
+    body: 'You’ve unlocked 3 leads. Upgrade for 50+ and full outreach sequences.',
+    cta: 'Upgrade for pipeline growth',
+    href: '/pricing?target=closer',
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -254,6 +274,15 @@ export function LeadGenerationWorkflow({
             {result.savedSearch ? (
               <div className="text-muted-foreground">
                 Saved search run tracked: {result.savedSearch.name}
+              </div>
+            ) : null}
+            {showLeadResultUpgradePrompt ? (
+              <div className="rounded border border-cyan-500/20 bg-cyan-500/5 p-2">
+                <div className="font-medium text-cyan-300">{leadResultUpgradePrompt.title}</div>
+                <div className="mt-1 text-muted-foreground">{leadResultUpgradePrompt.body}</div>
+                <Button asChild size="sm" variant="outline" className="mt-2 h-7 text-xs">
+                  <a href={leadResultUpgradePrompt.href}>{leadResultUpgradePrompt.cta}</a>
+                </Button>
               </div>
             ) : null}
           </div>

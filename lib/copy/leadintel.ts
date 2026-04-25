@@ -39,21 +39,22 @@ export const COPY = {
   },
   pricing: {
     hero: {
-      headline: 'Choose the plan that drives faster pipeline outcomes.',
-      subhead: 'Move from lead discovery to outreach execution and campaign tracking without losing speed.',
+      headline: 'Pick the plan that turns lead signals into pipeline growth.',
+      subhead: 'Test the system, then scale leads + outreach to close more customers.',
       bullets: [
-        'Prioritize the right leads every day with explainable fit scoring',
-        'Launch AI-assisted outreach without starting from a blank page',
-        'Track campaign execution and keep your team aligned on what converts',
+        'Leads + outreach in one daily workflow',
+        'Pipeline growth with repeatable campaign execution',
+        'Close more customers with faster follow-up',
       ],
-      trustStrip: (supportEmail: string) => `Transparent pricing. Cancel anytime. Support: ${supportEmail}.`,
+      trustStrip: (supportEmail: string) =>
+        `Transparent pricing. Cancel anytime. No credit card for demo. Support: ${supportEmail}.`,
       primaryCta: 'Start free',
       secondaryCta: 'Compare plans',
     },
     plans: {
-      starterDescription: 'Validate lead quality fast with a limited preview before committing.',
-      closerDescription: 'Convert faster with daily lead prioritization, AI outreach drafts, and a repeatable execution loop.',
-      replacementClaim: 'Built to improve speed-to-meeting: find → prioritize → message → track.',
+      starterDescription: 'Test the system with a limited preview before committing.',
+      closerDescription: 'Get consistent leads + outreach to keep pipeline growth compounding.',
+      replacementClaim: 'Built for leads + outreach, pipeline growth, and helping your team close more customers.',
     },
   },
   onboarding: {

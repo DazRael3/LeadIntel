@@ -76,6 +76,7 @@ export function CampaignPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<CampaignProgress | null>(null)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
 
   const selectedLeadIdsArray = useMemo(() => Array.from(selectedLeadIds), [selectedLeadIds])
 
@@ -189,6 +190,9 @@ export function CampaignPageClient() {
         }
       } else {
         setActionMessage('Campaign updated.')
+        if (action === 'attach_leads' && selectedLeadIdsArray.length > 0) {
+          setShowUpgradePrompt(true)
+        }
       }
 
       await refreshAll()
@@ -288,6 +292,24 @@ export function CampaignPageClient() {
 
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       {actionMessage ? <p className="text-sm text-cyan-300">{actionMessage}</p> : null}
+      {showUpgradePrompt ? (
+        <Card className="border-cyan-500/30 bg-cyan-500/5">
+          <CardContent className="py-4 space-y-2">
+            <p className="text-sm text-cyan-200">
+              You&apos;ve unlocked 3 leads. Upgrade for 50+ and full outreach sequences.
+            </p>
+            <Button
+              size="sm"
+              className="neon-border hover:glow-effect"
+              onClick={() => {
+                window.location.href = '/pricing?target=closer'
+              }}
+            >
+              Upgrade for full pipeline growth
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="border-cyan-500/20 bg-card/50">
         <CardHeader>
