@@ -45,7 +45,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
       lead.outreachBody,
       '',
       'Generated with RaelInfo',
-      'https://dazrael.com',
+      'https://raelinfo.com',
     ]
       .filter((line): line is string => Boolean(line))
       .join('\n\n')

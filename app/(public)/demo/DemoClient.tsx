@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Copy, Check } from 'lucide-react'
 import { track } from '@/lib/analytics'
 
 type DemoSearchResult = {
@@ -33,6 +34,7 @@ export function DemoClient() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DemoSearchResult | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const canSearch = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
 
@@ -94,6 +96,27 @@ export function DemoClient() {
     track('demo_preview_opened', { source: 'demo_page', companyLen: company.length })
     track('results_viewed', { source: 'demo_page', surface: 'lead_results_preview_opened', companyLen: company.length })
     router.push(`/lead-results?company=${encodeURIComponent(company)}`)
+  }
+
+  async function copyOutreach(): Promise<void> {
+    if (!result) return
+    const message = [
+      result.outreach.subject ? `Subject: ${result.outreach.subject}` : null,
+      result.outreach.body,
+      '',
+      'Generated with RaelInfo',
+      'https://raelinfo.com',
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join('\n\n')
+    try {
+      await navigator.clipboard.writeText(message)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+      track('demo_preview_outreach_copied', { source: 'demo_page', companyLen: result.company.length })
+    } catch {
+      setCopied(false)
+    }
   }
 
   return (
@@ -163,44 +186,36 @@ export function DemoClient() {
         {result ? (
           <Card className="border-cyan-500/20 bg-card/60">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Step 2 — Partial results</CardTitle>
+              <CardTitle className="text-lg">Step 2 — Your first result</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded border border-cyan-500/10 bg-background/40 p-4 text-sm space-y-2">
-                <div>
-                  <span className="text-muted-foreground">Company:</span> <span className="font-medium">{result.company}</span>
+              <div className="rounded border border-cyan-500/20 bg-background/40 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-foreground">{result.company}</div>
+                  <Badge className="bg-cyan-500/10 text-cyan-200 border-cyan-500/20">{result.score}/100</Badge>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Lead score:</span> <span className="font-medium">{result.score}/100</span>
+                <div className="text-sm">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Why this lead now</div>
+                  <p className="mt-1 text-foreground line-clamp-2">{result.whyNow}</p>
                 </div>
-                <div>
-                  <div className="text-muted-foreground">Why this lead is a good fit:</div>
-                  <div className="text-foreground">{result.whyNow}</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Top signals:</div>
-                  <ul className="list-disc pl-5">
-                    {result.triggers.slice(0, 2).map((signal) => (
-                      <li key={signal}>{signal}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="rounded border border-cyan-500/10 bg-card/50 p-3 text-muted-foreground">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">AI-generated outreach message</div>
+                <div className="rounded border border-cyan-500/10 bg-card/50 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Suggested outreach</div>
                   {result.outreach.subject ? (
-                    <div className="mt-2 text-foreground text-sm">
+                    <div className="mt-2 text-sm text-foreground">
                       <span className="font-medium">Subject:</span> {result.outreach.subject}
                     </div>
                   ) : null}
-                  <p className="mt-2 whitespace-pre-wrap text-sm">{result.outreach.body}</p>
+                  <p className="mt-2 text-sm text-muted-foreground line-clamp-4">{result.outreach.body}</p>
                 </div>
+                <Button type="button" variant="outline" onClick={() => void copyOutreach()} className="neon-border hover:glow-effect">
+                  {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
+                  {copied ? 'Copied' : 'Copy message'}
+                </Button>
               </div>
 
               <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-4">
-                <div className="font-medium text-foreground">Want to see all matched leads?</div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Open your limited preview now. Leads refresh daily and only a small set is visible before upgrade.
-                </p>
+                <div className="font-medium text-foreground">Unlock full lead list + daily pipeline</div>
+                <p className="mt-1 text-sm text-muted-foreground">Open full preview and keep your outreach loop running daily.</p>
                 <div className="mt-3 flex flex-col sm:flex-row gap-2">
                   <Button onClick={openLeadResultsPreview} className="neon-border hover:glow-effect">
                     View lead results
