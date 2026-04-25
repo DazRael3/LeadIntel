@@ -18,12 +18,18 @@ export const metadata: Metadata = {
 interface SignupPageProps {
   searchParams?: Promise<{
     redirect?: string
+    ref?: string
   }>
 }
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
   const sp = (await searchParams) ?? {}
-  const redirectTo = sp.redirect ?? '/onboarding'
+  const ref = typeof sp.ref === 'string' ? sp.ref.trim() : ''
+  const redirectBase = sp.redirect ?? '/onboarding'
+  const redirectTo =
+    ref.length > 0
+      ? `${redirectBase}${redirectBase.includes('?') ? '&' : '?'}ref=${encodeURIComponent(ref)}`
+      : redirectBase
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'WebPage',

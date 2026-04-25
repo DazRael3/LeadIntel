@@ -23,9 +23,10 @@ async function claimDemoSession(): Promise<void> {
 interface LoginClientProps {
   initialMode: 'signin' | 'signup'
   redirectTo: string
+  referralCode?: string
 }
 
-export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
+export function LoginClient({ initialMode, redirectTo, referralCode }: LoginClientProps) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -54,7 +55,8 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
     setInfo(null)
     setShowDevTips(false)
     // Update URL query param to keep it in sync
-    const newUrl = `/login?mode=${newMode}&redirect=${encodeURIComponent(redirectTo)}`
+    const referralSegment = referralCode ? `&ref=${encodeURIComponent(referralCode)}` : ''
+    const newUrl = `/login?mode=${newMode}&redirect=${encodeURIComponent(redirectTo)}${referralSegment}`
     router.replace(newUrl)
   }
 
@@ -108,6 +110,17 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
           track('signup_completed', { method: 'password' })
           track('funnel_event', { canonical: 'signup_completed', source: 'auth_signup' })
           identifyClientUser(data.session.user.id, { email: data.session.user.email ?? null })
+          if (referralCode && referralCode.trim().length > 0) {
+            try {
+              await fetch('/api/referrals/claim', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ referrerId: referralCode.trim() }),
+              })
+            } catch {
+              // best-effort
+            }
+          }
           try {
             await claimDemoSession()
           } catch {

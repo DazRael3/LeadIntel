@@ -18,6 +18,7 @@ interface LoginPageProps {
   searchParams?: Promise<{
     mode?: string
     redirect?: string
+    ref?: string
   }>
 }
 
@@ -28,13 +29,19 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   
   // Read redirect from searchParams (default: '/dashboard')
   const redirectTo = sp.redirect ?? '/dashboard'
+  const referralCode = typeof sp.ref === 'string' ? sp.ref.trim() : ''
 
   const title = initialMode === 'signup' ? 'Sign up' : 'Log in'
   const subtitle = initialMode === 'signup' ? 'Create your LeadIntel account.' : 'Access your LeadIntel workspace.'
 
+  const redirectWithRef =
+    referralCode.length > 0
+      ? `${redirectTo}${redirectTo.includes('?') ? '&' : '?'}ref=${encodeURIComponent(referralCode)}`
+      : redirectTo
+
   return (
     <MarketingPage title={title} subtitle={subtitle}>
-      <LoginClient initialMode={initialMode} redirectTo={redirectTo} />
+      <LoginClient initialMode={initialMode} redirectTo={redirectWithRef} />
     </MarketingPage>
   )
 }
