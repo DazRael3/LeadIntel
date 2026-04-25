@@ -47,6 +47,11 @@ import { SampleModeCard } from '@/components/sample/SampleModeCard'
 import { TourGoalsCard } from '@/components/tour/TourGoalsCard'
 import { InAppWhyNowDigestCard } from '@/components/digest/InAppWhyNowDigestCard'
 
+type LeadActivitySummary = {
+  newLeadsSinceLastVisit: number
+  campaignsAwaitingAction: number
+}
+
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
   initialCreditsRemaining: number
@@ -75,6 +80,7 @@ export function DashboardClient({
   const [activeCompanyInput, setActiveCompanyInput] = useState<string | null>(null)
   const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTabKey>('command')
+  const [leadActivitySummary, setLeadActivitySummary] = useState<LeadActivitySummary | null>(null)
   const router = useRouter()
   const { plan, tier, isPro: planIsPro, trial } = usePlan()
   // Debug UI should never render in production even if misconfigured env vars are present.
@@ -141,6 +147,30 @@ export function DashboardClient({
 
   const actionQueuePolicy = useMemo(() => getModulePolicy({ tier, module: 'action_queue' }), [tier])
   const marketSidebarPolicy = useMemo(() => getModulePolicy({ tier, module: 'market_sidebar' }), [tier])
+
+  useEffect(() => {
+    if (activeTab !== 'command') return
+    let cancelled = false
+    const loadLeadActivitySummary = async () => {
+      try {
+        const response = await fetch('/api/lead-activity', { cache: 'no-store' })
+        const payload = (await response.json().catch(() => null)) as
+          | { ok: true; data: { summary: LeadActivitySummary } }
+          | { ok: false }
+          | null
+        if (!response.ok || !payload || payload.ok !== true || cancelled) return
+        setLeadActivitySummary(payload.data.summary)
+      } catch {
+        if (!cancelled) {
+          setLeadActivitySummary(null)
+        }
+      }
+    }
+    void loadLeadActivitySummary()
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab])
 
   return (
     <div className="min-h-screen bg-background terminal-grid overflow-x-clip" data-testid="dashboard-root">
@@ -236,6 +266,21 @@ export function DashboardClient({
                   <ActivationChecklist />
                   <RecentActivityFeed />
                 </div>
+
+                {leadActivitySummary ? (
+                  <Card className="border-cyan-500/20 bg-card/50">
+                    <CardContent className="py-4">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline">
+                          You have {leadActivitySummary.newLeadsSinceLastVisit} new leads
+                        </Badge>
+                        <Badge variant="outline">
+                          Campaigns awaiting action: {leadActivitySummary.campaignsAwaitingAction}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
                 {/* Secondary guidance */}
                 {isStarter ? (

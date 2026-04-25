@@ -37,6 +37,7 @@ export type CapabilityKey =
   | 'account_intelligence'
   | 'team_dashboards'
   | 'executive_dashboard'
+  | 'invite_teammates'
 
 export type Capabilities = Record<CapabilityKey, boolean>
 
@@ -76,6 +77,7 @@ const ALL_FALSE: Capabilities = {
   account_intelligence: false,
   team_dashboards: false,
   executive_dashboard: false,
+  invite_teammates: false,
 }
 
 /**
@@ -107,6 +109,7 @@ export function getTierCapabilities(tier: Tier): Capabilities {
       why_now_digest_email: true,
       action_queue: true,
       governance_exports: true,
+      invite_teammates: true,
     }
   }
 

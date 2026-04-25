@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
-type LeadGenerationResponse = {
+export type LeadGenerationResponse = {
   strategy: {
     query: string
     rationale: string
@@ -27,26 +27,86 @@ type LeadGenerationResponse = {
     limit: number | null
     remaining: number | null
   }
+  savedSearch: {
+    id: string
+    name: string
+    lastRunAt: string
+  } | null
 }
 
 type LeadGenerationWorkflowProps = {
   onGenerated: () => Promise<void> | void
+  preset?: {
+    targetIndustry: string
+    location: string
+    companySize: string
+    targetRole: string
+    painPoint: string
+    offerService: string
+    numberOfLeads: number
+    savedSearchId?: string
+  } | null
+  defaultSavedSearchId?: string | null
+  modeLabel?: string
+  runSignal?: number
+  onResult?: (result: LeadGenerationResponse) => void
+  onPayloadChange?: (payload: {
+    targetIndustry: string
+    location: string
+    companySize: string
+    targetRole: string
+    painPoint: string
+    offerService: string
+    numberOfLeads: number
+  }) => void
 }
 
-export function LeadGenerationWorkflow({ onGenerated }: LeadGenerationWorkflowProps) {
-  const [targetIndustry, setTargetIndustry] = useState('')
-  const [location, setLocation] = useState('')
-  const [companySize, setCompanySize] = useState('')
-  const [targetRole, setTargetRole] = useState('')
-  const [painPoint, setPainPoint] = useState('')
-  const [offerService, setOfferService] = useState('')
-  const [numberOfLeads, setNumberOfLeads] = useState('10')
+export function LeadGenerationWorkflow({
+  onGenerated,
+  preset = null,
+  defaultSavedSearchId = null,
+  modeLabel = 'Lead Generation Workflow',
+  runSignal = 0,
+  onResult,
+  onPayloadChange,
+}: LeadGenerationWorkflowProps) {
+  const [targetIndustry, setTargetIndustry] = useState(preset?.targetIndustry ?? '')
+  const [location, setLocation] = useState(preset?.location ?? '')
+  const [companySize, setCompanySize] = useState(preset?.companySize ?? '')
+  const [targetRole, setTargetRole] = useState(preset?.targetRole ?? '')
+  const [painPoint, setPainPoint] = useState(preset?.painPoint ?? '')
+  const [offerService, setOfferService] = useState(preset?.offerService ?? '')
+  const [numberOfLeads, setNumberOfLeads] = useState(String(preset?.numberOfLeads ?? 10))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<LeadGenerationResponse | null>(null)
+  const lastRunSignal = useRef(runSignal)
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  useEffect(() => {
+    setTargetIndustry(preset?.targetIndustry ?? '')
+    setLocation(preset?.location ?? '')
+    setCompanySize(preset?.companySize ?? '')
+    setTargetRole(preset?.targetRole ?? '')
+    setPainPoint(preset?.painPoint ?? '')
+    setOfferService(preset?.offerService ?? '')
+    setNumberOfLeads(String(preset?.numberOfLeads ?? 10))
+  }, [preset])
+
+  useEffect(() => {
+    const requestedCount = Number.parseInt(numberOfLeads, 10)
+    onPayloadChange?.({
+      targetIndustry,
+      location,
+      companySize,
+      targetRole,
+      painPoint,
+      offerService,
+      numberOfLeads: Number.isFinite(requestedCount) ? requestedCount : 10,
+    })
+  }, [companySize, location, numberOfLeads, offerService, onPayloadChange, painPoint, targetIndustry, targetRole])
+
+  const submitGeneration = async () => {
+    if (isSubmitting) return
     setError(null)
     setResult(null)
     setIsSubmitting(true)
@@ -64,6 +124,9 @@ export function LeadGenerationWorkflow({ onGenerated }: LeadGenerationWorkflowPr
           painPoint,
           offerService,
           numberOfLeads: requestedCount,
+          ...(preset?.savedSearchId || defaultSavedSearchId
+            ? { savedSearchId: preset?.savedSearchId ?? defaultSavedSearchId }
+            : {}),
         }),
       })
       const payload = (await response.json()) as
@@ -79,6 +142,7 @@ export function LeadGenerationWorkflow({ onGenerated }: LeadGenerationWorkflowPr
       }
 
       setResult(payload.data)
+      onResult?.(payload.data)
       await onGenerated()
     } catch {
       setError('Lead generation failed. Please try again.')
@@ -87,10 +151,23 @@ export function LeadGenerationWorkflow({ onGenerated }: LeadGenerationWorkflowPr
     }
   }
 
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    await submitGeneration()
+  }
+
+  useEffect(() => {
+    if (runSignal <= lastRunSignal.current) return
+    lastRunSignal.current = runSignal
+    void submitGeneration()
+    // runSignal intentionally drives reruns
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runSignal])
+
   return (
     <Card className="border-cyan-500/20 bg-card/40">
       <CardHeader>
-        <CardTitle className="text-base bloomberg-font neon-cyan">Lead Generation Workflow</CardTitle>
+        <CardTitle className="text-base bloomberg-font neon-cyan">{modeLabel}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -174,6 +251,11 @@ export function LeadGenerationWorkflow({ onGenerated }: LeadGenerationWorkflowPr
               {result.usage.limit ? ` / ${result.usage.limit}` : ''} leads used
               {result.usage.remaining !== null ? ` • ${result.usage.remaining} remaining` : ''}
             </div>
+            {result.savedSearch ? (
+              <div className="text-muted-foreground">
+                Saved search run tracked: {result.savedSearch.name}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </CardContent>

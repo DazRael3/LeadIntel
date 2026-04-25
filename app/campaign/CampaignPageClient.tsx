@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 
-type CampaignStatus = 'draft' | 'active' | 'paused' | 'archived'
+type CampaignStatus = 'new' | 'contacted' | 'responded' | 'closed' | 'active' | 'paused' | 'archived'
 
 type CampaignLead = {
   id: string
@@ -29,6 +29,12 @@ type Campaign = {
   updated_at: string
   leadCount?: number
   leads?: CampaignLead[]
+}
+
+type CampaignProgress = {
+  total: number
+  byStatus: Record<CampaignStatus, number>
+  completionPct: number
 }
 
 type DiscoverLead = {
@@ -54,7 +60,7 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
 }
 
 function statusBadgeVariant(status: CampaignStatus): 'default' | 'secondary' | 'outline' {
-  if (status === 'active') return 'default'
+  if (status === 'responded' || status === 'closed' || status === 'active') return 'default'
   if (status === 'paused') return 'secondary'
   return 'outline'
 }
@@ -69,6 +75,7 @@ export function CampaignPageClient() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [progress, setProgress] = useState<CampaignProgress | null>(null)
 
   const selectedLeadIdsArray = useMemo(() => Array.from(selectedLeadIds), [selectedLeadIds])
 
@@ -78,6 +85,8 @@ export function CampaignPageClient() {
     if (!response.ok) throw new Error(asErrorMessage(payload))
     const campaignsPayload = (payload as { data?: { campaigns?: Campaign[] } })?.data?.campaigns
     setCampaigns(Array.isArray(campaignsPayload) ? campaignsPayload : [])
+    const progressPayload = (payload as { data?: { campaignProgress?: CampaignProgress } })?.data?.campaignProgress
+    setProgress(progressPayload ?? null)
   }, [])
 
   const loadLeadOptions = useCallback(async () => {
@@ -286,6 +295,20 @@ export function CampaignPageClient() {
           <CardDescription>Re-open campaigns and export lead lists when your plan allows.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {progress ? (
+            <div className="grid gap-2 rounded border border-cyan-500/10 bg-background/40 p-3 sm:grid-cols-3">
+              <div className="text-xs text-muted-foreground">Total campaigns: <span className="text-foreground">{progress.total}</span></div>
+              <div className="text-xs text-muted-foreground">
+                Awaiting action:{' '}
+                <span className="text-foreground">
+                  {(progress.byStatus.new ?? 0) + (progress.byStatus.contacted ?? 0)}
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Progress complete: <span className="text-foreground">{progress.completionPct}%</span>
+              </div>
+            </div>
+          ) : null}
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading campaigns…</p>
           ) : campaigns.length === 0 ? (
@@ -309,7 +332,10 @@ export function CampaignPageClient() {
                     className="rounded border border-cyan-500/20 bg-background px-2 py-1 text-sm"
                     onChange={(event) => void handleStatusChange(campaign, event.target.value as CampaignStatus)}
                   >
-                    <option value="draft">draft</option>
+                    <option value="new">new</option>
+                    <option value="contacted">contacted</option>
+                    <option value="responded">responded</option>
+                    <option value="closed">closed</option>
                     <option value="active">active</option>
                     <option value="paused">paused</option>
                     <option value="archived">archived</option>

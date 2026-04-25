@@ -17,6 +17,8 @@ type OutcomeKind =
   | 'wrong_timing'
   | 'no_response'
   | 'manual_dismissal'
+  | 'converted_yes'
+  | 'converted_no'
 
 type OutcomeRow = { id: string; outcome: OutcomeKind; recorded_at: string; note: string | null }
 
@@ -34,6 +36,8 @@ const OUTCOME_LABEL: Record<OutcomeKind, string> = {
   wrong_timing: 'Wrong timing',
   no_response: 'No response',
   manual_dismissal: 'Dismissed',
+  converted_yes: 'Converted (Yes)',
+  converted_no: 'Converted (No)',
 }
 
 export function OutcomeTracker(props: { accountId: string }) {
@@ -113,6 +117,33 @@ export function OutcomeTracker(props: { accountId: string }) {
           <Button variant="outline" disabled={saving} onClick={() => void load()}>
             Refresh
           </Button>
+        </div>
+        <div className="rounded border border-cyan-500/10 bg-background/30 p-2">
+          <div className="text-xs text-muted-foreground mb-2">Did this lead convert?</div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={saving}
+              onClick={() => {
+                setSelected('converted_yes')
+                void save()
+              }}
+            >
+              Yes
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={saving}
+              onClick={() => {
+                setSelected('converted_no')
+                void save()
+              }}
+            >
+              No
+            </Button>
+          </div>
         </div>
 
         <div className="text-xs text-muted-foreground">

@@ -46,6 +46,16 @@ type StoredGenerationRow = {
   created_at: string
 }
 
+type AiPitchHistoryRow = {
+  id: string
+  generation_id: string
+  lead_id: string
+  user_id: string
+  outputs: unknown
+  improve_context: string | null
+  created_at: string
+}
+
 type UsageSummary = {
   tier: 'starter' | 'closer' | 'closer_plus' | 'team'
   used: number
@@ -120,6 +130,42 @@ async function getLatestPitchBundle(supabase: ReturnType<typeof createRouteClien
   return (data as StoredGenerationRow | null) ?? null
 }
 
+async function getAiPitchIterationHistory(args: {
+  supabase: ReturnType<typeof createRouteClient>
+  userId: string
+  leadId: string
+  limit?: number
+}): Promise<Array<{ id: string; generationId: string; outputs: z.infer<typeof AiPitchOutputsSchema>; improveContext: string | null; createdAt: string }>> {
+  const { data, error } = await args.supabase
+    .schema('api')
+    .from('lead_ai_pitch_iterations')
+    .select('id, generation_id, lead_id, user_id, outputs, improve_context, created_at')
+    .eq('user_id', args.userId)
+    .eq('lead_id', args.leadId)
+    .order('created_at', { ascending: false })
+    .limit(args.limit ?? 20)
+
+  if (error) throw error
+  const rows = (data ?? []) as AiPitchHistoryRow[]
+  const mapped: Array<{ id: string; generationId: string; outputs: z.infer<typeof AiPitchOutputsSchema>; improveContext: string | null; createdAt: string }> = []
+  for (const row of rows) {
+    try {
+      const parsed = typeof row.outputs === 'string' ? (JSON.parse(row.outputs) as unknown) : row.outputs
+      const outputs = AiPitchOutputsSchema.parse(parsed)
+      mapped.push({
+        id: row.id,
+        generationId: row.generation_id,
+        outputs,
+        improveContext: row.improve_context,
+        createdAt: row.created_at,
+      })
+    } catch {
+      // Ignore malformed historical rows.
+    }
+  }
+  return mapped
+}
+
 export async function GET(request: NextRequest, ctx: { params: Promise<{ leadId: string }> }) {
   const { leadId: rawLeadId } = await ctx.params
   const parsedLeadId = LeadIdSchema.safeParse(rawLeadId)
@@ -144,6 +190,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ leadId:
         getLatestPitchBundle(supabase, userId, parsedLeadId.data),
         getUsageSummary({ supabase, userId, tier }),
       ])
+      const history = await getAiPitchIterationHistory({
+        supabase,
+        userId,
+        leadId: parsedLeadId.data,
+      })
 
       const outputs = latest ? parseStoredOutputs(latest.output_text) : null
 
@@ -170,6 +221,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ leadId:
                 generatedAt: latest.created_at,
               }
             : null,
+          history,
           usage,
         },
         undefined,
@@ -208,6 +260,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ leadId
         const promptInput = input.promptInput ?? {}
         const tier = await getUserTierForGating({ userId, sessionEmail: null, supabase })
         const usage = await getUsageSummary({ supabase, userId, tier })
+        const historyRows = await getAiPitchIterationHistory({
+          supabase,
+          userId,
+          leadId: parsedLeadId.data,
+          limit: 10,
+        })
+        const historicalOutputs = historyRows.map((row) => row.outputs).slice(0, 5)
 
         if (isAiPitchLimitReached({ used: usage.used, limit: usage.limit })) {
           return fail(
@@ -225,6 +284,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ leadId
           companyDomain: lead.company_domain,
           companyUrl: lead.company_url,
           existingPitchDraft: lead.ai_personalized_pitch,
+          iterationHistory: historicalOutputs,
           promptInput,
         })
 
@@ -258,6 +318,24 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ leadId
           return fail(ErrorCode.DATABASE_ERROR, 'Failed to save AI generation', undefined, undefined, bridge, requestId)
         }
 
+        await supabase
+          .schema('api')
+          .from('lead_ai_pitch_iterations')
+          .insert({
+            generation_id: inserted.id,
+            lead_id: lead.id,
+            user_id: userId,
+            outputs: generated.outputs,
+            improve_context: promptInput.improveContext ?? null,
+          })
+          .throwOnError()
+
+        const refreshedHistory = await getAiPitchIterationHistory({
+          supabase,
+          userId,
+          leadId: parsedLeadId.data,
+        })
+
         const usageAfter: UsageSummary = {
           ...usage,
           used: usage.used + 1,
@@ -280,6 +358,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ leadId
               generatedAt: inserted.created_at,
             },
             usage: usageAfter,
+            history: refreshedHistory,
           },
           { status: 201 },
           bridge,

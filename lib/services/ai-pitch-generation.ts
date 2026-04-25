@@ -23,6 +23,7 @@ export const AiPitchPromptInputSchema = z.object({
   offerService: z.string().trim().min(4).max(240).optional(),
   campaignObjective: z.string().trim().min(4).max(240).optional(),
   callToAction: z.string().trim().min(4).max(160).optional(),
+  improveContext: z.string().trim().min(4).max(320).optional(),
   regenerate: z.boolean().optional(),
 })
 
@@ -44,6 +45,7 @@ type GenerateLeadPitchBundleArgs = {
   companyDomain: string | null
   companyUrl: string | null
   existingPitchDraft: string | null
+  iterationHistory?: AiPitchOutputs[]
   promptInput: AiPitchPromptInput
 }
 
@@ -160,7 +162,17 @@ function buildUserPrompt(args: GenerateLeadPitchBundleArgs): string {
     `Offer/service focus: ${args.promptInput.offerService ?? 'Use lead context only'}`,
     `Campaign objective: ${args.promptInput.campaignObjective ?? 'Book a relevant follow-up conversation'}`,
     `Preferred CTA: ${args.promptInput.callToAction ?? 'Ask one low-friction, specific next step'}`,
+    `Improve context: ${args.promptInput.improveContext ?? 'None provided'}`,
   ]
+  const historyLines =
+    args.iterationHistory && args.iterationHistory.length > 0
+      ? args.iterationHistory
+          .slice(-3)
+          .map(
+            (entry, index) =>
+              `History ${index + 1}: opener="${entry.shortEmailOpener}" | dm="${entry.linkedinDm}"`
+          )
+      : ['History: none']
 
   return [
     'Generate outreach content for one lead and return strict JSON.',
@@ -171,8 +183,10 @@ function buildUserPrompt(args: GenerateLeadPitchBundleArgs): string {
     '- No fake urgency, no fake social proof, no fabricated results.',
     '- Tone should be helpful, direct, and non-spammy.',
     '- objectionHandlingNotes should be concise actionable notes (single paragraph).',
+    '- When history is provided, improve clarity and specificity while avoiding repetition.',
     '',
     ...contextLines,
+    ...historyLines,
   ].join('\n')
 }
 

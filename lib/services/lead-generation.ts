@@ -14,6 +14,12 @@ export const LeadGenerationRequestSchema = z.object({
 
 export type LeadGenerationRequest = z.infer<typeof LeadGenerationRequestSchema>
 
+export const LeadSearchPayloadSchema = LeadGenerationRequestSchema.extend({
+  savedSearchId: z.string().uuid().optional(),
+})
+
+export type LeadSearchPayload = z.infer<typeof LeadSearchPayloadSchema>
+
 export const GeneratedLeadCandidateSchema = z.object({
   companyName: z.string().trim().min(1).max(160),
   companyDomain: z.string().trim().min(1).max(255).nullable().optional(),

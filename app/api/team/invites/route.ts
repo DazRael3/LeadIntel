@@ -19,6 +19,11 @@ const InviteBodySchema = z.object({
   role: z.enum(['admin', 'manager', 'rep', 'viewer']),
 })
 
+function inviteCapabilityForRole(role: z.infer<typeof InviteBodySchema>['role']): 'multi_workspace_controls' | 'invite_teammates' {
+  if (role === 'viewer') return 'invite_teammates'
+  return 'multi_workspace_controls'
+}
+
 function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex')
 }
@@ -36,14 +41,15 @@ export const POST = withApiGuard(
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
       }
 
-      const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'multi_workspace_controls' })
-      if (!gate.ok) {
-        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
-      }
-
       const parsed = InviteBodySchema.safeParse(body)
       if (!parsed.success) {
         return fail(ErrorCode.VALIDATION_ERROR, 'Validation failed', parsed.error.flatten(), undefined, bridge, requestId)
+      }
+
+      const inviteCapability = inviteCapabilityForRole(parsed.data.role)
+      const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: inviteCapability })
+      if (!gate.ok) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
 
       await ensurePersonalWorkspace({ supabase, userId: user.id })
@@ -52,8 +58,8 @@ export const POST = withApiGuard(
         return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
       }
 
-    const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
-    if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {
+      const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
+      if (!membership || (membership.role !== 'owner' && membership.role !== 'admin' && membership.role !== 'manager')) {
         return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
       }
 
