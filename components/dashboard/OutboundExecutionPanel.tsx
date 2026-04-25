@@ -11,6 +11,40 @@ import { track } from '@/lib/analytics'
 
 type ResponseStatus = 'not sent' | 'sent' | 'replied' | 'interested' | 'booked' | 'closed' | 'not interested'
 type TemplateKey = 'initial' | 'followup1' | 'followup2'
+type ReplyType = 'interested' | 'objection' | 'not interested' | 'asked for details' | 'booked call' | 'no fit'
+type ProofMetric = 'replies' | 'calls booked' | 'leads generated' | 'time saved' | 'paid conversion'
+type PermissionStatus = 'private note' | 'anonymous proof' | 'approved public testimonial'
+
+type ReplyLearningEntry = {
+  id: string
+  leadId: string | null
+  companyName: string
+  replyType: ReplyType
+  replyText: string
+  createdAt: string
+}
+
+type ProofEntry = {
+  id: string
+  customerName: string
+  niche: string
+  problem: string
+  result: string
+  metric: ProofMetric
+  quote: string
+  permissionStatus: PermissionStatus
+  createdAt: string
+}
+
+type RevenueRoadmapInputs = {
+  messagesSent: number
+  replies: number
+  interestedProspects: number
+  callsBooked: number
+  trialsStarted: number
+  paidUsers: number
+  manualMrr: number
+}
 
 type LeadRow = {
   id: string
@@ -49,7 +83,12 @@ type OutboundLead = {
 
 const STATUS_STORAGE_KEY = 'leadintel-outbound-response-status-v2'
 const MESSAGE_STORAGE_KEY = 'leadintel-outbound-message-drafts-v2'
+const REPLY_LEARNING_STORAGE_KEY = 'leadintel-outbound-reply-learning-v1'
+const PROOF_BUILDER_STORAGE_KEY = 'leadintel-outbound-proof-builder-v1'
+const REVENUE_ROADMAP_STORAGE_KEY = 'leadintel-outbound-revenue-roadmap-v1'
+const DAILY_CHECKLIST_STORAGE_KEY = 'leadintel-outbound-daily-checklist-v1'
 const DAILY_SEND_GOAL = 20
+const PLAN_PRICE = 79
 const TEMPLATE_OPTIONS: ReadonlyArray<{ key: TemplateKey; label: string }> = [
   { key: 'initial', label: 'Initial outreach' },
   { key: 'followup1', label: 'Follow-up #1' },
@@ -66,6 +105,67 @@ const RESPONSE_STATUS_OPTIONS: ReadonlyArray<ResponseStatus> = [
 ]
 const SENT_LIKE_STATUSES = new Set<ResponseStatus>(['sent', 'replied', 'interested', 'booked', 'closed', 'not interested'])
 const REPLY_LIKE_STATUSES = new Set<ResponseStatus>(['replied', 'interested', 'booked', 'closed'])
+const REPLY_TYPE_OPTIONS: ReadonlyArray<ReplyType> = [
+  'interested',
+  'objection',
+  'not interested',
+  'asked for details',
+  'booked call',
+  'no fit',
+]
+const PROOF_METRIC_OPTIONS: ReadonlyArray<ProofMetric> = [
+  'replies',
+  'calls booked',
+  'leads generated',
+  'time saved',
+  'paid conversion',
+]
+const PERMISSION_OPTIONS: ReadonlyArray<PermissionStatus> = [
+  'private note',
+  'anonymous proof',
+  'approved public testimonial',
+]
+const DAILY_CHECKLIST_ITEMS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'generate_select_20', label: 'Generate/select 20 leads' },
+  { id: 'send_20', label: 'Send 20 messages' },
+  { id: 'follow_up_yesterday', label: "Follow up yesterday's prospects" },
+  { id: 'log_replies', label: 'Log replies' },
+  { id: 'improve_message', label: 'Improve best message' },
+  { id: 'ask_live_demo', label: 'Ask interested prospect for a live demo' },
+  { id: 'record_proof', label: 'Record proof/result' },
+]
+const REPLY_RESPONSE_TEMPLATE_LIBRARY: ReadonlyArray<{ id: string; label: string; text: string }> = [
+  {
+    id: 'interested',
+    label: 'Interested',
+    text: 'Great - I can generate 5 leads for your market so you can judge the quality before committing. What niche should I run?',
+  },
+  {
+    id: 'asked_details',
+    label: 'Asked for details',
+    text: 'LeadIntel finds companies showing buying signals, scores them, and writes outreach you can send immediately. I can show you 5 examples for your market.',
+  },
+  {
+    id: 'objection_too_busy',
+    label: 'Objection: too busy',
+    text: 'No problem - I can send a short sample list instead. If it looks useful, we can talk later.',
+  },
+  {
+    id: 'objection_have_leads',
+    label: 'Objection: already have leads',
+    text: 'Makes sense. Most teams have lists; the gap is usually timing + outreach quality. I can show you leads with why-now signals.',
+  },
+  {
+    id: 'not_interested',
+    label: 'Not interested',
+    text: "Totally fair - I'll close the loop. If pipeline quality becomes a focus later, happy to share a sample.",
+  },
+  {
+    id: 'booked_call',
+    label: 'Booked call',
+    text: "Perfect - I'll prepare a short lead list for your target market before the call.",
+  },
+]
 
 function parseFitScore(draft: string | null): number {
   if (!draft) return 0
@@ -207,6 +307,140 @@ function todayDateKey(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function checklistDateKey(date: string): string {
+  return date
+}
+
+function buildReplyRecommendation(replyType: ReplyType): {
+  recommendedNextResponse: string
+  objectionHandlingAngle: string
+  suggestedFollowUp: string
+} {
+  if (replyType === 'interested') {
+    return {
+      recommendedNextResponse:
+        'Great - I can generate 5 leads for your market so you can judge the quality before committing. What niche should I run?',
+      objectionHandlingAngle: 'Keep momentum and move directly into a concrete sample promise.',
+      suggestedFollowUp: 'Send a sample lead list within 24 hours and ask for a 15-minute review call.',
+    }
+  }
+  if (replyType === 'asked for details') {
+    return {
+      recommendedNextResponse:
+        'LeadIntel finds companies showing buying signals, scores them, and writes outreach you can send immediately. I can show you 5 examples for your market.',
+      objectionHandlingAngle: 'Clarify the workflow in one sentence, then offer proof instead of more explanation.',
+      suggestedFollowUp: 'Share 3-5 sample leads with why-now context and one outreach message.',
+    }
+  }
+  if (replyType === 'booked call') {
+    return {
+      recommendedNextResponse:
+        "Perfect - I'll prepare a short lead list for your target market before the call.",
+      objectionHandlingAngle: 'Increase call quality with prep and custom context.',
+      suggestedFollowUp: 'Arrive with sample leads, one use-case message, and a clear pilot CTA.',
+    }
+  }
+  if (replyType === 'objection') {
+    return {
+      recommendedNextResponse: 'No problem - I can send a short sample list instead. If it looks useful, we can talk later.',
+      objectionHandlingAngle: 'Reduce commitment: offer a lightweight sample over a full meeting.',
+      suggestedFollowUp: 'Reply with 3 specific leads and ask if one looks worth discussing.',
+    }
+  }
+  if (replyType === 'not interested') {
+    return {
+      recommendedNextResponse:
+        "Totally fair - I'll close the loop. If pipeline quality becomes a focus later, happy to share a sample.",
+      objectionHandlingAngle: 'Exit politely while keeping an easy re-entry path.',
+      suggestedFollowUp: 'Set a future reminder and check back only with a concise value update.',
+    }
+  }
+  return {
+    recommendedNextResponse:
+      "Understood - if it's helpful, I can still share 5 example leads so you can quickly confirm whether there's a fit.",
+    objectionHandlingAngle: 'Use low-friction proof to validate fit before asking for commitment.',
+    suggestedFollowUp: 'Send a sample with one clear success criterion and close the loop if no response.',
+  }
+}
+
+function buildReplyTemplate(replyType: ReplyType): string {
+  if (replyType === 'interested') {
+    return REPLY_RESPONSE_TEMPLATE_LIBRARY.find((item) => item.id === 'interested')?.text ?? ''
+  }
+  if (replyType === 'asked for details') {
+    return REPLY_RESPONSE_TEMPLATE_LIBRARY.find((item) => item.id === 'asked_details')?.text ?? ''
+  }
+  if (replyType === 'objection') {
+    return REPLY_RESPONSE_TEMPLATE_LIBRARY.find((item) => item.id === 'objection_too_busy')?.text ?? ''
+  }
+  if (replyType === 'not interested') {
+    return REPLY_RESPONSE_TEMPLATE_LIBRARY.find((item) => item.id === 'not_interested')?.text ?? ''
+  }
+  if (replyType === 'booked call') {
+    return REPLY_RESPONSE_TEMPLATE_LIBRARY.find((item) => item.id === 'booked_call')?.text ?? ''
+  }
+  return REPLY_RESPONSE_TEMPLATE_LIBRARY.find((item) => item.id === 'objection_have_leads')?.text ?? ''
+}
+
+function buildProofCopy(entry: ProofEntry): {
+  shortProofSnippet: string
+  landingTestimonial: string
+  linkedInPostDraft: string
+  caseStudyOutline: string
+} {
+  const subject = entry.permissionStatus === 'anonymous proof' ? `${entry.niche} team` : entry.customerName || `${entry.niche} customer`
+  const metricLine = entry.result.trim().length > 0 ? entry.result.trim() : `Improved ${entry.metric} with LeadIntel.`
+  const quote = entry.quote.trim().length > 0 ? entry.quote.trim() : 'LeadIntel helped us move faster from lead discovery to outreach.'
+  const shortProofSnippet = `${subject}: ${metricLine}`
+  const landingTestimonial = `"${quote}" - ${subject}`
+  const linkedInPostDraft = [
+    `Proof from this week: ${metricLine}`,
+    '',
+    `Context: ${entry.problem.trim() || 'Team needed better outbound timing and message quality.'}`,
+    'LeadIntel helped us find high-intent leads and ship outreach faster.',
+    '',
+    'If you want, I can generate 5 sample leads for your niche.',
+  ].join('\n')
+  const caseStudyOutline = [
+    `Customer/Niche: ${subject} (${entry.niche || 'N/A'})`,
+    `Problem before LeadIntel: ${entry.problem || 'N/A'}`,
+    `Result achieved: ${metricLine}`,
+    `Metric focus: ${entry.metric}`,
+    `Quote: ${quote}`,
+    `Permission status: ${entry.permissionStatus}`,
+  ].join('\n')
+  return {
+    shortProofSnippet,
+    landingTestimonial,
+    linkedInPostDraft,
+    caseStudyOutline,
+  }
+}
+
+function deriveConversionBottleneck(inputs: RevenueRoadmapInputs): string {
+  if (inputs.messagesSent <= 0) return 'Bottleneck: top of funnel. Send the first 20 messages.'
+  if (inputs.replies <= 0) return 'Bottleneck: reply rate. Improve opening line and targeting.'
+  if (inputs.interestedProspects <= 0) return 'Bottleneck: qualification. Sharpen value framing after first reply.'
+  if (inputs.callsBooked <= 0) return 'Bottleneck: call conversion. Offer a concrete 5-lead live demo.'
+  if (inputs.trialsStarted <= 0) return 'Bottleneck: trial starts. Add stronger post-call next steps.'
+  if (inputs.paidUsers <= 0) return 'Bottleneck: paid conversion. Strengthen close and proof after trial.'
+
+  const replyRate = inputs.replies / inputs.messagesSent
+  const interestRate = inputs.interestedProspects / Math.max(1, inputs.replies)
+  const bookingRate = inputs.callsBooked / Math.max(1, inputs.interestedProspects)
+  const trialRate = inputs.trialsStarted / Math.max(1, inputs.callsBooked)
+  const closeRate = inputs.paidUsers / Math.max(1, inputs.trialsStarted)
+  const pairs: Array<{ label: string; value: number }> = [
+    { label: 'reply rate', value: replyRate },
+    { label: 'interest rate', value: interestRate },
+    { label: 'call booking rate', value: bookingRate },
+    { label: 'trial start rate', value: trialRate },
+    { label: 'close rate', value: closeRate },
+  ]
+  const min = pairs.reduce((lowest, current) => (current.value < lowest.value ? current : lowest), pairs[0])
+  return `Bottleneck: ${min.label}. This is the weakest step in your current funnel.`
+}
+
 export function OutboundExecutionPanel() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
@@ -222,6 +456,39 @@ export function OutboundExecutionPanel() {
   const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({})
   const [responseStatuses, setResponseStatuses] = useState<Record<string, ResponseStatus>>({})
   const [copied, setCopied] = useState(false)
+  const [replyLearningLog, setReplyLearningLog] = useState<ReplyLearningEntry[]>([])
+  const [replyLearningForm, setReplyLearningForm] = useState<{ replyText: string; replyType: ReplyType }>({
+    replyText: '',
+    replyType: 'interested',
+  })
+  const [proofEntries, setProofEntries] = useState<ProofEntry[]>([])
+  const [proofForm, setProofForm] = useState<{
+    customerName: string
+    niche: string
+    problem: string
+    result: string
+    metric: ProofMetric
+    quote: string
+    permissionStatus: PermissionStatus
+  }>({
+    customerName: '',
+    niche: '',
+    problem: '',
+    result: '',
+    metric: 'leads generated',
+    quote: '',
+    permissionStatus: 'private note',
+  })
+  const [revenueRoadmap, setRevenueRoadmap] = useState<RevenueRoadmapInputs>({
+    messagesSent: 0,
+    replies: 0,
+    interestedProspects: 0,
+    callsBooked: 0,
+    trialsStarted: 0,
+    paidUsers: 0,
+    manualMrr: 0,
+  })
+  const [dailyChecklistState, setDailyChecklistState] = useState<Record<string, string[]>>({})
 
   const loadOutboundLeads = useCallback(async () => {
     setLoading(true)
@@ -342,6 +609,74 @@ export function OutboundExecutionPanel() {
     window.localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messageDrafts))
   }, [messageDrafts])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const rawReplyLearning = window.localStorage.getItem(REPLY_LEARNING_STORAGE_KEY)
+      if (rawReplyLearning) {
+        const parsed = JSON.parse(rawReplyLearning) as ReplyLearningEntry[]
+        setReplyLearningLog(parsed)
+      }
+    } catch {
+      setReplyLearningLog([])
+    }
+    try {
+      const rawProofEntries = window.localStorage.getItem(PROOF_BUILDER_STORAGE_KEY)
+      if (rawProofEntries) {
+        const parsed = JSON.parse(rawProofEntries) as ProofEntry[]
+        setProofEntries(parsed)
+      }
+    } catch {
+      setProofEntries([])
+    }
+    try {
+      const rawRoadmap = window.localStorage.getItem(REVENUE_ROADMAP_STORAGE_KEY)
+      if (rawRoadmap) {
+        const parsed = JSON.parse(rawRoadmap) as RevenueRoadmapInputs
+        setRevenueRoadmap(parsed)
+      }
+    } catch {
+      setRevenueRoadmap({
+        messagesSent: 0,
+        replies: 0,
+        interestedProspects: 0,
+        callsBooked: 0,
+        trialsStarted: 0,
+        paidUsers: 0,
+        manualMrr: 0,
+      })
+    }
+    try {
+      const rawChecklist = window.localStorage.getItem(DAILY_CHECKLIST_STORAGE_KEY)
+      if (rawChecklist) {
+        const parsed = JSON.parse(rawChecklist) as Record<string, string[]>
+        setDailyChecklistState(parsed)
+      }
+    } catch {
+      setDailyChecklistState({})
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(REPLY_LEARNING_STORAGE_KEY, JSON.stringify(replyLearningLog))
+  }, [replyLearningLog])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(PROOF_BUILDER_STORAGE_KEY, JSON.stringify(proofEntries))
+  }, [proofEntries])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(REVENUE_ROADMAP_STORAGE_KEY, JSON.stringify(revenueRoadmap))
+  }, [revenueRoadmap])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(DAILY_CHECKLIST_STORAGE_KEY, JSON.stringify(dailyChecklistState))
+  }, [dailyChecklistState])
+
   const industries = useMemo(() => {
     const values = Array.from(new Set(leads.map((lead) => lead.industry).filter((value) => value !== 'Unknown')))
     values.sort((a, b) => a.localeCompare(b))
@@ -418,6 +753,88 @@ export function OutboundExecutionPanel() {
     const replyRate = sent > 0 ? Math.round((replies / sent) * 1000) / 10 : 0
     return { sent, replies, interested, booked, closed, replyRate }
   }, [leads, responseStatuses])
+
+  const checklistTodayKey = useMemo(() => todayDateKey(), [])
+  const checklistForToday = dailyChecklistState[checklistTodayKey] ?? []
+  const checklistCompletedCount = checklistForToday.length
+
+  const replyLearningRecommendation = useMemo(
+    () => buildReplyRecommendation(replyLearningForm.replyType),
+    [replyLearningForm.replyType]
+  )
+  const replyTemplate = useMemo(() => buildReplyTemplate(replyLearningForm.replyType), [replyLearningForm.replyType])
+
+  const latestProofEntry = proofEntries[0] ?? null
+  const proofOutputs = useMemo(() => (latestProofEntry ? buildProofCopy(latestProofEntry) : null), [latestProofEntry])
+
+  const estimatedMrr = revenueRoadmap.manualMrr > 0 ? revenueRoadmap.manualMrr : revenueRoadmap.paidUsers * PLAN_PRICE
+  const payingUsersNeededFor1k = Math.ceil(1000 / PLAN_PRICE)
+  const payingUsersNeededFor10k = Math.ceil(10000 / PLAN_PRICE)
+  const conversionBottleneck = useMemo(() => deriveConversionBottleneck(revenueRoadmap), [revenueRoadmap])
+
+  function saveReplyLearningEntry(): void {
+    const replyText = replyLearningForm.replyText.trim()
+    if (replyText.length === 0) return
+    const entry: ReplyLearningEntry = {
+      id: `${Date.now()}`,
+      leadId: activeLead?.id ?? null,
+      companyName: activeLead?.companyName ?? 'Unknown company',
+      replyType: replyLearningForm.replyType,
+      replyText,
+      createdAt: new Date().toISOString(),
+    }
+    setReplyLearningLog((current) => [entry, ...current].slice(0, 100))
+    setReplyLearningForm((current) => ({ ...current, replyText: '' }))
+    track('outbound_reply_learning_logged', { replyType: entry.replyType })
+  }
+
+  async function copyReplyTemplate(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(`${replyTemplate}\n\nGenerated by raelinfo.com`)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1200)
+      track('outbound_reply_template_copied', { replyType: replyLearningForm.replyType })
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  function saveProofEntry(): void {
+    if (proofForm.niche.trim().length === 0 && proofForm.result.trim().length === 0) return
+    const entry: ProofEntry = {
+      id: `${Date.now()}`,
+      customerName: proofForm.customerName.trim(),
+      niche: proofForm.niche.trim(),
+      problem: proofForm.problem.trim(),
+      result: proofForm.result.trim(),
+      metric: proofForm.metric,
+      quote: proofForm.quote.trim(),
+      permissionStatus: proofForm.permissionStatus,
+      createdAt: new Date().toISOString(),
+    }
+    setProofEntries((current) => [entry, ...current].slice(0, 100))
+    track('outbound_proof_entry_saved', { permissionStatus: entry.permissionStatus, metric: entry.metric })
+  }
+
+  function updateRoadmapField(field: keyof RevenueRoadmapInputs, value: string): void {
+    const numericValue = Number.parseInt(value, 10)
+    setRevenueRoadmap((current) => ({
+      ...current,
+      [field]: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
+    }))
+  }
+
+  function toggleChecklistItem(itemId: string, checked: boolean): void {
+    setDailyChecklistState((current) => {
+      const todayItems = new Set(current[checklistTodayKey] ?? [])
+      if (checked) todayItems.add(itemId)
+      else todayItems.delete(itemId)
+      return {
+        ...current,
+        [checklistTodayKey]: Array.from(todayItems),
+      }
+    })
+  }
 
   function toggleSelected(leadId: string, checked: boolean): void {
     setSelectedLeadIds((current) => {
@@ -806,6 +1223,261 @@ export function OutboundExecutionPanel() {
           ) : (
             <div className="text-xs text-muted-foreground">Select a lead to load company-specific copy blocks.</div>
           )}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+            <div className="text-sm font-medium text-foreground">Reply Learning</div>
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wide text-muted-foreground">Prospect reply text</label>
+              <Textarea
+                value={replyLearningForm.replyText}
+                onChange={(event) =>
+                  setReplyLearningForm((current) => ({
+                    ...current,
+                    replyText: event.target.value,
+                  }))
+                }
+                className="min-h-[120px]"
+                placeholder="Paste the exact reply from the prospect"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wide text-muted-foreground">Reply type</label>
+              <select
+                value={replyLearningForm.replyType}
+                onChange={(event) =>
+                  setReplyLearningForm((current) => ({
+                    ...current,
+                    replyType: event.target.value as ReplyType,
+                  }))
+                }
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {REPLY_TYPE_OPTIONS.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={saveReplyLearning}
+              className="neon-border hover:glow-effect"
+              disabled={replyLearningForm.replyText.trim().length === 0}
+            >
+              Save reply learning
+            </Button>
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Recommended next response</div>
+              <div className="text-xs text-foreground">{replyLearningRecommendation.recommendedNextResponse}</div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Objection handling angle</div>
+              <div className="text-xs text-muted-foreground">{replyLearningRecommendation.objectionHandlingAngle}</div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Suggested follow-up</div>
+              <div className="text-xs text-muted-foreground">{replyLearningRecommendation.suggestedFollowUp}</div>
+            </div>
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Reusable response template</div>
+              <pre className="text-xs whitespace-pre-wrap text-muted-foreground">{buildReplyTemplate(replyLearningForm.replyType)}</pre>
+              <Button type="button" size="sm" variant="outline" onClick={() => void copyReplyTemplate(replyLearningForm.replyType)}>
+                Copy response template
+              </Button>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Recent reply learnings</div>
+              {replyLearningLog.length === 0 ? (
+                <div className="text-xs text-muted-foreground">No reply learnings logged yet.</div>
+              ) : (
+                replyLearningLog.slice(0, 5).map((entry) => (
+                  <div key={entry.id} className="rounded border border-cyan-500/10 bg-background/40 p-2 text-xs">
+                    <div className="text-foreground font-medium">
+                      {entry.companyName} - {entry.replyType}
+                    </div>
+                    <div className="text-muted-foreground mt-1 line-clamp-2">{entry.replyText}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+            <div className="text-sm font-medium text-foreground">Proof Builder</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <Input
+                value={proofForm.customerName}
+                onChange={(event) => setProofForm((current) => ({ ...current, customerName: event.target.value }))}
+                placeholder="Customer/prospect name"
+              />
+              <Input
+                value={proofForm.niche}
+                onChange={(event) => setProofForm((current) => ({ ...current, niche: event.target.value }))}
+                placeholder="Niche"
+              />
+            </div>
+            <Textarea
+              value={proofForm.problem}
+              onChange={(event) => setProofForm((current) => ({ ...current, problem: event.target.value }))}
+              placeholder="Problem before LeadIntel"
+              className="min-h-[72px]"
+            />
+            <Textarea
+              value={proofForm.result}
+              onChange={(event) => setProofForm((current) => ({ ...current, result: event.target.value }))}
+              placeholder="Result achieved (example: Generated 37 targeted leads and booked 3 calls in 48 hours using LeadIntel.)"
+              className="min-h-[72px]"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <select
+                value={proofForm.metric}
+                onChange={(event) => setProofForm((current) => ({ ...current, metric: event.target.value as ProofMetric }))}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {PROOF_METRIC_OPTIONS.map((metric) => (
+                  <option key={metric} value={metric}>
+                    {metric}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={proofForm.permissionStatus}
+                onChange={(event) =>
+                  setProofForm((current) => ({ ...current, permissionStatus: event.target.value as PermissionStatus }))
+                }
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {PERMISSION_OPTIONS.map((permission) => (
+                  <option key={permission} value={permission}>
+                    {permission}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Textarea
+              value={proofForm.quote}
+              onChange={(event) => setProofForm((current) => ({ ...current, quote: event.target.value }))}
+              placeholder="Quote/testimonial"
+              className="min-h-[72px]"
+            />
+            <Button
+              type="button"
+              size="sm"
+              className="neon-border hover:glow-effect"
+              onClick={saveProofEntry}
+              disabled={proofForm.result.trim().length === 0}
+            >
+              Save proof entry
+            </Button>
+
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Short proof snippet</div>
+              <div className="text-xs text-foreground">{proofOutputs.shortProofSnippet}</div>
+              <Button type="button" size="sm" variant="outline" onClick={() => void copyProofBlock('shortProofSnippet')}>
+                Copy snippet
+              </Button>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Landing page testimonial</div>
+              <div className="text-xs text-foreground">{proofOutputs.landingTestimonial}</div>
+              <Button type="button" size="sm" variant="outline" onClick={() => void copyProofBlock('landingTestimonial')}>
+                Copy testimonial
+              </Button>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">LinkedIn post draft</div>
+              <pre className="text-xs whitespace-pre-wrap text-muted-foreground">{proofOutputs.linkedInPostDraft}</pre>
+              <Button type="button" size="sm" variant="outline" onClick={() => void copyProofBlock('linkedInPostDraft')}>
+                Copy LinkedIn draft
+              </Button>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Case study outline</div>
+              <pre className="text-xs whitespace-pre-wrap text-muted-foreground">{proofOutputs.caseStudyOutline}</pre>
+              <Button type="button" size="sm" variant="outline" onClick={() => void copyProofBlock('caseStudyOutline')}>
+                Copy case study outline
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+            <div className="text-sm font-medium text-foreground">$1K -> $10K Revenue Roadmap</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <Input
+                type="number"
+                value={revenueRoadmap.messagesSent}
+                onChange={(event) => updateRoadmapField('messagesSent', event.target.value)}
+                placeholder="Messages sent"
+              />
+              <Input
+                type="number"
+                value={revenueRoadmap.replies}
+                onChange={(event) => updateRoadmapField('replies', event.target.value)}
+                placeholder="Replies"
+              />
+              <Input
+                type="number"
+                value={revenueRoadmap.interestedProspects}
+                onChange={(event) => updateRoadmapField('interestedProspects', event.target.value)}
+                placeholder="Interested"
+              />
+              <Input
+                type="number"
+                value={revenueRoadmap.callsBooked}
+                onChange={(event) => updateRoadmapField('callsBooked', event.target.value)}
+                placeholder="Calls booked"
+              />
+              <Input
+                type="number"
+                value={revenueRoadmap.trialsStarted}
+                onChange={(event) => updateRoadmapField('trialsStarted', event.target.value)}
+                placeholder="Trials"
+              />
+              <Input
+                type="number"
+                value={revenueRoadmap.paidUsers}
+                onChange={(event) => updateRoadmapField('paidUsers', event.target.value)}
+                placeholder="Paid users"
+              />
+              <Input
+                type="number"
+                value={revenueRoadmap.manualMrr}
+                onChange={(event) => updateRoadmapField('manualMrr', event.target.value)}
+                placeholder="Manual MRR (optional)"
+              />
+            </div>
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs space-y-1">
+              <div className="text-foreground font-medium">Current estimated MRR: ${estimatedMrr}</div>
+              <div className="text-muted-foreground">If you close {payingUsersNeededFor1k} Pro users, you hit ~$1K MRR.</div>
+              <div className="text-muted-foreground">If you close {payingUsersNeededFor10k} Pro users, you hit ~$10K MRR.</div>
+              <div className="text-muted-foreground">{conversionBottleneck}</div>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Badge variant={estimatedMrr >= 1000 ? 'default' : 'outline'}>$1K MRR</Badge>
+              <Badge variant={estimatedMrr >= 3000 ? 'default' : 'outline'}>$3K MRR</Badge>
+              <Badge variant={estimatedMrr >= 5000 ? 'default' : 'outline'}>$5K MRR</Badge>
+              <Badge variant={estimatedMrr >= 10000 ? 'default' : 'outline'}>$10K MRR</Badge>
+            </div>
+          </div>
+
+          <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+            <div className="text-sm font-medium text-foreground">Daily Operator Checklist</div>
+            <div className="text-xs text-muted-foreground">
+              {checklistCompletedCount}/{DAILY_CHECKLIST_ITEMS.length} complete today
+            </div>
+            <div className="space-y-2">
+              {DAILY_CHECKLIST_ITEMS.map((item) => {
+                const checked = checklistForToday.includes(item.id)
+                return (
+                  <label key={item.id} className="flex items-start gap-2 rounded border border-cyan-500/10 bg-background/40 p-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => toggleChecklistItem(item.id, event.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span className={checked ? 'text-foreground' : 'text-muted-foreground'}>{item.label}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
