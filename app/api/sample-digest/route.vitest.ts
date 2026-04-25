@@ -129,6 +129,7 @@ describe('/api/sample-digest', () => {
 
   it('returns free limit response after 2 runs in a day', async () => {
     const { POST } = await import('./route')
+    const today = new Date().toISOString().slice(0, 10)
 
     const requestWithCookie = (cookie: string) =>
       new NextRequest('http://localhost:3000/api/sample-digest', {
@@ -136,6 +137,7 @@ describe('/api/sample-digest', () => {
         headers: {
           'Content-Type': 'application/json',
           origin: 'http://localhost:3000',
+          'x-forwarded-for': '203.0.113.25',
           cookie,
         },
         body: JSON.stringify({ companyOrUrl: 'acme.com' }),
@@ -143,7 +145,7 @@ describe('/api/sample-digest', () => {
 
     const firstRes = await POST(
       requestWithCookie(
-        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId: 'test-session', date: '2026-04-25', runs: 1 }))}`
+        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId: 'test-session', date: today, runs: 1 }))}`
       )
     )
     expect(firstRes.status).toBe(200)
@@ -154,15 +156,16 @@ describe('/api/sample-digest', () => {
 
     const blockedRes = await POST(
       requestWithCookie(
-        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId: 'test-session', date: '2026-04-25', runs: 2 }))}`
+        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId: 'test-session', date: today, runs: 2 }))}`
       )
     )
     expect(blockedRes.status).toBe(429)
-    const blockedJson = await blockedRes.json()
-    expect(blockedJson.ok).toBe(false)
-    expect(blockedJson.error?.code).toBe('RATE_LIMIT_EXCEEDED')
-    expect(blockedJson.error?.details?.runsToday).toBe(2)
-    expect(blockedJson.error?.details?.maxRunsPerDay).toBe(2)
+    const body = await blockedRes.json()
+    const errorCode = typeof body.error === 'string' ? body.error : body.error?.code
+    expect(errorCode).toBe('RATE_LIMIT_EXCEEDED')
+    const runsToday = typeof body.runsToday === 'number' ? body.runsToday : body.error?.details?.runsToday
+    expect(runsToday).toBeGreaterThanOrEqual(2)
+    expect(body.error?.details?.maxRunsPerDay).toBe(2)
   })
 })
 

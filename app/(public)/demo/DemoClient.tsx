@@ -25,6 +25,17 @@ type DemoSearchResult = {
   }
 }
 
+const DEMO_SOCIAL_PROOF: ReadonlyArray<{ quote: string; metric: string }> = [
+  {
+    quote: 'Generated 37 targeted leads and booked 3 calls in 48 hours using LeadIntel.',
+    metric: '37 leads, 3 calls booked',
+  },
+  {
+    quote: 'LeadIntel gave us send-ready outreach with why-now context on day one.',
+    metric: 'First outreach campaign launched same day',
+  },
+]
+
 const EXAMPLE_COMPANIES = ['HubSpot', 'Stripe', 'Shopify'] as const
 const LOADING_STAGES = ['Analyzing signals...', 'Scoring leads...', 'Generating outreach...'] as const
 const DEMO_USAGE_STORAGE_KEY = 'leadintel-demo-usage-v1'
@@ -112,12 +123,18 @@ export function DemoClient() {
   const [loadingStageIndex, setLoadingStageIndex] = useState(0)
   const [messageVariant, setMessageVariant] = useState<'default' | 'shorter' | 'aggressive'>('default')
   const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action'>('results_loaded')
+  const [checkoutNudgeDismissed, setCheckoutNudgeDismissed] = useState(false)
   const [demoRunsToday, setDemoRunsToday] = useState(0)
   const [gatingNotice, setGatingNotice] = useState<'demo_limit' | 'advanced_feature' | null>(null)
   const resultCardRef = useRef<HTMLDivElement | null>(null)
   const activationTrackedRef = useRef(false)
 
   const remainingDemoRuns = Math.max(0, MAX_DEMO_RUNS_PER_DAY - demoRunsToday)
+  const discountDeadline = useMemo(() => {
+    const d = new Date()
+    d.setHours(d.getHours() + 48)
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  }, [])
   const canSearch = useMemo(
     () => companyOrUrl.trim().length >= 2 && !loading && remainingDemoRuns > 0,
     [companyOrUrl, loading, remainingDemoRuns]
@@ -255,6 +272,12 @@ export function DemoClient() {
     const company = companyOrUrl.trim().length > 0 ? companyOrUrl.trim() : result?.company ?? 'acme.com'
     const redirect = `/lead-results?company=${encodeURIComponent(company)}&email=${encodeURIComponent(workEmail.trim())}`
     router.push(`/signup?redirect=${encodeURIComponent(redirect)}`)
+  }
+
+  function openUpgradePath(source: 'first_result_cta' | 'checkout_nudge' | 'offer_banner'): void {
+    track('upgrade_clicked', { source: 'demo_page', trigger: source })
+    track('checkout_started', { source: 'demo_page', trigger: source })
+    router.push('/pricing?target=closer')
   }
 
   function openLeadResultsPreview(): void {
@@ -395,6 +418,20 @@ export function DemoClient() {
           <p className="text-muted-foreground">
             Run a sample search with no login required. Preview fit, outreach, and campaign intent before signup.
           </p>
+          <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-muted-foreground">
+            <div className="font-medium text-foreground">Upgrade path: Free - Pro - Pro+ - Team</div>
+            <div className="mt-1">
+              You&apos;ve seen the value. Unlock full access now and launch daily high-intent lead generation.
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button type="button" size="sm" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('offer_banner')}>
+                Upgrade to Pro for daily leads
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/signup?redirect=/dashboard">Sign up in under 1 minute</Link>
+              </Button>
+            </div>
+          </div>
         </header>
 
         <Card className="border-cyan-500/20 bg-card/60">
@@ -537,9 +574,29 @@ export function DemoClient() {
                   <Button asChild className="neon-border hover:glow-effect w-full sm:w-auto">
                     <Link href="/pricing">Unlock All Leads</Link>
                   </Button>
+                  <Button type="button" variant="outline" onClick={() => openUpgradePath('first_result_cta')}>
+                    Upgrade to Pro for daily leads
+                  </Button>
                 </div>
                 {copied ? <div className="text-xs text-green-300">Message copied.</div> : null}
               </div>
+
+              {!checkoutNudgeDismissed ? (
+                <div className="rounded border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+                  <div className="text-sm font-medium text-foreground">You&apos;ve seen the value. Unlock full access now!</div>
+                  <div className="text-xs text-muted-foreground">
+                    Limited offer: get 20% off your first month if you upgrade in the next 48 hours (through {discountDeadline}).
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('checkout_nudge')}>
+                      Claim 20% offer
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setCheckoutNudgeDismissed(true)}>
+                      Not now
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
 
               {hasCopiedOutreach ? (
                 <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
@@ -672,6 +729,18 @@ export function DemoClient() {
                   <Button asChild variant="outline" className="mt-3">
                     <Link href="/settings/team">Invite teammates</Link>
                   </Button>
+                </div>
+              </div>
+
+              <div className="rounded border border-cyan-500/15 bg-card/40 p-4 space-y-3">
+                <div className="text-sm font-medium text-foreground">Social proof from recent users</div>
+                <div className="grid grid-cols-1 gap-2">
+                  {DEMO_SOCIAL_PROOF.map((item) => (
+                    <div key={item.quote} className="rounded border border-cyan-500/10 bg-background/40 p-3">
+                      <div className="text-xs text-foreground">&quot;{item.quote}&quot;</div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">{item.metric}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>

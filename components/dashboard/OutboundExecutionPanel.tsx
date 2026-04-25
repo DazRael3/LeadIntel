@@ -165,6 +165,21 @@ const REPLY_RESPONSE_TEMPLATE_LIBRARY: ReadonlyArray<{ id: string; label: string
     label: 'Booked call',
     text: "Perfect - I'll prepare a short lead list for your target market before the call.",
   },
+  {
+    id: 'reengagement_email',
+    label: 'Re-engagement email',
+    text: 'Quick follow-up: I can send 5 high-intent leads for your market so you can judge fit in 2 minutes. Want me to run it?',
+  },
+  {
+    id: 'reengagement_in_app',
+    label: 'In-app reminder',
+    text: "You're close to pipeline lift. Unlock full access to get 20+ daily leads and outreach ready to send.",
+  },
+  {
+    id: 'reengagement_sms',
+    label: 'SMS reminder',
+    text: 'Want 5 ready-to-contact leads for your niche today? Reply and I’ll send a sample list.',
+  },
 ]
 
 function parseFitScore(draft: string | null): number {
@@ -1499,6 +1514,57 @@ export function OutboundExecutionPanel() {
                 )
               })}
             </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+            <div className="text-sm font-medium text-foreground">Conversion acceleration scripts</div>
+            <div className="text-xs text-muted-foreground">
+              Use these manual re-engagement scripts for users who viewed value but have not upgraded.
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Email follow-up</div>
+                <pre className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+                  {`Subject: Want 5 leads like this in your inbox daily?\n\nYou already saw qualified matches in the demo.\nI can run another 5-lead sample for your niche and show exactly how outreach is generated.\n\nIf useful, I can also unlock a 20% first-month offer this week.`}
+                </pre>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">In-app reminder</div>
+                <pre className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+                  {`You&apos;ve seen the value. Unlock full access now to get 20+ daily leads and complete outreach sequences.`}
+                </pre>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">SMS reminder</div>
+                <pre className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+                  {`Quick one: want me to generate 5 fresh leads for your niche today? If helpful, we can unlock full access after you review.`}
+                </pre>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+            <div className="text-sm font-medium text-foreground">Social proof panel</div>
+            <div className="text-xs text-muted-foreground">
+              Pull the strongest recent proof entry into outbound touches to improve demo-to-paid confidence.
+            </div>
+            {latestProofEntry ? (
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2 text-xs">
+                <div className="text-foreground font-medium">Top proof for this week</div>
+                <div className="text-muted-foreground">
+                  {latestProofEntry.result || 'Generated targeted leads and booked calls quickly using LeadIntel.'}
+                </div>
+                <div className="text-muted-foreground">
+                  Quote: {latestProofEntry.quote || 'LeadIntel helped us move from manual research to daily execution.'}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs text-muted-foreground">
+                Add at least one proof entry above to populate this social proof panel.
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
