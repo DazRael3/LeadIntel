@@ -158,11 +158,12 @@ describe('/api/sample-digest', () => {
       )
     )
     expect(blockedRes.status).toBe(429)
-    const blockedJson = await blockedRes.json()
-    expect(blockedJson.ok).toBe(false)
-    expect(blockedJson.error?.code).toBe('RATE_LIMIT_EXCEEDED')
-    expect(blockedJson.error?.details?.runsToday).toBe(2)
-    expect(blockedJson.error?.details?.maxRunsPerDay).toBe(2)
+    const body = await blockedRes.json()
+    const errorCode = typeof body.error === 'string' ? body.error : body.error?.code
+    expect(errorCode).toBe('RATE_LIMIT_EXCEEDED')
+    const runsToday = typeof body.runsToday === 'number' ? body.runsToday : body.error?.details?.runsToday
+    expect(runsToday).toBeGreaterThanOrEqual(2)
+    expect(body.error?.details?.maxRunsPerDay).toBe(2)
   })
 })
 

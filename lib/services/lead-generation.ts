@@ -40,6 +40,12 @@ export type LeadFitScore = {
   explanation: string
 }
 
+export type DemoConversionNudge = {
+  headline: string
+  body: string
+  ctaLabel: string
+}
+
 export type LeadSearchStrategy = {
   query: string
   rationale: string
@@ -223,6 +229,37 @@ export function scoreLeadFit(
     score: clamped,
     reasons,
     explanation,
+  }
+}
+
+/**
+ * Builds lightweight conversion nudges tied to observed lead quality.
+ * This remains presentation-level guidance for manual outbound workflows.
+ */
+export function buildDemoConversionNudge(args: {
+  score: number
+  company: string
+  trigger: string
+}): DemoConversionNudge {
+  const scoreBand = Math.max(0, Math.min(100, Math.round(args.score)))
+  if (scoreBand >= 85) {
+    return {
+      headline: "You've seen the value. Unlock full access now!",
+      body: `${args.company} shows a strong why-now signal (${args.trigger}). Upgrade to keep this pipeline compounding daily.`,
+      ctaLabel: 'Upgrade to Pro for daily leads',
+    }
+  }
+  if (scoreBand >= 70) {
+    return {
+      headline: 'Strong lead quality detected.',
+      body: `${args.company} is a high-intent match. Unlock the full list to move from one lead to a repeatable outreach pipeline.`,
+      ctaLabel: 'Unlock full pipeline',
+    }
+  }
+  return {
+    headline: 'Promising early signal.',
+    body: `You already surfaced a usable lead in minutes. Unlock full access to test 20+ daily leads and improve conversion speed.`,
+    ctaLabel: 'See paid plans',
   }
 }
 

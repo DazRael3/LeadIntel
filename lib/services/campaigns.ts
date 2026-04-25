@@ -112,6 +112,35 @@ export function summarizeCampaignStatuses(campaigns: CampaignRow[]): CampaignPro
   }
 }
 
+export type CampaignConversionSignals = {
+  activeCampaigns: number
+  respondedCampaigns: number
+  closedCampaigns: number
+  conversionHint: string
+}
+
+export function summarizeCampaignConversionSignals(campaigns: CampaignRow[]): CampaignConversionSignals {
+  const activeCampaigns = campaigns.filter((campaign) => campaign.status === 'active').length
+  const respondedCampaigns = campaigns.filter((campaign) => campaign.status === 'responded').length
+  const closedCampaigns = campaigns.filter((campaign) => campaign.status === 'closed').length
+
+  let conversionHint = 'Keep new campaigns moving into contacted status quickly.'
+  if (activeCampaigns > 0 && respondedCampaigns === 0) {
+    conversionHint = 'Focus follow-up quality: active campaigns have not produced responses yet.'
+  } else if (respondedCampaigns > 0 && closedCampaigns === 0) {
+    conversionHint = 'Responded campaigns are promising - prioritize demo/checkout follow-through to close first revenue.'
+  } else if (closedCampaigns > 0) {
+    conversionHint = 'Use closed campaigns as proof and replicate the winning niche in outbound.'
+  }
+
+  return {
+    activeCampaigns,
+    respondedCampaigns,
+    closedCampaigns,
+    conversionHint,
+  }
+}
+
 export async function getCampaignById(args: {
   supabase: SupabaseClient
   workspaceId: string
