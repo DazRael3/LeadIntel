@@ -32,6 +32,9 @@ type Envelope =
         experiments: Experiment[]
         exposures: Record<string, { total: number; byVariant: Record<string, number> }>
         growthEventCounts: Record<string, number>
+        conversionRatePct: number
+        activeUsers: number
+        revenueTrend: Array<{ date: string; revenue: number }>
         directionalResults?: DirectionalExperimentResults[]
         lifecycle?: { counts: Record<string, number>; sampleSize: number; note: string }
         retention?: { signals: Array<{ key: string; label: string; state: 'good' | 'caution'; detail: string }>; note: string }
@@ -149,7 +152,12 @@ export function GrowthDashboardClient() {
           </CardContent>
         </Card>
 
-        <ScalingMetricsCard />
+        <ScalingMetricsCard
+          windowDays={okData.windowDays}
+          conversionRatePct={okData.conversionRatePct ?? 0}
+          activeUsers={okData.activeUsers ?? 0}
+          revenueTrend={Array.isArray(okData.revenueTrend) ? okData.revenueTrend : []}
+        />
 
         {okData.lifecycle ? (
           <Card className="border-cyan-500/20 bg-card/50">

@@ -51,6 +51,10 @@ export function normalizedFunnelEventPayload(args: {
   return sanitizeGrowthEventProps(args.eventProps ?? {})
 }
 
+export function sanitizeFunnelProps(input: unknown): Record<string, unknown> {
+  return sanitizeGrowthEventProps(input)
+}
+
 const CANONICAL_EVENT_MAP: Record<string, GrowthEventName> = {
   page_view: 'page_view',
   landing_view: 'page_view',

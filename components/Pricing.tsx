@@ -448,7 +448,11 @@ export function Pricing() {
           <OutcomePricingIntro />
           <div className="mt-4 rounded border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-muted-foreground">
             <div className="font-medium text-foreground">Optimize your path</div>
-            <p className="mt-1">{pricingCopyVariant === 'roi' ? 'Most teams recover annual cost with one closed deal.' : 'Start with a daily workflow and scale into predictable pipeline growth.'}</p>
+            <p className="mt-1">
+              {pricingAb.variant === 'value_focused'
+                ? 'Most teams recover annual cost with one closed deal.'
+                : 'Start with a daily workflow and scale into predictable pipeline growth.'}
+            </p>
           </div>
         </div>
 

@@ -1,7 +1,8 @@
 'use client'
 
 import { captureClientEvent } from '@/lib/analytics/posthog-client'
-import { canonicalFunnelEvent, sanitizeFunnelProps } from '@/lib/analytics/funnel-events'
+import { canonicalFunnelEvent } from '@/lib/analytics/funnel-events'
+import { sanitizeGrowthEventProps } from '@/lib/growth-events/validators'
 import { trackRetargetingPixels } from '@/lib/analytics/pixels-client'
 
 export function track(eventName: string, props?: Record<string, unknown>): void {
@@ -10,7 +11,7 @@ export function track(eventName: string, props?: Record<string, unknown>): void 
 
   try {
     const canonical = canonicalFunnelEvent(eventName)
-    const safeProps = sanitizeFunnelProps(props)
+    const safeProps = sanitizeGrowthEventProps(props ?? {})
     const internalEventName = canonical ?? eventName
 
     // Primary: external product analytics (PostHog) when configured.
