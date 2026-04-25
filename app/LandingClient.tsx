@@ -42,11 +42,11 @@ export default function LandingClient() {
                     <Link
                       href="/demo"
                       onClick={() => {
-                        track('homepage_primary_cta_clicked', { location: 'hero', cta: 'sample_digest' })
+                        track('homepage_primary_cta_clicked', { location: 'hero', cta: 'find_my_leads_now' })
                         track('demo_started', { source: 'landing_hero_cta' })
                       }}
                     >
-                      Generate My First Leads
+                      {COPY.home.hero.primaryCta}
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">

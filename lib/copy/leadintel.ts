@@ -7,13 +7,13 @@ export const COPY = {
   },
   home: {
     hero: {
-      headline: 'Why-now signals for outbound teams. Send-ready drafts in minutes.',
+      headline: 'Find & Close Your Next Customers in 60 Seconds',
       subhead:
-        'LeadIntel turns fresh buying signals into a daily shortlist, an explainable 0–100 score, and review-first draft copy SDRs and AEs can personalize and send without starting from a blank page.',
-      support: 'Track target accounts, see why now, and take action from one workspace.',
-      primaryCta: 'Generate My First Leads',
+        'LeadIntel turns fresh buying signals into a prioritized list of high-fit accounts, with clear why-now context and AI outreach you can copy and send in minutes.',
+      support: 'Leads refresh daily. Start with a limited preview, then unlock the full tracking and campaign workflow.',
+      primaryCta: 'Find My Leads Now',
       secondaryCta: 'See pricing',
-      microTrust: 'No signup required for the sample.',
+      microTrust: 'No signup required. Limited preview available.',
     },
     whatYouGet: {
       title: 'What you get',
@@ -39,21 +39,21 @@ export const COPY = {
   },
   pricing: {
     hero: {
-      headline: 'Choose the outbound workflow that fits your team.',
-      subhead: 'From signal detection to send-ready messaging, LeadIntel helps reps act while timing is fresh.',
+      headline: 'Choose the plan that drives faster pipeline outcomes.',
+      subhead: 'Move from lead discovery to outreach execution and campaign tracking without losing speed.',
       bullets: [
-        'Daily shortlist for your target accounts',
-        'Explainable 0–100 score with reasons',
-        'Send-ready drafts (human-reviewed) and an action layer (webhooks + exports)',
+        'Prioritize the right leads every day with explainable fit scoring',
+        'Launch AI-assisted outreach without starting from a blank page',
+        'Track campaign execution and keep your team aligned on what converts',
       ],
       trustStrip: (supportEmail: string) => `Transparent pricing. Cancel anytime. Support: ${supportEmail}.`,
       primaryCta: 'Start free',
       secondaryCta: 'Compare plans',
     },
     plans: {
-      starterDescription: 'Validate the workflow: generate a sample digest and see the action loop end-to-end.',
-      closerDescription: 'Daily prioritization and faster execution: shortlist, explainable scoring, and send-ready drafts.',
-      replacementClaim: 'Built for the daily loop: detect → prioritize → explain → draft → push/export.',
+      starterDescription: 'Validate lead quality fast with a limited preview before committing.',
+      closerDescription: 'Convert faster with daily lead prioritization, AI outreach drafts, and a repeatable execution loop.',
+      replacementClaim: 'Built to improve speed-to-meeting: find → prioritize → message → track.',
     },
   },
   onboarding: {

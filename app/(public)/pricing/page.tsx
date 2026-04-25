@@ -5,11 +5,11 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 
 export const metadata: Metadata = {
   title: 'Pricing | LeadIntel',
-  description: 'Choose the outbound workflow that fits your team.',
+  description: 'Outcome-focused pricing for lead generation, AI outreach, and campaign tracking.',
   alternates: { canonical: 'https://dazrael.com/pricing' },
   openGraph: {
     title: 'Pricing | LeadIntel',
-    description: 'Choose the outbound workflow that fits your team.',
+    description: 'Outcome-focused pricing for lead generation, AI outreach, and campaign tracking.',
     url: 'https://dazrael.com/pricing',
     images: [
       {

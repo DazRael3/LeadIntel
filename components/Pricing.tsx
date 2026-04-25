@@ -490,7 +490,7 @@ export function Pricing() {
               <CardTitle className="text-2xl bloomberg-font">Pro</CardTitle>
                 <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Most Popular</Badge>
               </div>
-              <div className="text-xs font-semibold text-muted-foreground">Daily prioritization and faster execution</div>
+                <div className="text-xs font-semibold text-muted-foreground">Faster lead-to-outreach outcomes</div>
               <div className="flex items-baseline gap-2 mt-4">
                 <span className="text-5xl font-bold neon-cyan">{formatCurrency(closerPrice)}</span>
                 <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -510,8 +510,8 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">Daily shortlist for your watchlist</p>
-                    <p className="text-sm text-muted-foreground">A ranked list of accounts to action today</p>
+                    <p className="font-medium">Daily shortlist for your highest-intent accounts</p>
+                    <p className="text-sm text-muted-foreground">Know who to contact today to keep pipeline moving</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -520,7 +520,7 @@ export function Pricing() {
                   </div>
                   <div>
                     <p className="font-medium">Lead scoring (0–100) with reasons</p>
-                    <p className="text-sm text-muted-foreground">Deterministic ranking — no guesswork</p>
+                    <p className="text-sm text-muted-foreground">Prioritize the right conversations first</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -529,7 +529,7 @@ export function Pricing() {
                   </div>
                   <div>
                     <p className="font-medium">Send-ready drafts (email, DM, call opener)</p>
-                    <p className="text-sm text-muted-foreground">Generate first touches without a blank page</p>
+                    <p className="text-sm text-muted-foreground">Launch outreach faster without blank-page friction</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -538,7 +538,7 @@ export function Pricing() {
                   </div>
                   <div>
                     <p className="font-medium">Unlimited competitive reports</p>
-                    <p className="text-sm text-muted-foreground">Save and reuse sourced reports in one hub</p>
+                    <p className="text-sm text-muted-foreground">Arm reps with context that improves reply quality</p>
                   </div>
                 </li>
               </ul>
@@ -588,7 +588,7 @@ export function Pricing() {
                   <CardTitle className="text-2xl bloomberg-font">Pro+</CardTitle>
                   <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/25">Power user</Badge>
                 </div>
-                <div className="text-xs font-semibold text-muted-foreground">Deeper context for operators</div>
+                <div className="text-xs font-semibold text-muted-foreground">Higher-conviction execution for power users</div>
                 <div className="flex items-baseline gap-2 mt-4">
                   <span className="text-5xl font-bold text-purple-200">{formatCurrency(closerPlusPrice)}</span>
                   <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -610,7 +610,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Everything in Pro</p>
-                      <p className="text-sm text-muted-foreground">Plus deeper competitive report workflow</p>
+                      <p className="text-sm text-muted-foreground">Plus deeper context to improve conversion quality</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -619,7 +619,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Sources &amp; freshness visibility</p>
-                      <p className="text-sm text-muted-foreground">See what was fetched and when, with citations</p>
+                      <p className="text-sm text-muted-foreground">Keep outreach confidence high with source-backed context</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -628,7 +628,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Refresh sources + regenerate</p>
-                      <p className="text-sm text-muted-foreground">Pull current citations and rebuild the report</p>
+                      <p className="text-sm text-muted-foreground">Refresh positioning quickly when target context changes</p>
                     </div>
                   </li>
                 </ul>
@@ -663,7 +663,7 @@ export function Pricing() {
                   <CardTitle className="text-2xl bloomberg-font">Agency</CardTitle>
                   <Badge className="bg-slate-500/10 text-slate-200 border-slate-500/20">Seats</Badge>
                 </div>
-                <div className="text-xs font-semibold text-muted-foreground">Governance and rollout</div>
+                <div className="text-xs font-semibold text-muted-foreground">Team-wide outcomes and consistent execution</div>
                 <div className="mt-4 flex flex-col gap-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-5xl font-bold text-slate-100">{formatCurrency(teamBasePrice)}</span>
@@ -709,7 +709,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Standardized team workflow</p>
-                      <p className="text-sm text-muted-foreground">Governance and rollout across reps</p>
+                      <p className="text-sm text-muted-foreground">Keep multi-rep execution consistent and measurable</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -718,7 +718,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Shared templates with approvals</p>
-                      <p className="text-sm text-muted-foreground">Draft → approve → reuse across reps</p>
+                      <p className="text-sm text-muted-foreground">Scale winning messaging without quality drift</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -727,7 +727,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Audit logs</p>
-                      <p className="text-sm text-muted-foreground">Admin visibility on member and template actions</p>
+                      <p className="text-sm text-muted-foreground">See what is converting and where execution stalls</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -736,7 +736,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Webhooks + exports</p>
-                      <p className="text-sm text-muted-foreground">Handoff packages + workspace queue + delivery history (via webhook/export workflows)</p>
+                      <p className="text-sm text-muted-foreground">Operational handoff with campaign visibility and delivery history</p>
                     </div>
                   </li>
                 </ul>

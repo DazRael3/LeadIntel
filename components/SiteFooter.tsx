@@ -37,9 +37,9 @@ export function SiteFooter() {
                 <Link
                   className="hover:text-foreground"
                   href="/demo"
-                  onClick={() => onFooterClick({ href: '/demo', label: 'Generate My First Leads', group: 'product' })}
+                  onClick={() => onFooterClick({ href: '/demo', label: 'Find My Leads Now', group: 'product' })}
                 >
-                  Generate My First Leads
+                  Find My Leads Now
                 </Link>
               </li>
               <li>
