@@ -40,14 +40,23 @@ export function DemoClient() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DemoSearchResult | null>(null)
   const [copied, setCopied] = useState(false)
+  const [hasCopiedOutreach, setHasCopiedOutreach] = useState(false)
+  const [commitmentChoice, setCommitmentChoice] = useState<'yes' | 'maybe' | null>(null)
   const [hasUserInteracted, setHasUserInteracted] = useState(false)
   const [hasAutoTriggered, setHasAutoTriggered] = useState(false)
   const [loadingStageIndex, setLoadingStageIndex] = useState(0)
   const [messageVariant, setMessageVariant] = useState<'default' | 'shorter' | 'aggressive'>('default')
   const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action'>('results_loaded')
   const resultCardRef = useRef<HTMLDivElement | null>(null)
+  const activationTrackedRef = useRef(false)
 
   const canSearch = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
+
+  function trackActivation(trigger: 'copy_message' | 'add_to_campaign'): void {
+    if (activationTrackedRef.current) return
+    activationTrackedRef.current = true
+    track('activation_completed', { source: 'demo_page', trigger })
+  }
 
   const runSearch = useCallback(async (): Promise<void> => {
     const searchInput = companyOrUrl.trim().length >= 2 ? companyOrUrl.trim() : EXAMPLE_COMPANIES[0]
@@ -55,7 +64,10 @@ export function DemoClient() {
     setLoading(true)
     setError(null)
     setResult(null)
+    setHasCopiedOutreach(false)
+    setCommitmentChoice(null)
     setLoadingStageIndex(0)
+    activationTrackedRef.current = false
     if (companyOrUrl.trim().length < 2) {
       setCompanyOrUrl(searchInput)
     }
@@ -193,12 +205,22 @@ export function DemoClient() {
     try {
       await navigator.clipboard.writeText(message)
       setCopied(true)
+      setHasCopiedOutreach(true)
       setUpgradePromptReason('copy_action')
+      trackActivation('copy_message')
       setTimeout(() => setCopied(false), 1800)
       track('demo_preview_outreach_copied', { source: 'demo_page', companyLen: result.company.length })
     } catch {
       setCopied(false)
     }
+  }
+
+  function handleCampaignHook(): void {
+    if (!result) return
+    setUpgradePromptReason('copy_action')
+    trackActivation('add_to_campaign')
+    track('demo_preview_add_to_campaign_clicked', { source: 'demo_page_post_copy', companyLen: result.company.length })
+    openLeadResultsPreview()
   }
 
   return (
@@ -221,13 +243,10 @@ export function DemoClient() {
 
         <Card className="border-cyan-500/20 bg-card/60">
           <CardContent className="py-4 text-sm">
-            <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-              <span className="rounded border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-cyan-200">Step 1</span>
-              <span>-&gt;</span>
-              <span className="rounded border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-cyan-200">Step 2</span>
-              <span>-&gt;</span>
-              <span className="rounded border border-border bg-background/40 px-2 py-1 text-foreground">Step 3</span>
-              <span className="text-xs">Find leads, preview outreach, unlock full workflow.</span>
+            <div className="grid gap-1 text-muted-foreground">
+              <div>Step 1: Find leads {result ? '(done)' : ''}</div>
+              <div>Step 2: Copy outreach {hasCopiedOutreach ? '(done)' : ''}</div>
+              <div>Step 3: Send or track</div>
             </div>
           </CardContent>
         </Card>
@@ -313,23 +332,62 @@ export function DemoClient() {
                   ) : null}
                   <p className="mt-2 text-sm text-muted-foreground line-clamp-4">{computeVariantMessage(result)}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" onClick={() => setMessageVariant('default')}>
-                    Regenerate
+                {!hasCopiedOutreach ? <div className="text-xs text-muted-foreground">Primary action: copy this outreach to use it right now.</div> : null}
+                {hasCopiedOutreach ? (
+                  <div className="flex flex-wrap gap-2 opacity-85">
+                    <Button type="button" variant="outline" onClick={() => setMessageVariant('default')}>
+                      Regenerate
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setMessageVariant('shorter')}>
+                      Make shorter
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setMessageVariant('aggressive')}>
+                      More aggressive
+                    </Button>
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  onClick={() => void copyOutreach()}
+                  className={`neon-border hover:glow-effect w-full sm:w-auto ${hasCopiedOutreach ? '' : 'ring-2 ring-cyan-400/40 animate-pulse'}`}
+                >
+                  {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
+                  {copied ? 'Copied' : 'Copy Message'}
+                </Button>
+                {copied ? <div className="text-xs text-green-300">Message copied.</div> : null}
+              </div>
+
+              {hasCopiedOutreach ? (
+                <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                  <div className="font-medium text-foreground">Nice - you can send this right now.</div>
+                  <div className="text-sm text-foreground">Want 50 more like this?</div>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>- Message copied</li>
+                    <li>- Ready to send</li>
+                    <li>- Based on real signals</li>
+                  </ul>
+                  <div className="text-sm text-foreground">Would you send this?</div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant={commitmentChoice === 'yes' ? 'default' : 'outline'} onClick={() => setCommitmentChoice('yes')}>
+                      Yes
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={commitmentChoice === 'maybe' ? 'default' : 'outline'}
+                      onClick={() => setCommitmentChoice('maybe')}
+                    >
+                      Maybe
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground">Save this lead to track outreach?</div>
+                  <Button type="button" variant="outline" onClick={handleCampaignHook}>
+                    Add to Campaign
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setMessageVariant('shorter')}>
-                    Make shorter
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => setMessageVariant('aggressive')}>
-                    More aggressive
+                  <Button asChild className={`neon-border hover:glow-effect ${commitmentChoice === 'yes' ? 'ring-2 ring-emerald-400/40 animate-pulse' : ''}`}>
+                    <Link href="/pricing">Unlock Full Pipeline</Link>
                   </Button>
                 </div>
-                <Button type="button" variant="outline" onClick={() => void copyOutreach()} className="neon-border hover:glow-effect">
-                  {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
-                  {copied ? 'Copied' : 'Copy message'}
-                </Button>
-                {copied ? <div className="text-xs text-green-300">Message copied. Ready to send.</div> : null}
-              </div>
+              ) : null}
 
               <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-4">
                 <div className="text-xs uppercase tracking-wide text-cyan-200">Step 3 of 3</div>

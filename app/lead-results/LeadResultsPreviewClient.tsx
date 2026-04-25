@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [copiedShareLink, setCopiedShareLink] = useState(false)
   const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action' | 'campaign_action'>('results_loaded')
+  const activationTrackedRef = useRef(false)
   const visibleLeads = useMemo(() => leads.slice(0, FREE_PREVIEW_LIMIT), [leads])
   const hiddenLeadCount = Math.max(0, leads.length - FREE_PREVIEW_LIMIT)
 
@@ -39,6 +40,12 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
     const redirect = `/lead-results?company=${encodeURIComponent(company)}`
     return `/signup?redirect=${encodeURIComponent(redirect)}`
   }, [company])
+
+  function trackActivation(trigger: 'copy_message' | 'add_to_campaign'): void {
+    if (activationTrackedRef.current) return
+    activationTrackedRef.current = true
+    track('activation_completed', { source: 'lead_results_preview', trigger })
+  }
 
   async function copyOutreach(lead: PreviewLead): Promise<void> {
     const message = [
@@ -55,6 +62,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
       setCopiedLeadId(lead.id)
       setUpgradePromptReason('copy_action')
       setShowUpgradeModal(true)
+      trackActivation('copy_message')
       setTimeout(() => setCopiedLeadId((curr) => (curr === lead.id ? null : curr)), 2000)
       track('demo_preview_outreach_copied', { source: 'lead_results_preview', leadId: lead.id })
     } catch {
@@ -187,6 +195,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
                   onClick={() => {
                     setUpgradePromptReason('campaign_action')
                     setShowUpgradeModal(true)
+                    trackActivation('add_to_campaign')
                     track('demo_preview_add_to_campaign_clicked', { source: 'lead_results_preview', leadId: lead.id })
                   }}
                   className="neon-border hover:glow-effect"
