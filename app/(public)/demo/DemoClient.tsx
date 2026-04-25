@@ -341,7 +341,10 @@ export function DemoClient() {
         </Card>
 
         {result ? (
-          <Card ref={resultCardRef} className="border-cyan-500/30 bg-card/60 shadow-[0_0_0_1px_rgba(6,182,212,0.25)]">
+          <Card
+            ref={resultCardRef}
+            className="border-cyan-400/50 bg-card/70 ring-2 ring-cyan-400/30 shadow-[0_0_30px_rgba(6,182,212,0.2)]"
+          >
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="bg-emerald-500/10 text-emerald-200 border-emerald-500/20">Best lead right now</Badge>
@@ -390,14 +393,19 @@ export function DemoClient() {
                     </Button>
                   </div>
                 ) : null}
-                <Button
-                  type="button"
-                  onClick={() => void copyOutreach()}
-                  className={`neon-border hover:glow-effect w-full sm:w-auto ${hasCopiedOutreach ? '' : 'ring-2 ring-cyan-400/40 animate-pulse'}`}
-                >
-                  {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
-                  {copied ? 'Copied' : 'Copy Message'}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => void copyOutreach()}
+                    className={`neon-border hover:glow-effect w-full sm:w-auto ${hasCopiedOutreach ? '' : 'ring-2 ring-cyan-400/40 animate-pulse'}`}
+                  >
+                    {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
+                    {copied ? 'Copied' : 'Copy Message'}
+                  </Button>
+                  <Button asChild className="neon-border hover:glow-effect w-full sm:w-auto">
+                    <Link href="/pricing">Unlock All Leads</Link>
+                  </Button>
+                </div>
                 {copied ? <div className="text-xs text-green-300">Message copied.</div> : null}
               </div>
 

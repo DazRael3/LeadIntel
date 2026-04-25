@@ -180,7 +180,7 @@ export function Pricing() {
       : recommendedTarget === 'closer_plus'
         ? 'Upgrade to Pro+'
         : recommendedTarget === 'team'
-          ? 'Upgrade to Agency'
+          ? 'Upgrade to Team'
           : null
 
   const recommendedAnchor =
@@ -663,7 +663,7 @@ export function Pricing() {
                   <CardTitle className="text-2xl bloomberg-font">Pro+</CardTitle>
                   <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/25">Power user</Badge>
                 </div>
-                <div className="text-xs font-semibold text-muted-foreground">Best for teams scaling pipeline</div>
+                <div className="text-xs font-semibold text-muted-foreground">Best for advanced solo operators</div>
                 <div className="flex items-baseline gap-2 mt-4">
                   <span className="text-5xl font-bold text-purple-200">{formatCurrency(closerPlusPrice)}</span>
                   <span className="text-muted-foreground">{cadenceLabel}</span>
@@ -673,7 +673,7 @@ export function Pricing() {
                     Equivalent to {formatCurrency(PRICING.closerPlusMonthly)}/mo.
                   </div>
                 )}
-                <CardDescription>Best for teams scaling pipeline</CardDescription>
+                <CardDescription>Best for advanced solo operators</CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 space-y-6">
                 <ul className="space-y-4">
@@ -683,7 +683,7 @@ export function Pricing() {
                     </div>
                     <div>
                       <p className="font-medium">Everything in Pro</p>
-                      <p className="text-sm text-muted-foreground">Plus deeper execution controls</p>
+                      <p className="text-sm text-muted-foreground">Keep your best workflow, then increase daily output.</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -691,8 +691,8 @@ export function Pricing() {
                       <Check className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <p className="font-medium">Sources &amp; freshness visibility</p>
-                      <p className="text-sm text-muted-foreground">Improve timing and context quality for outbound</p>
+                      <p className="font-medium">More leads with richer context</p>
+                      <p className="text-sm text-muted-foreground">Prioritize timing with deeper signal and freshness detail.</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -700,8 +700,8 @@ export function Pricing() {
                       <Check className="h-4 w-4 text-green-400" />
                     </div>
                     <div>
-                      <p className="font-medium">Refresh sources + regenerate</p>
-                      <p className="text-sm text-muted-foreground">Keep outreach relevant as pipeline conditions change</p>
+                      <p className="font-medium">Refresh and iterate faster</p>
+                      <p className="text-sm text-muted-foreground">Regenerate outreach and stay aligned as accounts change.</p>
                     </div>
                   </li>
                 </ul>
@@ -719,7 +719,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <TrendingUp className="h-5 w-5 mr-2" />
-                      Scale pipeline with Pro+
+                      Upgrade to Pro+
                     </>
                   )}
                 </Button>
@@ -844,7 +844,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <Shield className="h-5 w-5 mr-2" />
-                      Upgrade to Pro+
+                      Upgrade to Team
                     </>
                   )}
                 </Button>

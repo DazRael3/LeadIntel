@@ -13,7 +13,6 @@ import { ProofStrip } from '@/components/marketing/ProofStrip'
 import { WorkflowRail } from '@/components/marketing/WorkflowRail'
 import { EvidenceCards } from '@/components/marketing/EvidenceCards'
 import { TrustFacts } from '@/components/marketing/TrustFacts'
-import { WhySwitchCards } from '@/components/marketing/WhySwitchCards'
 import { SignalCoverage } from '@/components/marketing/SignalCoverage'
 import { ProofYouCanInspect } from '@/components/marketing/ProofYouCanInspect'
 import { ProofLayer } from '@/components/marketing/ProofLayer'
@@ -90,9 +89,7 @@ export default function LandingClient() {
           <section id="how-it-works" className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start pt-12 md:pt-14 border-t border-border/30">
             <OneMinuteDemo />
             <div className="space-y-4">
-              <div id="try-sample" className="scroll-mt-24">
-                <TrySampleDigest />
-              </div>
+              <WorkflowRail />
               <Card className="border-cyan-500/10 bg-card/50">
                 <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -117,7 +114,6 @@ export default function LandingClient() {
                   <Link href="/trust">Trust Center</Link>
                 </Button>
               </div>
-              <SignalCoverage />
             </div>
           </section>
 
@@ -130,6 +126,19 @@ export default function LandingClient() {
             </div>
             <EvidenceCards />
             <TrustFacts />
+          </section>
+
+          <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">
+            <div>
+              <h2 className="text-2xl font-bold">See a sample before you sign up</h2>
+              <p className="mt-2 text-muted-foreground max-w-3xl">
+                Explore sample output quality, signal coverage, and messaging structure after the core hero and demo walkthrough.
+              </p>
+            </div>
+            <div id="try-sample" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              <TrySampleDigest />
+              <SignalCoverage />
+            </div>
           </section>
 
           <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">

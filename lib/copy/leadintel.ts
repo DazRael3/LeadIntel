@@ -39,12 +39,12 @@ export const COPY = {
   },
   pricing: {
     hero: {
-      headline: 'Pick the plan that turns lead signals into pipeline growth.',
-      subhead: 'Test the system, then scale leads + outreach to close more customers.',
+      headline: 'Pick the plan that turns lead signals into consistent outbound execution.',
+      subhead: 'Test the system first, then scale daily lead flow and outreach without extra manual research.',
       bullets: [
-        'Leads + outreach in one daily workflow',
-        'Pipeline growth with repeatable campaign execution',
-        'Close more customers with faster follow-up',
+        'Daily high-intent leads and usable outreach in one workflow',
+        'Repeatable execution from first signal to campaign action',
+        'Faster follow-up with clear why-now context',
       ],
       trustStrip: (supportEmail: string) =>
         `Transparent pricing. Cancel anytime. No credit card for demo. Support: ${supportEmail}.`,
@@ -53,8 +53,8 @@ export const COPY = {
     },
     plans: {
       starterDescription: 'Test the system with a limited preview before committing.',
-      closerDescription: 'Get consistent leads + outreach to keep pipeline growth compounding.',
-      replacementClaim: 'Built for leads + outreach, pipeline growth, and helping your team close more customers.',
+      closerDescription: 'Get daily high-intent leads with outreach you can send right away.',
+      replacementClaim: 'Built for daily lead flow, fast outreach execution, and consistent team follow-through.',
     },
   },
   onboarding: {
