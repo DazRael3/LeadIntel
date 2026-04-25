@@ -445,6 +445,15 @@ export function DemoClient() {
                       Share on Twitter
                     </Button>
                   </div>
+                  <div className="rounded border border-purple-500/20 bg-purple-500/5 p-3 space-y-2">
+                    <div className="font-medium text-foreground">Invite your team</div>
+                    <div className="text-xs text-muted-foreground">
+                      Bring teammates into this workflow so they can help run follow-up and close faster.
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/settings/team">Invite teammates</Link>
+                    </Button>
+                  </div>
                   <Button asChild className={`neon-border hover:glow-effect ${commitmentChoice === 'yes' ? 'ring-2 ring-emerald-400/40 animate-pulse' : ''}`}>
                     <Link href="/pricing">Unlock Full Pipeline</Link>
                   </Button>

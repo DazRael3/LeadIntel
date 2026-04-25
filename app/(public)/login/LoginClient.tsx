@@ -48,6 +48,13 @@ export function LoginClient({ initialMode, redirectTo, referralCode }: LoginClie
   }, [])
 
   const isDev = process.env.NODE_ENV !== 'production'
+  const referrerId = useMemo(() => {
+    const fromProp = typeof referralCode === 'string' ? referralCode.trim() : ''
+    if (fromProp.length > 0) return fromProp
+    const query = redirectTo.split('?')[1] ?? ''
+    const fromRedirect = new URLSearchParams(query).get('ref') ?? ''
+    return fromRedirect.trim()
+  }, [redirectTo, referralCode])
 
   const handleModeChange = (newMode: 'signin' | 'signup') => {
     setMode(newMode)
@@ -55,8 +62,9 @@ export function LoginClient({ initialMode, redirectTo, referralCode }: LoginClie
     setInfo(null)
     setShowDevTips(false)
     // Update URL query param to keep it in sync
-    const referralSegment = referralCode ? `&ref=${encodeURIComponent(referralCode)}` : ''
-    const newUrl = `/login?mode=${newMode}&redirect=${encodeURIComponent(redirectTo)}${referralSegment}`
+    const newUrl = `/login?mode=${newMode}&redirect=${encodeURIComponent(redirectTo)}${
+      referrerId.length > 0 ? `&ref=${encodeURIComponent(referrerId)}` : ''
+    }`
     router.replace(newUrl)
   }
 
@@ -96,7 +104,14 @@ export function LoginClient({ initialMode, redirectTo, referralCode }: LoginClie
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+            emailRedirectTo: (() => {
+              const callbackUrl = new URL('/auth/callback', window.location.origin)
+              callbackUrl.searchParams.set('next', redirectTo)
+              if (referrerId.length > 0) {
+                callbackUrl.searchParams.set('ref', referrerId)
+              }
+              return callbackUrl.toString()
+            })(),
           },
         })
 
@@ -110,12 +125,12 @@ export function LoginClient({ initialMode, redirectTo, referralCode }: LoginClie
           track('signup_completed', { method: 'password' })
           track('funnel_event', { canonical: 'signup_completed', source: 'auth_signup' })
           identifyClientUser(data.session.user.id, { email: data.session.user.email ?? null })
-          if (referralCode && referralCode.trim().length > 0) {
+          if (referrerId.length > 0) {
             try {
               await fetch('/api/referrals/claim', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ referrerId: referralCode.trim() }),
+                body: JSON.stringify({ referrerId }),
               })
             } catch {
               // best-effort

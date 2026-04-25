@@ -63,11 +63,9 @@ export async function GET(request: NextRequest) {
       // Best-effort referral reward claim.
       if (ref && ref.trim().length > 0) {
         try {
-          const admin = createSupabaseAdminClient({ schema: 'api' })
           await claimReferralReward({
-            supabase: admin,
             referredUserId: user.id,
-            referrerUserId: ref.trim(),
+            referrerId: ref.trim(),
           })
         } catch {
           // best-effort only

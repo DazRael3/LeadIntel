@@ -41,7 +41,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
     <>
       <JsonLd data={jsonLd} />
       <MarketingPage title="Sign up" subtitle="Create your LeadIntel account.">
-        <LoginClient initialMode="signup" redirectTo={redirectTo} />
+        <LoginClient initialMode="signup" redirectTo={redirectTo} referralCode={ref} />
       </MarketingPage>
     </>
   )
