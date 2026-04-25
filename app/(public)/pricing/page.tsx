@@ -5,21 +5,12 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 
 export const metadata: Metadata = {
   title: 'Pricing | LeadIntel',
-<<<<<<< HEAD
-  description: 'Choose the outbound workflow that fits your team.',
+  description: 'Outcome-focused pricing for lead generation, AI outreach, and campaign tracking.',
   alternates: { canonical: 'https://raelinfo.com/pricing' },
   openGraph: {
     title: 'Pricing | LeadIntel',
-    description: 'Choose the outbound workflow that fits your team.',
-    url: 'https://raelinfo.com/pricing',
-=======
-  description: 'Outcome-focused pricing for lead generation, AI outreach, and campaign tracking.',
-  alternates: { canonical: 'https://dazrael.com/pricing' },
-  openGraph: {
-    title: 'Pricing | LeadIntel',
     description: 'Outcome-focused pricing for lead generation, AI outreach, and campaign tracking.',
-    url: 'https://dazrael.com/pricing',
->>>>>>> cursor/audit-access-instructions-aa8d
+    url: 'https://raelinfo.com/pricing',
     images: [
       {
         url: '/api/og?title=Pricing&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20drafts',
