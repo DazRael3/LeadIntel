@@ -7,11 +7,11 @@ import { getUseCasePlaybook } from '@/lib/use-cases/playbooks'
 export const metadata: Metadata = {
   title: 'Competitive displacement playbook | LeadIntel',
   description: 'Use battlecard-style angles when an account is evaluating alternatives.',
-  alternates: { canonical: 'https://dazrael.com/use-cases/competitive-displacement' },
+  alternates: { canonical: 'https://raelinfo.com/use-cases/competitive-displacement' },
   openGraph: {
     title: 'Competitive displacement playbook | LeadIntel',
     description: 'Use battlecard-style angles when an account is evaluating alternatives.',
-    url: 'https://dazrael.com/use-cases/competitive-displacement',
+    url: 'https://raelinfo.com/use-cases/competitive-displacement',
     images: [
       {
         url: '/api/og?title=Competitive%20displacement&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',

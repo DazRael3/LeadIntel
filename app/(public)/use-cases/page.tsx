@@ -13,11 +13,11 @@ import { getVerticalMessaging } from '@/lib/verticals/messaging'
 export const metadata: Metadata = {
   title: 'Use cases | LeadIntel',
   description: 'High-intent outbound plays powered by daily “why now” signals.',
-  alternates: { canonical: 'https://dazrael.com/use-cases' },
+  alternates: { canonical: 'https://raelinfo.com/use-cases' },
   openGraph: {
     title: 'Use cases | LeadIntel',
     description: 'High-intent outbound plays powered by daily “why now” signals.',
-    url: 'https://dazrael.com/use-cases',
+    url: 'https://raelinfo.com/use-cases',
     images: [
       {
         url: '/api/og?title=Use%20cases&subtitle=Signal%20%E2%86%92%20shortlist%20%E2%86%92%20send-ready%20outreach',

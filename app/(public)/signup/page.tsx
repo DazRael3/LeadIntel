@@ -7,11 +7,11 @@ import { JsonLd } from '@/components/seo/JsonLd'
 export const metadata: Metadata = {
   title: 'Sign up | LeadIntel',
   description: 'Create a LeadIntel account.',
-  alternates: { canonical: 'https://dazrael.com/signup' },
+  alternates: { canonical: 'https://raelinfo.com/signup' },
   openGraph: {
     title: 'Sign up | LeadIntel',
     description: 'Create a LeadIntel account.',
-    url: 'https://dazrael.com/signup',
+    url: 'https://raelinfo.com/signup',
   },
 }
 
@@ -28,7 +28,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: 'LeadIntel Signup',
-    url: 'https://dazrael.com/signup',
+    url: 'https://raelinfo.com/signup',
     description: 'Create your LeadIntel account to unlock full lead results and campaign automation.',
   }
   return (

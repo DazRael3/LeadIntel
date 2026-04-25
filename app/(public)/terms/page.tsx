@@ -10,11 +10,11 @@ import { buildMailto } from '@/lib/mailto'
 export const metadata: Metadata = {
   title: 'Terms | LeadIntel',
   description: 'Terms of Service for LeadIntel.',
-  alternates: { canonical: 'https://dazrael.com/terms' },
+  alternates: { canonical: 'https://raelinfo.com/terms' },
   openGraph: {
     title: 'Terms | LeadIntel',
     description: 'Terms of Service for LeadIntel.',
-    url: 'https://dazrael.com/terms',
+    url: 'https://raelinfo.com/terms',
     images: [
       {
         url: '/api/og?title=Terms&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',

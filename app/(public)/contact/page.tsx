@@ -10,11 +10,11 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'Book a Demo | LeadIntel',
   description: 'Request a LeadIntel demo and get a follow-up with practical next steps.',
-  alternates: { canonical: 'https://dazrael.com/contact' },
+  alternates: { canonical: 'https://raelinfo.com/contact' },
   openGraph: {
     title: 'Book a Demo | LeadIntel',
     description: 'Request a LeadIntel demo and get a follow-up with practical next steps.',
-    url: 'https://dazrael.com/contact',
+    url: 'https://raelinfo.com/contact',
     images: [
       {
         url: '/api/og?title=Book%20a%20Demo&subtitle=Signal-first%20outbound%20workflow',

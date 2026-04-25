@@ -7,11 +7,11 @@ import { getUseCasePlaybook } from '@/lib/use-cases/playbooks'
 export const metadata: Metadata = {
   title: 'Expansion signals playbook | LeadIntel',
   description: 'Use expansion signals to time outreach around process change and scaling.',
-  alternates: { canonical: 'https://dazrael.com/use-cases/expansion-signals' },
+  alternates: { canonical: 'https://raelinfo.com/use-cases/expansion-signals' },
   openGraph: {
     title: 'Expansion signals playbook | LeadIntel',
     description: 'Use expansion signals to time outreach around process change and scaling.',
-    url: 'https://dazrael.com/use-cases/expansion-signals',
+    url: 'https://raelinfo.com/use-cases/expansion-signals',
     images: [
       {
         url: '/api/og?title=Expansion%20signals&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',

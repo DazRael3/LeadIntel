@@ -9,11 +9,11 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'How scoring works | LeadIntel',
   description: 'A clear explanation of LeadIntel’s 0–100 lead score and what it means.',
-  alternates: { canonical: 'https://dazrael.com/how-scoring-works' },
+  alternates: { canonical: 'https://raelinfo.com/how-scoring-works' },
   openGraph: {
     title: 'How scoring works | LeadIntel',
     description: 'A clear explanation of LeadIntel’s 0–100 lead score and what it means.',
-    url: 'https://dazrael.com/how-scoring-works',
+    url: 'https://raelinfo.com/how-scoring-works',
     images: [
       {
         url: '/api/og?title=How%20scoring%20works&subtitle=Trigger-based%20alerts%20%E2%86%92%20instant%20pitches',

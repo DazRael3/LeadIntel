@@ -8,12 +8,12 @@ export const metadata: Metadata = {
   title: 'LeadIntel | Why-now signals and send-ready drafts',
   description:
     'Signal-based outbound platform: why-now intelligence, daily shortlist, explainable scoring, and send-ready drafts.',
-  alternates: { canonical: 'https://dazrael.com' },
+  alternates: { canonical: 'https://raelinfo.com' },
   openGraph: {
     title: 'LeadIntel | Why-now signals and send-ready drafts',
     description:
       'Why-now intelligence, daily shortlist, explainable scoring, and send-ready drafts in minutes.',
-    url: 'https://dazrael.com',
+    url: 'https://raelinfo.com',
     images: [
       {
         url: '/api/og?title=LeadIntel&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20drafts',
@@ -40,7 +40,7 @@ export default async function Page() {
       '@context': 'https://schema.org',
       '@type': 'Organization',
       name: 'LeadIntel',
-      url: 'https://dazrael.com',
+      url: 'https://raelinfo.com',
     },
     {
       '@context': 'https://schema.org',
@@ -48,7 +48,7 @@ export default async function Page() {
       name: 'LeadIntel',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
-      url: 'https://dazrael.com',
+      url: 'https://raelinfo.com',
       description: 'Why-now signals for outbound teams with an explainable score and send-ready drafts.',
     },
   ]

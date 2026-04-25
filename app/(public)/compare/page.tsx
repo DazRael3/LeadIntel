@@ -13,11 +13,11 @@ import { CategoryStrengthTable } from '@/components/compare/CategoryStrengthTabl
 export const metadata: Metadata = {
   title: 'Compare | LeadIntel',
   description: 'A buyer-grade comparison hub for signal-based outbound workflows and why-now execution.',
-  alternates: { canonical: 'https://dazrael.com/compare' },
+  alternates: { canonical: 'https://raelinfo.com/compare' },
   openGraph: {
     title: 'Compare | LeadIntel',
     description: 'A buyer-grade comparison hub for signal-based outbound workflows and why-now execution.',
-    url: 'https://dazrael.com/compare',
+    url: 'https://raelinfo.com/compare',
     images: [
       {
         url: '/api/og?title=Compare&subtitle=Why-now%20signals%20%E2%86%92%20send-ready%20outreach',
@@ -47,7 +47,7 @@ export default function CompareHubPage() {
     itemListElement: pages.map((p, idx) => ({
       '@type': 'ListItem',
       position: idx + 1,
-      url: `https://dazrael.com/compare/${p.slug}`,
+      url: `https://raelinfo.com/compare/${p.slug}`,
       name: `LeadIntel vs ${p.competitorName}`,
     })),
   }

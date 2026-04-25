@@ -6,11 +6,11 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'For AEs | LeadIntel',
   description: 'Prioritize the right accounts with a reasons-based score and battlecard-style outreach.',
-  alternates: { canonical: 'https://dazrael.com/ae' },
+  alternates: { canonical: 'https://raelinfo.com/ae' },
   openGraph: {
     title: 'For AEs | LeadIntel',
     description: 'Prioritize the right accounts with a reasons-based score and battlecard-style outreach.',
-    url: 'https://dazrael.com/ae',
+    url: 'https://raelinfo.com/ae',
   },
 }
 

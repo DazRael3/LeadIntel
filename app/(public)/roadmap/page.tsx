@@ -8,11 +8,11 @@ import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 export const metadata: Metadata = {
   title: 'Roadmap | LeadIntel',
   description: 'Directional product focus: deeper signal context, stronger actionability, and better team operations.',
-  alternates: { canonical: 'https://dazrael.com/roadmap' },
+  alternates: { canonical: 'https://raelinfo.com/roadmap' },
   openGraph: {
     title: 'Roadmap | LeadIntel',
     description: 'Directional product focus: deeper signal context, stronger actionability, and better team operations.',
-    url: 'https://dazrael.com/roadmap',
+    url: 'https://raelinfo.com/roadmap',
     images: [
       {
         url: '/api/og?title=Roadmap&subtitle=Directional%20product%20focus',
