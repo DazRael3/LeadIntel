@@ -11,6 +11,9 @@ import { getResendReplyToEmail } from '@/lib/email/routing'
 import { createDemoSessionHandoff, setDemoHandoffCookie } from '@/lib/demo/handoff'
 
 export const dynamic = 'force-dynamic'
+const DEMO_USAGE_COOKIE = 'li_demo_usage'
+const MAX_DEMO_RUNS_PER_DAY = 2
+const FREE_LEAD_PREVIEW_LIMIT = 3
 
 const BodySchema = z.object({
   companyOrUrl: z
@@ -21,6 +24,7 @@ const BodySchema = z.object({
     .refine((v) => parseTarget(v) !== null, { message: 'Enter a company name or website, like Google or google.com.' }),
   email: z.string().trim().email().optional(),
   emailMe: z.boolean().optional(),
+  sessionId: z.string().trim().min(8).max(128).optional(),
 })
 
 export const POST = withApiGuard(
@@ -53,6 +57,27 @@ export const POST = withApiGuard(
           'Enter a company name or website, like Google or google.com.',
           undefined,
           { status: 400 },
+          bridge,
+          requestId
+        )
+      }
+
+      const usage = readDemoUsageCookie(request.cookies.get(DEMO_USAGE_COOKIE)?.value ?? null)
+      const activeSessionId = parsed.sessionId ?? usage.sessionId ?? ''
+      const today = new Date().toISOString().slice(0, 10)
+      const usageForToday =
+        usage.date === today && (usage.sessionId.length === 0 || usage.sessionId === activeSessionId) ? usage.runs : 0
+      if (usageForToday >= MAX_DEMO_RUNS_PER_DAY) {
+        return fail(
+          ErrorCode.RATE_LIMIT_EXCEEDED,
+          "You've reached your free limit — unlock full access.",
+          {
+            limitType: 'daily_demo_runs',
+            maxRunsPerDay: MAX_DEMO_RUNS_PER_DAY,
+            freeLeadPreviewLimit: FREE_LEAD_PREVIEW_LIMIT,
+            runsToday: usageForToday,
+          },
+          { status: 429 },
           bridge,
           requestId
         )
@@ -146,6 +171,11 @@ export const POST = withApiGuard(
             sent: emailSent,
             ...(emailReason ? { reason: emailReason } : {}),
           },
+          usage: {
+            runsToday: usageForToday + 1,
+            maxRunsPerDay: MAX_DEMO_RUNS_PER_DAY,
+            freeLeadPreviewLimit: FREE_LEAD_PREVIEW_LIMIT,
+          },
         },
         undefined,
         bridge,
@@ -154,6 +184,11 @@ export const POST = withApiGuard(
       if (handoff) {
         setDemoHandoffCookie({ response, token: handoff.token })
       }
+      setDemoUsageCookie(response, {
+        sessionId: activeSessionId,
+        date: today,
+        runs: usageForToday + 1,
+      })
       return response
     } catch (err) {
       return asHttpError(err, '/api/sample-digest', undefined, bridge, requestId)
@@ -161,6 +196,49 @@ export const POST = withApiGuard(
   },
   { bodySchema: BodySchema, bypassRateLimit: true }
 )
+
+function readDemoUsageCookie(raw: string | null): { sessionId: string; date: string; runs: number } {
+  if (!raw) return { sessionId: '', date: '', runs: 0 }
+  try {
+    const parsed = JSON.parse(raw) as { sessionId?: unknown; date?: unknown; runs?: unknown }
+    const sessionId = typeof parsed.sessionId === 'string' ? parsed.sessionId : ''
+    const date = typeof parsed.date === 'string' ? parsed.date : ''
+    const runs = typeof parsed.runs === 'number' && Number.isFinite(parsed.runs) ? parsed.runs : 0
+    return { sessionId, date, runs: Math.max(0, Math.floor(runs)) }
+  } catch {
+    const legacyParts = raw.split(':')
+    if (legacyParts.length === 3) {
+      const [sessionId, date, runsRaw] = legacyParts
+      const runs = Number.parseInt(runsRaw, 10)
+      return {
+        sessionId,
+        date,
+        runs: Number.isFinite(runs) ? Math.max(0, runs) : 0,
+      }
+    }
+    return { sessionId: '', date: '', runs: 0 }
+  }
+}
+
+function setDemoUsageCookie(response: Response, value: { sessionId: string; date: string; runs: number }): void {
+  const nextResponse = response as unknown as {
+    cookies?: {
+      set: (name: string, value: string, options: { path: string; httpOnly: boolean; sameSite: 'lax'; secure: boolean; maxAge: number }) => void
+    }
+  }
+  if (!nextResponse.cookies) return
+  nextResponse.cookies.set(
+    DEMO_USAGE_COOKIE,
+    JSON.stringify(value),
+    {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24 * 14,
+    }
+  )
+}
 
 function escapeHtml(input: string): string {
   return input

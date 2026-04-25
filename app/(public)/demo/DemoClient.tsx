@@ -27,6 +27,70 @@ type DemoSearchResult = {
 
 const EXAMPLE_COMPANIES = ['HubSpot', 'Stripe', 'Shopify'] as const
 const LOADING_STAGES = ['Analyzing signals...', 'Scoring leads...', 'Generating outreach...'] as const
+const DEMO_USAGE_STORAGE_KEY = 'leadintel-demo-usage-v1'
+const DEMO_SESSION_COOKIE = 'li_demo_session_id'
+const MAX_DEMO_RUNS_PER_DAY = 2
+
+type DemoUsageState = {
+  dateKey: string
+  runs: number
+}
+
+function todayDateKey(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const encoded = `${encodeURIComponent(name)}=`
+  const parts = document.cookie.split(';').map((part) => part.trim())
+  const found = parts.find((part) => part.startsWith(encoded))
+  if (!found) return null
+  const value = found.slice(encoded.length)
+  return value.length > 0 ? decodeURIComponent(value) : null
+}
+
+function makeSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `demo-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+function ensureDemoSessionId(): string {
+  const existing = readCookie(DEMO_SESSION_COOKIE)
+  if (existing && existing.length > 0) return existing
+  const created = makeSessionId()
+  if (typeof document !== 'undefined') {
+    document.cookie = `${encodeURIComponent(DEMO_SESSION_COOKIE)}=${encodeURIComponent(created)}; Path=/; Max-Age=2592000; SameSite=Lax`
+  }
+  return created
+}
+
+function readDailyUsageFromStorage(): DemoUsageState {
+  const today = todayDateKey()
+  if (typeof window === 'undefined') return { dateKey: today, runs: 0 }
+  try {
+    const raw = window.localStorage.getItem(DEMO_USAGE_STORAGE_KEY)
+    if (!raw) return { dateKey: today, runs: 0 }
+    const parsed = JSON.parse(raw) as { dateKey?: unknown; runs?: unknown }
+    const dateKey = typeof parsed.dateKey === 'string' ? parsed.dateKey : today
+    const runs = typeof parsed.runs === 'number' && Number.isFinite(parsed.runs) ? Math.max(0, Math.floor(parsed.runs)) : 0
+    if (dateKey !== today) return { dateKey: today, runs: 0 }
+    return { dateKey, runs }
+  } catch {
+    return { dateKey: today, runs: 0 }
+  }
+}
+
+function persistDailyUsage(runs: number): void {
+  if (typeof window === 'undefined') return
+  const value: DemoUsageState = {
+    dateKey: todayDateKey(),
+    runs: Math.max(0, Math.floor(runs)),
+  }
+  window.localStorage.setItem(DEMO_USAGE_STORAGE_KEY, JSON.stringify(value))
+}
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
@@ -48,10 +112,22 @@ export function DemoClient() {
   const [loadingStageIndex, setLoadingStageIndex] = useState(0)
   const [messageVariant, setMessageVariant] = useState<'default' | 'shorter' | 'aggressive'>('default')
   const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action'>('results_loaded')
+  const [demoRunsToday, setDemoRunsToday] = useState(0)
+  const [gatingNotice, setGatingNotice] = useState<'demo_limit' | 'advanced_feature' | null>(null)
   const resultCardRef = useRef<HTMLDivElement | null>(null)
   const activationTrackedRef = useRef(false)
 
-  const canSearch = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
+  const remainingDemoRuns = Math.max(0, MAX_DEMO_RUNS_PER_DAY - demoRunsToday)
+  const canSearch = useMemo(
+    () => companyOrUrl.trim().length >= 2 && !loading && remainingDemoRuns > 0,
+    [companyOrUrl, loading, remainingDemoRuns]
+  )
+
+  useEffect(() => {
+    const usage = readDailyUsageFromStorage()
+    setDemoRunsToday(usage.runs)
+    ensureDemoSessionId()
+  }, [])
 
   function trackActivation(trigger: 'copy_message' | 'add_to_campaign'): void {
     if (activationTrackedRef.current) return
@@ -62,6 +138,12 @@ export function DemoClient() {
   const runSearch = useCallback(async (): Promise<void> => {
     const searchInput = companyOrUrl.trim().length >= 2 ? companyOrUrl.trim() : EXAMPLE_COMPANIES[0]
     if (searchInput.length < 2 || loading) return
+    if (remainingDemoRuns <= 0) {
+      setGatingNotice('demo_limit')
+      setError("You've reached your free limit — unlock full access.")
+      track('demo_free_limit_reached', { source: 'demo_page', trigger: 'search_attempt' })
+      return
+    }
     setLoading(true)
     setError(null)
     setResult(null)
@@ -72,20 +154,32 @@ export function DemoClient() {
     if (companyOrUrl.trim().length < 2) {
       setCompanyOrUrl(searchInput)
     }
+    const sessionId = ensureDemoSessionId()
     track('demo_started', { source: 'demo_page', step: 'search_submitted' })
 
     try {
       const res = await fetch('/api/sample-digest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyOrUrl: searchInput }),
+        body: JSON.stringify({ companyOrUrl: searchInput, sessionId }),
       })
       const json = (await res.json().catch(() => null)) as
-        | { ok?: true; data?: { sample?: DemoSearchResult; handoff?: { stored?: boolean } } }
-        | { ok?: false; error?: { message?: string } }
+        | {
+            ok?: true
+            data?: { sample?: DemoSearchResult; handoff?: { stored?: boolean }; usage?: { runsToday?: number; maxRunsPerDay?: number } }
+          }
+        | { ok?: false; error?: { message?: string; code?: string } }
         | null
 
       if (!res.ok || !json || json.ok !== true || !json.data?.sample) {
+        const isUsageLimit = Boolean(json && 'error' in json && json.error?.code === 'RATE_LIMIT_EXCEEDED')
+        if (isUsageLimit) {
+          setGatingNotice('demo_limit')
+          setError("You've reached your free limit — unlock full access.")
+          setDemoRunsToday(MAX_DEMO_RUNS_PER_DAY)
+          persistDailyUsage(MAX_DEMO_RUNS_PER_DAY)
+          return
+        }
         setError(json && 'error' in json ? json.error?.message ?? 'Search failed. Try another company.' : 'Search failed. Try another company.')
         return
       }
@@ -103,12 +197,17 @@ export function DemoClient() {
         surface: 'demo_results',
         companyLen: json.data.sample.company.length,
       })
+      const serverRunsToday = json.data?.usage?.runsToday
+      const nextRuns = typeof serverRunsToday === 'number' && Number.isFinite(serverRunsToday) ? serverRunsToday : demoRunsToday + 1
+      setDemoRunsToday(nextRuns)
+      persistDailyUsage(nextRuns)
+      setGatingNotice(null)
     } catch {
       setError('Search failed. Try another company.')
     } finally {
       setLoading(false)
     }
-  }, [companyOrUrl, loading])
+  }, [companyOrUrl, demoRunsToday, loading, remainingDemoRuns])
 
   function handleManualSearch(): void {
     setHasUserInteracted(true)
@@ -122,14 +221,14 @@ export function DemoClient() {
   }
 
   useEffect(() => {
-    if (hasUserInteracted || hasAutoTriggered || loading || result) return
+    if (hasUserInteracted || hasAutoTriggered || loading || result || remainingDemoRuns <= 0) return
     const timer = window.setTimeout(() => {
       setHasAutoTriggered(true)
       setCompanyOrUrl((current) => (current.trim().length >= 2 ? current : EXAMPLE_COMPANIES[0]))
       void runSearch()
     }, 3000)
     return () => window.clearTimeout(timer)
-  }, [hasAutoTriggered, hasUserInteracted, loading, result, runSearch])
+  }, [hasAutoTriggered, hasUserInteracted, loading, remainingDemoRuns, result, runSearch])
 
   useEffect(() => {
     if (!loading) {
@@ -191,6 +290,16 @@ export function DemoClient() {
       return `Saw ${triggerSignal.toLowerCase()} at ${current.company}. If this is a priority this quarter, let's lock a quick call and I’ll show exactly how similar teams converted that signal into meetings.`
     }
     return base
+  }
+
+  function handleMessageVariantSelection(variant: 'default' | 'shorter' | 'aggressive'): void {
+    if (variant === 'default') {
+      setMessageVariant('default')
+      return
+    }
+    setGatingNotice('advanced_feature')
+    setUpgradePromptReason('copy_action')
+    track('demo_upgrade_triggered', { source: 'demo_page', trigger: 'advanced_feature_attempt', variant })
   }
 
   async function copyOutreach(): Promise<void> {
@@ -278,6 +387,9 @@ export function DemoClient() {
             <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-200">
               Limited preview
             </Badge>
+            <Badge variant="outline" className="border-cyan-500/20 bg-cyan-500/10 text-cyan-200">
+              Free demo runs today: {demoRunsToday}/{MAX_DEMO_RUNS_PER_DAY}
+            </Badge>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold">Find your next leads in under a minute</h1>
           <p className="text-muted-foreground">
@@ -328,7 +440,7 @@ export function DemoClient() {
               ))}
             </div>
             <Button onClick={handleManualSearch} disabled={!canSearch} className="neon-border hover:glow-effect">
-              {loading ? 'Searching...' : 'Run demo lead search'}
+              {loading ? 'Searching...' : remainingDemoRuns > 0 ? 'Run demo lead search' : 'Unlock full access'}
             </Button>
             {loading ? (
               <div className="rounded border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-200">
@@ -336,6 +448,26 @@ export function DemoClient() {
               </div>
             ) : null}
             <div className="text-xs text-muted-foreground">No signup required to see your first lead preview.</div>
+            {remainingDemoRuns <= 0 ? (
+              <div className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+                <div className="font-medium text-foreground">You&apos;ve reached your free limit — unlock full access.</div>
+                <div className="mt-1">Upgrade to continue with 20+ daily leads and full outreach workflows.</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button asChild size="sm" className="neon-border hover:glow-effect">
+                    <Link href="/pricing">Upgrade</Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/signup?redirect=/demo">Sign up</Link>
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            {gatingNotice === 'advanced_feature' ? (
+              <div className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+                <div className="font-medium text-foreground">You&apos;ve reached your free limit — unlock full access.</div>
+                <div className="mt-1">Advanced message controls are available with full access.</div>
+              </div>
+            ) : null}
             {error ? <div className="text-sm text-red-300">{error}</div> : null}
           </CardContent>
         </Card>
@@ -385,10 +517,10 @@ export function DemoClient() {
                     <Button type="button" variant="outline" onClick={() => setMessageVariant('default')}>
                       Regenerate
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setMessageVariant('shorter')}>
+                    <Button type="button" variant="outline" onClick={() => handleMessageVariantSelection('shorter')}>
                       Make shorter
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setMessageVariant('aggressive')}>
+                    <Button type="button" variant="outline" onClick={() => handleMessageVariantSelection('aggressive')}>
                       More aggressive
                     </Button>
                   </div>

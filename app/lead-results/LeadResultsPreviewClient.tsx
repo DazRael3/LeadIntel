@@ -32,7 +32,9 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [copiedShareLink, setCopiedShareLink] = useState(false)
   const [copiedLeadShareLink, setCopiedLeadShareLink] = useState<string | null>(null)
-  const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action' | 'campaign_action'>('results_loaded')
+  const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action' | 'campaign_action' | 'export_action' | 'advanced_feature'>(
+    'results_loaded'
+  )
   const [showInvitePromptLeadId, setShowInvitePromptLeadId] = useState<string | null>(null)
   const activationTrackedRef = useRef(false)
   const visibleLeads = useMemo(() => leads.slice(0, FREE_PREVIEW_LIMIT), [leads])
@@ -92,6 +94,16 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
     }
   }
 
+  function openUpgradeFor(reason: 'results_loaded' | 'copy_action' | 'campaign_action' | 'export_action' | 'advanced_feature'): void {
+    setUpgradePromptReason(reason)
+    setShowUpgradeModal(true)
+    track('demo_preview_paywall_opened', { source: 'lead_results_preview', reason })
+  }
+
+  function handleExportAttempt(): void {
+    openUpgradeFor('export_action')
+  }
+
   async function copyLeadShareLink(lead: PreviewLead): Promise<void> {
     const base = typeof window !== 'undefined' ? window.location.origin : 'https://raelinfo.com'
     const shareUrl = `${base}/public/lead-preview/${encodeURIComponent(lead.id)}`
@@ -134,6 +146,9 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="outline" onClick={() => void copyShareLink()}>
             {copiedShareLink ? 'Share link copied' : 'Copy share link'}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={handleExportAttempt}>
+            Export leads (locked)
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/demo">
@@ -227,8 +242,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
                 <Button
                   type="button"
                   onClick={() => {
-                    setUpgradePromptReason('campaign_action')
-                    setShowUpgradeModal(true)
+                    openUpgradeFor('campaign_action')
                     setShowInvitePromptLeadId(lead.id)
                     trackActivation('add_to_campaign')
                     track('demo_preview_add_to_campaign_clicked', { source: 'lead_results_preview', leadId: lead.id })
@@ -290,9 +304,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
                 type="button"
                 className="neon-border hover:glow-effect"
                 onClick={() => {
-                  setUpgradePromptReason('results_loaded')
-                  setShowUpgradeModal(true)
-                  track('demo_preview_paywall_opened', { source: 'lead_results_preview', hiddenLeadCount })
+                  openUpgradeFor('results_loaded')
                 }}
               >
                 Unlock All Leads
@@ -332,13 +344,17 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-3 text-sm text-foreground">
-                <div className="font-semibold">You&apos;ve unlocked 3 high-quality leads.</div>
+                <div className="font-semibold">You&apos;ve reached your free limit — unlock full access.</div>
                 <p className="mt-1 text-sm">These companies are actively growing and hiring.</p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {upgradePromptReason === 'copy_action'
                     ? "You&apos;ve already copied outreach for a high-intent lead - don't lose momentum now."
                     : upgradePromptReason === 'campaign_action'
                       ? "You&apos;ve already found campaign-ready leads - don't lose momentum now."
+                      : upgradePromptReason === 'export_action'
+                        ? 'Export is included in paid plans with full lead access and outreach workflow.'
+                        : upgradePromptReason === 'advanced_feature'
+                          ? 'Advanced workflow features are part of full access plans.'
                       : "You&apos;ve already found high-intent leads - don't lose momentum now."}{' '}
                   Unlock 50+ more leads with no manual research.
                 </p>
