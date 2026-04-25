@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/supabase/client'
 import { track } from '@/lib/analytics'
 
-type ResponseStatus = 'sent' | 'replied' | 'interested' | 'closed'
+type ResponseStatus = 'not sent' | 'sent' | 'replied' | 'interested' | 'booked' | 'closed' | 'not interested'
+type TemplateKey = 'initial' | 'followup1' | 'followup2'
 
 type LeadRow = {
   id: string
@@ -41,11 +42,30 @@ type OutboundLead = {
   hasHiringSignal: boolean
   whyNow: string
   generatedMessage: string
+  primaryTrigger: string
+  whyThisLead: string[]
   createdAt: string
 }
 
-const STATUS_STORAGE_KEY = 'leadintel-outbound-response-status-v1'
-const MESSAGE_STORAGE_KEY = 'leadintel-outbound-message-drafts-v1'
+const STATUS_STORAGE_KEY = 'leadintel-outbound-response-status-v2'
+const MESSAGE_STORAGE_KEY = 'leadintel-outbound-message-drafts-v2'
+const DAILY_SEND_GOAL = 20
+const TEMPLATE_OPTIONS: ReadonlyArray<{ key: TemplateKey; label: string }> = [
+  { key: 'initial', label: 'Initial outreach' },
+  { key: 'followup1', label: 'Follow-up #1' },
+  { key: 'followup2', label: 'Follow-up #2' },
+]
+const RESPONSE_STATUS_OPTIONS: ReadonlyArray<ResponseStatus> = [
+  'not sent',
+  'sent',
+  'replied',
+  'interested',
+  'booked',
+  'closed',
+  'not interested',
+]
+const SENT_LIKE_STATUSES = new Set<ResponseStatus>(['sent', 'replied', 'interested', 'booked', 'closed', 'not interested'])
+const REPLY_LIKE_STATUSES = new Set<ResponseStatus>(['replied', 'interested', 'booked', 'closed'])
 
 function parseFitScore(draft: string | null): number {
   if (!draft) return 0
@@ -91,6 +111,98 @@ function isHiringSignal(trigger: TriggerRow | null): boolean {
   return haystack.includes('hiring') || haystack.includes('hire') || haystack.includes('new role')
 }
 
+function classifyTriggerSignal(trigger: TriggerRow): 'hiring signal' | 'expansion signal' | 'funding/growth signal' | null {
+  const haystack = `${trigger.event_type ?? ''} ${trigger.headline ?? ''} ${trigger.event_description ?? ''}`.toLowerCase()
+  if (haystack.includes('hiring') || haystack.includes('hire') || haystack.includes('new role') || haystack.includes('headcount')) {
+    return 'hiring signal'
+  }
+  if (
+    haystack.includes('expansion')
+    || haystack.includes('new market')
+    || haystack.includes('new region')
+    || haystack.includes('office')
+    || haystack.includes('launch')
+    || haystack.includes('partnership')
+  ) {
+    return 'expansion signal'
+  }
+  if (
+    haystack.includes('funding')
+    || haystack.includes('raised')
+    || haystack.includes('series ')
+    || haystack.includes('growth')
+    || haystack.includes('revenue')
+    || haystack.includes('acquisition')
+    || haystack.includes('investment')
+  ) {
+    return 'funding/growth signal'
+  }
+  return null
+}
+
+function summarizeTrigger(trigger: TriggerRow | null): string {
+  if (!trigger) return 'showing fresh buying signals'
+  const preferred = trigger.headline?.trim() || trigger.event_description?.trim() || trigger.event_type?.trim()
+  if (!preferred) return 'showing fresh buying signals'
+  return preferred.length > 120 ? `${preferred.slice(0, 117)}...` : preferred
+}
+
+function buildWhyThisLead(args: {
+  triggerRows: TriggerRow[]
+  role: string
+  industry: string
+  companyName: string
+}): string[] {
+  const categories = new Set<string>()
+  for (const trigger of args.triggerRows) {
+    const category = classifyTriggerSignal(trigger)
+    if (category) categories.add(category)
+  }
+  return [
+    categories.has('hiring signal')
+      ? 'Hiring signal: team growth or role expansion is active.'
+      : 'Hiring signal: no recent hiring trigger detected yet.',
+    categories.has('expansion signal')
+      ? 'Expansion signal: new market/product/partnership activity is visible.'
+      : 'Expansion signal: no recent expansion trigger detected yet.',
+    categories.has('funding/growth signal')
+      ? 'Funding/growth signal: momentum and budget window may be open.'
+      : 'Funding/growth signal: no recent funding/growth trigger detected yet.',
+    `Role/company fit: ${args.role} in ${args.industry} at ${args.companyName}.`,
+  ]
+}
+
+function buildTemplateMessage(lead: OutboundLead, templateKey: TemplateKey): string {
+  const trigger = lead.primaryTrigger
+  if (templateKey === 'initial') {
+    return [
+      `Hey - noticed ${lead.companyName} is ${trigger}.`,
+      '',
+      'Teams at this stage usually need more qualified pipeline without more manual research.',
+      '',
+      'I built LeadIntel to find high-intent leads and write outreach daily.',
+      '',
+      'Worth seeing 5 leads for your business?',
+    ].join('\n')
+  }
+  if (templateKey === 'followup1') {
+    return [
+      `Quick follow-up - I can show you a short lead list for ${lead.companyName} so you can judge if it's useful.`,
+      '',
+      'Worth seeing 5 leads for your business?',
+    ].join('\n')
+  }
+  return [
+    'Should I close this out, or would seeing 5 fresh leads for your market be useful?',
+    '',
+    'Worth seeing 5 leads for your business?',
+  ].join('\n')
+}
+
+function draftKey(leadId: string, templateKey: TemplateKey): string {
+  return `${leadId}:${templateKey}`
+}
+
 function todayDateKey(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -106,6 +218,7 @@ export function OutboundExecutionPanel() {
   const [hiringFilter, setHiringFilter] = useState<'all' | 'hiring'>('all')
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set())
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null)
+  const [activeTemplate, setActiveTemplate] = useState<TemplateKey>('initial')
   const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({})
   const [responseStatuses, setResponseStatuses] = useState<Record<string, ResponseStatus>>({})
   const [copied, setCopied] = useState(false)
@@ -145,28 +258,38 @@ export function OutboundExecutionPanel() {
         triggerRows = (triggerRowsRaw ?? []) as TriggerRow[]
       }
 
-      const latestTriggerByLead = new Map<string, TriggerRow>()
+      const triggerRowsByLead = new Map<string, TriggerRow[]>()
       for (const row of triggerRows) {
         if (!row.lead_id) continue
-        if (!latestTriggerByLead.has(row.lead_id)) {
-          latestTriggerByLead.set(row.lead_id, row)
-        }
+        const current = triggerRowsByLead.get(row.lead_id) ?? []
+        current.push(row)
+        triggerRowsByLead.set(row.lead_id, current)
       }
 
       const mapped = leadRows.map((row) => {
-        const trigger = latestTriggerByLead.get(row.id) ?? null
+        const leadTriggers = triggerRowsByLead.get(row.id) ?? []
+        const trigger = leadTriggers[0] ?? null
         const companyName = row.company_name ?? row.company_domain ?? row.company_url ?? 'Unknown company'
+        const role = parseField(row.ai_personalized_pitch, 'Target role')
+        const industry = parseField(row.ai_personalized_pitch, 'Industry')
         return {
           id: row.id,
           companyName,
           companyDomain: row.company_domain ?? null,
           prospectEmail: row.prospect_email ?? null,
           fitScore: parseFitScore(row.ai_personalized_pitch),
-          industry: parseField(row.ai_personalized_pitch, 'Industry'),
-          role: parseField(row.ai_personalized_pitch, 'Target role'),
+          industry,
+          role,
           hasHiringSignal: isHiringSignal(trigger),
           whyNow: parseWhyNow(row.ai_personalized_pitch),
           generatedMessage: parseGeneratedMessage(row.ai_personalized_pitch, companyName),
+          primaryTrigger: summarizeTrigger(trigger),
+          whyThisLead: buildWhyThisLead({
+            triggerRows: leadTriggers,
+            role,
+            industry,
+            companyName,
+          }),
           createdAt: row.created_at ?? new Date().toISOString(),
         } satisfies OutboundLead
       })
@@ -255,18 +378,46 @@ export function OutboundExecutionPanel() {
     [activeLeadId, filteredLeads]
   )
 
+  const activeDraftKey = useMemo(() => (activeLead ? draftKey(activeLead.id, activeTemplate) : null), [activeLead, activeTemplate])
+
   const activeMessage = useMemo(() => {
     if (!activeLead) return ''
-    return messageDrafts[activeLead.id] ?? activeLead.generatedMessage
-  }, [activeLead, messageDrafts])
+    if (!activeDraftKey) return ''
+    return messageDrafts[activeDraftKey] ?? buildTemplateMessage(activeLead, activeTemplate)
+  }, [activeDraftKey, activeLead, activeTemplate, messageDrafts])
 
   useEffect(() => {
-    if (!activeLead) return
+    if (!activeLead || !activeDraftKey) return
     setMessageDrafts((current) => {
-      if (current[activeLead.id]) return current
-      return { ...current, [activeLead.id]: activeLead.generatedMessage }
+      if (current[activeDraftKey]) return current
+      return {
+        ...current,
+        [activeDraftKey]: buildTemplateMessage(activeLead, activeTemplate),
+      }
     })
-  }, [activeLead])
+  }, [activeDraftKey, activeLead, activeTemplate])
+
+  const todaysSentCount = useMemo(() => {
+    return leads.filter((lead) => SENT_LIKE_STATUSES.has(responseStatuses[lead.id] ?? 'not sent')).length
+  }, [leads, responseStatuses])
+
+  const weeklyInsights = useMemo(() => {
+    let sent = 0
+    let replies = 0
+    let interested = 0
+    let booked = 0
+    let closed = 0
+    for (const lead of leads) {
+      const status = responseStatuses[lead.id] ?? 'not sent'
+      if (SENT_LIKE_STATUSES.has(status)) sent += 1
+      if (REPLY_LIKE_STATUSES.has(status)) replies += 1
+      if (status === 'interested') interested += 1
+      if (status === 'booked') booked += 1
+      if (status === 'closed') closed += 1
+    }
+    const replyRate = sent > 0 ? Math.round((replies / sent) * 1000) / 10 : 0
+    return { sent, replies, interested, booked, closed, replyRate }
+  }, [leads, responseStatuses])
 
   function toggleSelected(leadId: string, checked: boolean): void {
     setSelectedLeadIds((current) => {
@@ -300,7 +451,7 @@ export function OutboundExecutionPanel() {
         'attribution',
       ].join(','),
       ...selected.map((lead) => {
-        const message = (messageDrafts[lead.id] ?? lead.generatedMessage).replaceAll('"', '""')
+        const message = (messageDrafts[draftKey(lead.id, 'initial')] ?? lead.generatedMessage).replaceAll('"', '""')
         const status = responseStatuses[lead.id] ?? ''
         return [
           `"${lead.companyName.replaceAll('"', '""')}"`,
@@ -327,27 +478,30 @@ export function OutboundExecutionPanel() {
     track('outbound_daily_exported', { count: selected.length })
   }
 
-  async function copyActiveMessage(): Promise<void> {
+  async function copyTemplateMessage(templateKey: TemplateKey): Promise<void> {
     if (!activeLead) return
-    const text = `${activeMessage}\n\nGenerated by raelinfo.com`
+    const key = draftKey(activeLead.id, templateKey)
+    const templateText = messageDrafts[key] ?? buildTemplateMessage(activeLead, templateKey)
+    const text = `${templateText}\n\nGenerated by raelinfo.com`
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1200)
-      track('outbound_message_copied', { leadId: activeLead.id })
+      track('outbound_message_copied', { leadId: activeLead.id, template: templateKey })
     } catch {
       setCopied(false)
     }
   }
 
-  function sendActiveMessage(): void {
+  function openActiveMessageInEmailClient(): void {
     if (!activeLead) return
-    const subject = encodeURIComponent(`LeadIntel outreach for ${activeLead.companyName}`)
+    const subjectLabel =
+      activeTemplate === 'initial' ? 'Initial outreach' : activeTemplate === 'followup1' ? 'Follow-up #1' : 'Follow-up #2'
+    const subject = encodeURIComponent(`${subjectLabel} for ${activeLead.companyName}`)
     const body = encodeURIComponent(`${activeMessage}\n\nGenerated by raelinfo.com`)
     const recipient = activeLead.prospectEmail ?? ''
     window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`
-    setResponseStatuses((current) => ({ ...current, [activeLead.id]: 'sent' }))
-    track('outbound_message_sent_intent', { leadId: activeLead.id })
+    track('outbound_message_sent_intent', { leadId: activeLead.id, template: activeTemplate })
   }
 
   return (
@@ -355,7 +509,7 @@ export function OutboundExecutionPanel() {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">Outbound execution loop</CardTitle>
-          <Badge variant="outline">Today&apos;s Leads: {todaysLeadsCount} · Updated today</Badge>
+          <Badge variant="outline">Today&apos;s Leads: {todaysLeadsCount} - Updated today</Badge>
         </div>
         <div className="text-xs text-muted-foreground">Generate - Select - Send - Track - Iterate</div>
       </CardHeader>
@@ -363,6 +517,22 @@ export function OutboundExecutionPanel() {
         {error ? (
           <div className="rounded border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-300">{error}</div>
         ) : null}
+
+        <div className="rounded border border-cyan-500/20 bg-cyan-500/5 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-medium text-foreground">Today&apos;s goal: send {DAILY_SEND_GOAL} messages</div>
+            <Badge variant="outline">
+              {todaysSentCount}/{DAILY_SEND_GOAL}
+            </Badge>
+          </div>
+          <div className="mt-2 h-2 rounded bg-cyan-500/10 overflow-hidden">
+            <div
+              className="h-full bg-cyan-400/70 transition-all"
+              style={{ width: `${Math.min(100, Math.round((todaysSentCount / DAILY_SEND_GOAL) * 100))}%` }}
+            />
+          </div>
+          <div className="mt-2 text-xs text-muted-foreground">Progress is based on leads marked sent (local status tracking).</div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
           <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search company/domain" className="lg:col-span-2" />
@@ -417,7 +587,7 @@ export function OutboundExecutionPanel() {
               <div className="text-xs text-muted-foreground">No leads match current ICP filters.</div>
             ) : (
               filteredLeads.slice(0, 40).map((lead) => {
-                const status = responseStatuses[lead.id]
+                const status = responseStatuses[lead.id] ?? 'not sent'
                 return (
                   <div
                     key={lead.id}
@@ -434,11 +604,11 @@ export function OutboundExecutionPanel() {
                         <button type="button" className="min-w-0 text-left" onClick={() => setActiveLeadId(lead.id)}>
                           <div className="text-sm font-medium text-foreground truncate">{lead.companyName}</div>
                           <div className="text-[11px] text-muted-foreground truncate">
-                            {lead.companyDomain ?? 'no domain'} · Fit {lead.fitScore}/100
+                            {lead.companyDomain ?? 'no domain'} - Fit {lead.fitScore}/100
                           </div>
                         </button>
                       </label>
-                      <Badge variant="outline">{status ?? 'not sent'}</Badge>
+                      <Badge variant="outline">{status}</Badge>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1">
                       <Badge variant="outline">{lead.industry}</Badge>
@@ -458,6 +628,31 @@ export function OutboundExecutionPanel() {
                   <div className="text-sm font-medium text-foreground">{activeLead.companyName}</div>
                   <div className="text-xs text-muted-foreground mt-1">{activeLead.whyNow}</div>
                 </div>
+                <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Why this lead</div>
+                  <div className="text-xs text-foreground">Trigger: {activeLead.primaryTrigger}</div>
+                  <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-1">
+                    {activeLead.whyThisLead.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Message templates</div>
+                  <div className="flex flex-wrap gap-2">
+                    {TEMPLATE_OPTIONS.map((template) => (
+                      <Button
+                        key={template.key}
+                        type="button"
+                        size="sm"
+                        variant={activeTemplate === template.key ? 'default' : 'outline'}
+                        onClick={() => setActiveTemplate(template.key)}
+                      >
+                        {template.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Outreach view</div>
                   <Textarea
@@ -465,29 +660,35 @@ export function OutboundExecutionPanel() {
                     onChange={(event) =>
                       setMessageDrafts((current) => ({
                         ...current,
-                        [activeLead.id]: event.target.value,
+                        [draftKey(activeLead.id, activeTemplate)]: event.target.value,
                       }))
                     }
                     className="min-h-[180px]"
                   />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" onClick={() => void copyActiveMessage()}>
-                    {copied ? 'Copied' : 'Copy'}
+                  <Button type="button" variant="outline" onClick={() => void copyTemplateMessage('initial')}>
+                    {copied ? 'Copied' : 'Copy initial message'}
                   </Button>
-                  <Button type="button" className="neon-border hover:glow-effect" onClick={sendActiveMessage}>
-                    Send
+                  <Button type="button" variant="outline" onClick={() => void copyTemplateMessage('followup1')}>
+                    Copy follow-up #1
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => void copyTemplateMessage('followup2')}>
+                    Copy follow-up #2
+                  </Button>
+                  <Button type="button" className="neon-border hover:glow-effect" onClick={openActiveMessageInEmailClient}>
+                    Open email draft
                   </Button>
                 </div>
                 <div className="space-y-2">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Response tracking</div>
                   <div className="flex flex-wrap gap-2">
-                    {(['sent', 'replied', 'interested', 'closed'] as const).map((status) => (
+                    {RESPONSE_STATUS_OPTIONS.map((status) => (
                       <Button
                         key={status}
                         type="button"
                         size="sm"
-                        variant={responseStatuses[activeLead.id] === status ? 'default' : 'outline'}
+                        variant={(responseStatuses[activeLead.id] ?? 'not sent') === status ? 'default' : 'outline'}
                         onClick={() => {
                           setResponseStatuses((current) => ({ ...current, [activeLead.id]: status }))
                           track('outbound_response_status_changed', { leadId: activeLead.id, status })
@@ -503,6 +704,108 @@ export function OutboundExecutionPanel() {
               <div className="text-xs text-muted-foreground">Select a lead to open outreach view.</div>
             )}
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+            <div className="text-sm font-medium text-foreground">Weekly learning loop</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-muted-foreground">Messages sent</div>
+                <div className="text-foreground font-medium">{weeklyInsights.sent}</div>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-muted-foreground">Replies</div>
+                <div className="text-foreground font-medium">{weeklyInsights.replies}</div>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-muted-foreground">Interested</div>
+                <div className="text-foreground font-medium">{weeklyInsights.interested}</div>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-muted-foreground">Booked</div>
+                <div className="text-foreground font-medium">{weeklyInsights.booked}</div>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-muted-foreground">Closed</div>
+                <div className="text-foreground font-medium">{weeklyInsights.closed}</div>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+                <div className="text-muted-foreground">Reply rate</div>
+                <div className="text-foreground font-medium">{weeklyInsights.replyRate}%</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+            <div className="text-sm font-medium text-foreground">7-Day First Customer Plan</div>
+            <ol className="space-y-2 text-xs text-muted-foreground">
+              <li>
+                <span className="font-medium text-foreground">Day 1:</span> Pick one ICP and send 20 messages.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Day 2:</span> Send 20 more messages and follow up with Day 1 prospects.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Day 3:</span> Review replies, refine message, send 25 messages.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Day 4:</span> Double down on best niche, send 25 messages, book calls.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Day 5:</span> Offer live demo: "I can generate 5 leads for you right now."
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Day 6:</span> Follow up all interested prospects and push checkout/demo.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Day 7:</span> Review messages sent, replies, calls booked, paid users; then pick the winning niche for next week.
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        <div className="rounded border border-cyan-500/20 bg-card/30 p-3 space-y-3">
+          <div className="text-sm font-medium text-foreground">Outbound copy bank</div>
+          {activeLead ? (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Initial</div>
+                <pre className="text-xs whitespace-pre-wrap text-muted-foreground">
+                  {`Hey - noticed ${activeLead.companyName} is ${activeLead.primaryTrigger}.\n\nTeams at this stage usually need more qualified pipeline without more manual research.\n\nI built LeadIntel to find high-intent leads and write outreach daily.\n\nWant me to generate 5 leads for you?`}
+                </pre>
+                <Button size="sm" variant="outline" onClick={() => void copyTemplateMessage('initial')}>
+                  Copy initial
+                </Button>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Follow-up #1</div>
+                <pre className="text-xs whitespace-pre-wrap text-muted-foreground">
+                  {`Quick follow-up - I can show you a short lead list for ${activeLead.companyName} so you can judge if it's useful.`}
+                </pre>
+                <Button size="sm" variant="outline" onClick={() => void copyTemplateMessage('followup1')}>
+                  Copy follow-up #1
+                </Button>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Follow-up #2</div>
+                <pre className="text-xs whitespace-pre-wrap text-muted-foreground">
+                  {'Should I close this out, or would seeing 5 fresh leads for your market be useful?'}
+                </pre>
+                <Button size="sm" variant="outline" onClick={() => void copyTemplateMessage('followup2')}>
+                  Copy follow-up #2
+                </Button>
+              </div>
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 space-y-2">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Booked/demo CTA</div>
+                <pre className="text-xs whitespace-pre-wrap text-muted-foreground">
+                  {'I can walk you through your lead list live and show how the outreach is generated.'}
+                </pre>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">Select a lead to load company-specific copy blocks.</div>
+          )}
         </div>
       </CardContent>
     </Card>
