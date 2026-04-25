@@ -1,4 +1,4 @@
-export const SUPPORT_EMAIL = 'leadintel@dazrael.com' as const
+export const SUPPORT_EMAIL = 'support@raelinfo.com' as const
 
 // Keep one inbox for security + deletion/export requests.
 export const SECURITY_EMAIL = SUPPORT_EMAIL

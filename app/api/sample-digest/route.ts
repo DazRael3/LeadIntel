@@ -85,9 +85,11 @@ export const POST = withApiGuard(
           const subject = `Your LeadIntel sample digest — ${sample.company}`
           const lines = [
             `Sample lead score: ${sample.score}/100`,
+            sample.updatedAt ? `Updated at: ${sample.updatedAt}` : '',
             '',
             'Sample trigger signals:',
             ...sample.triggers.map((t) => `- ${t}`),
+            ...sample.scoreFactors.slice(0, 3).map((f) => `- Score factor: ${f}`),
             '',
             'Why now:',
             sample.whyNow,

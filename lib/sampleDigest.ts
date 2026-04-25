@@ -4,6 +4,8 @@ export type SampleDigestResult = {
   company: string
   score: number
   triggers: string[]
+  scoreFactors: string[]
+  updatedAt: string
   whyNow: string
   outreach: {
     channel: SampleDigestOutreachChannel
@@ -28,60 +30,85 @@ function hash32(value: string): number {
   return hash >>> 0
 }
 
-function pickTriggers(seed: number, count: number): string[] {
-  const all = [
-    'Funding activity',
-    'Hiring spike (role-specific)',
-    'Product launch / roadmap signal',
-    'New partnership / integration',
-    'Press mention / award',
-    'Stack change (tools/vendor swap)',
-    'Expansion signal (new geo/segment)',
-    'Security/compliance initiative',
-  ] as const
+type TriggerSignal = {
+  key: 'hiring_spike' | 'funding' | 'expansion' | 'new_roles'
+  label: string
+  scoreFactor: string
+  outreachAngle: string
+}
 
-  const out: string[] = []
+const TRIGGER_SIGNALS: readonly TriggerSignal[] = [
+  {
+    key: 'hiring_spike',
+    label: 'Hiring spike in go-to-market roles',
+    scoreFactor: 'Hiring momentum suggests active pipeline goals',
+    outreachAngle: 'new hiring velocity usually means immediate demand creation pressure',
+  },
+  {
+    key: 'funding',
+    label: 'Recent funding momentum',
+    scoreFactor: 'Fresh capital often accelerates outbound investment',
+    outreachAngle: 'post-funding teams typically move fast on repeatable outbound execution',
+  },
+  {
+    key: 'expansion',
+    label: 'Expansion into a new segment or region',
+    scoreFactor: 'Expansion signals near-term market-entry outreach needs',
+    outreachAngle: 'expansion initiatives need rapid account prioritization and messaging',
+  },
+  {
+    key: 'new_roles',
+    label: 'New strategic roles opened',
+    scoreFactor: 'New leadership roles indicate upcoming execution changes',
+    outreachAngle: 'new role ownership often triggers immediate process and tooling adjustments',
+  },
+] as const
+
+function pickSignals(seed: number, count: number): TriggerSignal[] {
+  const out: TriggerSignal[] = []
+
   let s = seed
   while (out.length < count) {
     s = (s * 1664525 + 1013904223) >>> 0
-    const idx = s % all.length
-    const next = all[idx]
-    if (!out.includes(next)) out.push(next)
+    const idx = s % TRIGGER_SIGNALS.length
+    const next = TRIGGER_SIGNALS[idx]
+    if (!out.find((signal) => signal.key === next.key)) out.push(next)
   }
   return out
 }
 
 function scoreFromSeed(seed: number): number {
-  // 0–100 inclusive, slightly biased toward mid/high for demo appeal.
-  const base = seed % 101
-  const bump = (seed >>> 8) % 18
-  return Math.min(100, Math.floor((base * 0.7 + bump * 1.2) % 101))
+  // 0–100 inclusive, biased toward realistic high-intent demo scores.
+  const base = 58 + (seed % 31) // 58-88
+  const bump = (seed >>> 8) % 12 // 0-11
+  return Math.min(99, base + bump)
 }
 
-function buildWhyNow(company: string, triggers: string[], score: number): string {
-  const t1 = triggers[0] ?? 'recent activity'
-  const t2 = triggers[1] ?? 'hiring signals'
-  const urgency =
-    score >= 80 ? 'high intent' : score >= 55 ? 'active evaluation' : 'early research'
-  return `${company} is showing ${urgency} signals: ${t1.toLowerCase()} plus ${t2.toLowerCase()}. This is a good “why now” moment to reach out with a specific point of view and a short next step.`
+function buildWhyNow(company: string, signals: TriggerSignal[]): string {
+  const primary = signals[0] ?? TRIGGER_SIGNALS[0]
+  const secondary = signals[1] ?? TRIGGER_SIGNALS[1]
+  return `${company} is showing ${primary.label.toLowerCase()} and ${secondary.label.toLowerCase()}. Reach out now while these active triggers are fresh.`
 }
 
-function buildOutreach(company: string, triggers: string[], channel: SampleDigestOutreachChannel): SampleDigestResult['outreach'] {
-  const bulletA = triggers[0] ?? 'recent activity'
-  const bulletB = triggers[1] ?? 'hiring signals'
-  const bulletC = triggers[2] ?? 'product momentum'
+function buildScoreFactors(signals: TriggerSignal[]): string[] {
+  return signals.slice(0, 3).map((signal) => signal.scoreFactor)
+}
+
+function buildOutreach(company: string, signals: TriggerSignal[], channel: SampleDigestOutreachChannel): SampleDigestResult['outreach'] {
+  const primary = signals[0] ?? TRIGGER_SIGNALS[0]
+  const secondary = signals[1] ?? TRIGGER_SIGNALS[1]
 
   if (channel === 'linkedin') {
     return {
       channel,
-      body: `Hey — saw ${company} around ${bulletA.toLowerCase()} and ${bulletB.toLowerCase()}.\n\nQuick question: are you prioritizing ${bulletC.toLowerCase()} this quarter? If so, happy to share a 2‑minute idea we’re using to help similar teams move faster.`,
+      body: `Saw ${company}'s ${primary.label.toLowerCase()}. We help teams turn signals like ${secondary.label.toLowerCase()} into send-ready outbound in minutes. Open to a quick walkthrough this week?`,
     }
   }
 
   return {
     channel,
-    subject: `Quick idea for ${company}`,
-    body: `Hi there —\n\nNoticed a few signals from ${company}:\n- ${bulletA}\n- ${bulletB}\n- ${bulletC}\n\nIf you’re working on this right now, I can send a short, tailored walkthrough of how teams like yours use daily “why now” signals to prioritize accounts and book meetings.\n\nWorth a quick 10 minutes this week?`,
+    subject: `${company}: signal-driven outbound idea`,
+    body: `Noticed ${company}'s ${primary.label.toLowerCase()}. ${primary.outreachAngle.charAt(0).toUpperCase()}${primary.outreachAngle.slice(1)}, and we help teams act on it with ready-to-send outreach. Worth a quick 10-minute walkthrough this week?`,
   }
 }
 
@@ -89,15 +116,19 @@ export function generateSampleDigest(companyOrUrl: string): SampleDigestResult {
   const company = normalizeCompanyInput(companyOrUrl)
   const seed = hash32(company.toLowerCase())
   const score = scoreFromSeed(seed)
-  const triggerCount = 3 + (seed % 3) // 3–5
-  const triggers = pickTriggers(seed, triggerCount)
-  const whyNow = buildWhyNow(company, triggers, score)
-  const outreach = buildOutreach(company, triggers, (seed % 2 === 0 ? 'email' : 'linkedin'))
+  const signalCount = 3
+  const signals = pickSignals(seed, signalCount)
+  const triggers = signals.map((signal) => signal.label)
+  const scoreFactors = buildScoreFactors(signals)
+  const whyNow = buildWhyNow(company, signals)
+  const outreach = buildOutreach(company, signals, seed % 2 === 0 ? 'email' : 'linkedin')
 
   return {
     company,
     score,
     triggers,
+    scoreFactors,
+    updatedAt: new Date().toISOString(),
     whyNow,
     outreach,
     disclaimer: 'Sample output — generated from deterministic demo data (not live signals).',

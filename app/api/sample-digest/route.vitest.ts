@@ -20,7 +20,9 @@ describe('/api/sample-digest', () => {
     expect(json.ok).toBe(true)
     expect(typeof json.data?.sample?.score).toBe('number')
     expect(Array.isArray(json.data?.sample?.triggers)).toBe(true)
+    expect(Array.isArray(json.data?.sample?.scoreFactors)).toBe(true)
     expect(typeof json.data?.sample?.whyNow).toBe('string')
+    expect(typeof json.data?.sample?.updatedAt).toBe('string')
 
     const req2 = new NextRequest('http://localhost:3000/api/sample-digest', {
       method: 'POST',

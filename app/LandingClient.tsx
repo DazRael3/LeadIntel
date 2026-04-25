@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { BrandHero } from '@/components/BrandHero'
 import { OneMinuteDemo } from '@/components/landing/OneMinuteDemo'
 import { TrySampleDigest } from '@/components/landing/TrySampleDigest'
@@ -18,7 +19,6 @@ import { ProofYouCanInspect } from '@/components/marketing/ProofYouCanInspect'
 import { ProofLayer } from '@/components/marketing/ProofLayer'
 import { MigrationStories } from '@/components/marketing/MigrationStories'
 import { track } from '@/lib/analytics'
-import { COPY } from '@/lib/copy/leadintel'
 import { usePublicAbVariant } from '@/lib/experiments/usePublicAbVariant'
 
 export default function LandingClient() {
@@ -33,11 +33,12 @@ export default function LandingClient() {
 
   const heroHeadline =
     headlineVariant === 'value_velocity'
-      ? 'Find high-intent leads and outreach in one workflow'
-      : COPY.home.hero.headline
-  const primaryCtaLabel = ctaVariant === 'book_demo_first' ? 'Book a demo' : COPY.home.hero.primaryCta
+      ? 'Get daily high-intent leads and outreach in minutes'
+      : 'Turn company signals into qualified leads and ready-to-send outreach'
+  const primaryCtaLabel = ctaVariant === 'book_demo_first' ? 'Generate My Leads' : 'Generate My Leads'
   const primaryCtaHref = ctaVariant === 'book_demo_first' ? '/contact' : '/demo'
   const primaryCtaType = ctaVariant === 'book_demo_first' ? 'book_demo' : 'find_my_leads_now'
+  const [companyInput, setCompanyInput] = useState('')
 
   useEffect(() => {
     track('page_view', { path: '/', surface: 'landing' })
@@ -46,55 +47,47 @@ export default function LandingClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run once on mount
   }, [])
 
+  function submitHeroDemo(e: FormEvent<HTMLFormElement>): void {
+    e.preventDefault()
+    const company = companyInput.trim()
+    track('homepage_primary_cta_clicked', { location: 'hero', cta: primaryCtaType, hasCompany: company.length > 0 })
+    track('demo_started', { source: 'landing_hero_cta', hasCompany: company.length > 0 })
+    const href = company.length > 0 ? `/demo?company=${encodeURIComponent(company)}` : primaryCtaHref
+    window.location.href = href
+  }
+
   return (
     <div className="bg-background">
       <main className="container mx-auto px-4 py-12 md:py-16">
         <div className="space-y-20 md:space-y-24">
           <section className="pt-2 md:pt-6">
             <div className="grid grid-cols-1 gap-8 items-start">
-              <div className="max-w-4xl">
+              <div className="max-w-3xl">
                 <h1 className="text-4xl md:text-5xl font-bold tracking-tight">{heroHeadline}</h1>
-                <p className="mt-4 text-lg text-muted-foreground max-w-3xl">{COPY.home.hero.subhead}</p>
-                <p className="mt-3 text-sm text-muted-foreground max-w-3xl">{COPY.home.hero.support}</p>
-                <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                  <Button asChild size="lg" className="neon-border hover:glow-effect">
-                    <Link
-                      href={primaryCtaHref}
-                      onClick={() => {
-                        track('homepage_primary_cta_clicked', { location: 'hero', cta: primaryCtaType })
-                        track('demo_started', { source: 'landing_hero_cta' })
-                      }}
-                    >
-                      {primaryCtaLabel}
-                    </Link>
+                <p className="mt-4 text-lg text-muted-foreground max-w-2xl">
+                  For SDRs, AEs, and outbound teams who need qualified opportunities fast.
+                </p>
+                <form className="mt-6 space-y-3" onSubmit={submitHeroDemo}>
+                  <Input
+                    value={companyInput}
+                    onChange={(event) => setCompanyInput(event.target.value)}
+                    placeholder="Enter company or domain (e.g. acme.com)"
+                    aria-label="Company or domain"
+                    className="h-12"
+                  />
+                  <Button type="submit" size="lg" className="w-full sm:w-auto neon-border hover:glow-effect">
+                    {primaryCtaLabel}
                   </Button>
-                  <Button asChild variant="outline" size="lg">
-                    <Link
-                      href="/pricing"
-                      onClick={() => track('homepage_secondary_cta_clicked', { location: 'hero', cta: 'pricing' })}
-                    >
-                      {COPY.home.hero.secondaryCta}
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" size="lg">
-                    <Link
-                      href="/contact"
-                      onClick={() => track('homepage_secondary_cta_clicked', { location: 'hero', cta: 'book_demo' })}
-                    >
-                      Book a demo
-                    </Link>
-                  </Button>
-                </div>
-                <div className="mt-3 text-xs text-muted-foreground">{COPY.home.hero.microTrust}</div>
-
-                <div className="mt-8">
+                </form>
+                <div className="mt-3 text-xs text-muted-foreground">No signup required.</div>
+                <div className="mt-6">
                   <ProofStrip />
                 </div>
               </div>
             </div>
           </section>
 
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start pt-12 md:pt-14 border-t border-border/30">
+          <section id="how-it-works" className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start pt-12 md:pt-14 border-t border-border/30">
             <OneMinuteDemo />
             <div className="space-y-4">
               <div id="try-sample" className="scroll-mt-24">
@@ -126,17 +119,6 @@ export default function LandingClient() {
               </div>
               <SignalCoverage />
             </div>
-          </section>
-
-          <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">
-            <div>
-              <h2 className="text-2xl font-bold">Why teams switch to LeadIntel</h2>
-            </div>
-            <WhySwitchCards />
-          </section>
-
-          <section id="how-it-works" className="scroll-mt-24 pt-12 md:pt-14 border-t border-border/30">
-            <WorkflowRail />
           </section>
 
           <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">

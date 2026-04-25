@@ -39,6 +39,8 @@ function buildPreviewLeads(companyRaw: string): PreviewLead[] {
       whyNow: sample.whyNow,
       outreachSubject: sample.outreach.subject ?? null,
       outreachBody: sample.outreach.body,
+      scoreFactors: sample.scoreFactors,
+      updatedAtLabel: 'Updated recently',
     }
   })
 }

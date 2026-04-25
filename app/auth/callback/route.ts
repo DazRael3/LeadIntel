@@ -6,11 +6,13 @@ import {
 } from '@/lib/demo/claim'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { logCanonicalFunnelEvent } from '@/lib/analytics/funnel-events'
+import { claimReferralReward } from '@/lib/referrals/claim'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const next = requestUrl.searchParams.get('next') || '/dashboard'
+  const ref = requestUrl.searchParams.get('ref')
 
   if (code) {
     const supabase = await createClient()
@@ -58,6 +60,17 @@ export async function GET(request: NextRequest) {
         // best-effort only
       }
 
+      // Best-effort referral reward claim.
+      if (ref && ref.trim().length > 0) {
+        try {
+          await claimReferralReward({
+            referredUserId: user.id,
+            referrerId: ref.trim(),
+          })
+        } catch {
+          // best-effort only
+        }
+      }
     }
   }
 

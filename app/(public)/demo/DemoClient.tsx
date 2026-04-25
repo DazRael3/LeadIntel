@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,13 +8,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Copy, Check } from 'lucide-react'
 import { track } from '@/lib/analytics'
 
 type DemoSearchResult = {
   company: string
   score: number
   triggers: string[]
+  scoreFactors: string[]
   whyNow: string
+  updatedAt: string
   outreach: {
     channel: 'email' | 'linkedin'
     subject?: string
@@ -22,32 +25,60 @@ type DemoSearchResult = {
   }
 }
 
+const EXAMPLE_COMPANIES = ['HubSpot', 'Stripe', 'Shopify'] as const
+const LOADING_STAGES = ['Analyzing signals...', 'Scoring leads...', 'Generating outreach...'] as const
+
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
 export function DemoClient() {
   const router = useRouter()
-  const [companyOrUrl, setCompanyOrUrl] = useState('')
+  const [companyOrUrl, setCompanyOrUrl] = useState<string>(EXAMPLE_COMPANIES[0])
   const [workEmail, setWorkEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DemoSearchResult | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [hasCopiedOutreach, setHasCopiedOutreach] = useState(false)
+  const [copiedShareLink, setCopiedShareLink] = useState(false)
+  const [commitmentChoice, setCommitmentChoice] = useState<'yes' | 'maybe' | null>(null)
+  const [hasUserInteracted, setHasUserInteracted] = useState(false)
+  const [hasAutoTriggered, setHasAutoTriggered] = useState(false)
+  const [loadingStageIndex, setLoadingStageIndex] = useState(0)
+  const [messageVariant, setMessageVariant] = useState<'default' | 'shorter' | 'aggressive'>('default')
+  const [upgradePromptReason, setUpgradePromptReason] = useState<'results_loaded' | 'copy_action'>('results_loaded')
+  const resultCardRef = useRef<HTMLDivElement | null>(null)
+  const activationTrackedRef = useRef(false)
 
   const canSearch = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
 
-  async function runSearch(): Promise<void> {
-    if (!canSearch) return
+  function trackActivation(trigger: 'copy_message' | 'add_to_campaign'): void {
+    if (activationTrackedRef.current) return
+    activationTrackedRef.current = true
+    track('activation_completed', { source: 'demo_page', trigger })
+  }
+
+  const runSearch = useCallback(async (): Promise<void> => {
+    const searchInput = companyOrUrl.trim().length >= 2 ? companyOrUrl.trim() : EXAMPLE_COMPANIES[0]
+    if (searchInput.length < 2 || loading) return
     setLoading(true)
     setError(null)
     setResult(null)
+    setHasCopiedOutreach(false)
+    setCommitmentChoice(null)
+    setLoadingStageIndex(0)
+    activationTrackedRef.current = false
+    if (companyOrUrl.trim().length < 2) {
+      setCompanyOrUrl(searchInput)
+    }
     track('demo_started', { source: 'demo_page', step: 'search_submitted' })
 
     try {
       const res = await fetch('/api/sample-digest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyOrUrl: companyOrUrl.trim() }),
+        body: JSON.stringify({ companyOrUrl: searchInput }),
       })
       const json = (await res.json().catch(() => null)) as
         | { ok?: true; data?: { sample?: DemoSearchResult; handoff?: { stored?: boolean } } }
@@ -60,6 +91,7 @@ export function DemoClient() {
       }
 
       setResult(json.data.sample)
+      setUpgradePromptReason('results_loaded')
       track('lead_search_completed', {
         source: 'demo_page',
         score: json.data.sample.score,
@@ -76,7 +108,44 @@ export function DemoClient() {
     } finally {
       setLoading(false)
     }
+  }, [companyOrUrl, loading])
+
+  function handleManualSearch(): void {
+    setHasUserInteracted(true)
+    setHasAutoTriggered(true)
+    void runSearch()
   }
+
+  function handleExamplePrefill(example: string): void {
+    setHasUserInteracted(true)
+    setCompanyOrUrl(example)
+  }
+
+  useEffect(() => {
+    if (hasUserInteracted || hasAutoTriggered || loading || result) return
+    const timer = window.setTimeout(() => {
+      setHasAutoTriggered(true)
+      setCompanyOrUrl((current) => (current.trim().length >= 2 ? current : EXAMPLE_COMPANIES[0]))
+      void runSearch()
+    }, 3000)
+    return () => window.clearTimeout(timer)
+  }, [hasAutoTriggered, hasUserInteracted, loading, result, runSearch])
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingStageIndex(0)
+      return
+    }
+    const interval = window.setInterval(() => {
+      setLoadingStageIndex((current) => Math.min(current + 1, LOADING_STAGES.length - 1))
+    }, 900)
+    return () => window.clearInterval(interval)
+  }, [loading])
+
+  useEffect(() => {
+    if (!result) return
+    resultCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [result])
 
   function goToSignup(): void {
     if (!isValidEmail(workEmail)) {
@@ -94,6 +163,108 @@ export function DemoClient() {
     track('demo_preview_opened', { source: 'demo_page', companyLen: company.length })
     track('results_viewed', { source: 'demo_page', surface: 'lead_results_preview_opened', companyLen: company.length })
     router.push(`/lead-results?company=${encodeURIComponent(company)}`)
+  }
+
+  function formatRecent(value: string): string {
+    const ms = Date.parse(value)
+    if (!Number.isFinite(ms)) return 'Updated recently'
+    const mins = Math.max(1, Math.round((Date.now() - ms) / 60000))
+    if (mins < 60) return `Updated ${mins}m ago`
+    const hours = Math.round(mins / 60)
+    if (hours < 24) return `Updated ${hours}h ago`
+    return `Updated ${Math.round(hours / 24)}d ago`
+  }
+
+  function selectMessageBase(current: DemoSearchResult): string {
+    const parts = [current.outreach.subject ? `Subject: ${current.outreach.subject}` : null, current.outreach.body]
+      .filter((line): line is string => Boolean(line))
+    return parts.join('\n\n')
+  }
+
+  function computeVariantMessage(current: DemoSearchResult): string {
+    const base = selectMessageBase(current)
+    const triggerSignal = current.triggers[0] ?? 'recent activity'
+    if (messageVariant === 'shorter') {
+      return `Noticed ${triggerSignal.toLowerCase()} at ${current.company}. Worth a quick 10-minute intro this week?`
+    }
+    if (messageVariant === 'aggressive') {
+      return `Saw ${triggerSignal.toLowerCase()} at ${current.company}. If this is a priority this quarter, let's lock a quick call and I’ll show exactly how similar teams converted that signal into meetings.`
+    }
+    return base
+  }
+
+  async function copyOutreach(): Promise<void> {
+    if (!result) return
+    const message = [
+      computeVariantMessage(result),
+      '',
+      'Generated by raelinfo.com',
+      'https://raelinfo.com',
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join('\n\n')
+    try {
+      await navigator.clipboard.writeText(message)
+      setCopied(true)
+      setHasCopiedOutreach(true)
+      setUpgradePromptReason('copy_action')
+      trackActivation('copy_message')
+      setTimeout(() => setCopied(false), 1800)
+      track('demo_preview_outreach_copied', { source: 'demo_page', companyLen: result.company.length })
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  function handleCampaignHook(): void {
+    if (!result) return
+    setUpgradePromptReason('copy_action')
+    trackActivation('add_to_campaign')
+    track('demo_preview_add_to_campaign_clicked', { source: 'demo_page_post_copy', companyLen: result.company.length })
+    openLeadResultsPreview()
+  }
+
+  async function copyShareLink(): Promise<void> {
+    if (!result) return
+    const leadId = encodeURIComponent(result.company.trim().toLowerCase().replace(/\s+/g, '-'))
+    const link = `${window.location.origin}/public/lead-preview/${leadId}`
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedShareLink(true)
+      setTimeout(() => setCopiedShareLink(false), 1800)
+      track('demo_preview_share_link_copied', { source: 'demo_page', leadId })
+    } catch {
+      setCopiedShareLink(false)
+    }
+  }
+
+  async function shareLead(): Promise<void> {
+    if (!result || typeof navigator === 'undefined' || !('share' in navigator)) return
+    const leadId = encodeURIComponent(result.company.trim().toLowerCase().replace(/\s+/g, '-'))
+    const link = `${window.location.origin}/public/lead-preview/${leadId}`
+    try {
+      await navigator.share({
+        title: `Lead preview: ${result.company}`,
+        text: `High-intent lead found for ${result.company} on LeadIntel`,
+        url: link,
+      })
+      track('demo_preview_shared', { source: 'demo_page', leadId })
+    } catch {
+      // user canceled share sheet
+    }
+  }
+
+  function openSocialShare(network: 'linkedin' | 'twitter'): void {
+    if (!result) return
+    const leadId = encodeURIComponent(result.company.trim().toLowerCase().replace(/\s+/g, '-'))
+    const previewUrl = `${window.location.origin}/public/lead-preview/${leadId}`
+    const shareText = `Just found a high-intent lead: ${result.company} (${result.score}/100) using LeadIntel.`
+    const url =
+      network === 'linkedin'
+        ? `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(previewUrl)}`
+        : `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(previewUrl)}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+    track('demo_preview_social_share_clicked', { source: 'demo_page', network, leadId })
   }
 
   return (
@@ -115,31 +286,18 @@ export function DemoClient() {
         </header>
 
         <Card className="border-cyan-500/20 bg-card/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Step progress</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-            <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-3">
-              <div className="text-xs uppercase tracking-wide text-cyan-200">Step 1</div>
-              <div className="mt-1 font-medium text-foreground">Search a target account</div>
-              <div className="text-xs text-muted-foreground">No signup required</div>
-            </div>
-            <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-3">
-              <div className="text-xs uppercase tracking-wide text-cyan-200">Step 2</div>
-              <div className="mt-1 font-medium text-foreground">Preview lead quality + outreach</div>
-              <div className="text-xs text-muted-foreground">Copy the AI message instantly</div>
-            </div>
-            <div className="rounded border border-border bg-background/40 p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Step 3</div>
-              <div className="mt-1 font-medium text-foreground">Unlock full campaigns</div>
-              <div className="text-xs text-muted-foreground">Save leads and track execution</div>
+          <CardContent className="py-4 text-sm">
+            <div className="grid gap-1 text-muted-foreground">
+              <div>Step 1: Find leads {result ? '(done)' : ''}</div>
+              <div>Step 2: Copy outreach {hasCopiedOutreach ? '(done)' : ''}</div>
+              <div>Step 3: Send or track</div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-cyan-500/20 bg-card/60">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Step 1 — Search a target account</CardTitle>
+            <CardTitle className="text-lg">Step 1 - Search a target account</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -147,68 +305,186 @@ export function DemoClient() {
               <Input
                 id="demo-company"
                 value={companyOrUrl}
-                onChange={(e) => setCompanyOrUrl(e.target.value)}
-                placeholder="e.g. acme.com"
+                onChange={(e) => {
+                  setHasUserInteracted(true)
+                  setCompanyOrUrl(e.target.value)
+                }}
+                placeholder="Try: HubSpot, Stripe, Shopify"
                 disabled={loading}
               />
             </div>
-            <Button onClick={() => void runSearch()} disabled={!canSearch} className="neon-border hover:glow-effect">
-              {loading ? 'Searching…' : 'Run demo lead search'}
+            <div className="flex flex-wrap gap-2">
+              {EXAMPLE_COMPANIES.map((example) => (
+                <Button
+                  key={example}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleExamplePrefill(example)}
+                  disabled={loading}
+                >
+                  {example}
+                </Button>
+              ))}
+            </div>
+            <Button onClick={handleManualSearch} disabled={!canSearch} className="neon-border hover:glow-effect">
+              {loading ? 'Searching...' : 'Run demo lead search'}
             </Button>
+            {loading ? (
+              <div className="rounded border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-200">
+                {LOADING_STAGES[loadingStageIndex]}
+              </div>
+            ) : null}
             <div className="text-xs text-muted-foreground">No signup required to see your first lead preview.</div>
             {error ? <div className="text-sm text-red-300">{error}</div> : null}
           </CardContent>
         </Card>
 
         {result ? (
-          <Card className="border-cyan-500/20 bg-card/60">
+          <Card ref={resultCardRef} className="border-cyan-500/30 bg-card/60 shadow-[0_0_0_1px_rgba(6,182,212,0.25)]">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Step 2 — Partial results</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="bg-emerald-500/10 text-emerald-200 border-emerald-500/20">Best lead right now</Badge>
+                <CardTitle className="text-lg">Step 2 - Your first result</CardTitle>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded border border-cyan-500/10 bg-background/40 p-4 text-sm space-y-2">
-                <div>
-                  <span className="text-muted-foreground">Company:</span> <span className="font-medium">{result.company}</span>
+              <div className="rounded border border-cyan-500/20 bg-background/40 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-foreground">{result.company}</div>
+                  <Badge className="bg-cyan-500/10 text-cyan-200 border-cyan-500/20 animate-pulse">{result.score}/100</Badge>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Lead score:</span> <span className="font-medium">{result.score}/100</span>
+                <div className="text-xs text-muted-foreground">{formatRecent(result.updatedAt)}</div>
+                <div className="text-sm">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Why this lead now</div>
+                  <p className="mt-1 text-foreground line-clamp-2">{result.whyNow}</p>
                 </div>
-                <div>
-                  <div className="text-muted-foreground">Why this lead is a good fit:</div>
-                  <div className="text-foreground">{result.whyNow}</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Top signals:</div>
-                  <ul className="list-disc pl-5">
-                    {result.triggers.slice(0, 2).map((signal) => (
-                      <li key={signal}>{signal}</li>
+                <div className="text-sm">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Based on</div>
+                  <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+                    {(result.scoreFactors ?? []).slice(0, 3).map((factor) => (
+                      <li key={factor}>{factor}</li>
                     ))}
                   </ul>
                 </div>
-                <div className="rounded border border-cyan-500/10 bg-card/50 p-3 text-muted-foreground">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">AI-generated outreach message</div>
-                  {result.outreach.subject ? (
-                    <div className="mt-2 text-foreground text-sm">
+                <div className="rounded border border-cyan-500/10 bg-card/50 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Suggested outreach</div>
+                  {messageVariant === 'default' && result.outreach.subject ? (
+                    <div className="mt-2 text-sm text-foreground">
                       <span className="font-medium">Subject:</span> {result.outreach.subject}
                     </div>
                   ) : null}
-                  <p className="mt-2 whitespace-pre-wrap text-sm">{result.outreach.body}</p>
+                  <p className="mt-2 text-sm text-muted-foreground line-clamp-4">{computeVariantMessage(result)}</p>
                 </div>
+                {!hasCopiedOutreach ? <div className="text-xs text-muted-foreground">Primary action: copy this outreach to use it right now.</div> : null}
+                {hasCopiedOutreach ? (
+                  <div className="flex flex-wrap gap-2 opacity-85">
+                    <Button type="button" variant="outline" onClick={() => setMessageVariant('default')}>
+                      Regenerate
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setMessageVariant('shorter')}>
+                      Make shorter
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setMessageVariant('aggressive')}>
+                      More aggressive
+                    </Button>
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  onClick={() => void copyOutreach()}
+                  className={`neon-border hover:glow-effect w-full sm:w-auto ${hasCopiedOutreach ? '' : 'ring-2 ring-cyan-400/40 animate-pulse'}`}
+                >
+                  {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
+                  {copied ? 'Copied' : 'Copy Message'}
+                </Button>
+                {copied ? <div className="text-xs text-green-300">Message copied.</div> : null}
               </div>
 
-              <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-4">
-                <div className="font-medium text-foreground">Want to see all matched leads?</div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Open your limited preview now. Leads refresh daily and only a small set is visible before upgrade.
-                </p>
-                <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  <Button onClick={openLeadResultsPreview} className="neon-border hover:glow-effect">
-                    View lead results
+              {hasCopiedOutreach ? (
+                <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                  <div className="font-medium text-foreground">Nice - you can send this right now.</div>
+                  <div className="text-sm text-foreground">Want 50 more like this?</div>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>- Message copied</li>
+                    <li>- Ready to send</li>
+                    <li>- Based on real signals</li>
+                  </ul>
+                  <div className="text-sm text-foreground">Would you send this?</div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant={commitmentChoice === 'yes' ? 'default' : 'outline'} onClick={() => setCommitmentChoice('yes')}>
+                      Yes
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={commitmentChoice === 'maybe' ? 'default' : 'outline'}
+                      onClick={() => setCommitmentChoice('maybe')}
+                    >
+                      Maybe
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground">Save this lead to track outreach?</div>
+                  <Button type="button" variant="outline" onClick={handleCampaignHook}>
+                    Add to Campaign
                   </Button>
-                  <Button asChild variant="outline">
-                    <Link href="/pricing">See upgrade options</Link>
+                  <div className="text-sm text-foreground">Share this lead</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" onClick={() => void copyShareLink()}>
+                      {copiedShareLink ? 'Link copied' : 'Copy link'}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => void shareLead()}>
+                      Share
+                    </Button>
+                  </div>
+                  <div className="text-sm text-foreground">Share this result</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" onClick={() => openSocialShare('linkedin')}>
+                      Share on LinkedIn
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => openSocialShare('twitter')}>
+                      Share on Twitter
+                    </Button>
+                  </div>
+                  <div className="rounded border border-purple-500/20 bg-purple-500/5 p-3 space-y-2">
+                    <div className="font-medium text-foreground">Invite your team</div>
+                    <div className="text-xs text-muted-foreground">
+                      Bring teammates into this workflow so they can help run follow-up and close faster.
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/settings/team">Invite teammates</Link>
+                    </Button>
+                  </div>
+                  <Button asChild className={`neon-border hover:glow-effect ${commitmentChoice === 'yes' ? 'ring-2 ring-emerald-400/40 animate-pulse' : ''}`}>
+                    <Link href="/pricing">Unlock Full Pipeline</Link>
                   </Button>
                 </div>
+              ) : null}
+
+              <div className="rounded border border-cyan-500/20 bg-cyan-500/10 p-4">
+                <div className="text-xs uppercase tracking-wide text-cyan-200">Step 3 of 3</div>
+                <div className="mt-2 font-semibold text-foreground">You&apos;ve unlocked 3 high-quality leads.</div>
+                <p className="mt-1 text-sm text-foreground">These companies are actively growing and hiring.</p>
+                <div className="mt-3 text-sm text-muted-foreground">
+                  {upgradePromptReason === 'copy_action'
+                    ? "You've already found and copied a high-intent lead message - don't lose momentum now."
+                    : "You've already found high-intent leads in minutes - don't lose momentum now."}{' '}
+                  Unlock 50+ more leads with no manual research.
+                </div>
+                <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                  <li>- 50+ similar leads</li>
+                  <li>- Full contact data</li>
+                  <li>- AI outreach sequences</li>
+                  <li>- Daily new opportunities</li>
+                </ul>
+                <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                  <Button asChild className="neon-border hover:glow-effect">
+                    <Link href="/pricing">Unlock All Leads</Link>
+                  </Button>
+                  <Button onClick={openLeadResultsPreview} variant="outline">
+                    View lead results
+                  </Button>
+                </div>
+                <div className="mt-3 text-xs text-muted-foreground">Leads refresh daily | Cancel anytime</div>
               </div>
 
               <div className="rounded border border-amber-500/20 bg-amber-500/5 p-4">
@@ -249,6 +525,13 @@ export function DemoClient() {
                   >
                     See pricing
                   </Link>
+                </div>
+                <div className="mt-3 rounded border border-cyan-500/20 bg-background/40 p-3 text-sm">
+                  <div className="font-medium text-foreground">Invite your team</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Bring teammates into shared campaign execution.</div>
+                  <Button asChild variant="outline" className="mt-3">
+                    <Link href="/settings/team">Invite teammates</Link>
+                  </Button>
                 </div>
               </div>
             </CardContent>
