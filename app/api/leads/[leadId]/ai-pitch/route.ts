@@ -65,6 +65,18 @@ type UsageSummary = {
   windowStart: string
 }
 
+function getApiSchemaClient(
+  supabase: ReturnType<typeof createRouteClient>
+):
+  | ReturnType<ReturnType<typeof createRouteClient>['schema']>
+  | null {
+  const schemaFactory = (supabase as unknown as {
+    schema?: (name: string) => ReturnType<ReturnType<typeof createRouteClient>['schema']>
+  }).schema
+  if (typeof schemaFactory !== 'function') return null
+  return schemaFactory('api')
+}
+
 function parseStoredOutputs(raw: string): z.infer<typeof AiPitchOutputsSchema> | null {
   try {
     const parsed = JSON.parse(raw) as unknown
@@ -136,8 +148,10 @@ async function getAiPitchIterationHistory(args: {
   leadId: string
   limit?: number
 }): Promise<Array<{ id: string; generationId: string; outputs: z.infer<typeof AiPitchOutputsSchema>; improveContext: string | null; createdAt: string }>> {
-  const { data, error } = await args.supabase
-    .schema('api')
+  const apiSchemaClient = getApiSchemaClient(args.supabase)
+  if (!apiSchemaClient) return []
+
+  const { data, error } = await apiSchemaClient
     .from('lead_ai_pitch_iterations')
     .select('id, generation_id, lead_id, user_id, outputs, improve_context, created_at')
     .eq('user_id', args.userId)
@@ -318,23 +332,26 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ leadId
           return fail(ErrorCode.DATABASE_ERROR, 'Failed to save AI generation', undefined, undefined, bridge, requestId)
         }
 
-        await supabase
-          .schema('api')
-          .from('lead_ai_pitch_iterations')
-          .insert({
-            generation_id: inserted.id,
-            lead_id: lead.id,
-            user_id: userId,
-            outputs: generated.outputs,
-            improve_context: promptInput.improveContext ?? null,
-          })
-          .throwOnError()
+        let refreshedHistory = historyRows
+        const apiSchemaClient = getApiSchemaClient(supabase)
+        if (apiSchemaClient) {
+          await apiSchemaClient
+            .from('lead_ai_pitch_iterations')
+            .insert({
+              generation_id: inserted.id,
+              lead_id: lead.id,
+              user_id: userId,
+              outputs: generated.outputs,
+              improve_context: promptInput.improveContext ?? null,
+            })
+            .throwOnError()
 
-        const refreshedHistory = await getAiPitchIterationHistory({
-          supabase,
-          userId,
-          leadId: parsedLeadId.data,
-        })
+          refreshedHistory = await getAiPitchIterationHistory({
+            supabase,
+            userId,
+            leadId: parsedLeadId.data,
+          })
+        }
 
         const usageAfter: UsageSummary = {
           ...usage,

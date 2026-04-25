@@ -44,22 +44,13 @@ export type SavedSearchRow = {
   created_at: string
   updated_at: string
 }
-type ApiSchemaClient = SupabaseClient<unknown, 'api', unknown>
-
-function asApiSchemaClient(supabase: SupabaseClient): ApiSchemaClient {
-  const schemaClientFactory = (supabase as unknown as { schema?: (name: string) => ApiSchemaClient }).schema
-  if (schemaClientFactory) {
-    return schemaClientFactory('api')
-  }
-  return supabase as unknown as ApiSchemaClient
-}
 
 export async function listSavedSearchesForUser(args: {
   supabase: SupabaseClient
   userId: string
 }): Promise<SavedSearchRow[]> {
-  const client = asApiSchemaClient(args.supabase)
-  const { data, error } = await client
+  const { data, error } = await args.supabase
+    .schema('api')
     .from('saved_searches')
     .select('id, user_id, name, query_payload, last_run_at, last_notified_at, created_at, updated_at')
     .eq('user_id', args.userId)
@@ -74,8 +65,8 @@ export async function createSavedSearch(args: {
   userId: string
   input: z.infer<typeof SavedSearchCreateSchema>
 }): Promise<SavedSearchRow> {
-  const client = asApiSchemaClient(args.supabase)
-  const { data, error } = await client
+  const { data, error } = await args.supabase
+    .schema('api')
     .from('saved_searches')
     .insert({
       user_id: args.userId,
@@ -99,14 +90,19 @@ export async function updateSavedSearch(args: {
     lastNotifiedAt?: string
   }
 }): Promise<SavedSearchRow> {
-  const client = asApiSchemaClient(args.supabase)
-  const patch: Record<string, unknown> = {}
+  const patch: {
+    name?: string
+    query_payload?: SavedSearchPayload
+    last_run_at?: string
+    last_notified_at?: string
+  } = {}
   if (args.patch.name !== undefined) patch.name = args.patch.name
   if (args.patch.queryPayload !== undefined) patch.query_payload = args.patch.queryPayload
   if (args.patch.lastRunAt !== undefined) patch.last_run_at = args.patch.lastRunAt
   if (args.patch.lastNotifiedAt !== undefined) patch.last_notified_at = args.patch.lastNotifiedAt
 
-  const { data, error } = await client
+  const { data, error } = await args.supabase
+    .schema('api')
     .from('saved_searches')
     .update(patch)
     .eq('id', args.id)
@@ -122,8 +118,12 @@ export async function deleteSavedSearch(args: {
   userId: string
   id: string
 }): Promise<void> {
-  const client = asApiSchemaClient(args.supabase)
-  const { error } = await client.from('saved_searches').delete().eq('id', args.id).eq('user_id', args.userId)
+  const { error } = await args.supabase
+    .schema('api')
+    .from('saved_searches')
+    .delete()
+    .eq('id', args.id)
+    .eq('user_id', args.userId)
   if (error) throw error
 }
 

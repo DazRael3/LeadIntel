@@ -6,6 +6,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import {
   SavedSearchCreateSchema,
+  SavedSearchPayloadSchema,
   SavedSearchRunSchema,
   createSavedSearch,
   deleteSavedSearch,
@@ -23,7 +24,7 @@ const QuerySchema = z.object({
 const PatchBodySchema = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(120).optional(),
-  queryPayload: z.record(z.string(), z.unknown()).optional(),
+  queryPayload: SavedSearchPayloadSchema.optional(),
 })
 
 const DeleteBodySchema = z.object({

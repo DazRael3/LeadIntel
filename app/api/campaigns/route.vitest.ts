@@ -18,7 +18,7 @@ const createCampaignRecordMock = vi.fn(async () => {
     created_by: 'user_1',
     name: 'Q2 Campaign',
     objective: null,
-    status: 'draft',
+    status: 'new',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
@@ -71,10 +71,23 @@ vi.mock('@/lib/services/campaigns', () => ({
   CampaignCreateSchema: z.object({
     name: z.string().trim().min(1).max(160),
     objective: z.string().trim().max(2000).nullable().optional(),
-    status: z.enum(['draft', 'active', 'paused', 'archived']).optional(),
+    status: z.enum(['new', 'contacted', 'responded', 'closed', 'active', 'paused', 'archived']).optional(),
     leadIds: z.array(z.string().uuid()).max(200).optional(),
   }),
   canCreateCampaign: (role: string) => role !== 'viewer',
+  summarizeCampaignStatuses: vi.fn(() => ({
+    total: mockCampaigns.length,
+    byStatus: {
+      new: 0,
+      contacted: 0,
+      responded: 0,
+      closed: 0,
+      active: 0,
+      paused: 0,
+      archived: 0,
+    },
+    completionPct: 0,
+  })),
   createCampaignRecord: createCampaignRecordMock,
   getOwnedLeadRows: vi.fn(async ({ leadIds }: { leadIds: string[] }) =>
     leadIds
@@ -141,7 +154,7 @@ describe('/api/campaigns', () => {
         created_by: 'user_1',
         name: 'Pipeline Push',
         objective: null,
-        status: 'draft',
+        status: 'new',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
