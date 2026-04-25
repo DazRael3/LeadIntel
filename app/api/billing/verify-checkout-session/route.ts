@@ -4,13 +4,14 @@ import Stripe from 'stripe'
 
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { createRouteClient } from '@/lib/supabase/route'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { serverEnv } from '@/lib/env'
 import { stripe } from '@/lib/stripe'
 import { logger } from '@/lib/observability/logger'
 import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
 import { planIdForTier, resolveTierFromStripePriceId, type Tier } from '@/lib/billing/stripePriceMap'
+import { productPlanForTier } from '@/lib/billing/product-plan'
+import { resolveUserSubscriptionTierFromStripe } from '@/lib/billing/stripe-subscription-tier'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,8 +100,11 @@ export const GET = withApiGuard(
       const schema = 'api' as const
       const admin = createSupabaseAdminClient({ schema })
 
-      // Keep app behavior consistent: users table stores free/pro markers, while API tier is resolved as Starter/Closer.
-      const userUpdate = await admin.from('users').update({ subscription_tier: 'pro' }).eq('id', userId)
+      const resolvedSubscriptionTier = resolveUserSubscriptionTierFromStripe({
+        status,
+        stripePriceId: priceId,
+      })
+      const userUpdate = await admin.from('users').update({ subscription_tier: resolvedSubscriptionTier }).eq('id', userId)
       if (userUpdate?.error) {
         throw new Error(
           typeof userUpdate.error.message === 'string' && userUpdate.error.message.length > 0
@@ -166,7 +170,12 @@ export const GET = withApiGuard(
         sessionId: truncateSessionId(session_id),
       })
 
-      return ok({ verified: true, plan: 'pro' as const, tier, planId }, undefined, bridge, requestId)
+      return ok(
+        { verified: true, plan: productPlanForTier(tier), tier, planId },
+        undefined,
+        bridge,
+        requestId
+      )
     } catch (error) {
       logger.error({
         level: 'error',

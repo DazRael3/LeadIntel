@@ -40,4 +40,3 @@ describe('/pricing/success', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/dashboard'))
   })
 })
-

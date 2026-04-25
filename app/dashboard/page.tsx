@@ -7,6 +7,9 @@ import { getBuildInfo } from '@/lib/debug/buildInfo'
 import { checkLifecycleForUser } from '@/lib/lifecycle/checkUser'
 import { isReviewMode } from '@/lib/review/server'
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
+import { DEMO_HANDOFF_COOKIE } from '@/lib/demo/handoff'
+import { claimDemoHandoffFromCookieToken } from '@/lib/demo/claim'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +53,21 @@ export default async function DashboardPage({
   
   if (authError || !user) {
     redirect('/login?mode=signin&redirect=/dashboard')
+  }
+
+  // Safety-net claim for password login flows that bypass auth callback redirect.
+  try {
+    const cookieStore = await cookies()
+    const handoffToken = cookieStore.get(DEMO_HANDOFF_COOKIE)?.value ?? null
+    if (handoffToken) {
+      await claimDemoHandoffFromCookieToken({
+        token: handoffToken,
+        userId: user.id,
+        supabase,
+      })
+    }
+  } catch {
+    // Never block dashboard render on best-effort handoff claim.
   }
 
   // Safe defaults

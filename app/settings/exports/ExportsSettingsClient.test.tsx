@@ -91,4 +91,5 @@ describe('ExportsSettingsClient', () => {
     })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+
 })

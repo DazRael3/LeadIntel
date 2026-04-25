@@ -127,6 +127,12 @@ export function DashboardHeader() {
                         Email preferences
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings/billing">
+                        <DollarSign className="h-4 w-4" />
+                        Billing
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     {showPaidNav ? (
                       <DropdownMenuItem asChild>

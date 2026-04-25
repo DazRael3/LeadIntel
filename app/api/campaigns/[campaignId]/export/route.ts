@@ -1,0 +1,119 @@
+import { NextRequest } from 'next/server'
+import { z } from 'zod'
+import { withApiGuard } from '@/lib/api/guard'
+import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
+import { createRouteClient } from '@/lib/supabase/route'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { canManageCampaign, getCampaignById, getOwnedLeadRows, listCampaignLeadJoins } from '@/lib/services/campaigns'
+import { requireCapability } from '@/lib/billing/require-capability'
+import { toCsv } from '@/lib/exports/csv'
+import { getExportDownload, uploadExportCsv } from '@/lib/exports/storage'
+
+export const dynamic = 'force-dynamic'
+
+const CampaignIdSchema = z.string().uuid('Invalid campaign id')
+
+export async function POST(request: NextRequest, ctx: { params: Promise<{ campaignId: string }> }) {
+  const { campaignId: rawCampaignId } = await ctx.params
+  const parsedCampaignId = CampaignIdSchema.safeParse(rawCampaignId)
+  if (!parsedCampaignId.success) {
+    return fail(ErrorCode.VALIDATION_ERROR, 'Invalid campaign id')
+  }
+
+  const campaignId = parsedCampaignId.data
+  const POST_HANDLER = withApiGuard(async (guardRequest, { requestId, userId }) => {
+    const bridge = createCookieBridge()
+    const supabase = createRouteClient(guardRequest, bridge)
+    try {
+      if (!userId) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
+      const user = await getUserSafe(supabase)
+      if (!user) {
+        return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
+
+      const capability = await requireCapability({
+        userId: user.id,
+        sessionEmail: user.email ?? null,
+        supabase,
+        capability: 'governance_exports',
+      })
+      if (!capability.ok) {
+        return fail(ErrorCode.FORBIDDEN, 'Export requires a paid plan', undefined, undefined, bridge, requestId)
+      }
+
+      await ensurePersonalWorkspace({ supabase, userId: user.id })
+      const workspace = await getCurrentWorkspace({ supabase, userId: user.id })
+      if (!workspace) {
+        return fail(ErrorCode.INTERNAL_ERROR, 'Workspace unavailable', undefined, undefined, bridge, requestId)
+      }
+
+      const membership = await getWorkspaceMembership({ supabase, workspaceId: workspace.id, userId: user.id })
+      if (!membership) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+      }
+
+      const campaign = await getCampaignById({
+        supabase,
+        workspaceId: workspace.id,
+        campaignId,
+      })
+      if (!campaign) {
+        return fail(ErrorCode.NOT_FOUND, 'Campaign not found', undefined, { status: 404 }, bridge, requestId)
+      }
+
+      if (!canManageCampaign(membership.role, campaign.created_by, user.id)) {
+        return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
+      }
+
+      const joins = await listCampaignLeadJoins({
+        supabase,
+        workspaceId: workspace.id,
+        campaignId: campaign.id,
+      })
+      const leadRows = await getOwnedLeadRows({
+        supabase,
+        userId: user.id,
+        leadIds: joins.map((join) => join.lead_id),
+      })
+
+      const csv = toCsv(
+        leadRows.map((lead) => ({
+          campaign_id: campaign.id,
+          campaign_name: campaign.name,
+          lead_id: lead.id,
+          company_name: lead.company_name ?? '',
+          company_domain: lead.company_domain ?? '',
+          company_url: lead.company_url ?? '',
+          prospect_email: lead.prospect_email ?? '',
+          created_at: lead.created_at ?? '',
+        }))
+      )
+
+      const uploaded = await uploadExportCsv({
+        workspaceId: workspace.id,
+        jobId: `campaign-${campaign.id}-${Date.now()}`,
+        csv,
+      })
+      const download = await getExportDownload({ filePath: uploaded.filePath })
+
+      return ok(
+        {
+          campaignId: campaign.id,
+          filePath: uploaded.filePath,
+          rows: leadRows.length,
+          ...(download.mode === 'signedUrl' ? { downloadUrl: download.url } : { inlineCsv: download.content }),
+        },
+        undefined,
+        bridge,
+        requestId
+      )
+    } catch (error) {
+      return asHttpError(error, '/api/campaigns/[campaignId]/export', userId ?? undefined, bridge, requestId)
+    }
+  })
+
+  return POST_HANDLER(request)
+}

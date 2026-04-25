@@ -121,7 +121,7 @@ export default function UseCasesPage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <Button asChild className="neon-border hover:glow-effect">
-              <Link href="/#try-sample">Generate a sample digest</Link>
+              <Link href="/demo">Generate My First Leads</Link>
             </Button>
             <Button asChild variant="outline">
               <Link href="/pricing">See pricing</Link>
@@ -222,7 +222,7 @@ export default function UseCasesPage() {
                   <Link href={u.href}>View the play</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/#try-sample">Try a sample digest</Link>
+                  <Link href="/demo">Try lead search demo</Link>
                 </Button>
               </div>
             </CardContent>

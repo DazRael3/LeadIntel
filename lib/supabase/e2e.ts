@@ -86,6 +86,22 @@ function getPlanFromCookie(getCookie: (name: string) => string | null | undefine
   return 'free'
 }
 
+function matchesFilters(row: AnyRow, filters: Record<string, unknown>): boolean {
+  return Object.entries(filters).every(([key, filter]) => {
+    const raw = row[key]
+    if (filter && typeof filter === 'object' && 'op' in (filter as { op?: unknown })) {
+      const op = String((filter as { op?: unknown }).op ?? '')
+      const val = (filter as { value?: unknown }).value
+      if (op === 'eq' || op === 'is') return raw === val
+      if (op === 'gte') return String(raw ?? '') >= String(val ?? '')
+      if (op === 'lte') return String(raw ?? '') <= String(val ?? '')
+      if (op === 'in') return Array.isArray(val) && val.includes(raw)
+      return true
+    }
+    return raw === filter
+  })
+}
+
 class E2EQuery<T = unknown> {
   private table: string
   private ctx: { userId: string; plan: PlanTier }
@@ -119,7 +135,8 @@ class E2EQuery<T = unknown> {
     if (column) this.filters[column] = { op: 'is', value }
     return this
   }
-  in() {
+  in(column?: string, values?: unknown[]) {
+    if (column) this.filters[column] = { op: 'in', value: Array.isArray(values) ? values : [] }
     return this
   }
   not() {
@@ -174,33 +191,77 @@ class E2EQuery<T = unknown> {
     // Count queries (head: true) are used by activation and other surfaces.
     if (this.isCountQuery) {
       const rows = readRows(this.table)
-      const filtered = rows.filter((r) =>
-        Object.entries(this.filters).every(([k, v]) => {
-          const raw = (r as AnyRow)[k]
-          if (v && typeof v === 'object' && 'op' in (v as any)) {
-            const op = String((v as any).op)
-            const val = (v as any).value as unknown
-            if (op === 'eq' || op === 'is') return raw === val
-            if (op === 'gte') return String(raw ?? '') >= String(val ?? '')
-            if (op === 'lte') return String(raw ?? '') <= String(val ?? '')
-            return true
-          }
-          return raw === v
-        })
-      )
+      const filtered = rows.filter((r) => matchesFilters(r, this.filters))
       return { data: null, error: null, count: filtered.length }
     }
 
-    // Users table: provide subscription_tier (drives plan gating in UI/API).
+    // Users table: persistent in-memory rows with cookie-driven tier override.
     if (this.table === 'users') {
-      const row = {
+      const nowIso = new Date().toISOString()
+      const base = {
         id: this.ctx.userId,
         subscription_tier: this.ctx.plan,
         stripe_customer_id: 'cus_e2e',
         last_unlock_date: null,
+        created_at: nowIso,
+        updated_at: nowIso,
       }
-      if (this.forceSingle) return { data: row, error: null }
-      return { data: [row], error: null }
+      let rows = readRows(this.table)
+      const idx = rows.findIndex((row) => String(row.id ?? '') === this.ctx.userId)
+      if (idx >= 0) {
+        rows[idx] = {
+          ...base,
+          ...rows[idx],
+          subscription_tier: this.ctx.plan,
+          updated_at: nowIso,
+        }
+      } else {
+        rows = rows.concat(base)
+      }
+      const match = (row: AnyRow): boolean => matchesFilters(row, this.filters)
+
+      if (this.mode === 'delete') {
+        rows = rows.filter((row) => !match(row))
+        writeRows(this.table, rows)
+        return { data: null, error: null }
+      }
+
+      if (this.mode === 'update') {
+        const patch = this.updatePatch ?? {}
+        rows = rows.map((row) => (match(row) ? { ...row, ...patch, updated_at: nowIso } : row))
+        writeRows(this.table, rows)
+        const updated = rows.filter((row) => match(row))
+        if (this.forceSingle) return { data: updated[0] ?? null, error: null }
+        return { data: updated, error: null }
+      }
+
+      if (this.mode === 'insert' || this.mode === 'upsert') {
+        const inserted = (this.pendingRows ?? []).map((row) => {
+          const next = { ...(row as AnyRow) }
+          if (!next.id) next.id = randomUuid()
+          if (!next.subscription_tier) next.subscription_tier = this.ctx.plan
+          if (!next.created_at) next.created_at = nowIso
+          next.updated_at = nowIso
+          return next
+        })
+        if (this.mode === 'upsert') {
+          for (const next of inserted) {
+            const id = String(next.id ?? '')
+            rows = rows.filter((row) => String(row.id ?? '') !== id)
+            rows.push(next)
+          }
+        } else {
+          rows = rows.concat(inserted)
+        }
+        writeRows(this.table, rows)
+        if (this.forceSingle) return { data: inserted[0] ?? null, error: null }
+        return { data: inserted, error: null }
+      }
+
+      writeRows(this.table, rows)
+      const selected = rows.filter((row) => match(row))
+      if (this.forceSingle) return { data: selected[0] ?? null, error: null }
+      return { data: selected, error: null }
     }
 
     // Market watchlist: persistent per test user id.
@@ -252,24 +313,17 @@ class E2EQuery<T = unknown> {
       this.table === 'template_sets' ||
       this.table === 'templates' ||
       this.table === 'audit_logs' ||
+      this.table === 'trigger_events' ||
+      this.table === 'demo_sessions' ||
+      this.table === 'campaigns' ||
+      this.table === 'campaign_leads' ||
+      this.table === 'subscriptions' ||
       this.table === 'webhook_endpoints' ||
       this.table === 'webhook_deliveries' ||
       this.table === 'export_jobs'
     ) {
       let rows = readRows(this.table)
-      const match = (r: AnyRow): boolean =>
-        Object.entries(this.filters).every(([k, v]) => {
-          const raw = (r as AnyRow)[k]
-          if (v && typeof v === 'object' && 'op' in (v as any)) {
-            const op = String((v as any).op)
-            const val = (v as any).value as unknown
-            if (op === 'eq' || op === 'is') return raw === val
-            if (op === 'gte') return String(raw ?? '') >= String(val ?? '')
-            if (op === 'lte') return String(raw ?? '') <= String(val ?? '')
-            return true
-          }
-          return raw === v
-        })
+      const match = (r: AnyRow): boolean => matchesFilters(r, this.filters)
 
       if (this.mode === 'delete') {
         rows = rows.filter((r) => !match(r))
@@ -311,6 +365,23 @@ class E2EQuery<T = unknown> {
           if (this.table === 'audit_logs') {
             if (!row.created_at) row.created_at = new Date().toISOString()
           }
+          if (this.table === 'trigger_events') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+          }
+          if (this.table === 'demo_sessions') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+          }
+          if (this.table === 'campaigns') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+            if (!row.updated_at) row.updated_at = row.created_at
+          }
+          if (this.table === 'campaign_leads') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+          }
+          if (this.table === 'subscriptions') {
+            if (!row.created_at) row.created_at = new Date().toISOString()
+            if (!row.updated_at) row.updated_at = row.created_at
+          }
           if (this.table === 'webhook_deliveries') {
             if (!row.created_at) row.created_at = new Date().toISOString()
             if (!row.updated_at) row.updated_at = row.created_at
@@ -333,6 +404,27 @@ class E2EQuery<T = unknown> {
               const ws = String(ins.workspace_id ?? '')
               const uid = String(ins.user_id ?? '')
               rows = rows.filter((r) => !(String(r.workspace_id ?? '') === ws && String(r.user_id ?? '') === uid))
+              rows.push(ins)
+            }
+          } else if (this.table === 'demo_sessions') {
+            for (const ins of inserted) {
+              const tokenHash = String(ins.token_hash ?? '')
+              rows = rows.filter((r) => String(r.token_hash ?? '') !== tokenHash)
+              rows.push(ins)
+            }
+          } else if (this.table === 'campaign_leads') {
+            for (const ins of inserted) {
+              const campaignId = String(ins.campaign_id ?? '')
+              const leadId = String(ins.lead_id ?? '')
+              rows = rows.filter(
+                (r) => !(String(r.campaign_id ?? '') === campaignId && String(r.lead_id ?? '') === leadId)
+              )
+              rows.push(ins)
+            }
+          } else if (this.table === 'campaigns' || this.table === 'subscriptions') {
+            for (const ins of inserted) {
+              const id = String(ins.id ?? '')
+              rows = rows.filter((r) => String(r.id ?? '') !== id)
               rows.push(ins)
             }
           } else {
@@ -408,14 +500,14 @@ export function createE2EBrowserSupabaseClient(): any {
           document.cookie = 'li_e2e_auth=1; path=/'
         }
         const user = getE2EUser(getBrowserCookie('li_e2e_uid'), getBrowserCookie('li_e2e_email'))
-        return { data: { user, session: { access_token: 'e2e' } }, error: null }
+        return { data: { user, session: { access_token: 'e2e', user } }, error: null }
       },
       signUp: async () => {
         if (typeof document !== 'undefined') {
           document.cookie = 'li_e2e_auth=1; path=/'
         }
         const user = getE2EUser(getBrowserCookie('li_e2e_uid'), getBrowserCookie('li_e2e_email'))
-        return { data: { user, session: { access_token: 'e2e' } }, error: null }
+        return { data: { user, session: { access_token: 'e2e', user } }, error: null }
       },
       signOut: async () => {
         if (typeof document !== 'undefined') {
@@ -428,7 +520,7 @@ export function createE2EBrowserSupabaseClient(): any {
           document.cookie = 'li_e2e_auth=1; path=/'
         }
         const user = getE2EUser(getBrowserCookie('li_e2e_uid'))
-        return { data: { user, session: { access_token: 'e2e' } }, error: null }
+        return { data: { user, session: { access_token: 'e2e', user } }, error: null }
       },
     },
     from: (table: string) => {

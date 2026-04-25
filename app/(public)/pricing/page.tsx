@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { JsonLd } from '@/components/seo/JsonLd'
 import PricingClientPage from './PricingClientPage'
+import { PageViewTrack } from '@/components/marketing/PageViewTrack'
 
 export const metadata: Metadata = {
   title: 'Pricing | LeadIntel',
@@ -33,28 +34,28 @@ export default function PricingPage() {
       itemListElement: [
         {
           '@type': 'Offer',
-          name: 'Starter',
+          name: 'Free',
           price: '0',
           priceCurrency: 'USD',
           url: 'https://raelinfo.com/pricing',
         },
         {
           '@type': 'Offer',
-          name: 'Closer',
+          name: 'Pro',
           price: '79',
           priceCurrency: 'USD',
           url: 'https://raelinfo.com/pricing',
         },
         {
           '@type': 'Offer',
-          name: 'Closer+',
+          name: 'Pro+',
           price: '149',
           priceCurrency: 'USD',
           url: 'https://raelinfo.com/pricing',
         },
         {
           '@type': 'Offer',
-          name: 'Team (base)',
+          name: 'Agency (base)',
           price: '249',
           priceCurrency: 'USD',
           url: 'https://raelinfo.com/pricing',
@@ -85,10 +86,10 @@ export default function PricingPage() {
       },
       {
         '@type': 'Question',
-        name: 'How do Team seats work?',
+        name: 'How do Agency seats work?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'Team includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later in Stripe.',
+          text: 'Agency includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later in Stripe.',
         },
       },
       {
@@ -104,6 +105,7 @@ export default function PricingPage() {
 
   return (
     <>
+      <PageViewTrack event="pricing_variant_seen" props={{ surface: 'pricing_page' }} />
       <JsonLd data={offersJsonLd} />
       <JsonLd data={faqJsonLd} />
       <PricingClientPage />

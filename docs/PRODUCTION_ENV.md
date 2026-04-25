@@ -2,17 +2,59 @@
 
 This document lists the **minimum required** environment variables for a safe production deploy.
 
+## Build-time vs runtime loading (Vercel)
+
+Use this rule:
+- **Build-time + runtime**: all `NEXT_PUBLIC_*` vars used by client/server bundles.
+- **Runtime only (server secrets)**: non-`NEXT_PUBLIC_*` secrets for API routes.
+
+### Build-time + runtime (must be set in Vercel for Production)
+- `NEXT_PUBLIC_APP_ENV=production`
+- `NEXT_PUBLIC_SITE_URL=https://dazrael.com`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (`pk_live_...`)
+- `ALLOWED_ORIGINS` (include `https://dazrael.com` and `https://www.dazrael.com`)
+
+### Runtime only (server secrets, Production env scope)
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `STRIPE_SECRET_KEY` (`sk_live_...`)
+- `STRIPE_WEBHOOK_SECRET` (`whsec_...`)
+- `STRIPE_PRICE_ID_PRO` (or legacy `STRIPE_PRICE_ID`)
+- `STRIPE_PRICE_ID_CLOSER_ANNUAL`
+- `STRIPE_PRICE_ID_CLOSER_PLUS`
+- `STRIPE_PRICE_ID_CLOSER_PLUS_ANNUAL`
+- `STRIPE_PRICE_ID_TEAM` **or** (`STRIPE_PRICE_ID_TEAM_BASE` + `STRIPE_PRICE_ID_TEAM_SEAT`)
+- `STRIPE_PRICE_ID_TEAM_ANNUAL` **or** (`STRIPE_PRICE_ID_TEAM_BASE_ANNUAL` + `STRIPE_PRICE_ID_TEAM_SEAT_ANNUAL`)
+- `OPENAI_API_KEY`
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+
+Optional runtime-only email stack (required if enabled):
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+- `RESEND_REPLY_TO_EMAIL` (recommended)
+- `LIFECYCLE_EMAILS_ENABLED`
+- `LIFECYCLE_ADMIN_NOTIFICATIONS_ENABLED`
+- `LIFECYCLE_ADMIN_EMAILS` (required when admin notifications enabled)
+
 ## Stripe (Billing)
 
 **Required**
 - `STRIPE_SECRET_KEY` (**secret**): `sk_live_...`
-- `STRIPE_WEBHOOK_SECRET` (**secret**): `whsec_...` for your production webhook endpoint
-- `STRIPE_PRICE_ID_PRO` (**secret-ish**): `price_...` for the **recurring $99/month** price
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (public): `pk_live_...`
+- `STRIPE_WEBHOOK_SECRET` (**secret**): `whsec_...` for your production webhook endpoint
+- Complete production price matrix:
+  - `STRIPE_PRICE_ID_PRO` (or `STRIPE_PRICE_ID`) monthly
+  - `STRIPE_PRICE_ID_CLOSER_ANNUAL`
+  - `STRIPE_PRICE_ID_CLOSER_PLUS`
+  - `STRIPE_PRICE_ID_CLOSER_PLUS_ANNUAL`
+  - `STRIPE_PRICE_ID_TEAM` (or base+seat monthly pair)
+  - `STRIPE_PRICE_ID_TEAM_ANNUAL` (or base+seat annual pair)
 
 **How pricing works**
-- The checkout session uses **subscription mode** for the **$99/month** Pro plan
-- Payment method is collected up-front (no Stripe trial configured)
+- Checkout supports monthly + annual for Pro / Pro+ / Agency.
+- Payment method is collected up-front (no Stripe trial configured in checkout flow).
 
 ## Supabase migrations (production branch)
 
@@ -37,6 +79,7 @@ This document lists the **minimum required** environment variables for a safe pr
 **Required**
 - `NEXT_PUBLIC_SITE_URL`: your production URL (e.g. `https://app.yourdomain.com`)
 - `ALLOWED_ORIGINS`: comma-separated list of allowed origins (should include `NEXT_PUBLIC_SITE_URL`)
+- `NEXT_PUBLIC_APP_ENV=production`
 
 ## Rate limiting (Upstash)
 
@@ -65,6 +108,10 @@ If these are missing in production, rate-limited routes will return **503** (int
 3) Copy the webhook signing secret (`whsec_...`) into:
 - `STRIPE_WEBHOOK_SECRET`
 
+4) Confirm feature flag behavior:
+- `FEATURE_STRIPE_WEBHOOK_ENABLED` defaults to enabled unless explicitly `0/false`.
+- If webhook feature is enabled, `STRIPE_WEBHOOK_SECRET` must be set.
+
 ## Local testing with Stripe CLI (recommended)
 
 ```bash
@@ -72,6 +119,20 @@ stripe listen --forward-to http://localhost:3000/api/stripe/webhook
 ```
 
 Then set `STRIPE_WEBHOOK_SECRET=whsec_...` in `.env.local` and restart the dev server.
+
+### Stripe CLI install (Windows)
+
+PowerShell (Scoop):
+```powershell
+scoop install stripe
+stripe --version
+```
+
+or Winget:
+```powershell
+winget install Stripe.StripeCLI
+stripe --version
+```
 
 ## Trigger Events Providers (optional, recommended)
 

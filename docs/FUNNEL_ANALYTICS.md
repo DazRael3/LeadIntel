@@ -17,6 +17,13 @@ When enabled:
 
 ## Top-of-funnel events
 
+- `landing_viewed`
+- `demo_started`
+- `lead_search_completed`
+- `signup_started`
+- `signup_completed`
+- `checkout_started`
+- `subscription_created`
 - `homepage_cta_sample_clicked`
 - `homepage_cta_pricing_clicked`
 - `trust_center_cta_clicked`

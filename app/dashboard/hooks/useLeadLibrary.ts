@@ -11,6 +11,7 @@ type LeadRow = {
   company_domain: string | null
   company_url: string
   ai_personalized_pitch: string | null
+  prospect_email: string | null
   created_at: string | null
 }
 
@@ -25,7 +26,20 @@ type TriggerRow = {
 
 type LatestSignal = { type: string; detectedAt: string; title: string }
 
-type LeadWithLatestSignal = Lead & { latestSignal?: LatestSignal }
+type LeadWithLatestSignal = Lead & { latestSignal?: LatestSignal; fitExplanation?: string }
+
+function parseFitFromDraft(draft: string | null): { score?: number; explanation?: string } {
+  if (typeof draft !== 'string') return {}
+  const firstLine = draft.split('\n')[0] ?? ''
+  const matched = firstLine.match(/^\[LeadIntel Fit (\d{1,3})\/100\]\s*(.+)$/)
+  if (!matched) return {}
+  const score = Number.parseInt(matched[1], 10)
+  if (!Number.isFinite(score)) return {}
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    explanation: matched[2]?.trim() || undefined,
+  }
+}
 
 function isIsoString(value: unknown): value is string {
   if (typeof value !== 'string') return false
@@ -34,6 +48,7 @@ function isIsoString(value: unknown): value is string {
 }
 
 function toLeadModel(row: LeadRow, latestSignal: LatestSignal | null): LeadWithLatestSignal {
+  const fit = parseFitFromDraft(row.ai_personalized_pitch)
   return {
     id: row.id,
     company_name: row.company_name || row.company_domain || row.company_url,
@@ -41,6 +56,9 @@ function toLeadModel(row: LeadRow, latestSignal: LatestSignal | null): LeadWithL
     ai_personalized_pitch: row.ai_personalized_pitch || '',
     company_domain: row.company_domain || undefined,
     company_url: row.company_url || undefined,
+    prospect_email: row.prospect_email || undefined,
+    fit_score: fit.score,
+    fitExplanation: fit.explanation,
     created_at: row.created_at || new Date().toISOString(),
     ...(latestSignal ? { latestSignal } : {}),
   }
@@ -66,7 +84,7 @@ export function useLeadLibrary() {
 
       const { data: leadRows, error: leadError } = await supabase
         .from('leads')
-        .select('id, company_name, company_domain, company_url, ai_personalized_pitch, created_at')
+        .select('id, company_name, company_domain, company_url, prospect_email, ai_personalized_pitch, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 

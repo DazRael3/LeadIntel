@@ -23,6 +23,7 @@ import { COPY } from '@/lib/copy/leadintel'
 export default function LandingClient() {
   useEffect(() => {
     track('landing_view', { path: '/' })
+    track('landing_viewed', { path: '/', surface: 'landing' })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run once on mount
   }, [])
 
@@ -39,10 +40,13 @@ export default function LandingClient() {
                 <div className="flex flex-col sm:flex-row gap-3 mt-6">
                   <Button asChild size="lg" className="neon-border hover:glow-effect">
                     <Link
-                      href="#try-sample"
-                      onClick={() => track('homepage_primary_cta_clicked', { location: 'hero', cta: 'sample_digest' })}
+                      href="/demo"
+                      onClick={() => {
+                        track('homepage_primary_cta_clicked', { location: 'hero', cta: 'sample_digest' })
+                        track('demo_started', { source: 'landing_hero_cta' })
+                      }}
                     >
-                      {COPY.home.hero.primaryCta}
+                      Generate My First Leads
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">

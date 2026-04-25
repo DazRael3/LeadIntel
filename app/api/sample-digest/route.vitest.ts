@@ -100,5 +100,29 @@ describe('/api/sample-digest', () => {
     expect(json.data.email.requested).toBe(true)
     expect(json.data.email.sent).toBe(true)
   })
+
+  it('sets demo handoff cookie when session is stored', async () => {
+    vi.doMock('@/lib/demo/handoff', () => ({
+      createDemoSessionHandoff: vi.fn(async () => ({ token: 'token_1234567890token_1234567890' })),
+      setDemoHandoffCookie: vi.fn(({ response, token }: { response: Response; token: string }) => {
+        const nextResponse = response as unknown as { cookies: { set: (name: string, value: string, options: { path: string }) => void } }
+        nextResponse.cookies.set('li_demo_handoff', token, { path: '/' })
+      }),
+    }))
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/sample-digest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ companyOrUrl: 'Acme' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.handoff?.stored).toBe(true)
+    const setCookie = res.headers.get('set-cookie') ?? ''
+    expect(setCookie.includes('li_demo_handoff=token_1234567890token_1234567890')).toBe(true)
+  })
 })
 

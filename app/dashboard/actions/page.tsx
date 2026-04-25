@@ -25,7 +25,7 @@ export default async function ActionsPage() {
     userId: user.id,
     sessionEmail: user.email ?? null,
     supabase,
-    capability: 'team_dashboards',
+    capability: 'action_queue',
   })
   if (!gate.ok)
     return (
@@ -34,14 +34,15 @@ export default async function ActionsPage() {
         subtitle="Route follow-up work across your team with a shared action queue."
         currentTier={gate.tier}
         sessionEmail={user.email ?? null}
-        whyLocked="Actions is a Team feature because it coordinates shared execution (routing, ownership, and operational handoff) across multiple reps."
+        whyLocked="Actions requires at least the Pro plan because it coordinates campaign and follow-up execution."
         bullets={[
           'Shared action queue with clear ownership',
           'Operational routing to destinations and team workflows',
-          'Team visibility for managers and operators',
+          'Operational routing and campaign automation',
         ]}
-        primaryCtaHref="/pricing?target=team"
-        primaryCtaLabel="Upgrade to Team"
+        primaryCtaHref="/pricing?target=closer"
+        primaryCtaLabel="Upgrade to Pro"
+        unlockPlanLabel="Pro"
         secondaryCtaHref="/pricing"
         secondaryCtaLabel="See pricing"
       />

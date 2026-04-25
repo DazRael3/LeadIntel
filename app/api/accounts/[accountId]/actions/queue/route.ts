@@ -37,7 +37,7 @@ export const POST = withApiGuard(
       const accountId = extractAccountIdFromPath(new URL(request.url).pathname)
       if (!accountId) return fail(ErrorCode.VALIDATION_ERROR, 'Missing account id', undefined, { status: 400 }, bridge, requestId)
 
-      const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'integration_delivery_audit' })
+      const gate = await requireCapability({ userId: user.id, sessionEmail: user.email ?? null, supabase, capability: 'action_queue' })
       if (!gate.ok) return fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, requestId)
 
       await ensurePersonalWorkspace({ supabase, userId: user.id })

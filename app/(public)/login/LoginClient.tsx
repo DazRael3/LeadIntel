@@ -16,6 +16,10 @@ import { track } from '@/lib/analytics'
 import { identifyClientUser } from '@/lib/analytics/posthog-client'
 import { COPY } from '@/lib/copy/leadintel'
 
+async function claimDemoSession(): Promise<void> {
+  await fetch('/api/demo/claim', { method: 'POST' })
+}
+
 interface LoginClientProps {
   initialMode: 'signin' | 'signup'
   redirectTo: string
@@ -84,6 +88,7 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
     try {
       if (mode === 'signup') {
         track('signup_submitted')
+        track('signup_started', { source: 'auth_form', mode: 'signup' })
         // Sign up with email confirmation redirect
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
@@ -102,6 +107,11 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
           track('signup_success', { method: 'password' })
           track('signup_completed', { method: 'password' })
           identifyClientUser(data.session.user.id, { email: data.session.user.email ?? null })
+          try {
+            await claimDemoSession()
+          } catch {
+            // best-effort
+          }
           // Ensure lifecycle + user settings rows exist (idempotent).
           try {
             void fetch('/api/lifecycle/ensure', { method: 'POST' })
@@ -149,6 +159,11 @@ export function LoginClient({ initialMode, redirectTo }: LoginClientProps) {
         try {
           const { data } = await supabase.auth.getUser()
           if (data.user) identifyClientUser(data.user.id, { email: data.user.email ?? null })
+        } catch {
+          // best-effort
+        }
+        try {
+          await claimDemoSession()
         } catch {
           // best-effort
         }

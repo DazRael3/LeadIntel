@@ -215,5 +215,60 @@ describe('/api/checkout', () => {
     expect(arg?.line_items?.[0]?.price).toBe('price_test_team_seat_123')
     expect(arg?.line_items?.[0]?.quantity).toBe(7)
   })
+
+  it('POST accepts agency alias and maps to team checkout', async () => {
+    process.env.STRIPE_PRICE_ID_TEAM = 'price_test_team_seat_123'
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'agency', seats: 3 }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(createSession).toHaveBeenCalledTimes(1)
+    const arg = createSession.mock.calls[0]?.[0] as any
+    expect(arg?.line_items?.[0]?.price).toBe('price_test_team_seat_123')
+    expect(arg?.line_items?.[0]?.quantity).toBe(3)
+    expect(arg?.metadata?.plan_id).toBe('team')
+  })
+
+  it('POST falls back to localhost success/cancel URLs in development when site URL missing', async () => {
+    process.env.STRIPE_PRICE_ID_PRO = 'price_test_pro_123'
+    delete process.env.NEXT_PUBLIC_SITE_URL
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'pro' }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(createSession).toHaveBeenCalledTimes(1)
+    const arg = createSession.mock.calls[0]?.[0] as any
+    expect(arg?.success_url).toBe('http://localhost:3000/pricing/success?session_id={CHECKOUT_SESSION_ID}')
+    expect(arg?.cancel_url).toBe('http://localhost:3000/pricing')
+  })
+
+  it('POST includes detailed message in development when Stripe checkout create fails', async () => {
+    process.env.STRIPE_PRICE_ID_PRO = 'price_test_pro_123'
+    createSession
+      .mockRejectedValueOnce(new Error('No such customer: cus_bad'))
+      .mockRejectedValueOnce(new Error('No such customer: cus_retry_bad'))
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'pro' }),
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(500)
+    const json = await res.json()
+    expect(json.ok).toBe(false)
+    expect(String(json.error?.message ?? '')).toBe('Stripe checkout session creation failed')
+    expect(String(json.error?.details?.errorMessage ?? '')).toMatch(/No such customer/i)
+  })
 })
 

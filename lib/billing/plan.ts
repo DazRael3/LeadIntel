@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isHouseCloserEmail } from '@/lib/billing/houseAccounts'
+import { productPlanForTier } from '@/lib/billing/product-plan'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
 
@@ -85,7 +86,11 @@ export async function getPlan(supabase: SupabaseClient, userId: string): Promise
     .eq('id', userId)
     .maybeSingle()
 
-  if (userRow?.subscription_tier === 'pro') {
+  if (
+    userRow?.subscription_tier === 'pro' ||
+    userRow?.subscription_tier === 'closer_plus' ||
+    userRow?.subscription_tier === 'team'
+  ) {
     return 'pro'
   }
 
@@ -173,6 +178,7 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
  */
 export type DisplayPlanMeta = {
   tier: PlanTier
+  productPlan: 'free' | 'pro' | 'agency'
   creditsLabel: string
   planBubbleLabel: string
 }
@@ -197,30 +203,34 @@ export function getDisplayPlanMeta(plan: { tier?: unknown; plan?: unknown } | Pl
   if (tier === 'starter') {
     return {
       tier,
+      productPlan: 'free',
       creditsLabel: 'Starter (limited)',
-      planBubbleLabel: 'Starter (limited)',
+      planBubbleLabel: 'Free',
     }
   }
 
   if (tier === 'closer') {
     return {
       tier,
+      productPlan: 'pro',
       creditsLabel: '∞ Unlimited',
-      planBubbleLabel: 'Closer · $79 / month',
+      planBubbleLabel: 'Pro · $79 / month',
     }
   }
 
   if (tier === 'closer_plus') {
     return {
       tier,
+      productPlan: 'pro',
       creditsLabel: '∞ Unlimited',
-      planBubbleLabel: 'Closer+ · $149 / month',
+      planBubbleLabel: 'Pro+ · $149 / month',
     }
   }
 
   return {
     tier: 'team',
+    productPlan: 'agency',
     creditsLabel: '∞ Unlimited',
-    planBubbleLabel: 'Team · seat-based',
+    planBubbleLabel: 'Agency · seat-based',
   }
 }

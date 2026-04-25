@@ -68,9 +68,11 @@ class DashboardErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundary
 export function DashboardShell({
   children,
   marketDataSourceLabel,
+  activePathnamePrefix,
 }: {
   children: ReactNode
   marketDataSourceLabel?: string | null
+  activePathnamePrefix?: string
 }) {
   const { defaultTicker, yourWatchlist } = useMarketWatchlist()
 
@@ -81,6 +83,36 @@ export function DashboardShell({
         starredInstruments={yourWatchlist}
         dataSourceLabel={marketDataSourceLabel ?? null}
       />
+      {activePathnamePrefix === '/settings' ? (
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="flex flex-wrap gap-2 text-xs">
+            <a
+              href="/settings/notifications"
+              className="rounded border border-cyan-500/20 bg-card/40 px-2 py-1 text-muted-foreground hover:text-foreground"
+            >
+              Preferences
+            </a>
+            <a
+              href="/settings/billing"
+              className="rounded border border-cyan-500/20 bg-card/40 px-2 py-1 text-muted-foreground hover:text-foreground"
+            >
+              Billing
+            </a>
+            <a
+              href="/settings/exports"
+              className="rounded border border-cyan-500/20 bg-card/40 px-2 py-1 text-muted-foreground hover:text-foreground"
+            >
+              Exports
+            </a>
+            <a
+              href="/settings/team"
+              className="rounded border border-cyan-500/20 bg-card/40 px-2 py-1 text-muted-foreground hover:text-foreground"
+            >
+              Team
+            </a>
+          </div>
+        </div>
+      ) : null}
       {children}
     </DashboardErrorBoundary>
   )

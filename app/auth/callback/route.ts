@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import {
+  clearDemoHandoffCookieOnResponse,
+  claimDemoHandoffFromRequest,
+} from '@/lib/demo/claim'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
@@ -19,8 +23,26 @@ export async function GET(request: NextRequest) {
         new URL(`/login?error=${encodeURIComponent(error.message)}`, requestUrl.origin)
       )
     }
+
+    // Best-effort demo handoff claim so post-signup users land with persisted leads.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (user) {
+      try {
+        await claimDemoHandoffFromRequest({
+          request,
+          userId: user.id,
+          supabase,
+        })
+      } catch {
+        // Never block auth callback redirect for demo handoff failures.
+      }
+    }
   }
 
   // Redirect to the next URL (or default to dashboard)
-  return NextResponse.redirect(new URL(next, requestUrl.origin))
+  const response = NextResponse.redirect(new URL(next, requestUrl.origin))
+  clearDemoHandoffCookieOnResponse(response)
+  return response
 }
