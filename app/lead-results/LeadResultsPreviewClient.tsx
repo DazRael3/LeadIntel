@@ -15,8 +15,10 @@ export type PreviewLead = {
   score: number
   fitReason: string
   whyNow: string
+  scoreFactors: string[]
   outreachSubject: string | null
   outreachBody: string
+  updatedAtLabel: string
 }
 
 type LeadResultsPreviewClientProps = {
@@ -141,6 +143,13 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Why this lead is a good fit</div>
                 <p className="mt-2 text-sm text-foreground">{lead.fitReason}</p>
                 <p className="mt-2 text-xs text-muted-foreground">{lead.whyNow}</p>
+                <div className="mt-2 text-xs text-muted-foreground">{lead.updatedAtLabel}</div>
+                <div className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">Based on</div>
+                <ul className="mt-1 list-disc pl-5 text-xs text-muted-foreground">
+                  {lead.scoreFactors.slice(0, 3).map((factor) => (
+                    <li key={factor}>{factor}</li>
+                  ))}
+                </ul>
               </div>
 
               <div className="rounded border border-cyan-500/10 bg-background/40 p-3">

@@ -15,7 +15,9 @@ type DemoSearchResult = {
   company: string
   score: number
   triggers: string[]
+  scoreFactors: string[]
   whyNow: string
+  updatedAt: string
   outreach: {
     channel: 'email' | 'linkedin'
     subject?: string
@@ -35,6 +37,7 @@ export function DemoClient() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DemoSearchResult | null>(null)
   const [copied, setCopied] = useState(false)
+  const [messageVariant, setMessageVariant] = useState<'default' | 'shorter' | 'aggressive'>('default')
 
   const canSearch = useMemo(() => companyOrUrl.trim().length >= 2 && !loading, [companyOrUrl, loading])
 
@@ -98,11 +101,38 @@ export function DemoClient() {
     router.push(`/lead-results?company=${encodeURIComponent(company)}`)
   }
 
+  function formatRecent(value: string): string {
+    const ms = Date.parse(value)
+    if (!Number.isFinite(ms)) return 'Updated recently'
+    const mins = Math.max(1, Math.round((Date.now() - ms) / 60000))
+    if (mins < 60) return `Updated ${mins}m ago`
+    const hours = Math.round(mins / 60)
+    if (hours < 24) return `Updated ${hours}h ago`
+    return `Updated ${Math.round(hours / 24)}d ago`
+  }
+
+  function selectMessageBase(current: DemoSearchResult): string {
+    const parts = [current.outreach.subject ? `Subject: ${current.outreach.subject}` : null, current.outreach.body]
+      .filter((line): line is string => Boolean(line))
+    return parts.join('\n\n')
+  }
+
+  function computeVariantMessage(current: DemoSearchResult): string {
+    const base = selectMessageBase(current)
+    const triggerSignal = current.triggers[0] ?? 'recent activity'
+    if (messageVariant === 'shorter') {
+      return `Noticed ${triggerSignal.toLowerCase()} at ${current.company}. Worth a quick 10-minute intro this week?`
+    }
+    if (messageVariant === 'aggressive') {
+      return `Saw ${triggerSignal.toLowerCase()} at ${current.company}. If this is a priority this quarter, let's lock a quick call and I’ll show exactly how similar teams converted that signal into meetings.`
+    }
+    return base
+  }
+
   async function copyOutreach(): Promise<void> {
     if (!result) return
     const message = [
-      result.outreach.subject ? `Subject: ${result.outreach.subject}` : null,
-      result.outreach.body,
+      computeVariantMessage(result),
       '',
       'Generated with RaelInfo',
       'https://raelinfo.com',
@@ -194,18 +224,38 @@ export function DemoClient() {
                   <div className="font-medium text-foreground">{result.company}</div>
                   <Badge className="bg-cyan-500/10 text-cyan-200 border-cyan-500/20">{result.score}/100</Badge>
                 </div>
+                <div className="text-xs text-muted-foreground">{formatRecent(result.updatedAt)}</div>
                 <div className="text-sm">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Why this lead now</div>
                   <p className="mt-1 text-foreground line-clamp-2">{result.whyNow}</p>
                 </div>
+                <div className="text-sm">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Based on</div>
+                  <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+                    {(result.scoreFactors ?? []).slice(0, 3).map((factor) => (
+                      <li key={factor}>{factor}</li>
+                    ))}
+                  </ul>
+                </div>
                 <div className="rounded border border-cyan-500/10 bg-card/50 p-3">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Suggested outreach</div>
-                  {result.outreach.subject ? (
+                  {messageVariant === 'default' && result.outreach.subject ? (
                     <div className="mt-2 text-sm text-foreground">
                       <span className="font-medium">Subject:</span> {result.outreach.subject}
                     </div>
                   ) : null}
-                  <p className="mt-2 text-sm text-muted-foreground line-clamp-4">{result.outreach.body}</p>
+                  <p className="mt-2 text-sm text-muted-foreground line-clamp-4">{computeVariantMessage(result)}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" onClick={() => setMessageVariant('default')}>
+                    Regenerate
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setMessageVariant('shorter')}>
+                    Make shorter
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setMessageVariant('aggressive')}>
+                    More aggressive
+                  </Button>
                 </div>
                 <Button type="button" variant="outline" onClick={() => void copyOutreach()} className="neon-border hover:glow-effect">
                   {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
