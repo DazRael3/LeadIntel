@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { track } from '@/lib/analytics'
 
 export type LeadGenerationResponse = {
   strategy: {
@@ -285,6 +286,20 @@ export function LeadGenerationWorkflow({
                 </Button>
               </div>
             ) : null}
+            <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+              <div className="text-xs text-foreground">Invite a friend → get more leads</div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 h-7 text-xs"
+                onClick={() => {
+                  track('upgrade_clicked', { source: 'lead_generation_referral_hook' })
+                  window.location.href = '/settings/team'
+                }}
+              >
+                Invite a friend
+              </Button>
+            </div>
           </div>
         ) : null}
       </CardContent>

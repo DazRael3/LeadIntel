@@ -191,7 +191,12 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
 
   const handleCopy = async (key: CopyTarget) => {
     if (!latest) return
-    const text = latest.outputs[key]
+    const text = [
+      latest.outputs[key],
+      '',
+      'Generated with RaelInfo',
+      'https://dazrael.com',
+    ].join('\n')
     try {
       await navigator.clipboard.writeText(text)
       setCopiedKey(key)
@@ -211,7 +216,7 @@ export function LeadAiPitchPanel({ leadId, companyName }: LeadAiPitchPanelProps)
       '',
       latest.outputs.linkedinDm,
       '',
-      'Generated with LeadIntel',
+      'Generated with RaelInfo',
       'https://dazrael.com',
     ].join('\n')
     try {

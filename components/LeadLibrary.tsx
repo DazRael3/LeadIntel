@@ -330,7 +330,8 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
 
   const handleCopyPitch = async (pitch: string, leadId: string) => {
     try {
-      await navigator.clipboard.writeText(pitch)
+      const withAttribution = `${pitch}\n\nGenerated with RaelInfo`
+      await navigator.clipboard.writeText(withAttribution)
       setCopiedId(leadId)
       setTimeout(() => setCopiedId(null), 2000)
     } catch (error) {
@@ -359,7 +360,7 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
 
   const exportLeads = () => {
     const csv = [
-      ['Company', 'Domain', 'URL', 'Contact Email', 'Fit Score', 'Fit Explanation', 'Latest Signal', 'Created At'].join(','),
+      ['Company', 'Domain', 'URL', 'Contact Email', 'Fit Score', 'Fit Explanation', 'Latest Signal', 'Created At', 'Attribution'].join(','),
       ...filteredLeads.map((lead) => {
         const parsed = parseLeadFitSummary(lead.ai_personalized_pitch ?? '')
         const fitScore = typeof lead.fit_score === 'number' ? String(lead.fit_score) : parsed.score !== null ? String(parsed.score) : ''
@@ -373,6 +374,7 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
           `"${fitExplanation.replace(/"/g, '""')}"`,
           `"${((lead as unknown as { latestSignal?: { type?: string; detectedAt?: string } }).latestSignal?.type ?? '')}"`,
           `"${lead.created_at}"`,
+          '"Generated with RaelInfo"',
         ].join(',')
       }),
     ].join('\n')
@@ -495,6 +497,20 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
           </div>
           <div className="text-xs text-muted-foreground">
             Leads refresh daily. New opportunities available when you rerun saved searches.
+          </div>
+          <div className="rounded border border-cyan-500/10 bg-background/40 p-2">
+            <div className="text-xs text-foreground">Invite a friend &rarr; get more leads</div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 h-7 text-xs"
+              onClick={() => {
+                track('upgrade_clicked', { source: 'lead_library_referral_hook' })
+                window.location.href = '/settings/team'
+              }}
+            >
+              Invite a friend
+            </Button>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             <Badge variant="outline">

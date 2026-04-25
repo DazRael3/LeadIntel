@@ -30,6 +30,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
   const router = useRouter()
   const [copiedLeadId, setCopiedLeadId] = useState<string | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [copiedShareLink, setCopiedShareLink] = useState(false)
   const visibleLeads = useMemo(() => leads.slice(0, FREE_PREVIEW_LIMIT), [leads])
   const hiddenLeadCount = Math.max(0, leads.length - FREE_PREVIEW_LIMIT)
 
@@ -39,7 +40,13 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
   }, [company])
 
   async function copyOutreach(lead: PreviewLead): Promise<void> {
-    const message = [lead.outreachSubject ? `Subject: ${lead.outreachSubject}` : null, lead.outreachBody]
+    const message = [
+      lead.outreachSubject ? `Subject: ${lead.outreachSubject}` : null,
+      lead.outreachBody,
+      '',
+      'Generated with RaelInfo',
+      'https://dazrael.com',
+    ]
       .filter((line): line is string => Boolean(line))
       .join('\n\n')
     try {
@@ -49,6 +56,18 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
       track('demo_preview_outreach_copied', { source: 'lead_results_preview', leadId: lead.id })
     } catch {
       setCopiedLeadId(null)
+    }
+  }
+
+  async function copyShareLink(): Promise<void> {
+    const link = `${window.location.origin}/lead-results?company=${encodeURIComponent(company)}`
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedShareLink(true)
+      setTimeout(() => setCopiedShareLink(false), 1600)
+      track('lead_results_share_link_copied', { source: 'lead_results_preview', companyLen: company.length })
+    } catch {
+      setCopiedShareLink(false)
     }
   }
 
@@ -67,6 +86,16 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
         <p className="text-sm text-muted-foreground max-w-3xl">
           Preview your best-fit leads for <span className="text-foreground font-medium">{company}</span>. You can copy AI outreach now, then unlock full lead tracking and campaign execution.
         </p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => void copyShareLink()}>
+            {copiedShareLink ? 'Share link copied' : 'Copy share link'}
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/demo">
+              Try RaelInfo demo
+            </Link>
+          </Button>
+        </div>
       </header>
 
       <Card className="border-cyan-500/20 bg-card/50">
@@ -186,6 +215,27 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="border-cyan-500/20 bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Share this preview</CardTitle>
+          <CardDescription>Share a public lead preview and invite others to try the workflow.</CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-3">
+          <div>
+            Share this page to showcase lead quality and outreach drafts.
+          </div>
+          <div className="text-xs">CTA included: Try tool at /demo</div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => void copyShareLink()}>
+              {copiedShareLink ? 'Copied' : 'Copy public preview link'}
+            </Button>
+            <Button asChild size="sm" className="neon-border hover:glow-effect">
+              <Link href="/demo">Try tool</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {showUpgradeModal ? (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
