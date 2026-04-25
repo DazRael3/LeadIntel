@@ -18,6 +18,14 @@ import { OutcomePricingIntro } from '@/components/marketing/OutcomePricingIntro'
 import { LeadCaptureCard } from '@/components/marketing/LeadCaptureCard'
 import { useStripePortal } from '@/app/dashboard/hooks/useStripePortal'
 
+type UpgradeBlockerReason =
+  | 'too_expensive'
+  | 'unclear_value'
+  | 'missing_feature'
+  | 'timing'
+  | 'just_exploring'
+  | 'other'
+
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
 
@@ -129,6 +137,11 @@ export function Pricing() {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [teamSeats, setTeamSeats] = useState<number>(5)
   const [addOnLeadPacks, setAddOnLeadPacks] = useState<number>(0)
+  const [upgradeBlockerReason, setUpgradeBlockerReason] = useState<UpgradeBlockerReason>('too_expensive')
+  const [upgradeBlockerDetail, setUpgradeBlockerDetail] = useState('')
+  const [isSubmittingUpgradeFeedback, setIsSubmittingUpgradeFeedback] = useState(false)
+  const [upgradeFeedbackSubmitted, setUpgradeFeedbackSubmitted] = useState(false)
+  const [upgradeFeedbackError, setUpgradeFeedbackError] = useState<string | null>(null)
   const upgradeRef = useRef<HTMLDivElement | null>(null)
   const pricingAb = usePublicAbVariant({
     key: 'pricing_copy_test_v1',
@@ -322,6 +335,43 @@ export function Pricing() {
       setCheckoutError(formatErrorMessage(error))
     } finally {
       setIsCheckoutLoading(false)
+    }
+  }
+
+  const submitUpgradeBlockerFeedback = async () => {
+    if (isSubmittingUpgradeFeedback || upgradeFeedbackSubmitted) return
+    setUpgradeFeedbackError(null)
+    setIsSubmittingUpgradeFeedback(true)
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          route: '/pricing',
+          surface: 'pricing_upgrade_blocker_prompt',
+          sentiment: 'note',
+          message: `What stopped you from upgrading? reason=${upgradeBlockerReason}; detail=${upgradeBlockerDetail.trim() || 'n/a'}`,
+          deviceClass: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
+          viewport:
+            typeof window !== 'undefined'
+              ? { w: Math.floor(window.innerWidth), h: Math.floor(window.innerHeight) }
+              : undefined,
+        }),
+      })
+      if (!response.ok) {
+        setUpgradeFeedbackError('Could not send feedback. Please try again.')
+        return
+      }
+      track('upgrade_feedback_submitted', {
+        source: 'pricing',
+        reason: upgradeBlockerReason,
+      })
+      setUpgradeFeedbackSubmitted(true)
+      setUpgradeBlockerDetail('')
+    } catch {
+      setUpgradeFeedbackError('Could not send feedback. Please try again.')
+    } finally {
+      setIsSubmittingUpgradeFeedback(false)
     }
   }
 
@@ -899,6 +949,107 @@ export function Pricing() {
 
         <div className="mt-12 max-w-6xl mx-auto">
           <LeadCaptureCard surface="pricing" />
+        </div>
+
+        <div className="mt-10 max-w-6xl mx-auto">
+          <Card className="border-cyan-500/20 bg-card/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">What stopped you from upgrading?</CardTitle>
+              <CardDescription>Quick feedback helps us improve the upgrade experience.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'too_expensive'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('too_expensive')}
+                >
+                  Too expensive
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'unclear_value'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('unclear_value')}
+                >
+                  Value not clear yet
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'missing_feature'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('missing_feature')}
+                >
+                  Missing feature
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'timing'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('timing')}
+                >
+                  Bad timing
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'just_exploring'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('just_exploring')}
+                >
+                  Just exploring
+                </button>
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-left ${
+                    upgradeBlockerReason === 'other'
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                      : 'border-cyan-500/10 bg-background/40'
+                  }`}
+                  onClick={() => setUpgradeBlockerReason('other')}
+                >
+                  Other
+                </button>
+              </div>
+              <textarea
+                className="w-full rounded border border-cyan-500/10 bg-background/40 px-3 py-2 text-sm text-foreground"
+                rows={3}
+                placeholder="Optional details"
+                value={upgradeBlockerDetail}
+                onChange={(event) => setUpgradeBlockerDetail(event.target.value)}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void submitUpgradeBlockerFeedback()}
+                  disabled={isSubmittingUpgradeFeedback || upgradeFeedbackSubmitted}
+                >
+                  {upgradeFeedbackSubmitted
+                    ? 'Thanks for the feedback'
+                    : isSubmittingUpgradeFeedback
+                      ? 'Sending...'
+                      : 'Send feedback'}
+                </Button>
+                {upgradeFeedbackError ? <span className="text-xs text-red-300">{upgradeFeedbackError}</span> : null}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="mt-10 max-w-6xl mx-auto">

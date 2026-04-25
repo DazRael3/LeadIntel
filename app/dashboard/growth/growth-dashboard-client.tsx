@@ -32,6 +32,11 @@ type Envelope =
         experiments: Experiment[]
         exposures: Record<string, { total: number; byVariant: Record<string, number> }>
         growthEventCounts: Record<string, number>
+        dailyUsers: number
+        demoRatePct: number
+        signupRatePct: number
+        paidConversions: number
+        paidConversionRatePct: number
         conversionRatePct: number
         activeUsers: number
         revenueTrend: Array<{ date: string; revenue: number }>
@@ -154,9 +159,10 @@ export function GrowthDashboardClient() {
 
         <ScalingMetricsCard
           windowDays={okData.windowDays}
-          conversionRatePct={okData.conversionRatePct ?? 0}
-          activeUsers={okData.activeUsers ?? 0}
-          revenueTrend={Array.isArray(okData.revenueTrend) ? okData.revenueTrend : []}
+          dailyUsers={okData.dailyUsers ?? 0}
+          demoRatePct={okData.demoRatePct ?? 0}
+          signupRatePct={okData.signupRatePct ?? 0}
+          paidConversions={okData.paidConversions ?? 0}
         />
 
         {okData.lifecycle ? (

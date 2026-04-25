@@ -113,7 +113,9 @@ export const GET = withApiGuard(
 
       const eventsAgg: Record<string, number> = {}
       const activeUsers = new Set<string>()
+      const dailyUsers = new Set<string>()
       const revenueByDay = new Map<string, number>()
+      const dailyCutoffMs = Date.now() - 24 * 60 * 60 * 1000
       for (const row of (growthEvents ?? []) as Array<{
         event_name?: unknown
         user_id?: unknown
@@ -125,9 +127,15 @@ export const GET = withApiGuard(
         eventsAgg[name] = (eventsAgg[name] ?? 0) + 1
         const userId = typeof row.user_id === 'string' ? row.user_id : null
         if (userId) activeUsers.add(userId)
+        const createdAt = typeof row.created_at === 'string' ? row.created_at : null
+        if (userId && createdAt) {
+          const createdMs = Date.parse(createdAt)
+          if (Number.isFinite(createdMs) && createdMs >= dailyCutoffMs) {
+            dailyUsers.add(userId)
+          }
+        }
 
         if (name === 'payment_completed') {
-          const createdAt = typeof row.created_at === 'string' ? row.created_at : null
           if (!createdAt) continue
           const day = toIsoDay(createdAt)
           if (!day) continue
@@ -138,9 +146,11 @@ export const GET = withApiGuard(
 
       const pageViews = eventsAgg.page_view ?? 0
       const demoStarts = eventsAgg.demo_started ?? 0
+      const signupCompleted = eventsAgg.signup_completed ?? 0
       const paymentCompleted = eventsAgg.payment_completed ?? 0
-      const funnelBase = pageViews > 0 ? pageViews : demoStarts
-      const conversionRatePct = funnelBase > 0 ? (paymentCompleted / funnelBase) * 100 : 0
+      const demoRatePct = pageViews > 0 ? (demoStarts / pageViews) * 100 : 0
+      const signupRatePct = demoStarts > 0 ? (signupCompleted / demoStarts) * 100 : 0
+      const paidConversionRatePct = signupCompleted > 0 ? (paymentCompleted / signupCompleted) * 100 : 0
 
       const sinceDate = parseIsoDate(since) ?? new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
       const today = new Date()
@@ -178,7 +188,12 @@ export const GET = withApiGuard(
           experiments,
           exposures: exposuresAgg,
           growthEventCounts: eventsAgg,
-          conversionRatePct: Number.parseFloat(conversionRatePct.toFixed(2)),
+          dailyUsers: dailyUsers.size,
+          demoRatePct: Number.parseFloat(demoRatePct.toFixed(2)),
+          signupRatePct: Number.parseFloat(signupRatePct.toFixed(2)),
+          paidConversions: paymentCompleted,
+          paidConversionRatePct: Number.parseFloat(paidConversionRatePct.toFixed(2)),
+          conversionRatePct: Number.parseFloat(paidConversionRatePct.toFixed(2)),
           activeUsers: activeUsers.size,
           revenueTrend,
           directionalResults,
