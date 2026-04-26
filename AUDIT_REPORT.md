@@ -20,6 +20,9 @@ Environment: Cursor Cloud Linux (validation commands executed with `npm`; Window
   - pricing CTA login/checkout behavior
   - capability gating (free/starter vs paid/team)
   - automation health status API
+- Logged-in dashboard reliability issue identified from production audit evidence was addressed:
+  - **Finding:** `logged_in:/dashboard` triggered `GET /api/lead-activity` HTTP 500 twice and produced console errors.
+  - **Fix:** `/api/lead-activity` now returns safe `200` fallback payloads for expected workspace/schema/RLS/unavailable cases, and dashboard UI now renders explicit empty/fallback messaging without throwing.
 
 ---
 
@@ -27,6 +30,11 @@ Environment: Cursor Cloud Linux (validation commands executed with `npm`; Window
 
 - `package.json`
 - `package-lock.json`
+- `app/api/lead-activity/route.ts`
+- `app/api/lead-activity/route.vitest.ts` (new)
+- `app/dashboard/DashboardClient.tsx`
+- `app/dashboard/DashboardClient.test.tsx` (new)
+- `app/dashboard/DashboardClient.vitest.tsx`
 - `lib/debug/buildInfo.ts`
 - `lib/debug/buildInfo.vitest.ts`
 - `app/api/version/route.ts`
@@ -110,6 +118,32 @@ Environment: Cursor Cloud Linux (validation commands executed with `npm`; Window
 - Added canonical production requirement notes:
   - `NEXT_PUBLIC_SITE_URL` must be exactly `https://raelinfo.com` for production checks.
 
+### 6) Dashboard lead-activity reliability hardening
+
+- Root cause in route behavior:
+  - `GET /api/lead-activity` returned `INTERNAL_ERROR` when workspace resolution was unavailable/missing, producing 500 responses on `/dashboard`.
+  - Expected Supabase schema/RLS/availability errors inside activity reads could bubble to generic 500 handling.
+- API hardening in `app/api/lead-activity/route.ts`:
+  - Added explicit expected-error classification for workspace + activity operations (`schema`, `permission/RLS`, transient availability).
+  - Added safe fallback response envelope with `summary` + `meta` (`state`, `reason`, `fallback`, `hasWorkspace`, `generatedAt`) and `items: []`.
+  - Workspace-missing/bootstrapping and expected Supabase issues now return **200** with empty summary instead of 500.
+  - `POST /api/lead-activity` stamp endpoint now fail-softs for expected schema/RLS/unavailable conditions and returns `ok` with `stamped: false, skipped: true`.
+  - Structured warning logs now include route/stage/requestId/userId + sanitized error metadata (no secrets/raw internals exposed).
+- UI hardening in `app/dashboard/DashboardClient.tsx`:
+  - Lead activity fetch parsing is now defensive against malformed payloads and non-2xx responses.
+  - Handles unauthorized/forbidden/unavailable/malformed responses without throwing.
+  - Always renders a stable card with empty/fallback text: **“No recent lead activity yet.”** for empty/unavailable states.
+- Test coverage:
+  - `app/api/lead-activity/route.vitest.ts` covers:
+    - logged-in user with activity (`200`)
+    - logged-in user with no activity (`200` empty)
+    - workspace missing (`200` fallback)
+    - schema/RLS expected failures (`200` fallback)
+    - unexpected errors (`500` safe envelope)
+  - `app/dashboard/DashboardClient.test.tsx` covers:
+    - empty lead activity payload renders user-friendly empty state
+    - unavailable activity API renders safe fallback state without crash
+
 ---
 
 ## Commands Run
@@ -127,6 +161,16 @@ Executed during this audit:
 9. `npm audit`
 10. `git status`
 
+Executed for dashboard reliability fix:
+
+1. `npm run test:unit -- app/dashboard/DashboardClient.test.tsx app/api/lead-activity/route.vitest.ts`
+2. `npm run typecheck`
+3. `npm run lint`
+4. `npm run test:unit`
+5. `AUDIT_BASE_URL="https://raelinfo.com" AUDIT_SCOPE="all" AUDIT_STORAGE_STATE="admin-reports/ai-site-audit/storageState.json" npm run audit:ai`
+6. `npm audit`
+7. `git status`
+
 Focused verification commands also run during implementation:
 
 - `npm run test:unit -- app/api/version/route.vitest.ts app/api/public/automation/route.vitest.ts components/Pricing.vitest.tsx lib/billing/require-capability.vitest.ts lib/debug/buildInfo.vitest.ts`
@@ -138,7 +182,7 @@ Focused verification commands also run during implementation:
 - `typecheck`: **pass**
 - `lint`: **pass**
 - `test:unit`: **pass**
-  - 197 files, 720 passed, 1 skipped
+  - 199 files, 728 passed, 1 skipped
 - `check:production`: **pass** (using safe placeholder env vars; no secret values printed)
 - `db:sanity`: **pass/skip expected** (`RUN_DB_SANITY!=1, skipping`)
 - `audit:public`: **pass**
@@ -147,6 +191,10 @@ Focused verification commands also run during implementation:
 - `audit:doctor`: **WARN (expected)**
   - warning is only for missing `AUDIT_STORAGE_STATE` for logged-in/all scope
   - public audit remains valid without storage state
+- `audit:ai` (post-fix rerun command with scope `all`): **blocked in this cloud run**
+  - command was executed with the requested env vars, but `admin-reports/ai-site-audit/storageState.json` did not exist in this environment (`ENOENT`)
+  - attempted recovery via `npm run audit:storage` also blocked because manual browser login capture timed out in unattended cloud execution
+  - **Action required:** capture storage state in an interactive session and rerun full logged-in audit to confirm production `/dashboard` no longer emits `/api/lead-activity` 500s
 
 ---
 
@@ -200,6 +248,7 @@ Remaining advisories:
    - `npm.cmd run audit:storage`
    - set `AUDIT_STORAGE_STATE`
    - run full `audit:ai -- --scope=all`
+   - verify post-fix result: `logged_in:/dashboard` has 0 console errors and no `/api/lead-activity` 500 failures
 2. Run real `db:sanity` in production-like shell with real credentials and `RUN_DB_SANITY=1`.
 3. Verify `/status`, `/version`, and `/api/version` on live site all show consistent metadata for current deployment.
 4. Confirm external scheduler jobs are configured and produce fresh `job_runs` entries for required external jobs.

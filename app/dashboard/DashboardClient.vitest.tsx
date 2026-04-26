@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, act } from '@testing-library/react'
+import { render, screen, within, act, waitFor } from '@testing-library/react'
 
 import { DashboardClient } from './DashboardClient'
 
@@ -91,6 +91,29 @@ vi.mock('@/components/ProGate', () => ({ ProGate: ({ children }: { children: Rea
 describe('DashboardClient tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          data: {
+            summary: {
+              newLeadsSinceLastVisit: 0,
+              campaignsAwaitingAction: 0,
+            },
+            meta: {
+              state: 'empty',
+              fallback: false,
+              reason: 'no_recent_activity',
+              hasWorkspace: true,
+              generatedAt: new Date().toISOString(),
+            },
+          },
+        }),
+      }))
+    )
     planMock = {
       plan: 'free',
       tier: 'starter',
@@ -162,6 +185,65 @@ describe('DashboardClient tabs', () => {
 
     const marketTab = screen.getByRole('tab', { name: /market pulse/i })
     expect(within(marketTab).queryByText('Pro')).toBeNull()
+  })
+
+  it('renders empty activity fallback text when activity response has no data', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        data: {
+          summary: { newLeadsSinceLastVisit: 0, campaignsAwaitingAction: 0 },
+          meta: {
+            state: 'empty',
+            fallback: false,
+            reason: 'no_recent_activity',
+            hasWorkspace: true,
+            generatedAt: new Date().toISOString(),
+          },
+        },
+      }),
+    } as Response)
+
+    render(
+      <DashboardClient
+        initialSubscriptionTier="free"
+        initialCreditsRemaining={1}
+        initialOnboardingCompleted={true}
+        initialAutopilotEnabled={false}
+        initialHasIcp={false}
+        initialTourCompletedAt={null}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('No recent lead activity yet.')).toBeInTheDocument()
+    })
+  })
+
+  it('renders safe fallback message when activity API is unavailable', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => ({ ok: false, error: { code: 'SERVICE_UNAVAILABLE' } }),
+    } as Response)
+
+    render(
+      <DashboardClient
+        initialSubscriptionTier="free"
+        initialCreditsRemaining={1}
+        initialOnboardingCompleted={true}
+        initialAutopilotEnabled={false}
+        initialHasIcp={false}
+        initialTourCompletedAt={null}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('No recent lead activity yet.')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/You have 0 new leads/)).toBeInTheDocument()
   })
 })
 
