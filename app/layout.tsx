@@ -14,7 +14,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'LeadIntel',
 <<<<<<< HEAD
+<<<<<<< HEAD
     description: 'Trigger-based account alerts and instant pitch drafts.',
+=======
+    description: 'Trigger-based account alerts and send-ready outreach drafts.',
+>>>>>>> cursor/audit-access-instructions-aa8d
 =======
     description: 'Trigger-based account alerts and send-ready outreach drafts.',
 >>>>>>> cursor/audit-access-instructions-aa8d

@@ -24,23 +24,33 @@ function getRequestHost(request: NextRequest): string {
 function shouldRedirectWwwToApex(request: NextRequest): boolean {
   // Always keep canonical host on apex to prevent split SEO + cookie/origin drift.
 <<<<<<< HEAD
+<<<<<<< HEAD
   // Only redirect in production and only for www.raelinfo.com.
   if ((process.env.NODE_ENV ?? 'development') !== 'production') return false
   const host = request.headers.get('host') ?? ''
   return host.toLowerCase() === 'www.raelinfo.com'
 =======
+=======
+>>>>>>> cursor/audit-access-instructions-aa8d
   // Only redirect in production when a www subdomain is requested.
   if ((process.env.NODE_ENV ?? 'development') !== 'production') return false
   const host = getRequestHost(request)
   const apexHost = getCanonicalApexHost()
   return host === `www.${apexHost}`
+<<<<<<< HEAD
+>>>>>>> cursor/audit-access-instructions-aa8d
+=======
 >>>>>>> cursor/audit-access-instructions-aa8d
 }
 
 function redirectWwwToApex(request: NextRequest): NextResponse {
   const url = request.nextUrl.clone()
 <<<<<<< HEAD
+<<<<<<< HEAD
   url.hostname = 'raelinfo.com'
+=======
+  url.hostname = getCanonicalApexHost()
+>>>>>>> cursor/audit-access-instructions-aa8d
 =======
   url.hostname = getCanonicalApexHost()
 >>>>>>> cursor/audit-access-instructions-aa8d
