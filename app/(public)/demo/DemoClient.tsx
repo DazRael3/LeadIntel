@@ -127,8 +127,10 @@ export function DemoClient() {
   const [checkoutNudgeDismissed, setCheckoutNudgeDismissed] = useState(false)
   const [demoRunsToday, setDemoRunsToday] = useState(0)
   const [gatingNotice, setGatingNotice] = useState<'demo_limit' | 'advanced_feature' | null>(null)
+  const [handoffCompanyOrUrl, setHandoffCompanyOrUrl] = useState<string | null>(null)
   const resultCardRef = useRef<HTMLDivElement | null>(null)
   const activationTrackedRef = useRef(false)
+  const handoffAutoRunRef = useRef(false)
 
   const remainingDemoRuns = Math.max(0, MAX_DEMO_RUNS_PER_DAY - demoRunsToday)
   const discountDeadline = useMemo(() => {
@@ -145,6 +147,18 @@ export function DemoClient() {
     const usage = readDailyUsageFromStorage()
     setDemoRunsToday(usage.runs)
     ensureDemoSessionId()
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const fromQuery = params.get('company')?.trim() ?? ''
+      if (fromQuery.length >= 2) {
+        setCompanyOrUrl(fromQuery)
+        setHasUserInteracted(true)
+        setHasAutoTriggered(true)
+        setHandoffCompanyOrUrl(fromQuery)
+      }
+    } catch {
+      setHandoffCompanyOrUrl(null)
+    }
   }, [])
 
   function trackActivation(trigger: 'copy_message' | 'add_to_campaign'): void {
@@ -153,13 +167,15 @@ export function DemoClient() {
     track('activation_completed', { source: 'demo_page', trigger })
   }
 
-  const runSearch = useCallback(async (): Promise<void> => {
-    const searchInput = companyOrUrl.trim().length >= 2 ? companyOrUrl.trim() : EXAMPLE_COMPANIES[0]
+  const runSearch = useCallback(
+    async (options?: { forcedCompanyOrUrl?: string; trigger?: 'manual' | 'idle_autorun' | 'query_handoff' }): Promise<void> => {
+      const forcedInput = options?.forcedCompanyOrUrl?.trim() ?? ''
+      const searchInput = forcedInput.length >= 2 ? forcedInput : companyOrUrl.trim().length >= 2 ? companyOrUrl.trim() : EXAMPLE_COMPANIES[0]
     if (searchInput.length < 2 || loading) return
     if (remainingDemoRuns <= 0) {
       setGatingNotice('demo_limit')
       setError("You've reached your free limit — unlock full access.")
-      track('demo_free_limit_reached', { source: 'demo_page', trigger: 'search_attempt' })
+      track('demo_free_limit_reached', { source: 'demo_page', trigger: options?.trigger ?? 'search_attempt' })
       return
     }
     setLoading(true)
@@ -169,11 +185,11 @@ export function DemoClient() {
     setCommitmentChoice(null)
     setLoadingStageIndex(0)
     activationTrackedRef.current = false
-    if (companyOrUrl.trim().length < 2) {
+    if (forcedInput.length >= 2 || companyOrUrl.trim().length < 2) {
       setCompanyOrUrl(searchInput)
     }
     const sessionId = ensureDemoSessionId()
-    track('demo_started', { source: 'demo_page', step: 'search_submitted' })
+    track('demo_started', { source: 'demo_page', step: 'search_submitted', trigger: options?.trigger ?? 'manual' })
 
     try {
       const res = await fetch('/api/sample-digest', {
@@ -225,12 +241,14 @@ export function DemoClient() {
     } finally {
       setLoading(false)
     }
-  }, [companyOrUrl, demoRunsToday, loading, remainingDemoRuns])
+    },
+    [companyOrUrl, demoRunsToday, loading, remainingDemoRuns]
+  )
 
   function handleManualSearch(): void {
     setHasUserInteracted(true)
     setHasAutoTriggered(true)
-    void runSearch()
+    void runSearch({ trigger: 'manual' })
   }
 
   function handleExamplePrefill(example: string): void {
@@ -243,10 +261,17 @@ export function DemoClient() {
     const timer = window.setTimeout(() => {
       setHasAutoTriggered(true)
       setCompanyOrUrl((current) => (current.trim().length >= 2 ? current : EXAMPLE_COMPANIES[0]))
-      void runSearch()
+      void runSearch({ trigger: 'idle_autorun' })
     }, 3000)
     return () => window.clearTimeout(timer)
   }, [hasAutoTriggered, hasUserInteracted, loading, remainingDemoRuns, result, runSearch])
+
+  useEffect(() => {
+    if (!handoffCompanyOrUrl) return
+    if (handoffAutoRunRef.current) return
+    handoffAutoRunRef.current = true
+    void runSearch({ forcedCompanyOrUrl: handoffCompanyOrUrl, trigger: 'query_handoff' })
+  }, [handoffCompanyOrUrl, runSearch])
 
   useEffect(() => {
     if (!loading) {
