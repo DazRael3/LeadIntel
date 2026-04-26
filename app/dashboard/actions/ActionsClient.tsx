@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useToast } from '@/components/ui/use-toast'
 import { track } from '@/lib/analytics'
 import { CommentThreadPanel } from '@/components/collab/CommentThreadPanel'
 import { LeadAiPitchPanel } from '@/components/account/LeadAiPitchPanel'
@@ -22,7 +21,17 @@ type ActionQueueItem = {
   created_at: string
 }
 
-type Envelope = { ok: true; data: { items: ActionQueueItem[] } } | { ok: false; error?: { message?: string } }
+type QueueMeta = {
+  state?: string
+  reason?: string
+  fallback?: boolean
+  hasWorkspace?: boolean
+  canDeliver?: boolean
+}
+
+type Envelope = { ok: true; data: { items: ActionQueueItem[]; meta?: QueueMeta } } | { ok: false; error?: { message?: string } }
+
+type QueueViewState = 'loading' | 'ready' | 'empty' | 'upgrade' | 'unauthorized' | 'restricted' | 'unavailable'
 
 function badgeForStatus(status: string): { label: string; className: string } {
   if (status === 'ready') return { label: 'Ready', className: 'border-cyan-500/30 text-cyan-200 bg-cyan-500/10' }
@@ -34,30 +43,107 @@ function badgeForStatus(status: string): { label: string; className: string } {
 }
 
 export function ActionsClient() {
-  const { toast } = useToast()
   const [items, setItems] = useState<ActionQueueItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [queueState, setQueueState] = useState<QueueViewState>('loading')
+  const [statusMessage, setStatusMessage] = useState<string>('Loading queue...')
   const [deliveringId, setDeliveringId] = useState<string | null>(null)
   const [openCommentsForId, setOpenCommentsForId] = useState<string | null>(null)
   const [selectedLeadIdForPitch, setSelectedLeadIdForPitch] = useState<string | null>(null)
 
   const readyCount = useMemo(() => items.filter((i) => i.status === 'ready').length, [items])
+  const loading = queueState === 'loading'
+
+  const fallbackUi = useMemo(() => {
+    if (queueState === 'upgrade' || queueState === 'restricted') {
+      return {
+        title: 'This workspace does not have access to action queues yet.',
+        detail: 'Upgrade your plan to unlock queue routing, delivery audit, and coordinated execution.',
+        ctaHref: '/pricing?target=closer',
+        ctaLabel: 'Upgrade to Pro',
+      }
+    }
+    if (queueState === 'unauthorized') {
+      return {
+        title: 'Sign in again to view workspace actions.',
+        detail: 'Your session may have expired. Refresh or sign in again.',
+        ctaHref: '/login?mode=signin&redirect=/dashboard/actions',
+        ctaLabel: 'Sign in',
+      }
+    }
+    if (queueState === 'unavailable') {
+      return {
+        title: 'Action queue is temporarily unavailable.',
+        detail: 'Please retry in a moment. If this persists, contact support.',
+        ctaHref: null,
+        ctaLabel: null,
+      }
+    }
+    return {
+      title: 'No queued actions yet.',
+      detail: 'Prepare a CRM or Sequencer handoff from an account to populate your queue.',
+      ctaHref: null,
+      ctaLabel: null,
+    }
+  }, [queueState])
 
   const load = useCallback(async () => {
-    setLoading(true)
+    setQueueState('loading')
+    setStatusMessage('Loading queue...')
     try {
       const res = await fetch('/api/workspace/actions/queue?status=all&limit=50', { cache: 'no-store' })
       const json = (await res.json().catch(() => null)) as Envelope | null
-      if (!res.ok || !json || json.ok !== true) {
-        toast({ variant: 'destructive', title: 'Load failed', description: json && 'error' in json ? json.error?.message : 'Please try again.' })
+      if (res.status === 401) {
+        setItems([])
+        setQueueState('unauthorized')
+        setStatusMessage('Sign in required')
         return
       }
-      setItems(json.data.items ?? [])
-      track('action_queue_viewed', { count: (json.data.items ?? []).length })
+      if (res.status === 403) {
+        setItems([])
+        setQueueState('restricted')
+        setStatusMessage('Access restricted')
+        return
+      }
+      if (!res.ok || !json || json.ok !== true) {
+        setItems([])
+        setQueueState('unavailable')
+        setStatusMessage('Unavailable')
+        return
+      }
+      const nextItems = Array.isArray(json.data.items) ? json.data.items : []
+      const metaState = typeof json.data.meta?.state === 'string' ? json.data.meta.state : null
+      setItems(nextItems)
+      if (metaState === 'upgrade_required') {
+        setQueueState('upgrade')
+        setStatusMessage('Upgrade required')
+        return
+      }
+      if (metaState === 'restricted') {
+        setQueueState('restricted')
+        setStatusMessage('Access restricted')
+        return
+      }
+      if (metaState === 'queue_unavailable' || metaState === 'schema_unavailable') {
+        setQueueState('unavailable')
+        setStatusMessage('Unavailable')
+        return
+      }
+      if (nextItems.length === 0) {
+        setQueueState('empty')
+        setStatusMessage('No queued actions')
+      } else {
+        setQueueState('ready')
+        setStatusMessage('Queue loaded')
+      }
+      track('action_queue_viewed', { count: nextItems.length })
+    } catch {
+      setItems([])
+      setQueueState('unavailable')
+      setStatusMessage('Unavailable')
     } finally {
-      setLoading(false)
+      // no-op: state is explicitly controlled above
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => {
     void load()
@@ -70,10 +156,11 @@ export function ActionsClient() {
       const res = await fetch(`/api/workspace/actions/queue/${encodeURIComponent(queueItemId)}/deliver`, { method: 'POST' })
       const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: { message?: string } } | null
       if (!res.ok) {
-        toast({ variant: 'destructive', title: 'Delivery failed', description: json?.error?.message ?? 'Please try again.' })
+        setQueueState('unavailable')
+        setStatusMessage(json?.error?.message ?? 'Delivery failed')
         return
       }
-      toast({ variant: 'success', title: 'Queued', description: 'Delivery queued.' })
+      setStatusMessage('Delivery queued')
       await load()
     } finally {
       setDeliveringId(null)
@@ -104,8 +191,23 @@ export function ActionsClient() {
             {loading ? (
               <div>Loading…</div>
             ) : items.length === 0 ? (
-              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs text-muted-foreground">
-                No actions yet. Prepare a CRM or Sequencer handoff from an account to populate your queue.
+              <div className="rounded border border-cyan-500/10 bg-background/40 p-3 text-xs text-muted-foreground space-y-2" data-testid="actions-queue-fallback">
+                <div className="text-foreground">{fallbackUi.title}</div>
+                <div>{fallbackUi.detail}</div>
+                <div className="text-[11px] text-muted-foreground">Queue status: {statusMessage}</div>
+                {fallbackUi.ctaHref && fallbackUi.ctaLabel ? (
+                  <Button
+                    size="sm"
+                    className="mt-1 neon-border hover:glow-effect"
+                    onClick={() => {
+                      const nextHref = fallbackUi.ctaHref
+                      if (!nextHref) return
+                      window.location.href = nextHref
+                    }}
+                  >
+                    {fallbackUi.ctaLabel}
+                  </Button>
+                ) : null}
               </div>
             ) : (
               <>
