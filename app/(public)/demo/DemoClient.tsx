@@ -142,6 +142,13 @@ export function DemoClient() {
     () => companyOrUrl.trim().length >= 2 && !loading && remainingDemoRuns > 0,
     [companyOrUrl, loading, remainingDemoRuns]
   )
+  const contextualCompany = useMemo(() => {
+    const fromInput = companyOrUrl.trim()
+    return fromInput.length >= 2 ? fromInput : result?.company ?? ''
+  }, [companyOrUrl, result])
+  const shouldShowContextualCopy = useMemo(() => {
+    return contextualCompany.length >= 2 && (hasUserInteracted || Boolean(handoffCompanyOrUrl))
+  }, [contextualCompany, handoffCompanyOrUrl, hasUserInteracted])
 
   useEffect(() => {
     const usage = readDailyUsageFromStorage()
@@ -547,6 +554,26 @@ export function DemoClient() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="rounded border border-cyan-400/40 bg-cyan-500/10 p-4 space-y-3">
+                <div className="text-lg font-semibold text-foreground">You found your first opportunities.</div>
+                <p className="text-sm text-foreground">
+                  Unlock the full daily pipeline for this market — 20+ fresh leads, complete outreach, and campaign tracking.
+                </p>
+                {shouldShowContextualCopy ? (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>Showing preview opportunities for {contextualCompany}</div>
+                    <div>Get daily high-intent leads like this.</div>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('first_result_cta')}>
+                    Unlock Full Pipeline
+                  </Button>
+                  <span className="text-xs text-muted-foreground">Leads refresh daily.</span>
+                  <span className="text-xs text-muted-foreground">Preview limited to 3 leads.</span>
+                </div>
+              </div>
+
               <div className="rounded border border-cyan-500/20 bg-background/40 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium text-foreground">{result.company}</div>
@@ -597,14 +624,18 @@ export function DemoClient() {
                     {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
                     {copied ? 'Copied' : 'Copy Message'}
                   </Button>
-                  <Button asChild className="neon-border hover:glow-effect w-full sm:w-auto">
-                    <Link href="/pricing">Unlock All Leads</Link>
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => openUpgradePath('first_result_cta')}>
-                    Upgrade to Pro for daily leads
+                  <Button type="button" className="w-full sm:w-auto bg-cyan-500/15 text-cyan-100 border border-cyan-400/40 hover:bg-cyan-500/25" onClick={() => openUpgradePath('first_result_cta')}>
+                    Unlock Full Pipeline
                   </Button>
                 </div>
-                {copied ? <div className="text-xs text-green-300">Message copied.</div> : null}
+                {copied ? (
+                  <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2 text-xs text-green-200 flex flex-wrap items-center justify-between gap-2">
+                    <span>Message copied — want 20 more like this?</span>
+                    <Button type="button" size="sm" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('checkout_nudge')}>
+                      Upgrade to Pro
+                    </Button>
+                  </div>
+                ) : null}
               </div>
 
               {!checkoutNudgeDismissed ? (
@@ -627,7 +658,7 @@ export function DemoClient() {
               {hasCopiedOutreach ? (
                 <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
                   <div className="font-medium text-foreground">Nice - you can send this right now.</div>
-                  <div className="text-sm text-foreground">Want 50 more like this?</div>
+                  <div className="text-sm text-foreground">Message copied — want 20 more like this?</div>
                   <ul className="text-xs text-muted-foreground space-y-1">
                     <li>- Message copied</li>
                     <li>- Ready to send</li>
@@ -677,8 +708,12 @@ export function DemoClient() {
                       <Link href="/settings/team">Invite teammates</Link>
                     </Button>
                   </div>
-                  <Button asChild className={`neon-border hover:glow-effect ${commitmentChoice === 'yes' ? 'ring-2 ring-emerald-400/40 animate-pulse' : ''}`}>
-                    <Link href="/pricing">Unlock Full Pipeline</Link>
+                  <Button
+                    type="button"
+                    className={`neon-border hover:glow-effect ${commitmentChoice === 'yes' ? 'ring-2 ring-emerald-400/40 animate-pulse' : ''}`}
+                    onClick={() => openUpgradePath('checkout_nudge')}
+                  >
+                    Upgrade to Pro
                   </Button>
                 </div>
               ) : null}
