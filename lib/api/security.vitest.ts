@@ -12,12 +12,12 @@ describe('validateOrigin', () => {
     process.env = {
       ...oldEnv,
       NODE_ENV: 'production',
-      NEXT_PUBLIC_SITE_URL: 'https://dazrael.com',
+      NEXT_PUBLIC_SITE_URL: 'https://raelinfo.com',
     }
     const { validateOrigin } = await import('./security')
-    const req = new NextRequest('https://dazrael.com/api/sample-digest', {
+    const req = new NextRequest('https://raelinfo.com/api/sample-digest', {
       method: 'POST',
-      headers: { origin: 'https://www.dazrael.com' },
+      headers: { origin: 'https://www.raelinfo.com' },
     })
     const res = validateOrigin(req, '/api/sample-digest')
     expect(res).toBeNull()
@@ -29,10 +29,10 @@ describe('validateOrigin', () => {
     process.env = {
       ...oldEnv,
       NODE_ENV: 'production',
-      NEXT_PUBLIC_SITE_URL: 'https://dazrael.com',
+      NEXT_PUBLIC_SITE_URL: 'https://raelinfo.com',
     }
     const { validateOrigin } = await import('./security')
-    const req = new NextRequest('https://dazrael.com/api/sample-digest', {
+    const req = new NextRequest('https://raelinfo.com/api/sample-digest', {
       method: 'POST',
       headers: { origin: 'https://evil.example' },
     })

@@ -26,7 +26,7 @@ function headersToRecord(h: Headers): Record<string, string> {
 }
 
 export function defaultUserAgent(): string {
-  const fallback = 'LeadIntel (+https://dazrael.com; leadintel@dazrael.com)'
+  const fallback = 'LeadIntel (+https://raelinfo.com; leadintel@dazrael.com)'
   const raw = (process.env.SEC_USER_AGENT ?? '').trim()
   if (raw) return raw
   // Keep a consistent UA for all sources (SEC strongly prefers explicit UA).

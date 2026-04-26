@@ -192,9 +192,9 @@ Repository truth:
 External scheduler ops steps (required to prove active in production):
 1. Create authenticated jobs that send `Authorization: Bearer $EXTERNAL_CRON_SECRET`.
 2. Add cron invocations (example cadence, adjust as needed):
-   - `GET https://dazrael.com/api/cron/run?job=prospect_watch&limit=50` (2x/day)
-   - `GET https://dazrael.com/api/cron/run?job=prospect_watch_digest` (2x/day)
-   - `GET https://dazrael.com/api/cron/run?job=sources_refresh&limit=20` (1x/day)
-   - `POST https://dazrael.com/api/cron/webhooks` with body `{"limit":50}` (every 5-15 min)
+   - `GET https://raelinfo.com/api/cron/run?job=prospect_watch&limit=50` (2x/day)
+   - `GET https://raelinfo.com/api/cron/run?job=prospect_watch_digest` (2x/day)
+   - `GET https://raelinfo.com/api/cron/run?job=sources_refresh&limit=20` (1x/day)
+   - `POST https://raelinfo.com/api/cron/webhooks` with body `{"limit":50}` (every 5-15 min)
 3. Verify execution by checking recent `api.job_runs` rows for each `job_name` and webhook delivery health in `/admin/ops`.
 

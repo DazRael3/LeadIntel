@@ -10,7 +10,7 @@ describe('reportFormatGuards', () => {
   it('strips self-referential competitive-report links', () => {
     const input = `# Competitive Intelligence Report: Google
 
-View the report here: https://dazrael.com/competitive-report?id=abc
+View the report here: https://raelinfo.com/competitive-report?id=abc
 
 ## Executive summary
 Hello`

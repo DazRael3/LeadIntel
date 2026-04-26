@@ -53,7 +53,7 @@ Inside:
 Run public audit (cross-platform CLI flags — recommended):
 
 ```bash
-npm run audit:ai -- --baseUrl="https://dazrael.com" --scope="public"
+npm run audit:ai -- --baseUrl="https://raelinfo.com" --scope="public"
 ```
 
 ### More thorough public audit (recommended)
@@ -64,13 +64,13 @@ Enable two extra layers:
 Cross-platform CLI flags (recommended):
 
 ```bash
-npm run audit:ai -- --baseUrl="https://dazrael.com" --scope="public" --useSitemap=1 --maxSitemapUrls=300 --flows=1 --maxRoutes=200
+npm run audit:ai -- --baseUrl="https://raelinfo.com" --scope="public" --useSitemap=1 --maxSitemapUrls=300 --flows=1 --maxRoutes=200
 ```
 
 Run public audit (env vars — optional):
 
 ```bash
-AUDIT_BASE_URL="https://dazrael.com" \
+AUDIT_BASE_URL="https://raelinfo.com" \
 AUDIT_SCOPE="public" \
 npm run audit:ai
 ```
@@ -81,7 +81,7 @@ If your antivirus blocks PowerShell’s `npm.ps1`, run npm via `npm.cmd` or `cmd
 **PowerShell (preferred):**
 
 ```powershell
-$env:AUDIT_BASE_URL = "https://dazrael.com"
+$env:AUDIT_BASE_URL = "https://raelinfo.com"
 $env:AUDIT_SCOPE = "public"
 & "C:\Program Files\nodejs\npm.cmd" run audit:ai
 ```
@@ -89,7 +89,7 @@ $env:AUDIT_SCOPE = "public"
 **Or via cmd.exe:**
 
 ```powershell
-cmd /c "set AUDIT_BASE_URL=https://dazrael.com&& set AUDIT_SCOPE=public&& npm run audit:ai"
+cmd /c "set AUDIT_BASE_URL=https://raelinfo.com&& set AUDIT_SCOPE=public&& npm run audit:ai"
 ```
 
 Find output under:
@@ -118,20 +118,20 @@ Logged-in auditing is optional. It **does not** store passwords in code or env.
 Run (cross-platform CLI flags — recommended):
 
 ```bash
-npm run audit:storage -- --baseUrl="https://dazrael.com"
+npm run audit:storage -- --baseUrl="https://raelinfo.com"
 ```
 
 Run (env vars — optional):
 
 ```bash
-AUDIT_BASE_URL="https://dazrael.com" \
+AUDIT_BASE_URL="https://raelinfo.com" \
 npm run audit:storage
 ```
 
 **Windows PowerShell equivalent (no `npm.ps1`):**
 
 ```powershell
-$env:AUDIT_BASE_URL = "https://dazrael.com"
+$env:AUDIT_BASE_URL = "https://raelinfo.com"
 & "C:\Program Files\nodejs\npm.cmd" run audit:storage
 ```
 
@@ -144,18 +144,18 @@ A browser opens. Log in manually. The script will accept **any post-login page**
 Cross-platform CLI flags (recommended):
 
 ```bash
-npm run audit:ai -- --baseUrl="https://dazrael.com" --scope="all" --storageState="admin-reports/ai-site-audit/storageState.json"
+npm run audit:ai -- --baseUrl="https://raelinfo.com" --scope="all" --storageState="admin-reports/ai-site-audit/storageState.json"
 ```
 
 ### More thorough logged-in audit (recommended)
 Run flows + sitemap discovery (public side) + larger cap:
 
 ```bash
-npm run audit:ai -- --baseUrl="https://dazrael.com" --scope="all" --storageState="admin-reports/ai-site-audit/storageState.json" --useSitemap=1 --maxSitemapUrls=300 --flows=1 --maxRoutes=220
+npm run audit:ai -- --baseUrl="https://raelinfo.com" --scope="all" --storageState="admin-reports/ai-site-audit/storageState.json" --useSitemap=1 --maxSitemapUrls=300 --flows=1 --maxRoutes=220
 ```
 
 ```bash
-AUDIT_BASE_URL="https://dazrael.com" \
+AUDIT_BASE_URL="https://raelinfo.com" \
 AUDIT_SCOPE="all" \
 AUDIT_STORAGE_STATE="admin-reports/ai-site-audit/storageState.json" \
 npm run audit:ai
@@ -164,7 +164,7 @@ npm run audit:ai
 **Windows PowerShell equivalent (no `npm.ps1`):**
 
 ```powershell
-$env:AUDIT_BASE_URL = "https://dazrael.com"
+$env:AUDIT_BASE_URL = "https://raelinfo.com"
 $env:AUDIT_SCOPE = "all"
 $env:AUDIT_STORAGE_STATE = "admin-reports/ai-site-audit/storageState.json"
 & "C:\Program Files\nodejs\npm.cmd" run audit:ai
@@ -173,7 +173,7 @@ $env:AUDIT_STORAGE_STATE = "admin-reports/ai-site-audit/storageState.json"
 If you only want authenticated pages:
 
 ```bash
-AUDIT_BASE_URL="https://dazrael.com" \
+AUDIT_BASE_URL="https://raelinfo.com" \
 AUDIT_SCOPE="logged_in" \
 AUDIT_STORAGE_STATE="admin-reports/ai-site-audit/storageState.json" \
 npm run audit:ai

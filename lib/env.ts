@@ -350,7 +350,7 @@ const serverEnvSchema = z
   EXTERNAL_CRON_SECRET: z.string().min(16, 'EXTERNAL_CRON_SECRET must be at least 16 characters').optional(),
   CRON_SIGNING_SECRET: z.string().min(16, 'CRON_SIGNING_SECRET must be at least 16 characters').optional(),
 
-  // Lifecycle email links (optional; falls back to NEXT_PUBLIC_SITE_URL or https://dazrael.com)
+  // Lifecycle email links (optional; falls back to NEXT_PUBLIC_SITE_URL or https://raelinfo.com)
   APP_URL: z.string().url().optional(),
 
   // Optional market data provider (server-side; falls back to deterministic mock quotes)
