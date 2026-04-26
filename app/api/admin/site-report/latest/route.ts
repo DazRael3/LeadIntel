@@ -22,7 +22,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
       return fail(ErrorCode.FORBIDDEN, 'Forbidden', undefined, undefined, bridge, requestId)
     }
 
-    const admin = createSupabaseAdminClient()
+    const admin = createSupabaseAdminClient({ schema: 'api' })
     const { data, error } = await admin
       .from('site_reports')
       .select('id, report_date, generated_at, summary, notes')

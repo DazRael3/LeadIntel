@@ -79,7 +79,7 @@ export const POST = withApiGuard(
         pitchText,
         footerText: 'This email was sent via LeadIntel. To manage preferences, visit your dashboard.',
       })
-      const text = `Hi ${recipientName || 'there'},\n\n${pitchText}\n\nBest regards,\n${senderName}\nLeadIntel Autonomous Revenue Agent`
+      const text = `Hi ${recipientName || 'there'},\n\n${pitchText}\n\nBest regards,\n${senderName}\nLeadIntel`
 
       const sendResult = await sendEmailWithResend({
         from: `${senderName} <${senderEmail}>`,

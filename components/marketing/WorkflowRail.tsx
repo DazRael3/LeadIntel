@@ -20,7 +20,11 @@ const STEPS: Step[] = [
   { id: 'prioritize', title: 'Prioritize today’s accounts', description: 'Turn signals into a ranked shortlist so reps don’t hunt in tabs.' },
   { id: 'explain', title: 'Explain the score', description: 'Show the reasons behind the 0–100 score so prioritization is trustworthy.' },
   { id: 'draft', title: 'Draft the message', description: 'Generate send-ready openers and sequences without a blank page.' },
-  { id: 'push_export', title: 'Push or export the action', description: 'Route work via webhooks or exports to fit the team’s operating system.' },
+  {
+    id: 'push_export',
+    title: 'Push or export the action',
+    description: 'On paid plans, route work via webhooks or exports to fit the team operating model.',
+  },
 ]
 
 export function WorkflowRail() {

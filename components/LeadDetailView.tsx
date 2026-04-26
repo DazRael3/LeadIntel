@@ -46,6 +46,8 @@ import { MobileAccountTriage } from "@/components/mobile/MobileAccountTriage"
 import { OpportunityContextCard } from "@/components/account/OpportunityContextCard"
 import { WorkflowOutcomeLinkCard } from "@/components/account/WorkflowOutcomeLinkCard"
 import { AttributionSupportCard } from "@/components/account/AttributionSupportCard"
+import { executePitchCopyAction, resolvePitchCopyAccess } from "@/lib/copy/pitch-copy-access"
+import { track } from "@/lib/analytics"
 
 interface LeadDetailViewProps {
   lead: Lead
@@ -84,6 +86,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
   const [signalsSort, setSignalsSort] = useState<SignalsPanelSort>('recent')
   const [signalsType, setSignalsType] = useState<string | null>(null)
   const [briefRefreshKey, setBriefRefreshKey] = useState(0)
+  const [pitchText, setPitchText] = useState<string>(isPro ? (lead.ai_personalized_pitch ?? '') : '')
   const [explainability, setExplainability] = useState<{
     loading: boolean
     error: string | null
@@ -243,11 +246,60 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
     }
   }, [lead.id, signalsWindow, signalsSort, signalsType])
 
+  const hasFullPitchAccess = isPro || unlocked
+  const copyAccess = resolvePitchCopyAccess({
+    viewerTier: 'starter',
+    hasFullPitchAccess,
+  })
+
+  useEffect(() => {
+    let cancelled = false
+    if (!hasFullPitchAccess) return
+    if (pitchText.trim().length > 0) return
+
+    const loadPitchText = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('ai_personalized_pitch')
+          .eq('id', lead.id)
+          .single()
+
+        if (cancelled || error) return
+
+        const textRaw = (data as { ai_personalized_pitch?: unknown } | null)?.ai_personalized_pitch
+        const text = typeof textRaw === 'string' ? textRaw : ''
+        setPitchText(text)
+      } catch {
+        // fail-soft
+      }
+    }
+
+    void loadPitchText()
+    return () => {
+      cancelled = true
+    }
+  }, [hasFullPitchAccess, lead.id, pitchText, supabase])
+
   const handleCopyPitch = async () => {
+    const fullPitchText = pitchText.trim().length > 0 ? pitchText : lead.ai_personalized_pitch ?? ''
     try {
-      await navigator.clipboard.writeText(lead.ai_personalized_pitch)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      const result = await executePitchCopyAction({
+        access: copyAccess,
+        fullText: fullPitchText,
+        copyText: async (text) => {
+          await navigator.clipboard.writeText(text)
+        },
+        openUpgrade: ({ path, ctaLabel }) => {
+          track('upgrade_clicked', { source: 'lead_detail_locked_copy', ctaLabel })
+          window.location.href = path
+        },
+      })
+
+      if (result === 'copied') {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
     } catch (error) {
       console.error('Failed to copy:', error)
     }
@@ -321,7 +373,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
           <MobileAccountTriage
             companyName={(lead.company_name ?? 'Account').toString()}
             triggerEvent={typeof lead.trigger_event === 'string' ? lead.trigger_event : null}
-            pitchText={typeof lead.ai_personalized_pitch === 'string' ? lead.ai_personalized_pitch : ''}
+            pitchText={hasFullPitchAccess ? pitchText : ''}
             scoreExplainability={explainability.scoreExplainability}
             momentum={explainability.momentum}
             dataQuality={explainability.dataQuality}
@@ -481,7 +533,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                 : 'Momentum: —',
               ...explainability.signals.slice(0, 3).map((s) => `Signal: ${s.title}`),
             ].join('\n')}
-            opener={typeof lead.ai_personalized_pitch === 'string' ? lead.ai_personalized_pitch : null}
+            opener={hasFullPitchAccess ? (pitchText.trim().length > 0 ? pitchText : null) : null}
             personas={explainability.people?.personas ?? null}
             onBriefGenerated={() => setBriefRefreshKey((x) => x + 1)}
           />
@@ -599,6 +651,7 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                   variant="outline"
                   onClick={handleCopyPitch}
                   className="neon-border hover:glow-effect whitespace-nowrap"
+                  disabled={copyAccess.action === 'copy' && pitchText.trim().length === 0}
                 >
                   {copied ? (
                     <>
@@ -607,8 +660,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                     </>
                   ) : (
                     <>
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy
+                      {copyAccess.action === 'copy' ? <Copy className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+                      {copyAccess.action === 'copy' ? 'Copy' : copyAccess.ctaLabel}
                     </>
                   )}
                 </Button>
@@ -634,8 +687,8 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
                 </div>
               )}
               <p className={`text-sm leading-relaxed whitespace-pre-wrap font-mono text-muted-foreground ${!isPro && !unlocked ? 'blur-sm select-none' : ''}`}>
-                {isPro || unlocked
-                  ? lead.ai_personalized_pitch
+                {hasFullPitchAccess
+                  ? pitchText
                   : 'Pitch content is locked. Upgrade to unlock why-now context, send-ready drafts, and action layer features.'}
               </p>
             </div>

@@ -35,7 +35,7 @@ const ITEMS: ProofItem[] = [
   {
     key: 'actions',
     label: 'Webhook + export actions',
-    description: 'Push or export the action layer to your existing workflow.',
+    description: 'Paid plans can push or export the action layer into existing workflows.',
     icon: Workflow,
   },
 ]

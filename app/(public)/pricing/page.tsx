@@ -55,7 +55,7 @@ export default function PricingPage() {
         },
         {
           '@type': 'Offer',
-          name: 'Agency (base)',
+          name: 'Team (base)',
           price: '249',
           priceCurrency: 'USD',
           url: 'https://raelinfo.com/pricing',
@@ -86,10 +86,10 @@ export default function PricingPage() {
       },
       {
         '@type': 'Question',
-        name: 'How do Agency seats work?',
+        name: 'How do Team seats work?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'Agency includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later in Stripe.',
+          text: 'Team includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later in Stripe.',
         },
       },
       {

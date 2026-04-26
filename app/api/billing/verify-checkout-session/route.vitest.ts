@@ -106,6 +106,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 
 const retrieve = vi.fn()
 const listLineItems = vi.fn()
+const retrieveSubscription = vi.fn()
 vi.mock('@/lib/stripe', () => ({
   stripe: {
     checkout: {
@@ -113,6 +114,9 @@ vi.mock('@/lib/stripe', () => ({
         retrieve,
         listLineItems,
       },
+    },
+    subscriptions: {
+      retrieve: retrieveSubscription,
     },
   },
 }))
@@ -158,6 +162,15 @@ describe('/api/billing/verify-checkout-session', () => {
 
     listLineItems.mockResolvedValue({
       data: [{ price: { id: 'price_test_pro_123' } }],
+    })
+    retrieveSubscription.mockResolvedValue({
+      id: 'sub_123',
+      status: 'active',
+      current_period_start: 1700000000,
+      current_period_end: 1700003600,
+      cancel_at_period_end: false,
+      trial_end: null,
+      items: { data: [{ price: { id: 'price_test_pro_123' } }] },
     })
 
     const { GET } = await import('./route')
@@ -349,6 +362,77 @@ describe('/api/billing/verify-checkout-session', () => {
     expect(json.ok).toBe(false)
     expect(adminUpdateEq).not.toHaveBeenCalled()
     expect(adminUpsert).not.toHaveBeenCalled()
+  })
+
+  it('does not grant access when checkout is complete but Stripe subscription cannot be resolved', async () => {
+    retrieve.mockResolvedValue({
+      id: 'cs_test_missing_sub',
+      client_reference_id: 'user_1',
+      metadata: { user_id: 'user_1' },
+      payment_status: 'paid',
+      status: 'complete',
+      customer: 'cus_123',
+      subscription: 'sub_missing',
+    })
+    listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_test_pro_123' } }],
+    })
+    retrieveSubscription.mockRejectedValue(new Error('subscription not found'))
+
+    const { GET } = await import('./route')
+    const req = new NextRequest(
+      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_missing_sub',
+      {
+        method: 'GET',
+      }
+    )
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.verified).toBe(false)
+    expect(json.data?.plan).toBe('free')
+    expect(adminUpdateEq).not.toHaveBeenCalled()
+    expect(adminUpsert).not.toHaveBeenCalled()
+  })
+
+  it('keeps access free for canceled Stripe subscriptions even after completed checkout', async () => {
+    retrieve.mockResolvedValue({
+      id: 'cs_test_canceled',
+      client_reference_id: 'user_1',
+      metadata: { user_id: 'user_1' },
+      payment_status: 'paid',
+      status: 'complete',
+      customer: 'cus_123',
+      subscription: {
+        id: 'sub_canceled',
+        status: 'canceled',
+        current_period_start: 1700000000,
+        current_period_end: 1700003600,
+        cancel_at_period_end: true,
+        trial_end: null,
+        items: { data: [{ price: { id: 'price_test_pro_123' } }] },
+      },
+    })
+    listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_test_pro_123' } }],
+    })
+
+    const { GET } = await import('./route')
+    const req = new NextRequest(
+      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_canceled',
+      {
+        method: 'GET',
+      }
+    )
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.verified).toBe(false)
+    expect(json.data?.plan).toBe('free')
+    expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'free' }))
+    expect(adminUpsert).toHaveBeenCalled()
   })
 })
 

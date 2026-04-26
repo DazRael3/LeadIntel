@@ -49,7 +49,7 @@ export function renderSimplePitchEmailHtml(args: {
       <p style="font-size: 14px; color: #6b7280; margin: 18px 0 0 0;">
         Best regards,<br>
         <strong>${sender}</strong><br>
-        ${brand} Autonomous Revenue Agent
+        ${brand} team
       </p>
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 26px 0;">
       ${footer}

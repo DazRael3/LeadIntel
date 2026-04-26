@@ -52,7 +52,9 @@ export default async function LeadResultsPage({
 }) {
   const params = (await searchParams) ?? {}
   const company = parseSearchParamValue(params.company)
-  const previewLeads = buildPreviewLeads(company)
+  const allPreviewLeads = buildPreviewLeads(company)
+  const previewLeads = allPreviewLeads.slice(0, 3)
+  const hiddenLeadCount = Math.max(0, allPreviewLeads.length - previewLeads.length)
   const previewCompany = company.trim().length > 0 ? company : 'acme.com'
   let user: { id: string } | null = null
   let supabase: Awaited<ReturnType<typeof createClient>> | null = null
@@ -71,7 +73,7 @@ export default async function LeadResultsPage({
       <div className="min-h-screen bg-background terminal-grid">
         <LeadResultsPageTrack />
         <div className="container mx-auto px-4 sm:px-6 py-8">
-          <LeadResultsPreviewClient company={previewCompany} leads={previewLeads} />
+          <LeadResultsPreviewClient company={previewCompany} leads={previewLeads} hiddenLeadCount={hiddenLeadCount} />
         </div>
       </div>
     )

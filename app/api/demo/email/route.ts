@@ -32,7 +32,7 @@ export const POST = withApiGuard(
         )
       }
 
-      const from = (serverEnv.RESEND_FROM_EMAIL || 'leadintel@dazrael.com').trim()
+      const from = (serverEnv.RESEND_FROM_EMAIL || 'support@raelinfo.com').trim()
       if (!from) {
         return ok({ sent: false, reason: 'from_email_not_configured' }, undefined, undefined, requestId)
       }
