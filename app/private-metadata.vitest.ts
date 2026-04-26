@@ -9,14 +9,22 @@ describe('private route metadata policy', () => {
     expect(settingsLayout.metadata?.robots).toMatchObject({ index: false, follow: false })
   })
 
-  it('key logged-in pages have distinct titles', async () => {
-    const dash = await import('./dashboard/page')
-    const history = await import('./dashboard/history/page')
-    const pitch = await import('./pitch-history/page')
+  // Metadata route imports are noticeably slower during full-suite execution due to module graph load.
+  // Keep this test strict, but allow a larger per-test timeout to avoid intermittent suite-level timeouts.
+  it(
+    'key logged-in pages have distinct titles',
+    { timeout: 30_000 },
+    async () => {
+      const [dash, history, pitch] = await Promise.all([
+        import('./dashboard/page'),
+        import('./dashboard/history/page'),
+        import('./pitch-history/page'),
+      ])
 
-    expect(dash.metadata?.title).toBe('Dashboard | LeadIntel')
-    expect(history.metadata?.title).toBe('Saved outputs | LeadIntel')
-    expect(pitch.metadata?.title).toBe('Pitch history | LeadIntel')
-  })
+      expect(dash.metadata?.title).toBe('Dashboard | LeadIntel')
+      expect(history.metadata?.title).toBe('Saved outputs | LeadIntel')
+      expect(pitch.metadata?.title).toBe('Pitch history | LeadIntel')
+    }
+  )
 })
 
