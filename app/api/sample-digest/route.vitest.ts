@@ -1,10 +1,27 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
+function extractDemoUsageCookie(setCookieHeader: string | null): string | null {
+  if (!setCookieHeader) return null
+  const matched = setCookieHeader.match(/li_demo_usage=([^;]+)/)
+  if (!matched || matched.length < 2) return null
+  return decodeURIComponent(matched[1])
+}
+
 describe('/api/sample-digest', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.stubEnv('NODE_ENV', 'test')
+    // Ensure rate limiting is deterministic in tests; this suite validates demo usage limits, not IP burst protection.
+    vi.doMock('@/lib/rateLimit', () => ({
+      checkPublicRateLimit: vi.fn(async () => ({
+        ok: true,
+        remaining: 99,
+        reset: Math.floor(Date.now() / 1000) + 600,
+      })),
+    }))
+    const globalState = globalThis as Record<string, unknown>
+    delete globalState.__leadintelPublicRateLimitStore
   })
 
   it('returns deterministic sample output (no auth)', async () => {
@@ -130,37 +147,86 @@ describe('/api/sample-digest', () => {
   it('returns free limit response after 2 runs in a day', async () => {
     const { POST } = await import('./route')
     const today = new Date().toISOString().slice(0, 10)
+    const sessionId = 'test-session-id-123456'
+    const forwardedFor = '203.0.113.25'
 
-    const requestWithCookie = (cookie: string) =>
+    const requestWithCookie = (cookie?: string) =>
+      new NextRequest('http://localhost:3000/api/sample-digest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          origin: 'http://localhost:3000',
+          'x-forwarded-for': forwardedFor,
+          ...(cookie ? { cookie } : {}),
+        },
+        body: JSON.stringify({ companyOrUrl: 'acme.com', sessionId }),
+      })
+
+    const firstRes = await POST(requestWithCookie())
+    expect(firstRes.status).toBe(200)
+    const firstJson = await firstRes.json()
+    expect(firstJson.ok).toBe(true)
+    expect(firstJson.data?.usage?.runsToday).toBe(1)
+    expect(firstJson.data?.usage?.maxRunsPerDay).toBe(2)
+    const firstCookieRaw = extractDemoUsageCookie(firstRes.headers.get('set-cookie'))
+    expect(firstCookieRaw).not.toBeNull()
+    const firstCookie = JSON.parse(firstCookieRaw ?? '{}') as { sessionId?: string; date?: string; runs?: number }
+    expect(firstCookie.sessionId).toBe(sessionId)
+    expect(firstCookie.date).toBe(today)
+    expect(firstCookie.runs).toBe(1)
+
+    const secondRes = await POST(
+      requestWithCookie(
+        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId, date: today, runs: 1 }))}`
+      )
+    )
+    expect(secondRes.status).toBe(200)
+    const secondJson = await secondRes.json()
+    expect(secondJson.ok).toBe(true)
+    expect(secondJson.data?.usage?.runsToday).toBe(2)
+    expect(secondJson.data?.usage?.maxRunsPerDay).toBe(2)
+    const secondCookieRaw = extractDemoUsageCookie(secondRes.headers.get('set-cookie'))
+    expect(secondCookieRaw).not.toBeNull()
+    const secondCookie = JSON.parse(secondCookieRaw ?? '{}') as { sessionId?: string; date?: string; runs?: number }
+    expect(secondCookie.sessionId).toBe(sessionId)
+    expect(secondCookie.date).toBe(today)
+    expect(secondCookie.runs).toBe(2)
+
+    const blockedRes = await POST(
+      requestWithCookie(
+        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId, date: today, runs: 2 }))}`
+      )
+    )
+    expect(blockedRes.status).toBe(429)
+    const body = await blockedRes.json()
+    expect(body.ok).toBe(false)
+    const errorCode = typeof body.error === 'string' ? body.error : body.error?.code
+    expect(errorCode).toBe('RATE_LIMIT_EXCEEDED')
+    const runsToday = typeof body.runsToday === 'number' ? body.runsToday : body.error?.details?.runsToday
+    expect(runsToday).toBeGreaterThanOrEqual(2)
+    expect(body.error?.details?.maxRunsPerDay).toBe(2)
+  })
+
+  it('returns free limit response when cookie already records two runs today', async () => {
+    const { POST } = await import('./route')
+    const today = new Date().toISOString().slice(0, 10)
+    const sessionId = 'test-session-id-123456'
+
+    const blockedRes = await POST(
       new NextRequest('http://localhost:3000/api/sample-digest', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           origin: 'http://localhost:3000',
           'x-forwarded-for': '203.0.113.25',
-          cookie,
+          cookie: `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId, date: today, runs: 2 }))}`,
         },
-        body: JSON.stringify({ companyOrUrl: 'acme.com' }),
+        body: JSON.stringify({ companyOrUrl: 'acme.com', sessionId }),
       })
-
-    const firstRes = await POST(
-      requestWithCookie(
-        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId: 'test-session', date: today, runs: 1 }))}`
-      )
-    )
-    expect(firstRes.status).toBe(200)
-    const firstJson = await firstRes.json()
-    expect(firstJson.ok).toBe(true)
-    expect(firstJson.data?.usage?.runsToday).toBe(2)
-    expect(firstJson.data?.usage?.maxRunsPerDay).toBe(2)
-
-    const blockedRes = await POST(
-      requestWithCookie(
-        `li_demo_usage=${encodeURIComponent(JSON.stringify({ sessionId: 'test-session', date: today, runs: 2 }))}`
-      )
     )
     expect(blockedRes.status).toBe(429)
     const body = await blockedRes.json()
+    expect(body.ok).toBe(false)
     const errorCode = typeof body.error === 'string' ? body.error : body.error?.code
     expect(errorCode).toBe('RATE_LIMIT_EXCEEDED')
     const runsToday = typeof body.runsToday === 'number' ? body.runsToday : body.error?.details?.runsToday
