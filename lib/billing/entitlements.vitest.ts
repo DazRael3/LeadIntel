@@ -10,12 +10,13 @@ describe('getEntitlements', () => {
     expect(e.isTrialExpiredNonPro).toBe(false)
   })
 
-  it('active trial grants access', () => {
+  it('active trial does not grant paid export/history access', () => {
     const now = Date.parse('2025-01-01T00:00:00Z')
     const endsAt = '2025-01-02T00:00:00Z'
     const e = getEntitlements({ plan: 'free', trial: { active: true, endsAt } }, now)
     expect(e.isTrialActive).toBe(true)
-    expect(e.canAccessPitchHistory).toBe(true)
+    expect(e.canAccessPitchHistory).toBe(false)
+    expect(e.canExportLeads).toBe(false)
   })
 
   it('free users without active trial are locked', () => {

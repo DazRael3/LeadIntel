@@ -18,7 +18,10 @@ export interface PlanDetails {
   currentPeriodEndsAt?: string | null
   /** App-level trial end timestamp (ISO) if enabled and active. */
   appTrialEndsAt?: string | null
-  /** True when effective Pro access is coming from app-level trial (not Stripe). */
+  /**
+   * App-level trial indicator for UX only.
+   * NOTE: Trial state must not unlock paid/server-gated capabilities.
+   */
   isAppTrial?: boolean
 }
 
@@ -129,7 +132,7 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
       .maybeSingle()
 
     const status = (sub as { status?: string | null } | null)?.status ?? null
-    let plan: Plan = status && ACTIVE_STATUSES.includes(status) ? 'pro' : await getPlan(supabase, userId)
+    const plan: Plan = status && ACTIVE_STATUSES.includes(status) ? 'pro' : await getPlan(supabase, userId)
     let appTrialEndsAt: string | null = null
     let isAppTrial = false
 
@@ -143,7 +146,6 @@ export async function getPlanDetails(supabase: SupabaseClient, userId: string): 
 
         const trialEnds = (userRow as { trial_ends_at?: string | null } | null)?.trial_ends_at ?? null
         if (isFutureIso(trialEnds, Date.now())) {
-          plan = 'pro'
           appTrialEndsAt = trialEnds
           isAppTrial = true
         }

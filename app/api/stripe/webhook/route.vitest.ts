@@ -308,5 +308,44 @@ describe('/api/stripe/webhook', () => {
     expect(res.status).toBe(200)
     expect(userUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'free' }))
   })
+
+  it('keeps users free when checkout completes with incomplete payment state', async () => {
+    mockFeatureEnabled = true
+    const eventPayload = {
+      id: 'evt_incomplete',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          mode: 'subscription',
+          customer: 'cus_incomplete',
+          client_reference_id: 'user_1',
+          subscription: 'sub_incomplete',
+        },
+      },
+    }
+    constructEventMock.mockImplementationOnce(() => eventPayload)
+    retrieveSubscriptionMock.mockResolvedValueOnce({
+      id: 'sub_incomplete',
+      status: 'incomplete',
+      current_period_end: 1700003600,
+      current_period_start: 1700000000,
+      cancel_at_period_end: false,
+      trial_end: null,
+      items: { data: [{ price: { id: 'price_pro_123' } }] },
+    })
+
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/stripe/webhook', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'stripe-signature': 't=123,v1=fake',
+      },
+      body: JSON.stringify(eventPayload),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(userUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'free' }))
+  })
 })
 

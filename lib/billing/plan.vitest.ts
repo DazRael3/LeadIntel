@@ -66,16 +66,26 @@ describe('getPlanDetails (app trial)', () => {
     else process.env.ENABLE_APP_TRIAL = prev
   })
 
-  it('treats user as pro when app trial is active and no Stripe subscription', async () => {
+  it('keeps user on free plan when app trial is active and no Stripe subscription', async () => {
     const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
     const supabase = makeSupabaseMock({
       sub: null,
       user: { subscription_tier: 'free', trial_ends_at: future },
     })
     const details = await getPlanDetails(supabase as unknown as SupabaseClient, 'user_1')
-    expect(details.plan).toBe('pro')
+    expect(details.plan).toBe('free')
     expect(details.isAppTrial).toBe(true)
     expect(details.appTrialEndsAt).toBe(future)
+  })
+
+  it('does not treat app trial as pro access in isPro()', async () => {
+    const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
+    const supabase = makeSupabaseMock({
+      sub: null,
+      user: { subscription_tier: 'free', trial_ends_at: future },
+    })
+    const pro = await isPro(supabase as unknown as SupabaseClient, 'user_1')
+    expect(pro).toBe(false)
   })
 
   it('falls back to free when app trial is expired and no Stripe subscription', async () => {

@@ -125,6 +125,19 @@ describe('/api/plan', () => {
     expect(json.data?.isHouseCloserOverride).toBe(false)
   })
 
+  it('new user defaults to starter when free tier is explicitly persisted', async () => {
+    mockUserRow = { subscription_tier: 'free' }
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.tier).toBe('starter')
+    expect(json.data?.plan).toBe('free')
+    expect(json.data?.planId).toBe(null)
+  })
+
   it('user row marked pro but no subscription row -> closer tier, planId pro', async () => {
     mockUserRow = { subscription_tier: 'pro' }
     const { GET } = await import('./route')

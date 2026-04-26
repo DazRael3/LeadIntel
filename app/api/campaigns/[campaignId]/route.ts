@@ -19,6 +19,7 @@ import {
   attachLeadsToCampaign,
 } from '@/lib/services/campaigns'
 import type { User } from '@supabase/supabase-js'
+import { requireCapability } from '@/lib/billing/require-capability'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,6 +96,20 @@ async function resolveCampaignContext(args: {
       ok: false,
       bridge,
       response: fail(ErrorCode.FORBIDDEN, 'Access restricted', undefined, undefined, bridge, args.requestId),
+    }
+  }
+
+  const capability = await requireCapability({
+    userId: user.id,
+    sessionEmail: user.email ?? null,
+    supabase,
+    capability: 'action_queue',
+  })
+  if (!capability.ok) {
+    return {
+      ok: false,
+      bridge,
+      response: fail(ErrorCode.FORBIDDEN, 'Campaign workflows require a paid plan', undefined, undefined, bridge, args.requestId),
     }
   }
 

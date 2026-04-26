@@ -67,6 +67,11 @@ vi.mock('@/lib/team/workspace', () => ({
   getWorkspaceMembership: vi.fn(async () => (mockMembershipRole ? { role: mockMembershipRole } : null)),
 }))
 
+let capabilityAllowed = true
+vi.mock('@/lib/billing/require-capability', () => ({
+  requireCapability: vi.fn(async () => ({ ok: capabilityAllowed, tier: capabilityAllowed ? 'closer' : 'starter' })),
+}))
+
 vi.mock('@/lib/services/campaigns', () => ({
   CampaignCreateSchema: z.object({
     name: z.string().trim().min(1).max(160),
@@ -116,7 +121,19 @@ describe('/api/campaigns', () => {
     mockMembershipRole = 'owner'
     mockWorkspaceId = 'ws_1'
     mockCampaigns = []
+    capabilityAllowed = true
     availableLeadIds = new Set<string>([LEAD_ID_1, LEAD_ID_2])
+  })
+
+  it('blocks starter users from campaign workflow access', async () => {
+    capabilityAllowed = false
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/campaigns', {
+      method: 'GET',
+      headers: { origin: 'http://localhost:3000' },
+    })
+    const res = await GET(req)
+    expect(res.status).toBe(403)
   })
 
   it('creates campaign with attached leads', async () => {
