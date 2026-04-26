@@ -51,7 +51,7 @@ Recommended production migration set is documented in `docs/LAUNCH_CHECKLIST.md`
 
 DB verification steps:
 - SQL checks in `docs/ANALYTICS_RLS.md`
-- Optional script: `RUN_DB_SANITY=1 npm run db:sanity` (requires real Supabase creds; not run in CI)
+- Optional script: `RUN_DB_SANITY=1 npm.cmd run db:sanity` (Windows PowerShell) / `RUN_DB_SANITY=1 npm run db:sanity` (macOS/Linux). Requires real Supabase creds; not run in CI.
 
 ---
 

@@ -10,11 +10,11 @@ Use this rule:
 
 ### Build-time + runtime (must be set in Vercel for Production)
 - `NEXT_PUBLIC_APP_ENV=production`
-- `NEXT_PUBLIC_SITE_URL=https://dazrael.com`
+- `NEXT_PUBLIC_SITE_URL=https://raelinfo.com`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (`pk_live_...`)
-- `ALLOWED_ORIGINS` (include `https://dazrael.com` and `https://www.dazrael.com`)
+- `ALLOWED_ORIGINS` (include `https://raelinfo.com` and `https://www.raelinfo.com`)
 
 ### Runtime only (server secrets, Production env scope)
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -77,9 +77,46 @@ Optional runtime-only email stack (required if enabled):
 ## Origin / URLs
 
 **Required**
-- `NEXT_PUBLIC_SITE_URL`: your production URL (e.g. `https://app.yourdomain.com`)
+- `NEXT_PUBLIC_SITE_URL`: must be exactly `https://raelinfo.com` in production
 - `ALLOWED_ORIGINS`: comma-separated list of allowed origins (should include `NEXT_PUBLIC_SITE_URL`)
 - `NEXT_PUBLIC_APP_ENV=production`
+
+## Local production-readiness verification (Windows PowerShell safe)
+
+Use this sequence locally without printing any secret values. Keep real secrets in your local environment manager or `.env.local` only.
+
+```powershell
+# Install exactly from lockfile
+& "C:\Program Files\nodejs\npm.cmd" ci
+
+# Recommended: load private values from a local file not committed to git.
+# Example: .env.production.local.ps1 (ignored by git) containing your private exports.
+# Then override canonical production values explicitly:
+$env:NEXT_PUBLIC_SITE_URL = "https://raelinfo.com"
+$env:NEXT_PUBLIC_APP_ENV = "production"
+
+# Run checks (they validate config presence and formats; they do not print secrets)
+& "C:\Program Files\nodejs\npm.cmd" run check:production
+```
+
+Notes:
+- Do not paste secret values into logs, tickets, or PR comments.
+- `check:production` will fail intentionally if `NEXT_PUBLIC_SITE_URL` is not exactly `https://raelinfo.com`.
+- For CI, inject these via secret managers instead of committed files.
+
+## DB sanity check (Windows PowerShell safe)
+
+`db:sanity` is intentionally opt-in and will skip unless `RUN_DB_SANITY=1`.
+
+```powershell
+$env:RUN_DB_SANITY = "1"
+$env:NEXT_PUBLIC_SUPABASE_URL = "<set privately>"
+$env:NEXT_PUBLIC_SUPABASE_ANON_KEY = "<set privately>"
+$env:SUPABASE_SERVICE_ROLE_KEY = "<set privately>"
+& "C:\Program Files\nodejs\npm.cmd" run db:sanity
+```
+
+This script validates tenant-isolation behavior and service-role cross-tenant writes without exposing key contents.
 
 ## Rate limiting (Upstash)
 

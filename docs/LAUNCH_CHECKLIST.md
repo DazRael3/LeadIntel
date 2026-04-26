@@ -5,6 +5,11 @@
 - `npm run test:unit`
 - `npm run test:e2e` (or `npm run verify:ready`)
 - `npm run build`
+- Windows PowerShell equivalent when `npm.ps1` is blocked:
+  - `npm.cmd run lint`
+  - `npm.cmd run test:unit`
+  - `npm.cmd run test:e2e`
+  - `npm.cmd run build`
 
 ### Supabase
 - **Apply migrations** (latest), including `0048_premium_generation_usage.sql` for free-tier generation enforcement.
@@ -16,7 +21,8 @@
 - Copy from `.env.example` and set in Vercel:
   - **Supabase**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
   - **Stripe**: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO`
-  - **Origins/URLs**: `NEXT_PUBLIC_SITE_URL`, `ALLOWED_ORIGINS`
+- **Origins/URLs**: `NEXT_PUBLIC_SITE_URL`, `ALLOWED_ORIGINS`
+  - Production value requirement: `NEXT_PUBLIC_SITE_URL` should be exactly `https://raelinfo.com`.
   - **Trial**: `ENABLE_APP_TRIAL` (optional)
 - **Trial abuse hardening**: `ENABLE_TRIAL_FINGERPRINTING` (optional; recommended)
 - **Product analytics**: `ENABLE_PRODUCT_ANALYTICS` (optional) and `NEXT_PUBLIC_ANALYTICS_ENABLED` (optional)
@@ -235,7 +241,9 @@ Verify:
 - Cron invocations succeed with signed `cron_token`.
 - Webhooks validate signatures and respect kill switches.
  - RLS sanity: run the SQL checks in `docs/ANALYTICS_RLS.md` after migrations to confirm RLS + grants.
- - (optional) Run the automated RLS sanity script (staging/prod): `RUN_DB_SANITY=1 npm run db:sanity`
+ - (optional) Run the automated RLS sanity script (staging/prod):
+   - macOS/Linux: `RUN_DB_SANITY=1 npm run db:sanity`
+   - Windows PowerShell: `$env:RUN_DB_SANITY = "1"; npm.cmd run db:sanity`
 
 ---
 

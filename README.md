@@ -344,6 +344,36 @@ npx tsc --noEmit
 
 See `docs/PRODUCTION_ENV.md` for the full production environment checklist (Stripe live keys, Supabase, Upstash rate limiting, and webhook setup).
 
+### Production readiness commands (Windows PowerShell-safe)
+
+Use `npm.cmd` when PowerShell blocks `npm.ps1`, and never paste secret values into logs:
+
+```powershell
+& "C:\Program Files\nodejs\npm.cmd" ci
+& "C:\Program Files\nodejs\npm.cmd" run typecheck
+& "C:\Program Files\nodejs\npm.cmd" run lint
+& "C:\Program Files\nodejs\npm.cmd" run test:unit
+& "C:\Program Files\nodejs\npm.cmd" run check:production
+
+# DB sanity is intentionally opt-in and requires real credentials in your shell/session.
+$env:RUN_DB_SANITY = "1"
+& "C:\Program Files\nodejs\npm.cmd" run db:sanity
+
+# Public audit can run without storage state:
+$env:AUDIT_BASE_URL = "https://raelinfo.com"
+& "C:\Program Files\nodejs\npm.cmd" run audit:public
+& "C:\Program Files\nodejs\npm.cmd" run audit:doctor
+```
+
+For logged-in or full audits, run `audit:storage` first and set `AUDIT_STORAGE_STATE`:
+
+```powershell
+$env:AUDIT_BASE_URL = "https://raelinfo.com"
+& "C:\Program Files\nodejs\npm.cmd" run audit:storage
+$env:AUDIT_STORAGE_STATE = "admin-reports/ai-site-audit/storageState.json"
+& "C:\Program Files\nodejs\npm.cmd" run audit:doctor
+```
+
 ### Database & Migrations
 
 ```bash

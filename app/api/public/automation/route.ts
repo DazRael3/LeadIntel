@@ -13,6 +13,8 @@ type AutomationSummary = {
   missingJobs: number
   failedJobs: number
   staleJobs: number
+  healthyJobs: number
+  externalJobs: number
 }
 
 type SchedulerDependency = {
@@ -34,8 +36,11 @@ type SchedulerSummary = {
     required: boolean
     enabled: boolean
     healthy: boolean | null
+    state: 'healthy' | 'stale' | 'missing' | 'failed' | 'external' | 'disabled'
   }>
 }
+
+type AutomationHealthStatus = 'healthy' | 'degraded' | 'stale' | 'missing' | 'external_required'
 
 const JOB_STALE_HOURS: Partial<Record<JobName, number>> = {
   lifecycle: 30,
@@ -149,7 +154,17 @@ function summaryFallback(monitoredJobs: number): AutomationSummary {
     missingJobs: monitoredJobs,
     failedJobs: 0,
     staleJobs: monitoredJobs,
+    healthyJobs: 0,
+    externalJobs: 0,
   }
+}
+
+function deriveHealthStatus(summary: AutomationSummary, scheduler: SchedulerSummary): AutomationHealthStatus {
+  if (summary.failedJobs > 0) return 'degraded'
+  if (scheduler.missingRequiredJobs > 0 && scheduler.missingExternalJobs > 0) return 'external_required'
+  if (summary.missingJobs > 0) return 'missing'
+  if (summary.staleJobs > 0) return 'stale'
+  return 'healthy'
 }
 
 export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => {
@@ -165,10 +180,15 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
       missingRequiredJobs: requiredJobs,
       missingExternalJobs: requiredExternalJobs,
       warnings: schedulerWarnings({ hasEnabledWebhookEndpoints: false, missingExternalJobs: requiredExternalJobs }),
-      jobs: fallbackDeps.map((d) => ({ ...d, healthy: null })),
+      jobs: fallbackDeps.map((d) => ({
+        ...d,
+        healthy: null,
+        state: d.enabled ? (d.wiring === 'external_scheduler' ? 'external' : 'missing') : 'disabled',
+      })),
     }
+    const summary = summaryFallback(fallbackDeps.filter((d) => d.enabled).length)
     return ok(
-      { enabled: false, summary: summaryFallback(fallbackDeps.filter((d) => d.enabled).length), scheduler },
+      { enabled: false, summary, healthStatus: deriveHealthStatus(summary, scheduler), scheduler },
       undefined,
       bridge,
       requestId
@@ -222,12 +242,24 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
     const schedulerJobs = dependencies.map((dep) => {
       const check = checkByJob.get(dep.job)
       const healthy = !dep.enabled ? null : check ? check.hasRun && check.success && !check.stale : false
+      const state: SchedulerSummary['jobs'][number]['state'] = !dep.enabled
+        ? 'disabled'
+        : !check || !check.hasRun
+          ? dep.wiring === 'external_scheduler'
+            ? 'external'
+            : 'missing'
+          : check.stale
+            ? 'stale'
+            : check.success
+              ? 'healthy'
+              : 'failed'
       return {
         job: dep.job,
         wiring: dep.wiring,
         required: dep.required,
         enabled: dep.enabled,
         healthy,
+        state,
       }
     })
     const requiredJobs = schedulerJobs.filter((j) => j.enabled && j.required).length
@@ -246,18 +278,23 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
       warnings: schedulerWarnings({ hasEnabledWebhookEndpoints, missingExternalJobs }),
       jobs: schedulerJobs,
     }
+    const summary: AutomationSummary = {
+      monitoredJobs: monitoredJobs.length,
+      recentSuccess,
+      stale,
+      missingJobs,
+      failedJobs,
+      staleJobs,
+      healthyJobs: schedulerJobs.filter((job) => job.state === 'healthy').length,
+      externalJobs: schedulerJobs.filter((job) => job.state === 'external').length,
+    }
+    const healthStatus = deriveHealthStatus(summary, scheduler)
 
     return ok(
       {
         enabled: true,
-        summary: {
-          monitoredJobs: monitoredJobs.length,
-          recentSuccess,
-          stale,
-          missingJobs,
-          failedJobs,
-          staleJobs,
-        },
+        summary,
+        healthStatus,
         scheduler,
       },
       undefined,
@@ -274,9 +311,19 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
       missingRequiredJobs: requiredJobs,
       missingExternalJobs: requiredExternalJobs,
       warnings: schedulerWarnings({ hasEnabledWebhookEndpoints: false, missingExternalJobs: requiredExternalJobs }),
-      jobs: fallbackDeps.map((d) => ({ ...d, healthy: null })),
+      jobs: fallbackDeps.map((d) => ({
+        ...d,
+        healthy: null,
+        state: d.enabled ? (d.wiring === 'external_scheduler' ? 'external' : 'missing') : 'disabled',
+      })),
     }
-    return ok({ enabled: false, summary: summaryFallback(monitoredJobs), scheduler }, undefined, bridge, requestId)
+    const summary = summaryFallback(monitoredJobs)
+    return ok(
+      { enabled: false, summary, healthStatus: deriveHealthStatus(summary, scheduler), scheduler },
+      undefined,
+      bridge,
+      requestId
+    )
   }
 })
 

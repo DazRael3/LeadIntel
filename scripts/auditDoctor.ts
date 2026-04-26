@@ -83,13 +83,21 @@ async function main(): Promise<void> {
   const scope = (argOrEnv('--scope', 'AUDIT_SCOPE', 'all') ?? 'all').trim()
   const storage = argOrEnv('--storageState', 'AUDIT_STORAGE_STATE')
   const needsStorage = scope === 'logged_in' || scope === 'all'
+  const storageHelpLines = [
+    `Public-only audit (no storage needed):`,
+    `  $env:AUDIT_BASE_URL = "https://raelinfo.com"; ${npmCommand()} run audit:public`,
+    ``,
+    `Logged-in/all audit (requires storage):`,
+    `  $env:AUDIT_BASE_URL = "https://raelinfo.com"; ${npmCommand()} run audit:storage`,
+    `  $env:AUDIT_STORAGE_STATE = "admin-reports/ai-site-audit/storageState.json"; ${npmCommand()} run audit:ai -- --scope=all`,
+  ].join('\n')
   if (needsStorage) {
     if (!storage) {
       checks.push({
         level: 'WARN',
         name: 'Storage state for logged-in audit',
         details: 'AUDIT_STORAGE_STATE not set',
-        fix: 'Run audit:storage first, then set AUDIT_STORAGE_STATE to admin-reports/ai-site-audit/storageState.json',
+        fix: storageHelpLines,
       })
     } else {
       checks.push(
