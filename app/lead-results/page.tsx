@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 }
 
 export const dynamic = 'force-dynamic'
+const FREE_PREVIEW_LIMIT = 3
 
 function parseSearchParamValue(value: string | string[] | undefined): string {
   if (typeof value === 'string') return value.trim()
@@ -53,8 +54,9 @@ export default async function LeadResultsPage({
   const params = (await searchParams) ?? {}
   const company = parseSearchParamValue(params.company)
   const allPreviewLeads = buildPreviewLeads(company)
-  const previewLeads = allPreviewLeads.slice(0, 3)
+  const previewLeads = allPreviewLeads.slice(0, FREE_PREVIEW_LIMIT)
   const hiddenLeadCount = Math.max(0, allPreviewLeads.length - previewLeads.length)
+  const previewCreditsRemaining = hiddenLeadCount > 0 ? 0 : Math.max(0, FREE_PREVIEW_LIMIT - previewLeads.length)
   const previewCompany = company.trim().length > 0 ? company : 'acme.com'
   let user: { id: string } | null = null
   let supabase: Awaited<ReturnType<typeof createClient>> | null = null
@@ -73,7 +75,12 @@ export default async function LeadResultsPage({
       <div className="min-h-screen bg-background terminal-grid">
         <LeadResultsPageTrack />
         <div className="container mx-auto px-4 sm:px-6 py-8">
-          <LeadResultsPreviewClient company={previewCompany} leads={previewLeads} hiddenLeadCount={hiddenLeadCount} />
+          <LeadResultsPreviewClient
+            company={previewCompany}
+            leads={previewLeads}
+            hiddenLeadCount={hiddenLeadCount}
+            previewCreditsRemaining={previewCreditsRemaining}
+          />
         </div>
       </div>
     )

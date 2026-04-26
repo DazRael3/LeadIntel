@@ -24,11 +24,12 @@ type LeadResultsPreviewClientProps = {
   company: string
   leads: PreviewLead[]
   hiddenLeadCount: number
+  previewCreditsRemaining: number
 }
 
 const FREE_PREVIEW_LIMIT = 3
 
-export function LeadResultsPreviewClient({ company, leads, hiddenLeadCount }: LeadResultsPreviewClientProps) {
+export function LeadResultsPreviewClient({ company, leads, hiddenLeadCount, previewCreditsRemaining }: LeadResultsPreviewClientProps) {
   const [copiedLeadId, setCopiedLeadId] = useState<string | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [copiedShareLink, setCopiedShareLink] = useState(false)
@@ -136,6 +137,22 @@ export function LeadResultsPreviewClient({ company, leads, hiddenLeadCount }: Le
           <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-200">
             Limited preview
           </Badge>
+        </div>
+        <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-foreground">
+              <span className="font-medium">{previewCreditsRemaining} preview{previewCreditsRemaining === 1 ? '' : 's'} remaining.</span>{' '}
+              Upgrade for unlimited lead previews, exports, and campaign workflows.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm" className="neon-border hover:glow-effect">
+                <Link href="/pricing?target=closer">Upgrade to Pro</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/pricing">See pricing details</Link>
+              </Button>
+            </div>
+          </div>
         </div>
         <h1 className="text-2xl font-bold bloomberg-font neon-cyan">Lead Results</h1>
         <p className="text-sm text-muted-foreground max-w-3xl">

@@ -469,6 +469,35 @@ export function LeadLibrary({ isPro, creditsRemaining: _creditsRemaining, viewMo
                 </>
               )}
             </CardDescription>
+            {!isPro ? (
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200">
+                  {starterUsage.creditsRemaining} preview{starterUsage.creditsRemaining === 1 ? '' : 's'} remaining
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    className="neon-border hover:glow-effect"
+                    onClick={() => {
+                      track('upgrade_clicked', { source: 'lead_library_usage_meter_primary' })
+                      window.location.href = '/pricing?target=closer'
+                    }}
+                  >
+                    Upgrade to Pro
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      track('upgrade_clicked', { source: 'lead_library_usage_meter_secondary' })
+                      window.location.href = '/pricing'
+                    }}
+                  >
+                    See Pricing Details
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
           <Button
             size="sm"

@@ -177,6 +177,11 @@ export function DemoClient() {
     if (viewerTier === 'team') return 'Review Team Plan'
     return 'Upgrade to higher tier'
   }, [primaryUpgradeTarget, viewerTier])
+  const remainingPreviewLabel = useMemo(() => {
+    if (viewerTier !== 'starter') return null
+    const safeRemaining = Math.max(0, remainingDemoRuns)
+    return `${safeRemaining} ${safeRemaining === 1 ? 'preview' : 'previews'} remaining`
+  }, [remainingDemoRuns, viewerTier])
   const shouldShowDiscountNudge = !checkoutNudgeDismissed && (viewerTier === 'anonymous' || viewerTier === 'starter')
 
   function targetToPricingQuery(target: UpgradeTarget): 'closer' | 'closer_plus' | 'team' {
@@ -528,30 +533,52 @@ export function DemoClient() {
           </p>
           {shouldShowUpgradeContainer ? (
             <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-muted-foreground">
-            <div className="font-medium text-foreground">Upgrade path: Free - Pro - Pro+ - Team</div>
-            <div className="mt-1">
-              You&apos;ve seen the value. Unlock full access now and launch daily high-intent lead generation.
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button type="button" size="sm" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('offer_banner')}>
-                {primaryUpgradeLabel}
-              </Button>
-              {viewerTier === 'anonymous' ? (
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/signup?redirect=/dashboard">Sign up in under 1 minute</Link>
-                </Button>
+              <div className="font-medium text-foreground">Upgrade path: Free - Pro - Pro+ - Team</div>
+              <div className="mt-1">
+                You&apos;ve seen the value. Unlock full access now and launch daily high-intent lead generation.
+              </div>
+              {remainingPreviewLabel ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px]">
+                  <span className="font-medium text-amber-100">{remainingPreviewLabel}</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 neon-border hover:glow-effect"
+                    onClick={() => openUpgradePath('offer_banner')}
+                  >
+                    Upgrade to Pro for unlimited previews
+                  </Button>
+                </div>
               ) : null}
-              {viewerTier === 'starter' && availableUpgrades.length > 1 ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => openUpgradePath('offer_banner', 'closer_plus')}>
-                  Upgrade to Pro+
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <Button type="button" size="sm" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('offer_banner')}>
+                  {primaryUpgradeLabel}
                 </Button>
-              ) : null}
-              {viewerTier === 'starter' && availableUpgrades.length > 2 ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => openUpgradePath('offer_banner', 'team')}>
-                  Upgrade to Team
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-border/80 text-muted-foreground"
+                  onClick={() => openUpgradePath('offer_banner')}
+                >
+                  See pricing details
                 </Button>
-              ) : null}
-            </div>
+                {viewerTier === 'anonymous' ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/signup?redirect=/dashboard">Sign up in under 1 minute</Link>
+                  </Button>
+                ) : null}
+                {viewerTier === 'starter' && availableUpgrades.length > 1 ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => openUpgradePath('offer_banner', 'closer_plus')}>
+                    Upgrade to Pro+
+                  </Button>
+                ) : null}
+                {viewerTier === 'starter' && availableUpgrades.length > 2 ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => openUpgradePath('offer_banner', 'team')}>
+                    Upgrade to Team
+                  </Button>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </header>

@@ -247,10 +247,22 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
   }, [lead.id, signalsWindow, signalsSort, signalsType])
 
   const hasFullPitchAccess = isPro || unlocked
+  const freeTierPitchLocked = !isPro && !unlocked
+  const freeTierLimitReached = typeof unlockError === 'string' && /already unlocked|next unlock/i.test(unlockError)
+  const freePreviewCreditsRemaining = !isPro
+    ? freeTierPitchLocked && !freeTierLimitReached
+      ? 1
+      : 0
+    : null
   const copyAccess = resolvePitchCopyAccess({
     viewerTier: 'starter',
     hasFullPitchAccess,
   })
+
+  function openUpgradeToPro(source: string): void {
+    track('upgrade_clicked', { source, ctaLabel: 'Upgrade to Pro' })
+    window.location.href = '/pricing?target=closer'
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -282,6 +294,11 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
   }, [hasFullPitchAccess, lead.id, pitchText, supabase])
 
   const handleCopyPitch = async () => {
+    if (freeTierPitchLocked) {
+      alert('Unlock full access to copy this content.')
+      openUpgradeToPro('lead_detail_locked_copy_alert')
+      return
+    }
     const fullPitchText = pitchText.trim().length > 0 ? pitchText : lead.ai_personalized_pitch ?? ''
     try {
       const result = await executePitchCopyAction({
@@ -404,6 +421,40 @@ export function LeadDetailView({ lead, isPro, onClose }: LeadDetailViewProps) {
               ) : null}
             </div>
           )}
+
+          {!isPro ? (
+            <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4">
+              <div className="text-xs uppercase tracking-wide text-cyan-300">Free tier usage</div>
+              <div className="mt-1 text-sm text-foreground">
+                {freePreviewCreditsRemaining}
+                {' '}
+                preview
+                {freePreviewCreditsRemaining === 1 ? '' : 's'}
+                {' '}
+                remaining today
+              </div>
+              <div className="mt-3 flex flex-col sm:flex-row gap-2 cta-container">
+                <Button
+                  type="button"
+                  onClick={() => openUpgradeToPro('lead_detail_usage_banner_primary')}
+                  className="neon-border hover:glow-effect cta-upgrade"
+                >
+                  Upgrade to Pro
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => (window.location.href = '/pricing')}
+                  className="cta-secondary"
+                >
+                  See pricing details
+                </Button>
+              </div>
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Any active limited-time promotions are applied automatically in checkout.
+              </div>
+            </div>
+          ) : null}
 
           {/* Contact Information */}
           <div className="space-y-3">
