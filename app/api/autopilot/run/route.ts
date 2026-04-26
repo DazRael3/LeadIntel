@@ -332,7 +332,7 @@ export const POST = withApiGuard(
               pitchText: stepBody,
               footerText: 'This email was sent via LeadIntel.',
             })
-            const text = `Hi there,\n\n${stepBody}\n\nBest regards,\n${senderName}\nLeadIntel Autonomous Revenue Agent`
+            const text = `Hi there,\n\n${stepBody}\n\nBest regards,\n${senderName}\nLeadIntel`
 
             emailsAttempted++
 

@@ -24,8 +24,8 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const normalized = toNicheSegment(rawNiche)
   const entry = getLeadGenerationPageBySlug(normalized)
   if (!entry) return {}
-  const url = `https://raelinfo.com/ai-lead-generation-${entry.slug}`
-  const title = `AI Lead Generation for ${entry.nicheLabel} | RaelInfo`
+  const url = `https://raelinfo.com/ai-lead-generation/${entry.slug}`
+  const title = `AI Lead Generation for ${entry.nicheLabel} | LeadIntel`
 
   return {
     title,
@@ -58,11 +58,11 @@ export default async function LeadGenerationNichePage({ params }: { params: Prom
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: `AI lead generation for ${entry.nicheLabel}`,
-    url: `https://raelinfo.com/ai-lead-generation-${entry.slug}`,
+    url: `https://raelinfo.com/ai-lead-generation/${entry.slug}`,
     description: entry.description,
     about: [
       { '@type': 'Thing', name: entry.nicheLabel },
-      { '@type': 'SoftwareApplication', name: 'RaelInfo', url: 'https://raelinfo.com' },
+      { '@type': 'SoftwareApplication', name: 'LeadIntel', url: 'https://raelinfo.com' },
     ],
   }
 

@@ -398,7 +398,7 @@ export function LoginClient({ initialMode, redirectTo, referralCode }: LoginClie
         {mode === 'signup' && (
           <div className="space-y-4">
             <div className="rounded-xl border border-cyan-500/10 bg-card/40 p-4">
-              <div className="text-sm font-semibold">Trigger-based account alerts. Instant pitch drafts.</div>
+              <div className="text-sm font-semibold">Trigger-based account alerts. Send-ready outreach drafts.</div>
               <div className="mt-1 text-sm text-muted-foreground">
                 {COPY.positioning.icpLine}
               </div>

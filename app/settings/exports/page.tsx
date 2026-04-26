@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Exports | LeadIntel',
     description: 'Generate CSV exports.',
-    url: 'https://dazrael.com/settings/exports',
+    url: 'https://raelinfo.com/settings/exports',
   },
 }
 

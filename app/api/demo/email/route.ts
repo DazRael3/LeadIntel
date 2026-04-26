@@ -32,7 +32,7 @@ export const POST = withApiGuard(
         )
       }
 
-      const from = (serverEnv.RESEND_FROM_EMAIL || 'leadintel@dazrael.com').trim()
+      const from = (serverEnv.RESEND_FROM_EMAIL || 'support@raelinfo.com').trim()
       if (!from) {
         return ok({ sent: false, reason: 'from_email_not_configured' }, undefined, undefined, requestId)
       }
@@ -47,7 +47,7 @@ ${escapeHtml(text)}
           Want this daily for your accounts? Create your LeadIntel workspace and enable the Daily Digest.
         </p>
         <p style="font-family: ui-sans-serif, system-ui;">
-          <a href="https://dazrael.com/signup?redirect=/onboarding">Start free</a>
+          <a href="https://raelinfo.com/signup?redirect=/onboarding">Start free</a>
         </p>
       `
 

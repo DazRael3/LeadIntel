@@ -106,7 +106,7 @@ export const POST = withApiGuard(
           emailReason = 'Email sending is not enabled yet.'
         } else {
           const to = parsed.email as string
-          const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim() || 'leadintel@dazrael.com'
+          const from = (serverEnv.RESEND_FROM_EMAIL ?? '').trim() || 'support@raelinfo.com'
           const subject = `Your LeadIntel sample digest — ${sample.company}`
           const lines = [
             `Sample lead score: ${sample.score}/100`,

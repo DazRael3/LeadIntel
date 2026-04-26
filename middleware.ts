@@ -6,17 +6,33 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { getDbSchema } from '@/lib/supabase/schema'
 import { clearReviewSessionCookies, hasValidReviewSessionCookieEdge } from '@/lib/review/cookies'
 
+function getCanonicalApexHost(): string {
+  const raw = (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.APP_URL ?? 'https://raelinfo.com').trim()
+  try {
+    const host = new URL(raw).hostname.toLowerCase()
+    return host.replace(/^www\./, '')
+  } catch {
+    return 'raelinfo.com'
+  }
+}
+
+function getRequestHost(request: NextRequest): string {
+  const hostHeader = (request.headers.get('host') ?? '').trim().toLowerCase()
+  return hostHeader.split(':')[0] ?? ''
+}
+
 function shouldRedirectWwwToApex(request: NextRequest): boolean {
   // Always keep canonical host on apex to prevent split SEO + cookie/origin drift.
-  // Only redirect in production and only for www.dazrael.com.
+  // Only redirect in production when a www subdomain is requested.
   if ((process.env.NODE_ENV ?? 'development') !== 'production') return false
-  const host = request.headers.get('host') ?? ''
-  return host.toLowerCase() === 'www.dazrael.com'
+  const host = getRequestHost(request)
+  const apexHost = getCanonicalApexHost()
+  return host === `www.${apexHost}`
 }
 
 function redirectWwwToApex(request: NextRequest): NextResponse {
   const url = request.nextUrl.clone()
-  url.hostname = 'dazrael.com'
+  url.hostname = getCanonicalApexHost()
   // Preserve path/query; enforce https scheme.
   url.protocol = 'https:'
   return NextResponse.redirect(url, 308)

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Billing | LeadIntel',
     description: 'View your current plan and manage Stripe billing.',
-    url: 'https://dazrael.com/settings/billing',
+    url: 'https://raelinfo.com/settings/billing',
   },
 }
 

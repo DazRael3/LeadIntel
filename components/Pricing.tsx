@@ -169,7 +169,7 @@ export function Pricing() {
   }, [])
 
   const currentPlanLabel =
-    tier === 'team' ? 'Agency' : tier === 'closer_plus' ? 'Pro+' : tier === 'closer' ? 'Pro' : 'Free'
+    tier === 'team' ? 'Team' : tier === 'closer_plus' ? 'Pro+' : tier === 'closer' ? 'Pro' : 'Free'
 
   const recommendedTarget: PaidPlanId | null =
     tier === 'starter' ? 'pro' : tier === 'closer' ? 'closer_plus' : tier === 'closer_plus' ? 'team' : null
@@ -435,12 +435,12 @@ export function Pricing() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold bloomberg-font neon-cyan mb-4">
             {pricingAb.variant === 'value_focused'
-              ? 'Turn lead signals into predictable revenue'
+              ? 'Turn lead signals into repeatable outbound execution'
               : COPY.pricing.hero.headline}
           </h1>
           <p className="text-muted-foreground text-lg">
             {pricingAb.variant === 'value_focused'
-              ? 'Choose a plan built for conversion velocity, pipeline consistency, and faster closed-won cycles.'
+              ? 'Choose a plan built to help teams move from signal monitoring to consistent daily outreach.'
               : COPY.pricing.hero.subhead}
           </p>
           <div className="mt-6 max-w-3xl mx-auto">
@@ -500,7 +500,7 @@ export function Pricing() {
             <div className="font-medium text-foreground">Optimize your path</div>
             <p className="mt-1">
               {pricingAb.variant === 'value_focused'
-                ? 'Most teams recover annual cost with one closed deal.'
+                ? 'For many teams, one win can outweigh annual software cost (depends on ACV and execution).'
                 : 'Start with a daily workflow and scale into predictable outbound execution.'}
             </p>
           </div>
@@ -589,7 +589,7 @@ export function Pricing() {
                     <Check className="h-4 w-4 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">AI-written outreach that converts</p>
+                    <p className="font-medium">AI-assisted outreach drafts you can adapt</p>
                     <p className="text-sm text-muted-foreground">Send usable messages faster with less rewrite effort</p>
                   </div>
                 </li>
@@ -613,8 +613,8 @@ export function Pricing() {
                 </li>
               </ul>
               <div className="rounded border border-cyan-500/20 bg-background/40 p-3 text-xs text-muted-foreground">
-                <div>1 closed deal pays for 12 months.</div>
-                <div>Less than cost of 1 agency lead.</div>
+                <div>Illustrative economics: one win can outweigh annual software cost.</div>
+                <div>Compare against your current lead sourcing and research costs.</div>
                 <div>Leads refresh daily.</div>
               </div>
 
@@ -766,7 +766,7 @@ export function Pricing() {
                     value={teamSeats}
                     onChange={(e) => setTeamSeats(Number(e.target.value))}
                     className="w-full"
-                    aria-label="Agency seat count"
+                    aria-label="Team seat count"
                   />
                   <div className="text-[11px] text-muted-foreground">
                     Checkout uses seat quantity. If you configure base + seat prices, we’ll include both line items.
@@ -874,7 +874,7 @@ export function Pricing() {
                     ['More tracked accounts', 'Move from a sample workflow to daily execution across your watchlist.'],
                     ['Full pitch/report access', 'Unlock full content and reuse outputs without locked sections.'],
                     ['Saved workflow outputs', 'Keep briefs, reports, and drafts available for reopening and iteration.'],
-                    ['Agency standardization', 'Shared templates and approvals keep messaging consistent across reps.'],
+                    ['Team standardization', 'Shared templates and approvals keep messaging consistent across reps.'],
                     ['Webhook/export operations', 'Handoff packages, workspace queue, and delivery history to fit your operating system.'],
                     ['Audit visibility', 'Admin visibility for governance and rollout workflows.'],
                   ].map(([reason, detail]) => (
@@ -892,11 +892,11 @@ export function Pricing() {
         <div className="mt-12 max-w-4xl mx-auto">
           <Card className="border-cyan-500/10 bg-card/50">
             <CardContent className="pt-6">
-              <h2 className="text-xl font-bold">The ROI is speed-to-action.</h2>
+              <h2 className="text-xl font-bold">ROI depends on execution quality and deal size.</h2>
               <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <p>• 1 closed deal pays for 12 months.</p>
-                <p>• Less than cost of 1 agency lead.</p>
-                <p>• Keep the daily loop consistent: find leads → send outreach → book conversations.</p>
+                <p>• Treat ROI examples as directional, not guarantees.</p>
+                <p>• Compare plan cost to your current manual research and list-building spend.</p>
+                <p>• Keep the daily loop consistent: find leads → send outreach → start conversations.</p>
               </div>
             </CardContent>
           </Card>
@@ -924,9 +924,9 @@ export function Pricing() {
                 </div>
               </div>
               <div>
-                <div className="font-medium text-foreground">How do Agency seats work?</div>
+                <div className="font-medium text-foreground">How do Team seats work?</div>
                 <div className="mt-1">
-                  Agency includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later
+                  Team includes a base subscription plus a per-seat price. Set the seat count at checkout and change it later
                   in Stripe.
                 </div>
               </div>

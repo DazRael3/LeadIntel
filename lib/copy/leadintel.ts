@@ -7,7 +7,7 @@ export const COPY = {
   },
   home: {
     hero: {
-      headline: 'Find & Close Your Next Customers in 60 Seconds',
+      headline: 'Find and prioritize your next customers in minutes',
       subhead:
         'LeadIntel turns fresh buying signals into a prioritized list of high-fit accounts, with clear why-now context and AI outreach you can copy and send in minutes.',
       support: 'Leads refresh daily. Start with a limited preview, then unlock the full tracking and campaign workflow.',
@@ -39,13 +39,13 @@ export const COPY = {
   },
   pricing: {
     hero: {
-      headline: 'Pick the plan that turns today’s signals into booked conversations.',
+      headline: 'Pick the plan that helps turn today’s signals into consistent outreach.',
       subhead:
         'Start with a free preview, then unlock daily account recommendations, outreach drafts, and campaign execution.',
       bullets: [
         'Daily high-intent account recommendations with clear why-now context',
         'Send-ready outreach drafts linked to each prioritized account',
-        'Structured campaign execution from first signal to booked meeting',
+        'Structured campaign execution from first signal to follow-up',
       ],
       trustStrip: (supportEmail: string) =>
         `Transparent pricing. Cancel anytime. No credit card for demo. Support: ${supportEmail}.`,
@@ -61,7 +61,7 @@ export const COPY = {
   onboarding: {
     screen1: {
       title: 'Set up your outbound signal engine',
-      subhead: 'For outbound B2B SDRs/AEs who want trigger-based account alerts and instant pitch drafts.',
+      subhead: 'For outbound B2B SDRs/AEs who want trigger-based account alerts and fast pitch drafts.',
       primary: 'Start setup',
       secondary: 'Skip for now',
     },

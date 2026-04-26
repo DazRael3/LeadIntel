@@ -18,9 +18,9 @@ export const LEAD_GENERATION_PAGES: LeadGenerationPageEntry[] = [
     slug: 'real-estate',
     nicheLabel: 'Real Estate',
     headline: 'AI lead generation for real estate teams',
-    description: 'Generate qualified property and investor leads with fast outreach drafts.',
+    description: 'Find ICP-fit property and investor accounts with fast outreach drafts.',
     explanation: [
-      'Find high-intent property and investor leads based on your ICP and geography.',
+      'Find property and investor accounts based on your ICP and geography.',
       'Generate role-specific outreach messages so reps can personalize quickly.',
       'Prioritize follow-up with fit signals and why-now context.',
     ],
@@ -30,10 +30,10 @@ export const LEAD_GENERATION_PAGES: LeadGenerationPageEntry[] = [
     slug: 'saas',
     nicheLabel: 'SaaS',
     headline: 'AI lead generation for SaaS pipeline growth',
-    description: 'Identify active buying signals and launch tailored outbound sequences.',
+    description: 'Identify current go-to-market signals and launch tailored outbound sequences.',
     explanation: [
       'Uncover target accounts that match your product ICP.',
-      'Surface urgency indicators and convert them into outreach talking points.',
+      'Surface timing indicators and convert them into outreach talking points.',
       'Move from lead discovery to campaign execution in one workflow.',
     ],
     internalLinks: [...SHARED_LINKS, { href: '/templates', label: 'Browse outbound templates' }],
@@ -42,7 +42,7 @@ export const LEAD_GENERATION_PAGES: LeadGenerationPageEntry[] = [
     slug: 'agencies',
     nicheLabel: 'Agencies',
     headline: 'AI lead generation for agencies closing more retainers',
-    description: 'Find clients with active demand and turn signals into win-ready outreach.',
+    description: 'Find clients with visible demand signals and turn them into outreach drafts.',
     explanation: [
       'Spot prospects with current growth, hiring, and launch triggers.',
       'Generate outreach copy tailored to agency offers and outcomes.',

@@ -9,7 +9,6 @@ import { serverEnv } from '@/lib/env'
 import { stripe } from '@/lib/stripe'
 import { logger } from '@/lib/observability/logger'
 import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
-import { planIdForTier, resolveTierFromStripePriceId, type Tier } from '@/lib/billing/stripePriceMap'
 import { productPlanForTier } from '@/lib/billing/product-plan'
 import { resolveUserSubscriptionTierFromStripe } from '@/lib/billing/stripe-subscription-tier'
 
@@ -80,8 +79,22 @@ export const GET = withApiGuard(
 
       const sub = session.subscription
       const subscriptionId = typeof sub === 'string' ? sub : sub?.id ?? null
-      const subscription = typeof sub === 'object' && sub !== null ? (sub as Stripe.Subscription) : null
-      const status = subscription?.status ?? 'active'
+      let subscription = typeof sub === 'object' && sub !== null ? (sub as Stripe.Subscription) : null
+      if (!subscription && subscriptionId) {
+        try {
+          subscription = await stripe.subscriptions.retrieve(subscriptionId)
+        } catch (subscriptionError) {
+          logger.warn({
+            level: 'warn',
+            scope: 'checkout',
+            message: 'session.subscription_retrieve_failed',
+            sessionId: truncateSessionId(session_id),
+            stripeMode,
+            error: subscriptionError instanceof Error ? subscriptionError.message : String(subscriptionError),
+          })
+        }
+      }
+      const status = subscription?.status ?? null
 
       // If we couldn't get a line item price id, derive from expanded subscription items (best-effort).
       if (!priceId && subscription?.items?.data?.[0]?.price?.id) {
@@ -91,6 +104,17 @@ export const GET = withApiGuard(
       // If session isn’t in a paid/complete state, report pending without mutating DB.
       const isPaid = session.payment_status === 'paid' || session.status === 'complete'
       if (!isPaid) {
+        return ok({ verified: false, plan: 'free' as const }, undefined, bridge, requestId)
+      }
+      if (!subscriptionId || !status) {
+        logger.warn({
+          level: 'warn',
+          scope: 'checkout',
+          message: 'session.verify_pending_missing_subscription',
+          userId,
+          sessionId: truncateSessionId(session_id),
+          stripeMode,
+        })
         return ok({ verified: false, plan: 'free' as const }, undefined, bridge, requestId)
       }
 
@@ -135,7 +159,7 @@ export const GET = withApiGuard(
 
       const subUpsert = await admin
         .from('subscriptions')
-        .upsert(subPayload, { onConflict: subscriptionId ? 'stripe_subscription_id' : 'user_id' })
+        .upsert(subPayload, { onConflict: 'stripe_subscription_id' })
       if (subUpsert?.error) {
         throw new Error(
           typeof subUpsert.error.message === 'string' && subUpsert.error.message.length > 0
@@ -144,10 +168,12 @@ export const GET = withApiGuard(
         )
       }
 
-      // Determine tier/planId based on Stripe price ID (best-effort).
-      const mapped = resolveTierFromStripePriceId(priceId)
-      const tier: Tier = mapped ?? 'closer'
-      const planId = planIdForTier(tier) ?? 'pro'
+      if (resolvedSubscriptionTier === 'free') {
+        return ok({ verified: false, plan: 'free' as const }, undefined, bridge, requestId)
+      }
+
+      const tier = resolvedSubscriptionTier === 'team' ? 'team' : resolvedSubscriptionTier === 'closer_plus' ? 'closer_plus' : 'closer'
+      const planId = resolvedSubscriptionTier === 'team' ? 'team' : resolvedSubscriptionTier === 'closer_plus' ? 'closer_plus' : 'pro'
 
       logger.info({
         level: 'info',

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Onboarding Workspace Setup | LeadIntel',
   description: 'Set up your workspace, first target, and signal flow to start using LeadIntel.',
-  alternates: { canonical: 'https://dazrael.com/onboarding' },
+  alternates: { canonical: 'https://raelinfo.com/onboarding' },
 }
 
 type UserSettingsRow = {

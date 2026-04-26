@@ -1,12 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
 import { fail, ErrorCode } from '@/lib/api/http'
 import { withApiGuard } from '@/lib/api/guard'
 import { HistoryQuerySchema } from '@/lib/api/schemas'
 import { z } from 'zod'
-import { getPlanDetails } from '@/lib/billing/plan'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
+import { requireCapability } from '@/lib/billing/require-capability'
 
 export const dynamic = 'force-dynamic'
+
+type PitchExportLead = {
+  company_name?: string | null
+  company_domain?: string | null
+  company_url?: string | null
+}
+
+type PitchExportRow = {
+  created_at?: string | null
+  content?: string | null
+  leads?: PitchExportLead | PitchExportLead[] | null
+}
 
 export const GET = withApiGuard(
   async (request, { query: validatedQuery, userId, requestId }) => {
@@ -17,14 +30,19 @@ export const GET = withApiGuard(
     const response = NextResponse.next()
     const supabase = createRouteClient(request, response)
     
-    // Guard already verified authentication, userId is guaranteed
+    // Guard already verified authentication, userId is guaranteed.
     const user = { id: userId! }
-
-    const plan = await getPlanDetails(supabase as any, user.id)
-    if (plan.plan !== 'pro') {
+    const sessionUser = await getUserSafe(supabase)
+    const exportAccess = await requireCapability({
+      userId: user.id,
+      sessionEmail: sessionUser?.email ?? null,
+      supabase,
+      capability: 'governance_exports',
+    })
+    if (!exportAccess.ok) {
       return fail(
         ErrorCode.FORBIDDEN,
-        'Pitch history export is locked. Upgrade to Pro to export your saved work.',
+        'Pitch history export is locked. Upgrade to a paid plan to export your saved work.',
         undefined,
         undefined,
         undefined,
@@ -107,7 +125,7 @@ export const GET = withApiGuard(
   }
   
   // Helper to extract lead data (handles both single object and array)
-  const getLeadData = (leads: any) => {
+  const getLeadData = (leads: PitchExportRow['leads']): PitchExportLead => {
     if (!leads) return { company_name: '', company_domain: '', company_url: '' }
     // Handle array case (if multiple leads somehow)
     if (Array.isArray(leads)) {
@@ -119,7 +137,7 @@ export const GET = withApiGuard(
   
   const csvLines = [
     header.join(','),
-    ...rows.map((r: any) => {
+    ...(rows as PitchExportRow[]).map((r) => {
       const lead = getLeadData(r.leads)
       return [
         r.created_at || '',

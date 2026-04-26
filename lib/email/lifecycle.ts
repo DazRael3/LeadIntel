@@ -186,7 +186,7 @@ export function renderWelcomeEmail(args: LifecycleRenderArgs): LifecycleEmail {
   const footerBlock = footer({ appUrl: args.appUrl })
 
   const text = [
-    'Trigger-based account alerts and instant pitch drafts—built for outbound B2B SDRs/AEs.',
+    'Trigger-based account alerts and fast pitch drafts—built for outbound B2B SDRs/AEs.',
     '',
     'Next steps:',
     '- Define your ICP',
@@ -203,7 +203,7 @@ export function renderWelcomeEmail(args: LifecycleRenderArgs): LifecycleEmail {
       <div style="font-size:14px;color:#94a3b8;letter-spacing:0.12em;text-transform:uppercase;">LeadIntel</div>
       <h1 style="margin:10px 0 0 0;font-size:22px;color:#e5e7eb;">${escapeHtml(subject)}</h1>
       <div style="margin-top:14px;font-size:14px;color:#cbd5e1;">
-        Trigger-based account alerts and instant pitch drafts—built for outbound B2B SDRs/AEs.
+        Trigger-based account alerts and fast pitch drafts—built for outbound B2B SDRs/AEs.
       </div>
       <div style="margin-top:14px;">${monoBlock(`Next steps:\n1) Define your ICP\n2) Add 10 target accounts\n3) Generate your first pitch draft`)}</div>
       <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">

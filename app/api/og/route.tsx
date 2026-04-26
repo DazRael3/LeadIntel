@@ -31,12 +31,12 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const title = (searchParams.get('title') || 'LeadIntel').trim().slice(0, 80)
-    const subtitle = (searchParams.get('subtitle') || 'Trigger-based alerts → instant pitches').trim().slice(0, 120)
+    const subtitle = (searchParams.get('subtitle') || 'Trigger-based alerts → send-ready drafts').trim().slice(0, 120)
     const host = (() => {
       try {
         return new URL(request.url).hostname
       } catch {
-        return 'leadintel.com'
+        return 'raelinfo.com'
       }
     })()
 

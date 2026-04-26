@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function SdrPage() {
   return (
-    <MarketingPage title="For SDRs" subtitle="Turn signals into booked meetings without spending mornings on research.">
+    <MarketingPage title="For SDRs" subtitle="Turn signals into quality conversations without spending mornings on research.">
       <PageViewTrack event="persona_view" props={{ persona: 'sdr' }} />
       <PersonaTemplate
         personaLabel="SDR"

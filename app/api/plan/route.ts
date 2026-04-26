@@ -55,7 +55,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
           // Best-effort fingerprint insert (never blocks).
           if (fingerprintingEnabled) {
             try {
-              const admin = createSupabaseAdminClient()
+              const admin = createSupabaseAdminClient({ schema: 'api' })
               await admin.from('user_fingerprints').insert({
                 user_id: userId,
                 signup_ip: ip,
@@ -69,7 +69,7 @@ export const GET = withApiGuard(async (request: NextRequest, { requestId, userId
           // Enforce "only one trial ever" (fail-open if any check errors).
           let eligible = true
           try {
-            const admin = createSupabaseAdminClient()
+            const admin = createSupabaseAdminClient({ schema: 'api' })
             const { data: subRows } = await admin
               .from('subscriptions')
               .select('trial_end')
