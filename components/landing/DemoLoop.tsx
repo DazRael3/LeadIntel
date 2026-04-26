@@ -55,7 +55,7 @@ export function DemoLoop() {
   return (
     <Card className="border-cyan-500/20 bg-card/50 overflow-hidden">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">1‑minute demo (loop)</CardTitle>
+        <CardTitle className="text-base">Workflow preview loop</CardTitle>
         <div className="text-xs text-muted-foreground">{content.title}</div>
       </CardHeader>
       <CardContent className="pt-0">

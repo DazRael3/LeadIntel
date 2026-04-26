@@ -450,12 +450,12 @@ export function Pricing() {
               ))}
             </ul>
             <div className="mt-4 text-xs text-muted-foreground">{COPY.pricing.hero.trustStrip(SUPPORT_EMAIL)}</div>
-            <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button asChild size="lg" className="neon-border hover:glow-effect">
-                    <a href="/signup?redirect=/onboarding">
-                      {pricingAb.variant === 'value_focused' ? 'Start converting leads' : COPY.pricing.hero.primaryCta}
-                    </a>
-              </Button>
+              <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+                <Button asChild size="lg" className="neon-border hover:glow-effect">
+                  <a href="/signup?redirect=/onboarding">
+                    {pricingAb.variant === 'value_focused' ? 'Start converting leads' : COPY.pricing.hero.primaryCta}
+                  </a>
+                </Button>
               <Button asChild variant="outline" size="lg">
                 <a href="#plan-pro">{pricingAb.variant === 'value_focused' ? 'Compare conversion plans' : COPY.pricing.hero.secondaryCta}</a>
               </Button>
@@ -516,7 +516,7 @@ export function Pricing() {
                 <span className="text-5xl font-bold neon-cyan">$0</span>
                 <span className="text-muted-foreground">/month</span>
               </div>
-              <CardDescription>Best for trying the system</CardDescription>
+              <CardDescription>Preview the system before upgrading</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <ul className="space-y-3 text-sm text-muted-foreground">
@@ -570,7 +570,7 @@ export function Pricing() {
               {billingCycle === 'annual' && (
                 <div className="mt-2 text-xs text-muted-foreground">Equivalent to {formatCurrency(PRICING.closerMonthly)}/mo.</div>
               )}
-              <CardDescription>Best for individuals closing deals</CardDescription>
+              <CardDescription>Individual daily pipeline execution</CardDescription>
             </CardHeader>
 
             <CardContent className="relative z-10 space-y-6">
@@ -643,7 +643,7 @@ export function Pricing() {
                 ) : (
                   <>
                     <Zap className="h-5 w-5 mr-2" />
-                    Upgrade
+                    Upgrade to Pro
                   </>
                 )}
               </Button>
@@ -673,7 +673,7 @@ export function Pricing() {
                     Equivalent to {formatCurrency(PRICING.closerPlusMonthly)}/mo.
                   </div>
                 )}
-                <CardDescription>Best for advanced solo operators</CardDescription>
+                <CardDescription>Power user / advanced execution</CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 space-y-6">
                 <ul className="space-y-4">
@@ -751,7 +751,7 @@ export function Pricing() {
                     Equivalent to {formatCurrency(PRICING.teamBaseMonthly)} base + {formatCurrency(PRICING.teamSeatMonthly)}/seat per month.
                   </div>
                 )}
-                <CardDescription>Best for teams scaling pipeline</CardDescription>
+                <CardDescription>Shared outbound workflow</CardDescription>
               </CardHeader>
               <CardContent className="relative z-10 space-y-6">
                 <div className="space-y-2">
@@ -844,7 +844,7 @@ export function Pricing() {
                   ) : (
                     <>
                       <Shield className="h-5 w-5 mr-2" />
-                      Upgrade to Team
+                      Start Team Plan
                     </>
                   )}
                 </Button>

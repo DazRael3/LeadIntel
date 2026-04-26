@@ -25,7 +25,7 @@ export const COPY = {
       ],
     },
     trySample: {
-      sectionTitle: 'Generate a sample Daily Deal Digest',
+      sectionTitle: 'Optional sample Daily Deal Digest',
       helper:
         'Enter a company name or website. We’ll generate a sample score, signals, and a send-ready outreach draft.',
       companyLabel: 'Company name or website',
@@ -39,12 +39,13 @@ export const COPY = {
   },
   pricing: {
     hero: {
-      headline: 'Pick the plan that turns lead signals into consistent outbound execution.',
-      subhead: 'Test the system first, then scale daily lead flow and outreach without extra manual research.',
+      headline: 'Pick the plan that turns today’s signals into booked conversations.',
+      subhead:
+        'Start with a free preview, then unlock daily account recommendations, outreach drafts, and campaign execution.',
       bullets: [
-        'Daily high-intent leads and usable outreach in one workflow',
-        'Repeatable execution from first signal to campaign action',
-        'Faster follow-up with clear why-now context',
+        'Daily high-intent account recommendations with clear why-now context',
+        'Send-ready outreach drafts linked to each prioritized account',
+        'Structured campaign execution from first signal to booked meeting',
       ],
       trustStrip: (supportEmail: string) =>
         `Transparent pricing. Cancel anytime. No credit card for demo. Support: ${supportEmail}.`,

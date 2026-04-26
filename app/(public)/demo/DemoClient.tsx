@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Copy, Check } from 'lucide-react'
 import { track } from '@/lib/analytics'
+import { SUPPORT_EMAIL } from '@/lib/config/contact'
 
 type DemoSearchResult = {
   company: string
@@ -722,6 +723,9 @@ export function DemoClient() {
                   >
                     See pricing
                   </Link>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Questions? <a className="text-cyan-300 hover:underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
                 </div>
                 <div className="mt-3 rounded border border-cyan-500/20 bg-background/40 p-3 text-sm">
                   <div className="font-medium text-foreground">Invite your team</div>
