@@ -263,8 +263,7 @@ export function LeadCard({ lead }: LeadCardProps) {
               size="sm"
               variant="outline"
               onClick={handleCopyPitch}
-              disabled={!isPro}
-              className={`neon-border hover:glow-effect whitespace-nowrap ${!isPro ? 'opacity-50' : ''}`}
+              className="neon-border hover:glow-effect whitespace-nowrap"
             >
               {copied ? (
                 <>
@@ -273,9 +272,9 @@ export function LeadCard({ lead }: LeadCardProps) {
                 </>
               ) : (
                 <>
-                  <Copy className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">{isPro ? 'AI Pitch' : 'AI Pitch (Locked)'}</span>
-                  <span className="sm:hidden">{isPro ? 'Pitch' : 'Locked'}</span>
+                  {isPro ? <Copy className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+                  <span className="hidden sm:inline">{isPro ? 'AI Pitch' : 'Upgrade to Pro'}</span>
+                  <span className="sm:hidden">{isPro ? 'Pitch' : 'Upgrade'}</span>
                 </>
               )}
             </Button>

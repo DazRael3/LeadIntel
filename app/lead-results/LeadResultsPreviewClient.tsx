@@ -23,11 +23,12 @@ export type PreviewLead = {
 type LeadResultsPreviewClientProps = {
   company: string
   leads: PreviewLead[]
+  hiddenLeadCount: number
 }
 
 const FREE_PREVIEW_LIMIT = 3
 
-export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewClientProps) {
+export function LeadResultsPreviewClient({ company, leads, hiddenLeadCount }: LeadResultsPreviewClientProps) {
   const [copiedLeadId, setCopiedLeadId] = useState<string | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [copiedShareLink, setCopiedShareLink] = useState(false)
@@ -37,9 +38,6 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
   )
   const [showInvitePromptLeadId, setShowInvitePromptLeadId] = useState<string | null>(null)
   const activationTrackedRef = useRef(false)
-  const visibleLeads = useMemo(() => leads.slice(0, FREE_PREVIEW_LIMIT), [leads])
-  const hiddenLeadCount = Math.max(0, leads.length - FREE_PREVIEW_LIMIT)
-
   const signupRedirect = useMemo(() => {
     const redirect = `/lead-results?company=${encodeURIComponent(company)}`
     return `/signup?redirect=${encodeURIComponent(redirect)}`
@@ -183,7 +181,7 @@ export function LeadResultsPreviewClient({ company, leads }: LeadResultsPreviewC
       </Card>
 
       <div className="grid grid-cols-1 gap-4">
-        {visibleLeads.map((lead, index) => (
+        {leads.map((lead, index) => (
           <Card key={lead.id} className="border-cyan-500/20 bg-card/60">
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
