@@ -46,7 +46,18 @@ type HealthEnvelope =
   | { ok: false; error?: { message?: string } }
 
 type VersionEnvelope =
-  | { ok: true; data: { appEnv?: string; nodeEnv?: string; branch?: string; commitSha?: string } }
+  | {
+      ok: true
+      data: {
+        appEnv?: string
+        nodeEnv?: string
+        deployEnv?: string
+        repo?: string
+        branch?: string
+        commitSha?: string
+        commitShort?: string
+      }
+    }
   | { ok: false; error?: { message?: string } }
 
 type AutomationEnvelope =
@@ -62,6 +73,7 @@ type AutomationEnvelope =
           failedJobs: number
           staleJobs: number
         }
+        healthStatus?: 'healthy' | 'degraded' | 'stale' | 'missing' | 'external_required'
         scheduler?: {
           requiredJobs: number
           requiredExternalJobs: number
@@ -74,6 +86,7 @@ type AutomationEnvelope =
             required: boolean
             enabled: boolean
             healthy: boolean | null
+            state?: 'healthy' | 'stale' | 'missing' | 'failed' | 'external' | 'disabled'
           }>
         }
       }
@@ -91,9 +104,12 @@ export default async function StatusPage() {
 
   const status = health?.ok === true ? health.data.status : 'degraded'
   const checkedAt = health?.ok === true ? health.data.checkedAt : null
+  const repo = version?.ok === true ? (version.data?.repo ?? null) : null
   const branch = version?.ok === true ? (version.data?.branch ?? null) : null
   const commitSha = version?.ok === true ? (version.data?.commitSha ?? null) : null
-  const commitShort = commitSha ? commitSha.slice(0, 8) : null
+  const commitShort = version?.ok === true ? (version.data?.commitShort ?? null) : null
+  const appEnv = version?.ok === true ? (version.data?.appEnv ?? null) : null
+  const deployEnv = version?.ok === true ? (version.data?.deployEnv ?? null) : null
 
   const badge =
     status === 'operational'
@@ -217,10 +233,22 @@ export default async function StatusPage() {
               {version && version.ok === true ? (
                 <>
                   <div>
+                    <span className="font-medium text-foreground">Repo:</span> {repo ?? 'unknown'}
+                  </div>
+                  <div>
                     <span className="font-medium text-foreground">Branch:</span> {branch ?? 'unknown'}
                   </div>
                   <div>
                     <span className="font-medium text-foreground">Commit:</span> {commitShort ?? 'unknown'}
+                  </div>
+                  <div>
+                    <span className="font-medium text-foreground">Full SHA:</span> {commitSha ?? 'unknown'}
+                  </div>
+                  <div>
+                    <span className="font-medium text-foreground">App env:</span> {appEnv ?? 'unknown'}
+                  </div>
+                  <div>
+                    <span className="font-medium text-foreground">Deploy env:</span> {deployEnv ?? 'unknown'}
                   </div>
                 </>
               ) : (
@@ -248,7 +276,7 @@ export default async function StatusPage() {
                 <div>Automation checks are healthy.</div>
               ) : (
                 <div>
-                  Automation checks are degraded.
+                  Automation checks are degraded ({automation.data.healthStatus ?? 'degraded'}).
                   {automation.data.summary ? (
                     <span>
                       {' '}

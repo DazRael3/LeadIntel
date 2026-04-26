@@ -3,8 +3,15 @@
  *
  * This script is intentionally NOT run in CI because it requires real Supabase credentials.
  *
- * Usage:
+ * Usage (bash):
  *   RUN_DB_SANITY=1 NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=... npm run db:sanity
+ *
+ * Usage (Windows PowerShell):
+ *   $env:RUN_DB_SANITY='1'
+ *   $env:NEXT_PUBLIC_SUPABASE_URL='https://<project>.supabase.co'
+ *   $env:NEXT_PUBLIC_SUPABASE_ANON_KEY='<anon-key>'
+ *   $env:SUPABASE_SERVICE_ROLE_KEY='<service-role-key>'
+ *   npm.cmd run db:sanity
  *
  * Notes:
  * - Uses the api schema by default.
@@ -124,7 +131,8 @@ async function main() {
     'service role insert email_engagement'
   )
 
-  console.log('[db-sanity] OK', { schema, u1, u2 })
+  // Safe operational log: never print keys/tokens/secrets.
+  console.log('[db-sanity] OK', { schema, userCount: 2 })
 }
 
 main().catch((err) => {

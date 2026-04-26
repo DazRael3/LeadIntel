@@ -221,6 +221,8 @@ function runChecks(): CheckResult[] {
   const invalidCanonicalHosts = canonicalHosts.filter((host): host is string => host !== null && host !== 'raelinfo.com')
   if (!canonicalSiteUrl) {
     push(results, 'canonical-domain-env', 'fail', 'NEXT_PUBLIC_SITE_URL must be set to https://raelinfo.com')
+  } else if (canonicalSiteUrl !== 'https://raelinfo.com') {
+    push(results, 'canonical-domain-env', 'fail', 'NEXT_PUBLIC_SITE_URL must be exactly https://raelinfo.com in production checks.')
   } else if (invalidCanonicalHosts.length > 0) {
     push(results, 'canonical-domain-env', 'fail', `Canonical env host mismatch: ${invalidCanonicalHosts.join(', ')}`)
   } else {

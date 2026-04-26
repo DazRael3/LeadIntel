@@ -53,6 +53,45 @@ type LeadActivitySummary = {
   campaignsAwaitingAction: number
 }
 
+type LeadActivityMeta = {
+  state: string
+  fallback: boolean
+  reason: string
+  hasWorkspace: boolean
+  generatedAt: string
+}
+
+type LeadActivityApiEnvelope =
+  | {
+      ok: true
+      data: {
+        summary?: LeadActivitySummary
+        meta?: LeadActivityMeta
+      }
+    }
+  | {
+      ok: false
+      error?: {
+        code?: string
+      }
+    }
+
+const EMPTY_LEAD_ACTIVITY_SUMMARY: LeadActivitySummary = {
+  newLeadsSinceLastVisit: 0,
+  campaignsAwaitingAction: 0,
+}
+
+function isValidLeadActivitySummary(value: unknown): value is LeadActivitySummary {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.newLeadsSinceLastVisit === 'number' &&
+    Number.isFinite(record.newLeadsSinceLastVisit) &&
+    typeof record.campaignsAwaitingAction === 'number' &&
+    Number.isFinite(record.campaignsAwaitingAction)
+  )
+}
+
 interface DashboardClientProps {
   initialSubscriptionTier: 'free' | 'pro'
   initialCreditsRemaining: number
@@ -81,7 +120,9 @@ export function DashboardClient({
   const [activeCompanyInput, setActiveCompanyInput] = useState<string | null>(null)
   const [activeCompanyDomain, setActiveCompanyDomain] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTabKey>('command')
-  const [leadActivitySummary, setLeadActivitySummary] = useState<LeadActivitySummary | null>(null)
+  const [leadActivitySummary, setLeadActivitySummary] = useState<LeadActivitySummary>(EMPTY_LEAD_ACTIVITY_SUMMARY)
+  const [leadActivityStatusMessage, setLeadActivityStatusMessage] = useState<string>('No recent lead activity yet.')
+  const [leadActivityLoaded, setLeadActivityLoaded] = useState<boolean>(false)
   const router = useRouter()
   const { plan, tier, isPro: planIsPro, trial } = usePlan()
   // Debug UI should never render in production even if misconfigured env vars are present.
@@ -155,15 +196,49 @@ export function DashboardClient({
     const loadLeadActivitySummary = async () => {
       try {
         const response = await fetch('/api/lead-activity', { cache: 'no-store' })
-        const payload = (await response.json().catch(() => null)) as
-          | { ok: true; data: { summary: LeadActivitySummary } }
-          | { ok: false }
-          | null
-        if (!response.ok || !payload || payload.ok !== true || cancelled) return
-        setLeadActivitySummary(payload.data.summary)
+        const payload = (await response.json().catch(() => null)) as LeadActivityApiEnvelope | null
+        if (cancelled) return
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            setLeadActivityStatusMessage('Sign in again to load recent activity.')
+          } else {
+            setLeadActivityStatusMessage('No recent lead activity yet.')
+          }
+          setLeadActivitySummary(EMPTY_LEAD_ACTIVITY_SUMMARY)
+          setLeadActivityLoaded(true)
+          return
+        }
+        if (!payload || payload.ok !== true) {
+          setLeadActivityStatusMessage('No recent lead activity yet.')
+          setLeadActivitySummary(EMPTY_LEAD_ACTIVITY_SUMMARY)
+          setLeadActivityLoaded(true)
+          return
+        }
+
+        const summary = isValidLeadActivitySummary(payload.data?.summary)
+          ? payload.data.summary
+          : EMPTY_LEAD_ACTIVITY_SUMMARY
+        setLeadActivitySummary(summary)
+
+        const hasActivity = summary.newLeadsSinceLastVisit > 0 || summary.campaignsAwaitingAction > 0
+        if (hasActivity) {
+          setLeadActivityStatusMessage('Recent activity updated.')
+        } else {
+          const state = payload.data?.meta?.state ?? ''
+          if (state === 'forbidden') {
+            setLeadActivityStatusMessage('Access to activity is limited right now.')
+          } else if (state === 'workspace_missing' || state === 'workspace_unavailable') {
+            setLeadActivityStatusMessage('No recent lead activity yet.')
+          } else {
+            setLeadActivityStatusMessage('No recent lead activity yet.')
+          }
+        }
+        setLeadActivityLoaded(true)
       } catch {
         if (!cancelled) {
-          setLeadActivitySummary(null)
+          setLeadActivitySummary(EMPTY_LEAD_ACTIVITY_SUMMARY)
+          setLeadActivityStatusMessage('No recent lead activity yet.')
+          setLeadActivityLoaded(true)
         }
       }
     }
@@ -273,20 +348,28 @@ export function DashboardClient({
                   nicheLabel={initialHasIcp ? 'your ICP' : 'your recent behavior'}
                 />
 
-                {leadActivitySummary ? (
-                  <Card className="border-cyan-500/20 bg-card/50">
-                    <CardContent className="py-4">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline">
-                          You have {leadActivitySummary.newLeadsSinceLastVisit} new leads
-                        </Badge>
-                        <Badge variant="outline">
-                          Campaigns awaiting action: {leadActivitySummary.campaignsAwaitingAction}
-                        </Badge>
+                <Card className="border-cyan-500/20 bg-card/50">
+                  <CardContent className="py-4">
+                    {leadActivityLoaded ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="outline">
+                            You have {leadActivitySummary.newLeadsSinceLastVisit} new leads
+                          </Badge>
+                          <Badge variant="outline">
+                            Campaigns awaiting action: {leadActivitySummary.campaignsAwaitingAction}
+                          </Badge>
+                        </div>
+                        {leadActivitySummary.newLeadsSinceLastVisit === 0 &&
+                        leadActivitySummary.campaignsAwaitingAction === 0 ? (
+                          <p className="text-xs text-muted-foreground">{leadActivityStatusMessage}</p>
+                        ) : null}
                       </div>
-                    </CardContent>
-                  </Card>
-                ) : null}
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Loading recent activity...</p>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Secondary guidance */}
                 {isStarter ? (

@@ -86,6 +86,13 @@ $env:AUDIT_SCOPE = "public"
 & "C:\Program Files\nodejs\npm.cmd" run audit:ai
 ```
 
+Shortcut:
+
+```powershell
+$env:AUDIT_BASE_URL = "https://raelinfo.com"
+npm.cmd run audit:public
+```
+
 **Or via cmd.exe:**
 
 ```powershell
@@ -133,6 +140,13 @@ npm run audit:storage
 ```powershell
 $env:AUDIT_BASE_URL = "https://raelinfo.com"
 & "C:\Program Files\nodejs\npm.cmd" run audit:storage
+```
+
+Shortcut:
+
+```powershell
+$env:AUDIT_BASE_URL = "https://raelinfo.com"
+npm.cmd run audit:storage
 ```
 
 A browser opens. Log in manually. The script will accept **any post-login page** (dashboard or onboarding) and then saves:
