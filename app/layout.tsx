@@ -13,15 +13,7 @@ export const metadata: Metadata = {
   description: 'Daily “why now” signals, deterministic scoring, and outreach templates for outbound teams.',
   openGraph: {
     title: 'LeadIntel',
-<<<<<<< HEAD
-<<<<<<< HEAD
-    description: 'Trigger-based account alerts and instant pitch drafts.',
-=======
     description: 'Trigger-based account alerts and send-ready outreach drafts.',
->>>>>>> cursor/audit-access-instructions-aa8d
-=======
-    description: 'Trigger-based account alerts and send-ready outreach drafts.',
->>>>>>> cursor/audit-access-instructions-aa8d
     url: ((process.env.NEXT_PUBLIC_SITE_URL ?? process.env.APP_URL ?? 'https://raelinfo.com').trim() || 'https://raelinfo.com'),
     // Use a reliable fallback image for metadata. Dynamic OG rendering can fail in production runtimes;
     // keep it available at /api/og but don't make it a hard dependency for social previews.
