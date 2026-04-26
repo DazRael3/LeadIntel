@@ -23,6 +23,9 @@ Environment: Cursor Cloud Linux (validation commands executed with `npm`; Window
 - Logged-in dashboard reliability issue identified from production audit evidence was addressed:
   - **Finding:** `logged_in:/dashboard` triggered `GET /api/lead-activity` HTTP 500 twice and produced console errors.
   - **Fix:** `/api/lead-activity` now returns safe `200` fallback payloads for expected workspace/schema/RLS/unavailable cases, and dashboard UI now renders explicit empty/fallback messaging without throwing.
+- New logged-in actions reliability issue identified after merge:
+  - **Finding:** `logged_in:/dashboard/actions` triggered `GET /api/workspace/actions/queue?status=all&limit=50` HTTP 403 and produced console/network failures in audit output.
+  - **Fix:** actions queue API + `/dashboard/actions` client now fail-soft for expected tier/workspace/schema/RLS/unavailable cases with stable `200` fallback envelopes and user-friendly fallback UI states (while preserving true auth and membership enforcement).
 
 ---
 
@@ -144,6 +147,50 @@ Environment: Cursor Cloud Linux (validation commands executed with `npm`; Window
     - empty lead activity payload renders user-friendly empty state
     - unavailable activity API renders safe fallback state without crash
 
+### 7) Dashboard actions queue reliability hardening
+
+- Root cause in route behavior:
+  - `/dashboard/actions` page gated on capability `action_queue`, but API route `/api/workspace/actions/queue` was gated on `integration_delivery_audit`, creating a production mismatch where page render could proceed while API returned `403`.
+  - Client treated non-OK queue responses as destructive failure states, increasing audit noise for expected restricted/upgrade/no-workspace conditions.
+- API hardening in `app/api/workspace/actions/queue/route.ts`:
+  - Unified capability gate with page behavior by enforcing `action_queue`.
+  - Added safe `200` fallback payload contract for expected states with `meta`:
+    - `upgrade_required` (tier/capability denied)
+    - `workspace_missing`
+    - `queue_unavailable` (expected workspace read availability issues)
+    - `schema_unavailable` (expected schema drift/cache issues)
+    - `restricted` (expected RLS/permission-denied queue-read issues)
+  - Preserved true security controls:
+    - unauthenticated remains `401`
+    - missing workspace membership remains `403`
+  - Added sanitized structured warning logs for fallback classification (no secret/raw internal leakage).
+- UI hardening in `app/dashboard/actions/ActionsClient.tsx`:
+  - Removed destructive-toast load path for expected queue states.
+  - Added resilient fetch handling for:
+    - `200` empty queue
+    - `401` unauthorized
+    - `403` restricted
+    - malformed response bodies
+    - temporary unavailable response
+  - Added clear fallback rendering:
+    - **“No queued actions yet.”**
+    - **“This workspace does not have access to action queues yet.”** + upgrade CTA
+    - **“Action queue is temporarily unavailable.”**
+  - Delivery failures now degrade page state safely without noisy browser console errors for expected restrictions.
+- Test coverage:
+  - `app/api/workspace/actions/queue/route.vitest.ts` covers:
+    - empty allowed queue (`200`)
+    - no workspace (`200` fallback)
+    - capability denied upgrade state (`200` fallback)
+    - expected RLS/schema errors (`200` fallback)
+    - true non-member forbidden (`403`)
+  - `app/dashboard/actions/ActionsClient.test.tsx` (new) covers:
+    - empty queue fallback
+    - upgrade_required fallback
+    - 403 restricted fallback
+    - 401 unauthorized fallback
+    - malformed payload fallback
+
 ---
 
 ## Commands Run
@@ -171,6 +218,15 @@ Executed for dashboard reliability fix:
 6. `npm audit`
 7. `git status`
 
+Executed for actions queue reliability fix:
+
+1. `npm run test:unit -- app/api/workspace/actions/queue/route.vitest.ts app/dashboard/actions/ActionsClient.test.tsx`
+2. `npm run typecheck`
+3. `npm run lint`
+4. `npm run test:unit`
+5. `npm audit`
+6. `git status`
+
 Focused verification commands also run during implementation:
 
 - `npm run test:unit -- app/api/version/route.vitest.ts app/api/public/automation/route.vitest.ts components/Pricing.vitest.tsx lib/billing/require-capability.vitest.ts lib/debug/buildInfo.vitest.ts`
@@ -182,7 +238,7 @@ Focused verification commands also run during implementation:
 - `typecheck`: **pass**
 - `lint`: **pass**
 - `test:unit`: **pass**
-  - 199 files, 728 passed, 1 skipped
+  - 200 files, 738 passed, 1 skipped
 - `check:production`: **pass** (using safe placeholder env vars; no secret values printed)
 - `db:sanity`: **pass/skip expected** (`RUN_DB_SANITY!=1, skipping`)
 - `audit:public`: **pass**
@@ -195,6 +251,10 @@ Focused verification commands also run during implementation:
   - command was executed with the requested env vars, but `admin-reports/ai-site-audit/storageState.json` did not exist in this environment (`ENOENT`)
   - attempted recovery via `npm run audit:storage` also blocked because manual browser login capture timed out in unattended cloud execution
   - **Action required:** capture storage state in an interactive session and rerun full logged-in audit to confirm production `/dashboard` no longer emits `/api/lead-activity` 500s
+- actions queue fix verification:
+  - focused API + UI tests for `/dashboard/actions` queue behavior: **pass**
+  - full unit suite after actions hardening: **pass**
+  - **remaining production verification step:** rerun logged-in audit with storage state and confirm `logged_in:/dashboard/actions` has 0 console errors and no queue endpoint 4xx/5xx failures
 
 ---
 
@@ -249,6 +309,7 @@ Remaining advisories:
    - set `AUDIT_STORAGE_STATE`
    - run full `audit:ai -- --scope=all`
    - verify post-fix result: `logged_in:/dashboard` has 0 console errors and no `/api/lead-activity` 500 failures
+   - verify post-fix result: `logged_in:/dashboard/actions` has 0 console errors and no `/api/workspace/actions/queue` 4xx/5xx failures
 2. Run real `db:sanity` in production-like shell with real credentials and `RUN_DB_SANITY=1`.
 3. Verify `/status`, `/version`, and `/api/version` on live site all show consistent metadata for current deployment.
 4. Confirm external scheduler jobs are configured and produce fresh `job_runs` entries for required external jobs.
