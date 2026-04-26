@@ -162,6 +162,8 @@ test.describe('Production truth core flows', () => {
     await gotoStable(page, '/pricing')
     await page.getByRole('button', { name: /upgrade to pro/i }).first().click()
     await expect(page).toHaveURL(/\/dashboard\?checkout=mock/)
-    expect(requestBody?.planId).toBe('pro')
+    const capturedBody = requestBody as { planId?: string; billingCycle?: string } | null
+    expect(capturedBody).not.toBeNull()
+    expect(capturedBody?.planId).toBe('pro')
   })
 })

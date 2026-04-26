@@ -10,6 +10,7 @@ describe('/api/e2e/reset-ratelimits', () => {
   })
 
   it('returns 404 outside E2E/test envs', async () => {
+    process.env.E2E_MODE = 'false'
     vi.doMock('@/lib/runtimeFlags', async () => {
       const actual = await vi.importActual<typeof import('@/lib/runtimeFlags')>('@/lib/runtimeFlags')
       return { ...actual, isTestEnv: () => false }

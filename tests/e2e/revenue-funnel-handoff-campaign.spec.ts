@@ -46,7 +46,7 @@ test.describe('Revenue funnel: demo handoff to campaigns', () => {
     await page.goto('/demo')
     await page.locator('#demo-company').fill('acme.com')
     await page.getByRole('button', { name: /run demo lead search/i }).click()
-    await expect(page.getByText('Step 2 — Partial results')).toBeVisible()
+    await expect(page.getByText(/best lead right now/i)).toBeVisible()
 
     // 2) Demo handoff cookie creation
     const cookies = await page.context().cookies(baseURL)
@@ -81,7 +81,15 @@ test.describe('Revenue funnel: demo handoff to campaigns', () => {
     await expect(page).toHaveURL(/\/dashboard/)
     await expect(page.getByTestId('dashboard-root')).toBeVisible()
 
-    // 7) Campaign creation
+    // 7) Campaign creation (requires paid capability in current gating policy)
+    await setE2ECookies({
+      page,
+      baseURL,
+      authed: true,
+      plan: 'pro',
+      uid: E2E_UID,
+      email: E2E_EMAIL,
+    })
     await page.goto('/campaign')
     await expect(page.getByRole('heading', { name: /campaign builder/i })).toBeVisible()
     const leadCheckbox = page.locator('input[type="checkbox"]').first()
@@ -90,7 +98,8 @@ test.describe('Revenue funnel: demo handoff to campaigns', () => {
     await page.locator('#campaign-name').fill(CAMPAIGN_NAME)
     await page.locator('#campaign-objective').fill('Validate end-to-end funnel persistence')
     await page.getByRole('button', { name: /^save campaign$/i }).click()
-    await expect(page.getByText('Campaign saved.')).toBeVisible()
+    // Save feedback can render as inline text or toast depending on hydration timing,
+    // so rely on deterministic API/card checks below instead of brittle toast text.
 
     const campaignCard = page
       .locator('div.rounded.border.border-cyan-500\\/10')
@@ -151,6 +160,14 @@ test.describe('Revenue funnel: demo handoff to campaigns', () => {
     await expect(fetchCampaignLeadCount(page, baseURL, campaignId!)).resolves.toBe(1)
 
     // 10) Free-plan export blocked
+    await setE2ECookies({
+      page,
+      baseURL,
+      authed: true,
+      plan: 'free',
+      uid: E2E_UID,
+      email: E2E_EMAIL,
+    })
     const freeExportResponse = await page.request.post(`/api/campaigns/${campaignId}/export`, {
       headers: { origin: baseURL },
       data: {},

@@ -142,10 +142,14 @@ function runChecks(): CheckResult[] {
     push(results, 'stripe-price-presence', 'pass', 'All Stripe plan families are configured.')
   }
 
-  const stripePriceEntries = Object.entries(process.env).filter(
-    ([name, value]) => name.startsWith('STRIPE_PRICE_ID') && typeof value === 'string' && value.trim().length > 0
-  )
-  const invalidStripePriceEntries = stripePriceEntries.filter(([, value]) => !/^price_[A-Za-z0-9_]+$/.test(value.trim()))
+  const stripePriceEntries = Object.entries(process.env).flatMap(([name, value]) => {
+    if (!name.startsWith('STRIPE_PRICE_ID')) return []
+    if (typeof value !== 'string') return []
+    const trimmed = value.trim()
+    if (trimmed.length === 0) return []
+    return [[name, trimmed] as const]
+  })
+  const invalidStripePriceEntries = stripePriceEntries.filter(([, value]) => !/^price_[A-Za-z0-9_]+$/.test(value))
   if (invalidStripePriceEntries.length > 0) {
     push(
       results,
@@ -188,12 +192,15 @@ function runChecks(): CheckResult[] {
     push(results, 'supabase-service-role-key', 'pass', detail)
   }
 
-  const nextPublicEntries = Object.entries(process.env).filter(
-    ([name, value]) => name.startsWith('NEXT_PUBLIC_') && typeof value === 'string' && value.trim().length > 0
-  )
+  const nextPublicEntries = Object.entries(process.env).flatMap(([name, value]) => {
+    if (!name.startsWith('NEXT_PUBLIC_')) return []
+    if (typeof value !== 'string') return []
+    const trimmed = value.trim()
+    if (trimmed.length === 0) return []
+    return [[name, trimmed] as const]
+  })
   const leakedPublicKeys: string[] = []
-  for (const [name, valueRaw] of nextPublicEntries) {
-    const value = valueRaw.trim()
+  for (const [name, value] of nextPublicEntries) {
     if (name === 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY' && !/^pk_(live|test)_/i.test(value)) {
       leakedPublicKeys.push(`${name} (must start with pk_)`)
       continue
