@@ -130,7 +130,7 @@ export default function LandingClient() {
 
           <section className="scroll-mt-24 space-y-6 pt-12 md:pt-14 border-t border-border/30">
             <div>
-              <h2 className="text-2xl font-bold">See a sample before you sign up</h2>
+              <h2 className="text-2xl font-bold">Secondary: sample digest walkthrough</h2>
               <p className="mt-2 text-muted-foreground max-w-3xl">
                 Explore sample output quality, signal coverage, and messaging structure after the core hero and demo walkthrough.
               </p>
