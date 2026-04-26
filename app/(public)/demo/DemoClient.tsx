@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Copy, Check } from 'lucide-react'
 import { track } from '@/lib/analytics'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
+import { createClient } from '@/lib/supabase/client'
+import { getUserSafe } from '@/lib/supabase/safe-auth'
 
 type DemoSearchResult = {
   company: string
@@ -25,6 +27,9 @@ type DemoSearchResult = {
     body: string
   }
 }
+
+type ViewerTier = 'anonymous' | 'starter' | 'closer' | 'closer_plus' | 'team'
+type UpgradeTarget = 'closer' | 'closer_plus' | 'team'
 
 const DEMO_SOCIAL_PROOF: ReadonlyArray<{ quote: string; metric: string }> = [
   {
@@ -110,6 +115,7 @@ function isValidEmail(value: string): boolean {
 
 export function DemoClient() {
   const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const [companyOrUrl, setCompanyOrUrl] = useState<string>(EXAMPLE_COMPANIES[0])
   const [workEmail, setWorkEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -128,6 +134,7 @@ export function DemoClient() {
   const [demoRunsToday, setDemoRunsToday] = useState(0)
   const [gatingNotice, setGatingNotice] = useState<'demo_limit' | 'advanced_feature' | null>(null)
   const [handoffCompanyOrUrl, setHandoffCompanyOrUrl] = useState<string | null>(null)
+  const [viewerTier, setViewerTier] = useState<ViewerTier>('anonymous')
   const resultCardRef = useRef<HTMLDivElement | null>(null)
   const activationTrackedRef = useRef(false)
   const handoffAutoRunRef = useRef(false)
@@ -149,6 +156,37 @@ export function DemoClient() {
   const shouldShowContextualCopy = useMemo(() => {
     return contextualCompany.length >= 2 && (hasUserInteracted || Boolean(handoffCompanyOrUrl))
   }, [contextualCompany, handoffCompanyOrUrl, hasUserInteracted])
+  const featureRequiresHigherTier = gatingNotice === 'advanced_feature'
+  const limitIssue = gatingNotice === 'demo_limit' || remainingDemoRuns <= 0
+  const isAnonymousViewer = viewerTier === 'anonymous'
+  const isStarterViewer = viewerTier === 'starter'
+  const availableUpgrades = useMemo<UpgradeTarget[]>(() => {
+    if (viewerTier === 'starter') return ['closer', 'closer_plus', 'team']
+    if (viewerTier === 'closer') return ['closer_plus', 'team']
+    if (viewerTier === 'closer_plus') return ['team']
+    return []
+  }, [viewerTier])
+  const shouldShowUpgradeContainer = useMemo(() => {
+    if (viewerTier === 'anonymous' || viewerTier === 'starter') return true
+    if (viewerTier === 'closer' || viewerTier === 'closer_plus') return featureRequiresHigherTier
+    if (viewerTier === 'team') return limitIssue
+    return false
+  }, [featureRequiresHigherTier, limitIssue, viewerTier])
+  const primaryUpgradeTarget = availableUpgrades[0] ?? 'closer'
+  const primaryUpgradeLabel = useMemo(() => {
+    if (viewerTier === 'anonymous') return 'Sign up / Upgrade'
+    if (viewerTier === 'starter') return 'Upgrade to Pro / Pro+ / Team'
+    if (primaryUpgradeTarget === 'closer') return 'Upgrade to Pro'
+    if (primaryUpgradeTarget === 'closer_plus') return 'Upgrade to Pro+'
+    if (primaryUpgradeTarget === 'team') return 'Upgrade to Team'
+    if (viewerTier === 'team') return 'Review Team Plan'
+    return 'Upgrade to higher tier'
+  }, [primaryUpgradeTarget, viewerTier])
+  const shouldShowDiscountNudge = !checkoutNudgeDismissed && (viewerTier === 'anonymous' || viewerTier === 'starter')
+
+  function targetToPricingQuery(target: UpgradeTarget): 'closer' | 'closer_plus' | 'team' {
+    return target
+  }
 
   useEffect(() => {
     const usage = readDailyUsageFromStorage()
@@ -167,6 +205,42 @@ export function DemoClient() {
       setHandoffCompanyOrUrl(null)
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const resolveViewerTier = async () => {
+      try {
+        const user = await getUserSafe(supabase)
+        if (!user) {
+          if (!cancelled) setViewerTier('anonymous')
+          return
+        }
+        const response = await fetch('/api/plan', { method: 'GET', cache: 'no-store' })
+        if (!response.ok) {
+          if (!cancelled) setViewerTier('starter')
+          return
+        }
+        const payload = (await response.json().catch(() => null)) as { data?: { tier?: unknown }; tier?: unknown } | null
+        const tierRaw =
+          typeof payload?.data?.tier === 'string'
+            ? payload.data.tier
+            : typeof payload?.tier === 'string'
+              ? payload.tier
+              : null
+        const normalizedTier =
+          tierRaw === 'starter' || tierRaw === 'closer' || tierRaw === 'closer_plus' || tierRaw === 'team'
+            ? tierRaw
+            : 'starter'
+        if (!cancelled) setViewerTier(normalizedTier)
+      } catch {
+        if (!cancelled) setViewerTier('anonymous')
+      }
+    }
+    void resolveViewerTier()
+    return () => {
+      cancelled = true
+    }
+  }, [supabase])
 
   function trackActivation(trigger: 'copy_message' | 'add_to_campaign'): void {
     if (activationTrackedRef.current) return
@@ -307,10 +381,16 @@ export function DemoClient() {
     router.push(`/signup?redirect=${encodeURIComponent(redirect)}`)
   }
 
-  function openUpgradePath(source: 'first_result_cta' | 'checkout_nudge' | 'offer_banner'): void {
-    track('upgrade_clicked', { source: 'demo_page', trigger: source })
-    track('checkout_started', { source: 'demo_page', trigger: source })
-    router.push('/pricing?target=closer')
+  function openUpgradePath(source: 'first_result_cta' | 'checkout_nudge' | 'offer_banner', targetOverride?: UpgradeTarget): void {
+    const target = targetOverride ?? primaryUpgradeTarget
+    const pricingTarget = targetToPricingQuery(target)
+    track('upgrade_clicked', { source: 'demo_page', trigger: source, target: pricingTarget })
+    track('checkout_started', { source: 'demo_page', trigger: source, target: pricingTarget })
+    if (viewerTier === 'anonymous') {
+      router.push(`/signup?redirect=${encodeURIComponent(`/pricing?target=${pricingTarget}`)}`)
+      return
+    }
+    router.push(`/pricing?target=${pricingTarget}`)
   }
 
   function openLeadResultsPreview(): void {
@@ -451,20 +531,34 @@ export function DemoClient() {
           <p className="text-muted-foreground">
             Run a sample search with no login required. Preview fit, outreach, and campaign intent before signup.
           </p>
-          <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-muted-foreground">
+          {shouldShowUpgradeContainer ? (
+            <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-muted-foreground">
             <div className="font-medium text-foreground">Upgrade path: Free - Pro - Pro+ - Team</div>
             <div className="mt-1">
               You&apos;ve seen the value. Unlock full access now and launch daily high-intent lead generation.
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <Button type="button" size="sm" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('offer_banner')}>
-                Upgrade to Pro for daily leads
+                {primaryUpgradeLabel}
               </Button>
-              <Button asChild size="sm" variant="outline">
-                <Link href="/signup?redirect=/dashboard">Sign up in under 1 minute</Link>
-              </Button>
+              {viewerTier === 'anonymous' ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/signup?redirect=/dashboard">Sign up in under 1 minute</Link>
+                </Button>
+              ) : null}
+              {viewerTier === 'starter' && availableUpgrades.length > 1 ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => openUpgradePath('offer_banner', 'closer_plus')}>
+                  Upgrade to Pro+
+                </Button>
+              ) : null}
+              {viewerTier === 'starter' && availableUpgrades.length > 2 ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => openUpgradePath('offer_banner', 'team')}>
+                  Upgrade to Team
+                </Button>
+              ) : null}
             </div>
-          </div>
+            </div>
+          ) : null}
         </header>
 
         <Card className="border-cyan-500/20 bg-card/60">
@@ -566,9 +660,15 @@ export function DemoClient() {
                   </div>
                 ) : null}
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('first_result_cta')}>
-                    Unlock Full Pipeline
-                  </Button>
+                  {shouldShowUpgradeContainer ? (
+                    <Button
+                      type="button"
+                      className="neon-border hover:glow-effect"
+                      onClick={() => openUpgradePath('first_result_cta')}
+                    >
+                      Unlock Full Pipeline
+                    </Button>
+                  ) : null}
                   <span className="text-xs text-muted-foreground">Leads refresh daily.</span>
                   <span className="text-xs text-muted-foreground">Preview limited to 3 leads.</span>
                 </div>
@@ -624,21 +724,34 @@ export function DemoClient() {
                     {copied ? <Check className="h-4 w-4 mr-2 text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
                     {copied ? 'Copied' : 'Copy Message'}
                   </Button>
-                  <Button type="button" className="w-full sm:w-auto bg-cyan-500/15 text-cyan-100 border border-cyan-400/40 hover:bg-cyan-500/25" onClick={() => openUpgradePath('first_result_cta')}>
-                    Unlock Full Pipeline
-                  </Button>
+                  {shouldShowUpgradeContainer ? (
+                    <Button
+                      type="button"
+                      className="w-full sm:w-auto bg-cyan-500/15 text-cyan-100 border border-cyan-400/40 hover:bg-cyan-500/25"
+                      onClick={() => openUpgradePath('first_result_cta')}
+                    >
+                      Unlock Full Pipeline
+                    </Button>
+                  ) : null}
                 </div>
                 {copied ? (
                   <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2 text-xs text-green-200 flex flex-wrap items-center justify-between gap-2">
                     <span>Message copied — want 20 more like this?</span>
-                    <Button type="button" size="sm" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('checkout_nudge')}>
-                      Upgrade to Pro
-                    </Button>
+                    {shouldShowUpgradeContainer ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="neon-border hover:glow-effect"
+                        onClick={() => openUpgradePath('checkout_nudge')}
+                      >
+                        {viewerTier === 'anonymous' ? 'Sign up / Upgrade' : primaryUpgradeLabel}
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
 
-              {!checkoutNudgeDismissed ? (
+              {shouldShowDiscountNudge ? (
                 <div className="rounded border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
                   <div className="text-sm font-medium text-foreground">You&apos;ve seen the value. Unlock full access now!</div>
                   <div className="text-xs text-muted-foreground">
@@ -708,13 +821,15 @@ export function DemoClient() {
                       <Link href="/settings/team">Invite teammates</Link>
                     </Button>
                   </div>
-                  <Button
-                    type="button"
-                    className={`neon-border hover:glow-effect ${commitmentChoice === 'yes' ? 'ring-2 ring-emerald-400/40 animate-pulse' : ''}`}
-                    onClick={() => openUpgradePath('checkout_nudge')}
-                  >
-                    Upgrade to Pro
-                  </Button>
+                  {shouldShowUpgradeContainer ? (
+                    <Button
+                      type="button"
+                      className={`neon-border hover:glow-effect ${commitmentChoice === 'yes' ? 'ring-2 ring-emerald-400/40 animate-pulse' : ''}`}
+                      onClick={() => openUpgradePath('checkout_nudge')}
+                    >
+                      {viewerTier === 'anonymous' ? 'Sign up / Upgrade' : primaryUpgradeLabel}
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -735,9 +850,11 @@ export function DemoClient() {
                   <li>- Daily new opportunities</li>
                 </ul>
                 <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  <Button asChild className="neon-border hover:glow-effect">
-                    <Link href="/pricing">Unlock All Leads</Link>
-                  </Button>
+                  {shouldShowUpgradeContainer ? (
+                    <Button type="button" className="neon-border hover:glow-effect" onClick={() => openUpgradePath('first_result_cta')}>
+                      {viewerTier === 'anonymous' ? 'Sign up / Upgrade' : primaryUpgradeLabel}
+                    </Button>
+                  ) : null}
                   <Button onClick={openLeadResultsPreview} variant="outline">
                     View lead results
                   </Button>
@@ -774,16 +891,18 @@ export function DemoClient() {
                     Log in
                   </Link>
                 </div>
-                <div className="mt-3 text-xs text-muted-foreground">
-                  Prefer to review plans first?{' '}
-                  <Link
-                    href="/pricing"
-                    onClick={() => track('checkout_started', { source: 'demo_page_paywall', stage: 'pricing_intent' })}
-                    className="text-cyan-300 hover:underline"
-                  >
-                    See pricing
-                  </Link>
-                </div>
+                {shouldShowUpgradeContainer ? (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    Prefer to review plans first?{' '}
+                    <Link
+                      href={viewerTier === 'anonymous' ? '/signup?redirect=%2Fpricing' : '/pricing'}
+                      onClick={() => track('checkout_started', { source: 'demo_page_paywall', stage: 'pricing_intent' })}
+                      className="text-cyan-300 hover:underline"
+                    >
+                      See pricing
+                    </Link>
+                  </div>
+                ) : null}
                 <div className="mt-2 text-xs text-muted-foreground">
                   Questions? <a className="text-cyan-300 hover:underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
                 </div>
