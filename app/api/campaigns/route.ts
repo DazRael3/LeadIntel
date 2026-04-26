@@ -5,6 +5,7 @@ import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/
 import { createRouteClient } from '@/lib/supabase/route'
 import { getUserSafe } from '@/lib/supabase/safe-auth'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
+import { requireCapability } from '@/lib/billing/require-capability'
 import {
   CampaignCreateSchema,
   summarizeCampaignStatuses,
@@ -36,6 +37,15 @@ export const GET = withApiGuard(
       const user = await getUserSafe(supabase)
       if (!user) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
+      const capability = await requireCapability({
+        userId: user.id,
+        sessionEmail: user.email ?? null,
+        supabase,
+        capability: 'action_queue',
+      })
+      if (!capability.ok) {
+        return fail(ErrorCode.FORBIDDEN, 'Campaign workflow requires a paid plan', undefined, undefined, bridge, requestId)
       }
 
       await ensurePersonalWorkspace({ supabase, userId: user.id })
@@ -92,6 +102,15 @@ export const POST = withApiGuard(
       const user = await getUserSafe(supabase)
       if (!user) {
         return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
+      }
+      const capability = await requireCapability({
+        userId: user.id,
+        sessionEmail: user.email ?? null,
+        supabase,
+        capability: 'action_queue',
+      })
+      if (!capability.ok) {
+        return fail(ErrorCode.FORBIDDEN, 'Campaign workflow requires a paid plan', undefined, undefined, bridge, requestId)
       }
 
       const parsed = CampaignCreateSchema.safeParse(body)

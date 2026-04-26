@@ -57,7 +57,9 @@ export function getEntitlements(ctx: PlanContext, nowMs: number = Date.now()): E
   const isTrialActive = Boolean(ctx.trial?.active) && isFutureIso(trialEndsAt, nowMs)
   const isPro = ctx.plan === 'pro'
 
-  const canAccessPitchHistory = isPro || isTrialActive
+  // Paid access is plan-gated only. Trial state is informational and must not unlock
+  // paid/server-gated capabilities.
+  const canAccessPitchHistory = isPro
 
   return {
     // Command Center remains usable for Free users (per product design).

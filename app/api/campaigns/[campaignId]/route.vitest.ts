@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 let mockGuardUserId: string | undefined = 'user_1'
 let mockUser: { id: string; email?: string | null } | null = { id: 'user_1', email: 'team@example.com' }
 let mockMembershipRole: 'owner' | 'admin' | 'manager' | 'rep' | 'viewer' | null = 'owner'
-let capabilityAllowed = true
+let actionQueueCapabilityAllowed = true
 let detachCount = 0
 let attachCount = 0
 
@@ -48,7 +48,10 @@ vi.mock('@/lib/team/workspace', () => ({
 }))
 
 vi.mock('@/lib/billing/require-capability', () => ({
-  requireCapability: vi.fn(async () => ({ ok: capabilityAllowed, tier: capabilityAllowed ? 'team' : 'starter' })),
+  requireCapability: vi.fn(async () => ({
+    ok: actionQueueCapabilityAllowed,
+    tier: actionQueueCapabilityAllowed ? 'team' : 'starter',
+  })),
 }))
 
 vi.mock('@/lib/services/campaigns', () => ({
@@ -114,7 +117,7 @@ describe('/api/campaigns/[campaignId]', () => {
     mockGuardUserId = 'user_1'
     mockUser = { id: 'user_1', email: 'team@example.com' }
     mockMembershipRole = 'owner'
-    capabilityAllowed = true
+    actionQueueCapabilityAllowed = true
     detachCount = 0
     attachCount = 0
   })
@@ -188,7 +191,7 @@ describe('/api/campaigns/[campaignId]', () => {
   })
 
   it('blocks export route when capability gate fails', async () => {
-    capabilityAllowed = false
+    actionQueueCapabilityAllowed = false
     const { POST } = await import('./export/route')
     const req = new NextRequest('http://localhost:3000/api/campaigns/campaign_1/export', {
       method: 'POST',
@@ -196,6 +199,29 @@ describe('/api/campaigns/[campaignId]', () => {
       body: JSON.stringify({}),
     })
     const res = await POST(req, { params: Promise.resolve({ campaignId: '247f89b6-0ff6-4f8a-9f89-fa3e0c8b4ac4' }) })
+    expect(res.status).toBe(403)
+  })
+
+  it('blocks campaign details when action queue capability is missing', async () => {
+    actionQueueCapabilityAllowed = false
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/campaigns/campaign_1', {
+      method: 'GET',
+      headers: { origin: 'http://localhost:3000' },
+    })
+    const res = await GET(req, { params: Promise.resolve({ campaignId: '247f89b6-0ff6-4f8a-9f89-fa3e0c8b4ac4' }) })
+    expect(res.status).toBe(403)
+  })
+
+  it('blocks campaign updates when action queue capability is missing', async () => {
+    actionQueueCapabilityAllowed = false
+    const { PATCH } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/campaigns/campaign_1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ status: 'active' }),
+    })
+    const res = await PATCH(req, { params: Promise.resolve({ campaignId: '247f89b6-0ff6-4f8a-9f89-fa3e0c8b4ac4' }) })
     expect(res.status).toBe(403)
   })
 })

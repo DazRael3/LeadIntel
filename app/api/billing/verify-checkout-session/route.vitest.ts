@@ -291,6 +291,42 @@ describe('/api/billing/verify-checkout-session', () => {
     expect(planJson.data?.planId).toBe('pro')
   })
 
+  it('does not grant paid tier when session is incomplete/unpaid', async () => {
+    retrieve.mockResolvedValue({
+      id: 'cs_test_pending',
+      client_reference_id: 'user_1',
+      metadata: { user_id: 'user_1' },
+      payment_status: 'unpaid',
+      status: 'open',
+      customer: 'cus_123',
+      subscription: {
+        id: 'sub_pending',
+        status: 'incomplete',
+        current_period_start: 1700000000,
+        current_period_end: 1700003600,
+        cancel_at_period_end: false,
+        trial_end: null,
+        items: { data: [{ price: { id: 'price_test_pro_123' } }] },
+      },
+    })
+    listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_test_pro_123' } }],
+    })
+
+    const { GET } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_pending', {
+      method: 'GET',
+    })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data?.verified).toBe(false)
+    expect(json.data?.plan).toBe('free')
+    expect(adminUpdateEq).not.toHaveBeenCalled()
+    expect(adminUpsert).not.toHaveBeenCalled()
+  })
+
   it('returns 403 when the session belongs to a different user', async () => {
     retrieve.mockResolvedValue({
       id: 'cs_test_123',
