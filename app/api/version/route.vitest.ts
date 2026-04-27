@@ -81,5 +81,25 @@ describe('/api/version', () => {
     expect(json.data.deployEnv).toBe('production')
     expect(json.data.appEnv).toBe('production')
   })
+
+  it('returns 200 JSON for /api/version with _rsc query param', async () => {
+    process.env.GITHUB_REPOSITORY = 'DazRael3/LeadIntel'
+    process.env.GITHUB_REF_NAME = 'main'
+    process.env.GITHUB_SHA = '1111222233334444'
+
+    const { GET } = await import('./route')
+    const res = await GET(new NextRequest('http://localhost:3000/api/version?_rsc=test'))
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.data).toEqual(
+      expect.objectContaining({
+        repo: 'DazRael3/LeadIntel',
+        branch: 'main',
+        commitSha: '1111222233334444',
+        commitShort: '11112222',
+      })
+    )
+  })
 })
 

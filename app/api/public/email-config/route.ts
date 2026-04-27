@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { withApiGuard } from '@/lib/api/guard'
-import { ok, asHttpError } from '@/lib/api/http'
-import { getServerEnv } from '@/lib/env'
+import { ok } from '@/lib/api/http'
 import { Resend } from 'resend'
 
 export const runtime = 'nodejs'
@@ -39,32 +38,32 @@ function isDomainVerifiedStatus(status: string): boolean {
 }
 
 async function isResendConfiguredForSiteDomain(): Promise<boolean> {
-  const env = getServerEnv()
-  if (!env.RESEND_API_KEY) return false
+  const resendApiKey = (process.env.RESEND_API_KEY ?? '').trim()
+  if (!resendApiKey) return false
 
   const siteDomain = getApexHostFromSiteUrl()
   if (!siteDomain) return false
 
-  const resend = new Resend(env.RESEND_API_KEY)
-  const { data, error } = await resend.domains.list()
-  if (error || !data) return false
+  const resend = new Resend(resendApiKey)
+  try {
+    const { data, error } = await resend.domains.list()
+    if (error || !data) return false
 
-  const payload = data as unknown as DomainList
-  const domains = Array.isArray(payload.data) ? payload.data : []
-  const match = domains.find((d) => d && typeof d.name === 'string' && d.name.toLowerCase() === siteDomain) ?? null
-  if (!match) return false
+    const payload = data as unknown as DomainList
+    const domains = Array.isArray(payload.data) ? payload.data : []
+    const match = domains.find((d) => d && typeof d.name === 'string' && d.name.toLowerCase() === siteDomain) ?? null
+    if (!match) return false
 
-  const sendingEnabled = match.capabilities?.sending === 'enabled'
-  const statusOk = typeof match.status === 'string' && isDomainVerifiedStatus(match.status)
-  return Boolean(sendingEnabled && statusOk)
+    const sendingEnabled = match.capabilities?.sending === 'enabled'
+    const statusOk = typeof match.status === 'string' && isDomainVerifiedStatus(match.status)
+    return Boolean(sendingEnabled && statusOk)
+  } catch {
+    return false
+  }
 }
 
 export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => {
-  try {
-    const enabled = await isResendConfiguredForSiteDomain()
-    return ok({ enabled }, undefined, undefined, requestId)
-  } catch (error) {
-    return asHttpError(error, '/api/public/email-config', undefined, undefined, requestId)
-  }
+  const enabled = await isResendConfiguredForSiteDomain()
+  return ok({ enabled }, undefined, undefined, requestId)
 })
 
