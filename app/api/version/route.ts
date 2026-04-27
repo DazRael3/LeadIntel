@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { ok } from '@/lib/api/http'
 import { getPublicVersionInfo, shortCommitSha } from '@/lib/debug/buildInfo'
-import { serverEnv } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +12,7 @@ export async function GET(_request: NextRequest) {
   const version = getPublicVersionInfo()
   return ok({
     appEnv: version.appEnv,
-    nodeEnv: serverEnv.NODE_ENV,
+    nodeEnv: version.nodeEnv,
     deployEnv: version.deployEnv,
     repo: version.repo,
     branch: version.branch,
