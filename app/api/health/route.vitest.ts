@@ -10,6 +10,10 @@ vi.mock('@/lib/services/health', () => ({
       auth: { status: 'ok', message: 'ok' },
       db: { status: 'ok', message: 'ok' },
       resend: { status: 'not_enabled', message: 'Not enabled' },
+      posthog: { status: 'not_enabled', message: 'not configured' },
+      sentry: { status: 'not_enabled', message: 'not configured' },
+      automation: { status: 'not_enabled', message: 'automation disabled by feature flags' },
+      version: { status: 'degraded', message: 'build metadata incomplete' },
     },
   })),
 }))
@@ -23,10 +27,16 @@ describe('/api/health', () => {
     const { GET } = await import('./route')
     const res = await GET(new NextRequest('http://localhost:3000/api/health', { method: 'GET' }))
     expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toContain('no-store')
+    expect(res.headers.get('Pragma')).toBe('no-cache')
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.data).toHaveProperty('status')
     expect(json.data).toHaveProperty('components')
+    expect(json.data.components).toHaveProperty('posthog')
+    expect(json.data.components).toHaveProperty('sentry')
+    expect(json.data.components).toHaveProperty('automation')
+    expect(json.data.components).toHaveProperty('version')
   })
 
   it('can return degraded status', async () => {
@@ -39,6 +49,10 @@ describe('/api/health', () => {
         auth: { status: 'degraded', message: 'Supabase auth health returned 401/403 (check ANON key)' },
         db: { status: 'ok', message: 'ok' },
         resend: { status: 'not_enabled', message: 'Not enabled' },
+        posthog: { status: 'degraded', message: 'POSTHOG_PROJECT_ID must be numeric' },
+        sentry: { status: 'not_enabled', message: 'not configured' },
+        automation: { status: 'degraded', message: 'enabled automation jobs require cron secrets' },
+        version: { status: 'degraded', message: 'build metadata incomplete' },
       },
     } as any)
 

@@ -64,7 +64,8 @@ describe('/api/public/automation', () => {
     delete process.env.PROSPECT_WATCH_CONTENT_DIGEST_ENABLED
   })
 
-  it('reports external_required when scheduler dependencies are unavailable', async () => {
+  it('reports degraded when required scheduler dependencies are unavailable', async () => {
+    process.env.ENABLE_CORE_CRON_AUTOMATION = 'true'
     const { GET } = await import('./route')
     const res = await GET(new NextRequest('http://localhost:3000/api/public/automation'))
     expect(res.status).toBe(200)
@@ -72,21 +73,21 @@ describe('/api/public/automation', () => {
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.data.enabled).toBe(false)
-    expect(json.data.healthStatus).toBe('external_required')
-    expect(json.data.scheduler.missingExternalJobs).toBeGreaterThan(0)
-    expect(json.data.scheduler.jobs.some((job: { state?: string }) => job.state === 'external')).toBe(true)
+    expect(json.data.healthStatus).toBe('degraded')
+    expect(json.data.scheduler.missingRequiredJobs).toBeGreaterThan(0)
+    expect(json.data.scheduler.jobs.some((job: { state?: string }) => job.state === 'missing')).toBe(true)
   })
 
   it('reports healthy when required jobs are recent and successful', async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
+    process.env.CRON_SECRET = 'cron-secret-123456'
+    process.env.ENABLE_CORE_CRON_AUTOMATION = 'true'
+    process.env.ENABLE_SITE_REPORTS = 'true'
     const nowIso = new Date().toISOString()
-    jobRunByName.set('lifecycle', { status: 'ok', finished_at: nowIso })
     jobRunByName.set('digest_lite', { status: 'ok', finished_at: nowIso })
     jobRunByName.set('kpi_monitor', { status: 'ok', finished_at: nowIso })
     jobRunByName.set('content_audit', { status: 'ok', finished_at: nowIso })
-    jobRunByName.set('growth_cycle', { status: 'ok', finished_at: nowIso })
-    jobRunByName.set('sources_refresh', { status: 'ok', finished_at: nowIso })
 
     const { GET } = await import('./route')
     const res = await GET(new NextRequest('http://localhost:3000/api/public/automation'))

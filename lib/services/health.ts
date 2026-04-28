@@ -1,5 +1,8 @@
 import { isTestLikeEnv } from '@/lib/runtimeFlags'
-import { runEnvDoctor } from '@/lib/ops/envDoctor'
+import { getPosthogConfiguration } from '@/lib/observability/posthog-config'
+import { getSentryConfiguration } from '@/lib/observability/sentry-config'
+import { getAutomationJobConfig, hasAnyCronSecret } from '@/lib/observability/automation-config'
+import { getPublicVersionInfo } from '@/lib/debug/buildInfo'
 
 export type ServiceStatus = 'operational' | 'degraded' | 'down'
 export type ComponentStatus = 'ok' | 'degraded' | 'down' | 'not_enabled' | 'not_checked'
@@ -44,6 +47,74 @@ function computeOverallStatus(critical: HealthComponent[]): ServiceStatus {
   if (critical.some((c) => c.status === 'down')) return 'down'
   if (critical.some((c) => c.status === 'degraded' || c.status === 'not_checked')) return 'degraded'
   return 'operational'
+}
+
+function summarizePosthogComponent(): HealthComponent {
+  const cfg = getPosthogConfiguration()
+  if (cfg.mode === 'misconfigured') {
+    return degraded(cfg.messages.join(' '), {
+      analyticsEnabled: cfg.analyticsEnabled,
+      analyticsCaptureConfigured: cfg.analyticsCaptureConfigured,
+      privateApiConfigured: cfg.privateApiConfigured,
+    })
+  }
+  if (cfg.mode === 'capture_and_private_api') {
+    return ok('analytics capture + private API configured')
+  }
+  if (cfg.mode === 'private_api') {
+    return ok('private API configured')
+  }
+  if (cfg.mode === 'capture_only') {
+    return ok('analytics capture configured')
+  }
+  return notEnabled('not configured')
+}
+
+function summarizeSentryComponent(): HealthComponent {
+  const cfg = getSentryConfiguration()
+  if (cfg.mode === 'misconfigured') {
+    return degraded(cfg.messages.join(' '))
+  }
+  if (cfg.mode === 'enabled') {
+    return ok('configured', {
+      dsnSource: cfg.effectiveDsnSource,
+      environment: cfg.environment,
+    })
+  }
+  return notEnabled('not configured')
+}
+
+function summarizeAutomationComponent(): HealthComponent {
+  const jobs = getAutomationJobConfig({ hasEnabledWebhookEndpoints: false })
+  const enabledJobs = jobs.filter((job) => job.enabled)
+  if (enabledJobs.length === 0) {
+    return notEnabled('automation disabled by feature flags')
+  }
+  const missingCronSecret = !hasAnyCronSecret()
+  if (missingCronSecret) {
+    return degraded('enabled automation jobs require cron secrets', {
+      enabledJobs: enabledJobs.map((job) => job.job),
+    })
+  }
+  return ok('configured', {
+    enabledJobs: enabledJobs.map((job) => job.job),
+  })
+}
+
+function summarizeVersionComponent(): HealthComponent {
+  const version = getPublicVersionInfo()
+  if (version.metadataComplete) {
+    return ok('build metadata available', {
+      repo: version.repo,
+      branch: version.branch,
+      commitShort: version.commitShort,
+    })
+  }
+  return degraded('build metadata incomplete', {
+    repo: version.repo,
+    branch: version.branch,
+    commitShort: version.commitShort,
+  })
 }
 
 async function checkSupabaseAuth(): Promise<HealthComponent> {
@@ -145,21 +216,10 @@ function checkOptionalConfig(): Record<string, HealthComponent> {
   components.openai = hasEnv('OPENAI_API_KEY') ? ok('configured') : notEnabled('not configured')
   components.clearbit =
     hasEnv('CLEARBIT_REVEAL_API_KEY') || hasEnv('CLEARBIT_API_KEY') ? ok('configured') : notEnabled('not configured')
-  const env = runEnvDoctor()
-  const posthog = env.subsystems.find((s) => s.key === 'posthog')
-  if (posthog?.configured) {
-    components.posthog = ok('configured')
-  } else {
-    const pid = (process.env.POSTHOG_PROJECT_ID ?? '').trim()
-    if (pid.startsWith('phc_') || pid.startsWith('phx_')) {
-      components.posthog = notEnabled('POSTHOG_PROJECT_ID must be the numeric project id (not a phc_/phx_ token)')
-    } else if (posthog && posthog.missingKeys.length > 0) {
-      components.posthog = notEnabled(`not configured (${posthog.missingKeys.join(', ')})`)
-    } else {
-      components.posthog = notEnabled('not configured')
-    }
-  }
-  components.sentry = hasEnv('SENTRY_DSN') ? ok('configured') : notEnabled('not configured')
+  components.posthog = summarizePosthogComponent()
+  components.sentry = summarizeSentryComponent()
+  components.automation = summarizeAutomationComponent()
+  components.version = summarizeVersionComponent()
 
   return components
 }

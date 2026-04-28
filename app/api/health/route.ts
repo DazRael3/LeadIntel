@@ -9,7 +9,17 @@ export const dynamic = 'force-dynamic'
 export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => {
   try {
     const report = await getHealthReport()
-    return ok(report, undefined, undefined, requestId)
+    return ok(
+      report,
+      {
+        headers: {
+          'Cache-Control': 'private, no-store, max-age=0',
+          Pragma: 'no-cache',
+        },
+      },
+      undefined,
+      requestId
+    )
   } catch (error) {
     return asHttpError(error, '/api/health', undefined, undefined, requestId)
   }

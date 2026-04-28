@@ -53,6 +53,10 @@ export default function VersionPage() {
               <dt className="text-xs uppercase tracking-wider text-muted-foreground">Deploy env</dt>
               <dd className="mt-1 text-foreground">{version.deployEnv ?? 'unknown'}</dd>
             </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wider text-muted-foreground">Generated at</dt>
+              <dd className="mt-1 text-foreground">{version.generatedAt ?? 'unknown'}</dd>
+            </div>
           </dl>
           <details className="mt-5 rounded border border-cyan-500/10 bg-background/40 p-4">
             <summary className="cursor-pointer text-sm text-foreground">Implementation details</summary>
@@ -68,6 +72,14 @@ export default function VersionPage() {
               <div className="sm:col-span-2">
                 <dt className="text-xs uppercase tracking-wider text-muted-foreground">Full commit SHA</dt>
                 <dd className="mt-1 break-all text-foreground">{version.commitSha ?? 'unknown'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Deployment URL</dt>
+                <dd className="mt-1 text-foreground">{version.deploymentUrl ?? 'unknown'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Build time</dt>
+                <dd className="mt-1 text-foreground">{version.buildTime ?? 'unknown'}</dd>
               </div>
             </dl>
           </details>

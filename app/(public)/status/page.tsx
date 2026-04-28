@@ -56,6 +56,9 @@ type VersionEnvelope =
         branch?: string
         commitSha?: string
         commitShort?: string
+        deploymentUrl?: string
+        generatedAt?: string
+        buildTime?: string
       }
     }
   | { ok: false; error?: { message?: string } }

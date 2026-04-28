@@ -18,6 +18,14 @@ export async function GET(_request: NextRequest) {
     branch: version.branch,
     commitSha: version.commitSha,
     commitShort: shortCommitSha(version.commitSha),
+    deploymentUrl: version.deploymentUrl,
+    generatedAt: version.generatedAt,
+    buildTime: version.buildTime,
+  }, {
+    headers: {
+      'Cache-Control': 'private, no-store, max-age=0',
+      Pragma: 'no-cache',
+    },
   })
 }
 

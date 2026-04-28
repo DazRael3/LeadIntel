@@ -1,5 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { getPosthogConfiguration } from '@/lib/observability/posthog-config'
+import { getSentryConfiguration } from '@/lib/observability/sentry-config'
+import { getAutomationJobConfig } from '@/lib/observability/automation-config'
 
 type CheckStatus = 'pass' | 'fail' | 'warn'
 
@@ -36,7 +39,17 @@ const REQUIRED_MIGRATIONS = [
   '0089_demo_sessions_explicit_rls_policy.sql',
 ] as const
 
-const REQUIRED_SCRIPTS = ['typecheck', 'lint', 'test:unit', 'build', 'test:e2e', 'check:production'] as const
+const REQUIRED_SCRIPTS = [
+  'typecheck',
+  'lint',
+  'test:unit',
+  'build',
+  'test:e2e',
+  'check:production',
+  'check:automation',
+  'check:observability',
+  'check:ai-providers',
+] as const
 
 const REQUIRED_ENV = [
   'NEXT_PUBLIC_SITE_URL',
@@ -82,6 +95,17 @@ function getEnv(name: string): string {
 function parseHostname(rawUrl: string): string | null {
   try {
     return new URL(rawUrl).hostname.toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+function parseOrigin(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl)
+    if (parsed.pathname && parsed.pathname !== '/') return null
+    if (parsed.search || parsed.hash) return null
+    return parsed.origin
   } catch {
     return null
   }
@@ -165,6 +189,8 @@ function runChecks(): CheckResult[] {
   const supabaseHost = parseHostname(supabaseUrl)
   if (!supabaseHost) {
     push(results, 'supabase-url-format', 'fail', 'NEXT_PUBLIC_SUPABASE_URL is missing or invalid.')
+  } else if (parseOrigin(supabaseUrl) === null) {
+    push(results, 'supabase-url-format', 'fail', 'NEXT_PUBLIC_SUPABASE_URL must be an origin only (no path/query).')
   } else {
     push(results, 'supabase-url-format', 'pass', `Supabase URL parses correctly (${supabaseHost}).`)
   }
@@ -227,6 +253,93 @@ function runChecks(): CheckResult[] {
     push(results, 'canonical-domain-env', 'fail', `Canonical env host mismatch: ${invalidCanonicalHosts.join(', ')}`)
   } else {
     push(results, 'canonical-domain-env', 'pass', 'Canonical env domain is raelinfo.com.')
+  }
+
+  const allowedOriginsRaw = getEnv('ALLOWED_ORIGINS')
+  if (allowedOriginsRaw) {
+    const invalidOrigins = allowedOriginsRaw
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .filter((v) => parseOrigin(v) === null)
+    if (invalidOrigins.length > 0) {
+      push(results, 'allowed-origins-format', 'fail', `ALLOWED_ORIGINS must contain origins only (invalid: ${invalidOrigins.join(', ')})`)
+    } else {
+      push(results, 'allowed-origins-format', 'pass', 'ALLOWED_ORIGINS contains valid origins.')
+    }
+  } else {
+    push(results, 'allowed-origins-format', 'warn', 'ALLOWED_ORIGINS is not set.')
+  }
+
+  const posthog = getPosthogConfiguration()
+  if (posthog.mode === 'misconfigured') {
+    push(results, 'posthog-config', 'fail', posthog.messages.join(' '))
+  } else {
+    push(
+      results,
+      'posthog-config',
+      'pass',
+      posthog.mode === 'disabled'
+        ? 'PostHog disabled (allowed).'
+        : posthog.mode === 'capture_only'
+          ? 'PostHog capture-only configured.'
+          : posthog.mode === 'private_api'
+            ? 'PostHog private API configured.'
+            : 'PostHog capture + private API configured.'
+    )
+  }
+
+  const sentry = getSentryConfiguration()
+  if (sentry.mode === 'misconfigured') {
+    const onlySdkMissing =
+      sentry.messages.length === 1 &&
+      sentry.messages[0]?.includes('@sentry/nextjs is not installed') === true
+    if (onlySdkMissing) {
+      push(results, 'sentry-config', 'warn', sentry.messages.join(' '))
+    } else {
+      push(results, 'sentry-config', 'fail', sentry.messages.join(' '))
+    }
+  } else {
+    push(
+      results,
+      'sentry-config',
+      sentry.mode === 'enabled' ? 'pass' : 'warn',
+      sentry.mode === 'enabled'
+        ? `Sentry configured (${sentry.effectiveDsnSource} DSN).`
+        : 'Sentry DSN not configured (allowed).'
+    )
+  }
+
+  if (getEnv('SENTRY_AUTH_TOKEN')) {
+    if (!getEnv('SENTRY_ORG') || !getEnv('SENTRY_PROJECT')) {
+      push(
+        results,
+        'sentry-sourcemap-config',
+        'fail',
+        'SENTRY_AUTH_TOKEN is set but SENTRY_ORG and SENTRY_PROJECT must also be configured.'
+      )
+    } else {
+      push(results, 'sentry-sourcemap-config', 'pass', 'Sentry sourcemap upload env vars are configured.')
+    }
+  } else {
+    push(results, 'sentry-sourcemap-config', 'warn', 'SENTRY_AUTH_TOKEN not set (sourcemap upload disabled).')
+  }
+
+  const enabledAutomationJobs = getAutomationJobConfig({ hasEnabledWebhookEndpoints: false }).filter((job) => {
+    if (!(job.enabled && job.required)) return false
+    if (job.wiring !== 'vercel_cron') return false
+    return job.job === 'digest_lite' || job.job === 'kpi_monitor'
+  })
+  const hasCronSecret = Boolean(getEnv('CRON_SECRET') || getEnv('EXTERNAL_CRON_SECRET'))
+  if (enabledAutomationJobs.length > 0 && !hasCronSecret) {
+    push(results, 'cron-required-config', 'fail', 'Enabled required automation jobs exist but CRON_SECRET/EXTERNAL_CRON_SECRET are missing.')
+  } else {
+    push(
+      results,
+      'cron-required-config',
+      enabledAutomationJobs.length > 0 ? 'pass' : 'warn',
+      enabledAutomationJobs.length > 0 ? 'Cron auth secret available for enabled automation jobs.' : 'No required automation jobs enabled.'
+    )
   }
 
   const canonicalFiles = ['app/layout.tsx', 'lib/app-url.ts', 'middleware.ts', 'app/robots.ts', 'app/sitemap.ts'] as const

@@ -3,6 +3,7 @@ export type BuildInfo = {
   repoOwner: string | null
   branch: string | null
   commitSha: string | null
+  provider: string | null
 }
 
 export type PublicVersionInfo = {
@@ -13,9 +14,14 @@ export type PublicVersionInfo = {
   branch: string | null
   commitSha: string | null
   commitShort: string | null
+  deploymentUrl: string | null
+  buildTime: string | null
+  generatedAt: string | null
   source: 'vercel' | 'github' | 'generic' | 'none'
   metadataComplete: boolean
 }
+
+const GENERATED_AT = new Date().toISOString()
 
 function envValue(name: string): string | null {
   const value = process.env[name]
@@ -57,7 +63,28 @@ export function getBuildInfo(): BuildInfo {
       envValue('GITHUB_REF_NAME') ??
       envValue('BRANCH_NAME') ??
       envValue('GIT_BRANCH'),
-    commitSha: envValue('VERCEL_GIT_COMMIT_SHA') ?? envValue('GITHUB_SHA') ?? envValue('COMMIT_SHA'),
+    commitSha:
+      envValue('VERCEL_GIT_COMMIT_SHA') ??
+      envValue('NEXT_PUBLIC_GIT_COMMIT_SHA') ??
+      envValue('GITHUB_SHA') ??
+      envValue('COMMIT_SHA'),
+    provider: envValue('VERCEL_GIT_PROVIDER') ?? (envValue('GITHUB_REPOSITORY') ? 'github' : null),
+  }
+}
+
+function resolveDeploymentUrl(): string | null {
+  const raw =
+    envValue('VERCEL_URL') ??
+    envValue('VERCEL_PROJECT_PRODUCTION_URL') ??
+    envValue('DEPLOYMENT_URL') ??
+    envValue('NEXT_PUBLIC_SITE_URL')
+  if (!raw) return null
+  const withScheme = /^[a-z]+:\/\//i.test(raw) ? raw : `https://${raw}`
+  try {
+    const parsed = new URL(withScheme)
+    return parsed.origin
+  } catch {
+    return null
   }
 }
 
@@ -77,11 +104,14 @@ export function getPublicVersionInfo(): PublicVersionInfo {
   return {
     appEnv: envValue('NEXT_PUBLIC_APP_ENV') ?? envValue('APP_ENV') ?? null,
     nodeEnv: envValue('NODE_ENV') ?? null,
-    deployEnv: envValue('VERCEL_ENV') ?? envValue('DEPLOY_ENV') ?? null,
+    deployEnv: envValue('VERCEL_TARGET_ENV') ?? envValue('VERCEL_ENV') ?? envValue('DEPLOY_ENV') ?? null,
     repo,
     branch: build.branch,
     commitSha: build.commitSha,
     commitShort: shortCommitSha(build.commitSha),
+    deploymentUrl: resolveDeploymentUrl(),
+    buildTime: envValue('BUILD_TIME') ?? envValue('NEXT_BUILD_TIME') ?? null,
+    generatedAt: GENERATED_AT,
     source,
     metadataComplete,
   }
