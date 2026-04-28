@@ -41,6 +41,7 @@
     "audit:storage": "tsx scripts/saveAuditStorageState.ts",
     "audit:doctor": "tsx scripts/auditDoctor.ts",
     "audit:public": "tsx scripts/aiSiteAudit.ts -- --scope=public",
+    "check:ai-providers": "tsx scripts/check-ai-providers.ts",
     "cloud:agent:prewarm": "node scripts/cloud-agent/prewarm-npm-deps.mjs",
     "cloud:agent:verify-cache": "node scripts/cloud-agent/verify-npm-cache-readiness.mjs",
     "cloud:agent:ready": "npm run cloud:agent:verify-cache && npm run typecheck && npm run lint && npm run test:unit -- --runInBand"

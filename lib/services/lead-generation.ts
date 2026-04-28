@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import OpenAI from 'openai'
-import { serverEnv } from '@/lib/env'
+import { generateWithProviderRouter } from '@/lib/ai/providerRouter'
 
 export const LeadGenerationRequestSchema = z.object({
   targetIndustry: z.string().trim().min(2).max(120),
@@ -319,21 +318,6 @@ function buildFallbackStrategy(input: LeadGenerationRequest): LeadSearchStrategy
   }
 }
 
-function getOpenAIClient(): OpenAI | null {
-  const key = (serverEnv.OPENAI_API_KEY ?? '').trim()
-  if (!key) return null
-  return new OpenAI({ apiKey: key })
-}
-
-function extractTextFromOpenAiContent(content: string | Array<{ type?: string; text?: string }> | null | undefined): string {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content
-    .map((part) => (part && typeof part.text === 'string' ? part.text : ''))
-    .join('\n')
-    .trim()
-}
-
 function parseModelOutput(raw: string): LeadGenerationModelOutput | null {
   try {
     const parsedUnknown = JSON.parse(raw) as unknown
@@ -359,19 +343,10 @@ function topUpCandidates(input: LeadGenerationRequest, candidates: GeneratedLead
 export async function generateSearchStrategyAndCandidates(input: LeadGenerationRequest): Promise<{
   strategy: LeadSearchStrategy
   candidates: GeneratedLeadCandidate[]
-  source: 'openai' | 'fallback'
+  source: 'ai' | 'fallback'
   warning: string | null
 }> {
   const fallbackStrategy = buildFallbackStrategy(input)
-  const openai = getOpenAIClient()
-  if (!openai) {
-    return {
-      strategy: fallbackStrategy,
-      candidates: buildFallbackLeadCandidates(input).slice(0, input.numberOfLeads),
-      source: 'fallback',
-      warning: 'openai_not_configured',
-    }
-  }
 
   try {
     const prompt = [
@@ -388,27 +363,30 @@ export async function generateSearchStrategyAndCandidates(input: LeadGenerationR
       `Offer/service: ${input.offerService}`,
     ].join('\n')
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const aiResult = await generateWithProviderRouter({
+      task: 'account_research_summary',
+      system: 'You are a sales ops assistant. Output strict JSON only and never wrap with markdown.',
+      prompt,
       temperature: 0.2,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are a sales ops assistant. Output strict JSON only and never wrap with markdown.',
-        },
-        { role: 'user', content: prompt },
-      ],
+      maxTokens: 900,
     })
+    if (!aiResult.ok) {
+      return {
+        strategy: fallbackStrategy,
+        candidates: buildFallbackLeadCandidates(input).slice(0, input.numberOfLeads),
+        source: 'fallback',
+        warning: aiResult.errorCode.toLowerCase(),
+      }
+    }
 
-    const rawContent = extractTextFromOpenAiContent(completion.choices[0]?.message?.content ?? '')
+    const rawContent = aiResult.text
     const output = parseModelOutput(rawContent)
     if (!output) {
       return {
         strategy: fallbackStrategy,
         candidates: buildFallbackLeadCandidates(input).slice(0, input.numberOfLeads),
         source: 'fallback',
-        warning: 'openai_invalid_json',
+        warning: 'ai_invalid_json',
       }
     }
 
@@ -416,7 +394,7 @@ export async function generateSearchStrategyAndCandidates(input: LeadGenerationR
     return {
       strategy: output.strategy,
       candidates: toppedUp,
-      source: 'openai',
+      source: 'ai',
       warning: null,
     }
   } catch {
@@ -424,7 +402,7 @@ export async function generateSearchStrategyAndCandidates(input: LeadGenerationR
       strategy: fallbackStrategy,
       candidates: buildFallbackLeadCandidates(input).slice(0, input.numberOfLeads),
       source: 'fallback',
-      warning: 'openai_generation_failed',
+      warning: 'ai_generation_failed',
     }
   }
 }

@@ -1,10 +1,9 @@
-import OpenAI from 'openai'
-import { serverEnv } from '@/lib/env'
 import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
 import type { NormalizedCitation } from '@/lib/sources/normalize'
 import type { SourcesBundle } from '@/lib/sources/orchestrate'
 import { normalizeCitations } from '@/lib/sources/normalize'
 import { ensureReportHeadings, looksLikeEmail, stripSelfReferentialLinks } from '@/lib/reports/reportFormatGuards'
+import { generateWithProviderRouter } from '@/lib/ai/providerRouter'
 
 export type CompetitiveReportUserContext = {
   whatYouSell: string | null
@@ -36,14 +35,6 @@ export type CompetitiveReportSourcedResult = {
   sourcesUsed: NormalizedCitation[]
   reportJson: { sections: ModelSection[]; executiveSummary: string }
   model: string
-}
-
-function getOpenAIClient(): OpenAI {
-  const key = (serverEnv.OPENAI_API_KEY ?? '').trim()
-  if (!key) {
-    throw new Error('Missing OPENAI_API_KEY (required for competitive report generation).')
-  }
-  return new OpenAI({ apiKey: key })
 }
 
 function safeTrim(v: unknown): string {
@@ -271,7 +262,7 @@ function markdownFromModel(args: {
 export async function generateCompetitiveIntelligenceReportSourced(
   input: CompetitiveReportGenerationInput
 ): Promise<CompetitiveReportSourcedResult> {
-  const model = 'gpt-4o'
+  let model = 'provider-router'
   const availableCitations = compileAvailableCitations(input)
   const facts = buildVerifiableFacts(input)
   const strictFormat = Boolean(input.strictFormat)
@@ -302,75 +293,79 @@ export async function generateCompetitiveIntelligenceReportSourced(
     return { reportMarkdown: cleaned, sourcesUsed: used, reportJson: { sections, executiveSummary: 'Sourced report (test mode).' }, model }
   }
 
-  const openai = getOpenAIClient()
-
   const allowedUrls = availableCitations.map((c) => c.url)
-  const response = await openai.chat.completions.create({
-    model,
+  const systemPrompt = [
+    'You generate competitive intelligence reports for B2B sellers. This is a report, not an email.',
+    'Hard rules:',
+    '- Do NOT invent factual claims about the company. Any factual claim must cite at least one URL from Allowed citations.',
+    '- If you do not have a citation for a factual claim, do not include that claim as fact.',
+    '- Do NOT include any CTA linking to /competitive-report or raelinfo.com/competitive-report.',
+    '- No bracket placeholders like [COMPANY] or [NAME].',
+    '- Do NOT include Subject:, Dear, Best regards, or any email-style closing.',
+    '- Do NOT include a "Hypotheses" section. Framework-only output is disallowed.',
+    '',
+    'Output JSON format:',
+    '{',
+    '  "executiveSummary": "string",',
+    '  "sections": [',
+    '    { "heading": "Market context & positioning", "bullets": [ { "text":"...", "claimType":"fact|recommendation", "citations":["https://..."] } ] },',
+    '    { "heading": "Competitor map", ... },',
+    '    { "heading": "Differentiators & vulnerabilities", ... },',
+    '    { "heading": "Buying triggers & “why now” angles", ... },',
+    '    { "heading": "Recommended outreach angles (5)", ... },',
+    '    { "heading": "Objection handling (5)", ... },',
+    '    { "heading": "Suggested 7-touch sequence (email + LinkedIn + call openers)", ... },',
+    '    { "heading": "Next steps checklist", ... },',
+    '  ],',
+    '  "usedCitations": ["https://..."]',
+    '}',
+    '',
+    'Constraints:',
+    '- For headings "Recommended outreach angles (5)" and "Objection handling (5)", output exactly 5 bullets each.',
+    '- For "Suggested 7-touch sequence...", output exactly 7 bullets and include channel labels (Email/LinkedIn/Call).',
+    '- usedCitations MUST be a subset of Allowed citations.',
+  ].join('\n')
+  const userPrompt = [
+    `Company: ${input.companyName}`,
+    input.companyDomain ? `Domain: ${input.companyDomain}` : 'Domain: (not provided)',
+    input.inputUrl ? `Input URL: ${input.inputUrl}` : 'Input URL: (not provided)',
+    '',
+    'Seller context (optional):',
+    input.userContext.whatYouSell ? `- What we sell: ${input.userContext.whatYouSell}` : '- What we sell: (not provided)',
+    input.userContext.idealCustomer ? `- Ideal customer: ${input.userContext.idealCustomer}` : '- Ideal customer: (not provided)',
+    '',
+    'Verifiable facts (each includes citations you may use for factual claims):',
+    facts.length > 0 ? facts.map((f) => `- ${f.text}\n  citations: ${f.citations.join(', ')}`).join('\n') : '- (none)',
+    '',
+    'Allowed citations (only these URLs are permitted):',
+    allowedUrls.length > 0 ? allowedUrls.map((u) => `- ${u}`).join('\n') : '- (none)',
+    '',
+    'Generate the report sections now.',
+  ].join('\n')
+  const aiResult = await generateWithProviderRouter({
+    task: 'account_research_summary',
+    system: systemPrompt,
+    prompt: userPrompt,
     temperature: strictFormat ? 0.2 : 0.35,
-    max_tokens: 1800,
-    response_format: { type: 'json_object' },
-    messages: [
-      {
-        role: 'system',
-        content: [
-          'You generate competitive intelligence reports for B2B sellers. This is a report, not an email.',
-          'Hard rules:',
-          '- Do NOT invent factual claims about the company. Any factual claim must cite at least one URL from Allowed citations.',
-          '- If you do not have a citation for a factual claim, do not include that claim as fact.',
-          '- Do NOT include any CTA linking to /competitive-report or raelinfo.com/competitive-report.',
-          '- No bracket placeholders like [COMPANY] or [NAME].',
-          '- Do NOT include Subject:, Dear, Best regards, or any email-style closing.',
-          '- Do NOT include a "Hypotheses" section. Framework-only output is disallowed.',
-          '',
-          'Output JSON format:',
-          '{',
-          '  "executiveSummary": "string",',
-          '  "sections": [',
-          '    { "heading": "Market context & positioning", "bullets": [ { "text":"...", "claimType":"fact|recommendation", "citations":["https://..."] } ] },',
-          '    { "heading": "Competitor map", ... },',
-          '    { "heading": "Differentiators & vulnerabilities", ... },',
-          '    { "heading": "Buying triggers & “why now” angles", ... },',
-          '    { "heading": "Recommended outreach angles (5)", ... },',
-          '    { "heading": "Objection handling (5)", ... },',
-          '    { "heading": "Suggested 7-touch sequence (email + LinkedIn + call openers)", ... },',
-          '    { "heading": "Next steps checklist", ... },',
-          '  ],',
-          '  "usedCitations": ["https://..."]',
-          '}',
-          '',
-          'Constraints:',
-          '- For headings "Recommended outreach angles (5)" and "Objection handling (5)", output exactly 5 bullets each.',
-          '- For "Suggested 7-touch sequence...", output exactly 7 bullets and include channel labels (Email/LinkedIn/Call).',
-          '- usedCitations MUST be a subset of Allowed citations.',
-        ].join('\n'),
-      },
-      {
-        role: 'user',
-        content: [
-          `Company: ${input.companyName}`,
-          input.companyDomain ? `Domain: ${input.companyDomain}` : 'Domain: (not provided)',
-          input.inputUrl ? `Input URL: ${input.inputUrl}` : 'Input URL: (not provided)',
-          '',
-          'Seller context (optional):',
-          input.userContext.whatYouSell ? `- What we sell: ${input.userContext.whatYouSell}` : '- What we sell: (not provided)',
-          input.userContext.idealCustomer ? `- Ideal customer: ${input.userContext.idealCustomer}` : '- Ideal customer: (not provided)',
-          '',
-          'Verifiable facts (each includes citations you may use for factual claims):',
-          facts.length > 0 ? facts.map((f) => `- ${f.text}\n  citations: ${f.citations.join(', ')}`).join('\n') : '- (none)',
-          '',
-          'Allowed citations (only these URLs are permitted):',
-          allowedUrls.length > 0 ? allowedUrls.map((u) => `- ${u}`).join('\n') : '- (none)',
-          '',
-          'Generate the report sections now.',
-        ].join('\n'),
-      },
-    ],
+    maxTokens: 1800,
+    metadata: {
+      route: '/lib/reports/competitive-report-sourced',
+      companyDomain: input.companyDomain,
+    },
   })
+  if (!aiResult.ok) {
+    throw new Error('AI_PROVIDERS_UNAVAILABLE')
+  }
+  model = aiResult.model
 
-  const content = response.choices?.[0]?.message?.content?.trim() || ''
+  const content = aiResult.text.trim() || ''
   if (!content) throw new Error('competitive_report_empty_response')
-  const parsed = JSON.parse(content) as ModelOutput
+  let parsed: ModelOutput
+  try {
+    parsed = JSON.parse(content) as ModelOutput
+  } catch {
+    throw new Error('competitive_report_empty_response')
+  }
 
   const executiveSummary = withoutSelfLinks(safeTrim(parsed.executiveSummary) || 'Framework-based summary with explicit verification steps.')
   const rawSections = Array.isArray(parsed.sections) ? parsed.sections : []

@@ -599,7 +599,10 @@ export const POST = withApiGuard(
       }
 
       // Prefer a safe external-api style error code for generator failures.
-      if (error instanceof Error && error.message.includes('openai')) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('openai') || error.message.includes('AI_PROVIDERS_UNAVAILABLE'))
+      ) {
         return fail(ErrorCode.EXTERNAL_API_ERROR, 'Competitive report generation failed', undefined, undefined, bridge, requestId)
       }
 
