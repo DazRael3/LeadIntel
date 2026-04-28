@@ -1,4 +1,5 @@
 import { getPriceIdsFromEnv, resolveCheckoutLineItems, type BillingCycle, type PaidPlanId } from '@/lib/billing/stripePriceMap'
+import { getPosthogConfiguration } from '@/lib/observability/posthog-config'
 
 export type EnvSubsystemKey = 'posthog' | 'resend' | 'stripe' | 'supabase_service_role' | 'cron_secrets' | 'openai'
 
@@ -41,30 +42,26 @@ function stripeMissingPriceKeys(): string[] {
 export function runEnvDoctor(): { subsystems: EnvSubsystemReport[]; missingKeys: string[] } {
   const subsystems: EnvSubsystemReport[] = []
 
-  // PostHog (server reads for kpi_monitor)
-  const posthogMissing = missing('POSTHOG_PROJECT_ID', 'POSTHOG_PERSONAL_API_KEY')
-  const projectId = (process.env.POSTHOG_PROJECT_ID ?? '').trim()
-  if (projectId.startsWith('phc_') || projectId.startsWith('phx_')) {
-    posthogMissing.push('POSTHOG_PROJECT_ID (numeric project id, not phc_ token)')
-  }
-  const rawHost = (process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST ?? '').trim()
-  if (rawHost.length > 0) {
-    const withScheme = /^[a-z]+:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`
-    try {
-      const u = new URL(withScheme)
-      if (u.pathname && u.pathname !== '/') {
-        posthogMissing.push('POSTHOG_HOST (must be origin only)')
-      }
-    } catch {
-      posthogMissing.push('POSTHOG_HOST (must be origin only)')
-    }
+  // PostHog (private API is optional; capture-only is allowed)
+  const posthogCfg = getPosthogConfiguration()
+  const posthogMissing: string[] = []
+  if (posthogCfg.mode === 'misconfigured') {
+    posthogMissing.push(...posthogCfg.messages)
+  } else if (posthogCfg.privateApiEnabled && !posthogCfg.privateApiConfigured) {
+    if (!posthogCfg.projectId) posthogMissing.push('POSTHOG_PROJECT_ID')
+    if (!posthogCfg.privateApiKey) posthogMissing.push('POSTHOG_PERSONAL_API_KEY or POSTHOG_API_KEY')
   }
   subsystems.push({
     key: 'posthog',
     label: 'PostHog (KPI monitor reads)',
-    configured: posthogMissing.length === 0,
+    configured: posthogCfg.privateApiConfigured && posthogMissing.length === 0,
     missingKeys: posthogMissing,
-    impact: posthogMissing.length === 0 ? 'kpi_monitor can run' : 'kpi_monitor will skip',
+    impact:
+      posthogMissing.length === 0
+        ? posthogCfg.privateApiConfigured
+          ? 'kpi_monitor can run'
+          : 'analytics capture may run, kpi_monitor private reads disabled'
+        : 'kpi_monitor will skip due to misconfiguration',
   })
 
   // Resend (lifecycle + digest + alerts)

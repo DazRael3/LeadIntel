@@ -11,6 +11,8 @@
     "build:ci": "next build",
     "check:migrations": "tsx scripts/check-supabase-migrations.ts",
     "check:production": "tsx scripts/production-readiness-check.ts",
+    "check:automation": "tsx scripts/check-automation.ts",
+    "check:observability": "tsx scripts/check-observability.ts",
     "db:push": "supabase db push",
     "db:push:all": "supabase db push --include-all",
     "start": "next start",

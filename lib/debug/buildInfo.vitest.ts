@@ -34,6 +34,7 @@ describe('getBuildInfo', () => {
       repoOwner: 'DazRael3',
       branch: 'main',
       commitSha: 'abcdef1234567890',
+      provider: null,
     })
   })
 
@@ -51,6 +52,7 @@ describe('getBuildInfo', () => {
       repoOwner: 'DazRael3',
       branch: 'fix/branch',
       commitSha: '1234567890abcdef',
+      provider: 'github',
     })
   })
 })
@@ -73,17 +75,21 @@ describe('getPublicVersionInfo', () => {
     vi.stubEnv('VERCEL_ENV', 'production')
     vi.stubEnv('NODE_ENV', 'production')
 
-    expect(getPublicVersionInfo()).toEqual({
-      appEnv: 'production',
-      nodeEnv: 'production',
-      deployEnv: 'production',
-      repo: 'DazRael3/LeadIntel',
-      branch: 'main',
-      commitSha: 'abcdef1234567890',
-      commitShort: 'abcdef12',
-      source: 'vercel',
-      metadataComplete: true,
-    })
+    expect(getPublicVersionInfo()).toEqual(
+      expect.objectContaining({
+        appEnv: 'production',
+        nodeEnv: 'production',
+        deployEnv: 'production',
+        repo: 'DazRael3/LeadIntel',
+        branch: 'main',
+        commitSha: 'abcdef1234567890',
+        commitShort: 'abcdef12',
+        source: 'vercel',
+        metadataComplete: true,
+        deploymentUrl: null,
+        buildTime: null,
+      })
+    )
   })
 
   it('marks metadata as incomplete when repo/branch/sha are unavailable', () => {
@@ -97,17 +103,21 @@ describe('getPublicVersionInfo', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_ENV', 'production')
     vi.stubEnv('NODE_ENV', 'production')
 
-    expect(getPublicVersionInfo()).toEqual({
-      appEnv: 'production',
-      nodeEnv: 'production',
-      deployEnv: null,
-      repo: null,
-      branch: null,
-      commitSha: null,
-      commitShort: null,
-      source: 'none',
-      metadataComplete: false,
-    })
+    expect(getPublicVersionInfo()).toEqual(
+      expect.objectContaining({
+        appEnv: 'production',
+        nodeEnv: 'production',
+        deployEnv: null,
+        repo: null,
+        branch: null,
+        commitSha: null,
+        commitShort: null,
+        source: 'none',
+        metadataComplete: false,
+        deploymentUrl: null,
+        buildTime: null,
+      })
+    )
   })
 })
 

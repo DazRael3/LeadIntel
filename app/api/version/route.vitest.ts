@@ -9,9 +9,13 @@ describe('/api/version', () => {
     delete process.env.VERCEL_GIT_REPO_SLUG
     delete process.env.VERCEL_GIT_COMMIT_REF
     delete process.env.VERCEL_GIT_COMMIT_SHA
+    delete process.env.NEXT_PUBLIC_GIT_COMMIT_SHA
+    delete process.env.COMMIT_SHA
     delete process.env.GITHUB_REPOSITORY
     delete process.env.GITHUB_REF_NAME
     delete process.env.GITHUB_SHA
+    delete process.env.OPENAI_API_KEY
+    delete process.env.SENTRY_AUTH_TOKEN
   })
 
   it('returns ok payload even when vars missing', async () => {
@@ -29,6 +33,9 @@ describe('/api/version', () => {
         branch: null,
         commitSha: null,
         commitShort: null,
+        deploymentUrl: null,
+        buildTime: null,
+        generatedAt: expect.any(String),
       })
     )
   })
@@ -98,8 +105,29 @@ describe('/api/version', () => {
         branch: 'main',
         commitSha: '1111222233334444',
         commitShort: '11112222',
+        generatedAt: expect.any(String),
       })
     )
+  })
+
+  it('sets no-store cache headers', async () => {
+    const { GET } = await import('./route')
+    const res = await GET(new NextRequest('http://localhost:3000/api/version'))
+    expect(res.headers.get('Cache-Control')).toContain('no-store')
+    expect(res.headers.get('Pragma')).toBe('no-cache')
+  })
+
+  it('does not leak secret env values in payload', async () => {
+    process.env.OPENAI_API_KEY = 'sk-secret-value-123'
+    process.env.SENTRY_AUTH_TOKEN = 'sentry-secret-token'
+
+    const { GET } = await import('./route')
+    const res = await GET(new NextRequest('http://localhost:3000/api/version'))
+    const json = await res.json()
+    const serialized = JSON.stringify(json)
+
+    expect(serialized.includes('sk-secret-value-123')).toBe(false)
+    expect(serialized.includes('sentry-secret-token')).toBe(false)
   })
 })
 

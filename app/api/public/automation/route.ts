@@ -1,10 +1,14 @@
 import { NextRequest } from 'next/server'
+import fs from 'node:fs'
+import path from 'node:path'
 import { withApiGuard } from '@/lib/api/guard'
 import { ok, createCookieBridge } from '@/lib/api/http'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import type { JobName } from '@/lib/jobs/types'
+import { getAutomationJobConfig, hasAnyCronSecret } from '@/lib/observability/automation-config'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 type AutomationSummary = {
   monitoredJobs: number
@@ -22,6 +26,7 @@ type SchedulerDependency = {
   wiring: 'vercel_cron' | 'external_scheduler'
   required: boolean
   enabled: boolean
+  reason: string
 }
 
 type SchedulerSummary = {
@@ -59,10 +64,44 @@ function flagEnabled(raw: string | undefined): boolean {
   return v === '1' || v === 'true'
 }
 
-function hasAnyCronSecret(): boolean {
-  const cron = (process.env.CRON_SECRET ?? '').trim()
-  const ext = (process.env.EXTERNAL_CRON_SECRET ?? '').trim()
-  return cron.length > 0 || ext.length > 0
+const VERCEL_JSON_PATH = path.join(process.cwd(), 'vercel.json')
+let cachedVercelCronJobs: Set<JobName> | null = null
+
+function configuredVercelCronJobs(): Set<JobName> {
+  if (cachedVercelCronJobs) return cachedVercelCronJobs
+  const jobs = new Set<JobName>()
+  try {
+    if (!fs.existsSync(VERCEL_JSON_PATH)) {
+      cachedVercelCronJobs = jobs
+      return jobs
+    }
+    const raw = fs.readFileSync(VERCEL_JSON_PATH, 'utf8')
+    const parsed = JSON.parse(raw) as {
+      crons?: Array<{ path?: string }>
+    }
+    for (const cron of parsed.crons ?? []) {
+      if (!cron.path || typeof cron.path !== 'string') continue
+      const url = new URL(cron.path, 'https://raelinfo.com')
+      const job = url.searchParams.get('job')
+      if (
+        job === 'lifecycle' ||
+        job === 'digest_lite' ||
+        job === 'kpi_monitor' ||
+        job === 'content_audit' ||
+        job === 'growth_cycle' ||
+        job === 'sources_refresh' ||
+        job === 'prospect_watch' ||
+        job === 'prospect_watch_digest' ||
+        job === 'webhook_deliveries'
+      ) {
+        jobs.add(job)
+      }
+    }
+  } catch {
+    // Ignore parse errors and fail soft by returning an empty set.
+  }
+  cachedVercelCronJobs = jobs
+  return jobs
 }
 
 function parseCsv(raw: string | undefined): string[] {
@@ -73,51 +112,35 @@ function parseCsv(raw: string | undefined): string[] {
 }
 
 function buildSchedulerDependencies(args: { hasEnabledWebhookEndpoints: boolean }): SchedulerDependency[] {
-  const lifecycleEnabled = flagEnabled(process.env.LIFECYCLE_EMAILS_ENABLED)
-  const prospectEnabled = flagEnabled(process.env.PROSPECT_WATCH_ENABLED)
-  const prospectDigestEnabled =
-    flagEnabled(process.env.PROSPECT_WATCH_DAILY_DIGEST_ENABLED) || flagEnabled(process.env.PROSPECT_WATCH_CONTENT_DIGEST_ENABLED)
-
-  const deps: SchedulerDependency[] = [
-    { job: 'lifecycle', wiring: 'vercel_cron', required: true, enabled: true },
-    { job: 'digest_lite', wiring: 'vercel_cron', required: true, enabled: true },
-    { job: 'kpi_monitor', wiring: 'vercel_cron', required: true, enabled: true },
-    { job: 'content_audit', wiring: 'vercel_cron', required: true, enabled: true },
-    // External schedules that must be explicitly wired if those automations are relied on.
-    { job: 'growth_cycle', wiring: 'external_scheduler', required: true, enabled: true },
-    { job: 'sources_refresh', wiring: 'external_scheduler', required: true, enabled: true },
-    { job: 'prospect_watch', wiring: 'external_scheduler', required: prospectEnabled, enabled: prospectEnabled },
-    {
-      job: 'prospect_watch_digest',
-      wiring: 'external_scheduler',
-      required: prospectEnabled && prospectDigestEnabled,
-      enabled: prospectEnabled && prospectDigestEnabled,
-    },
-    {
-      job: 'webhook_deliveries',
-      wiring: 'external_scheduler',
-      required: args.hasEnabledWebhookEndpoints,
-      enabled: args.hasEnabledWebhookEndpoints,
-    },
-  ]
-
-  if (!lifecycleEnabled) {
-    // lifecycle scheduling still runs for non-email lifecycle bookkeeping, so keep enabled=true.
-    // no-op
-  }
-  return deps
+  return getAutomationJobConfig(args)
 }
 
-function schedulerWarnings(args: { hasEnabledWebhookEndpoints: boolean; missingExternalJobs: number }): string[] {
+function schedulerWarnings(args: {
+  hasEnabledWebhookEndpoints: boolean
+  missingExternalJobs: number
+  dependencies: SchedulerDependency[]
+}): string[] {
   const warnings: string[] = []
   const lifecycleEnabled = flagEnabled(process.env.LIFECYCLE_EMAILS_ENABLED)
   const resendConfigured = Boolean((process.env.RESEND_API_KEY ?? '').trim()) && Boolean((process.env.RESEND_FROM_EMAIL ?? '').trim())
   const prospectEnabled = flagEnabled(process.env.PROSPECT_WATCH_ENABLED)
+  const siteReportsEnabled = flagEnabled(process.env.ENABLE_SITE_REPORTS)
   const rssFeedsConfigured = parseCsv(process.env.PROSPECT_WATCH_RSS_FEEDS).length > 0
   const reviewEmailsConfigured = parseCsv(process.env.PROSPECT_WATCH_REVIEW_EMAILS).length > 0
+  const vercelCronJobs = configuredVercelCronJobs()
+  const missingRequiredVercelSchedules = args.dependencies
+    .filter((d) => d.enabled && d.required && d.wiring === 'vercel_cron')
+    .filter((d) => !vercelCronJobs.has(d.job))
+    .map((d) => d.job)
 
   if (!hasAnyCronSecret()) {
     warnings.push('Cron secrets are not configured; scheduler routes cannot be authenticated safely.')
+  }
+  if (missingRequiredVercelSchedules.length > 0) {
+    warnings.push(`Missing Vercel cron schedules for required jobs: ${missingRequiredVercelSchedules.join(', ')}.`)
+  }
+  if (siteReportsEnabled && !(process.env.SITE_REPORT_CRON_SECRET ?? '').trim()) {
+    warnings.push('Site reports are enabled but SITE_REPORT_CRON_SECRET is missing.')
   }
   if (args.missingExternalJobs > 0) {
     warnings.push('Required external scheduler jobs are missing, failed, or stale.')
@@ -161,7 +184,9 @@ function summaryFallback(monitoredJobs: number): AutomationSummary {
 
 function deriveHealthStatus(summary: AutomationSummary, scheduler: SchedulerSummary): AutomationHealthStatus {
   if (summary.failedJobs > 0) return 'degraded'
-  if (scheduler.missingRequiredJobs > 0 && scheduler.missingExternalJobs > 0) return 'external_required'
+  if (scheduler.missingRequiredJobs > 0) {
+    return scheduler.missingExternalJobs > 0 ? 'external_required' : 'degraded'
+  }
   if (summary.missingJobs > 0) return 'missing'
   if (summary.staleJobs > 0) return 'stale'
   return 'healthy'
@@ -179,7 +204,11 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
       requiredExternalJobs,
       missingRequiredJobs: requiredJobs,
       missingExternalJobs: requiredExternalJobs,
-      warnings: schedulerWarnings({ hasEnabledWebhookEndpoints: false, missingExternalJobs: requiredExternalJobs }),
+      warnings: schedulerWarnings({
+        hasEnabledWebhookEndpoints: false,
+        missingExternalJobs: requiredExternalJobs,
+        dependencies: fallbackDeps,
+      }),
       jobs: fallbackDeps.map((d) => ({
         ...d,
         healthy: null,
@@ -233,6 +262,8 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
     )
 
     const checkByJob = new Map(checks.map((c) => [c.job, c]))
+    const cronSecretConfigured = hasAnyCronSecret()
+    const vercelCronJobs = configuredVercelCronJobs()
 
     const missingJobs = checks.filter((c) => !c.hasRun).length
     const failedJobs = checks.filter((c) => c.hasRun && !c.success).length
@@ -241,9 +272,19 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
     const stale = staleJobs > 0
     const schedulerJobs = dependencies.map((dep) => {
       const check = checkByJob.get(dep.job)
-      const healthy = !dep.enabled ? null : check ? check.hasRun && check.success && !check.stale : false
+      const missingCronAuth = dep.enabled && dep.required && dep.wiring === 'vercel_cron' && !cronSecretConfigured
+      const missingVercelSchedule = dep.enabled && dep.required && dep.wiring === 'vercel_cron' && !vercelCronJobs.has(dep.job)
+      const healthy = !dep.enabled
+        ? null
+        : missingCronAuth || missingVercelSchedule
+          ? false
+          : check
+            ? check.hasRun && check.success && !check.stale
+            : false
       const state: SchedulerSummary['jobs'][number]['state'] = !dep.enabled
         ? 'disabled'
+        : missingCronAuth || missingVercelSchedule
+          ? 'missing'
         : !check || !check.hasRun
           ? dep.wiring === 'external_scheduler'
             ? 'external'
@@ -275,7 +316,7 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
       requiredExternalJobs,
       missingRequiredJobs,
       missingExternalJobs,
-      warnings: schedulerWarnings({ hasEnabledWebhookEndpoints, missingExternalJobs }),
+      warnings: schedulerWarnings({ hasEnabledWebhookEndpoints, missingExternalJobs, dependencies }),
       jobs: schedulerJobs,
     }
     const summary: AutomationSummary = {
@@ -310,7 +351,11 @@ export const GET = withApiGuard(async (_request: NextRequest, { requestId }) => 
       requiredExternalJobs,
       missingRequiredJobs: requiredJobs,
       missingExternalJobs: requiredExternalJobs,
-      warnings: schedulerWarnings({ hasEnabledWebhookEndpoints: false, missingExternalJobs: requiredExternalJobs }),
+      warnings: schedulerWarnings({
+        hasEnabledWebhookEndpoints: false,
+        missingExternalJobs: requiredExternalJobs,
+        dependencies: fallbackDeps,
+      }),
       jobs: fallbackDeps.map((d) => ({
         ...d,
         healthy: null,

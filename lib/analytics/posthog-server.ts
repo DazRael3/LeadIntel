@@ -1,4 +1,5 @@
 import { PostHog } from 'posthog-node'
+import { getPosthogConfiguration } from '@/lib/observability/posthog-config'
 
 let client: PostHog | null = null
 
@@ -10,9 +11,11 @@ function isEnabled(): boolean {
 export function getPostHogServerClient(): PostHog | null {
   if (!isEnabled()) return null
   if (client) return client
+  const cfg = getPosthogConfiguration()
+  if (!cfg.analyticsCaptureConfigured || !cfg.host) return null
   const key = (process.env.POSTHOG_API_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_KEY ?? '').trim()
   if (!key) return null
-  const host = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? '').trim() || 'https://app.posthog.com'
+  const host = cfg.host
   client = new PostHog(key, { host })
   return client
 }

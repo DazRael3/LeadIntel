@@ -1,6 +1,7 @@
 'use client'
 
 import posthog from 'posthog-js'
+import { getPosthogConfiguration } from '@/lib/observability/posthog-config'
 
 let initialized = false
 
@@ -12,10 +13,11 @@ function isEnabled(): boolean {
 export function initPostHog(): void {
   if (!isEnabled()) return
   if (initialized) return
+  const cfg = getPosthogConfiguration()
+  if (!cfg.analyticsCaptureConfigured || !cfg.host) return
   const key = (process.env.NEXT_PUBLIC_POSTHOG_KEY ?? '').trim()
   if (!key) return
-
-  const host = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? '').trim() || 'https://app.posthog.com'
+  const host = cfg.host
   posthog.init(key, {
     api_host: host,
     capture_pageview: false,

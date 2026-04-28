@@ -1,30 +1,15 @@
+import { getPosthogConfiguration } from '@/lib/observability/posthog-config'
+
 export type PostHogApiConfig = {
   host: string
   projectId: string
   personalApiKey: string
 }
 
-function normalizePosthogHost(raw: string | undefined): string {
-  const fallback = 'https://app.posthog.com'
-  const trimmed = (raw ?? '').trim()
-  if (!trimmed) return fallback
-
-  const withScheme = /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-  try {
-    const url = new URL(withScheme)
-    // origin has no trailing slash and strips any path/query/hash
-    return url.origin
-  } catch {
-    return fallback
-  }
-}
-
 export function getPostHogApiConfig(): PostHogApiConfig | null {
-  const host = normalizePosthogHost(process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST)
-  const projectId = (process.env.POSTHOG_PROJECT_ID ?? '').trim()
-  const personalApiKey = (process.env.POSTHOG_PERSONAL_API_KEY ?? '').trim()
-  if (!projectId || !personalApiKey) return null
-  return { host, projectId, personalApiKey }
+  const cfg = getPosthogConfiguration()
+  if (!cfg.privateApiConfigured || !cfg.host || !cfg.projectId || !cfg.privateApiKey) return null
+  return { host: cfg.host, projectId: cfg.projectId, personalApiKey: cfg.privateApiKey }
 }
 
 type HogQLQueryResponse = {
