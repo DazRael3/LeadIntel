@@ -70,6 +70,17 @@ export function runChecks(): CheckResult[] {
   )
 
   const cronSecretConfigured = hasAnyCronSecret()
+  const cronEnvVars = [
+    'CRON_SECRET',
+    'EXTERNAL_CRON_SECRET',
+    'DIGEST_CRON_SECRET',
+    'ACTIONS_QUEUE_CRON_SECRET',
+    'SITE_REPORT_CRON_SECRET',
+  ] as const
+  for (const name of cronEnvVars) {
+    const present = trimEnv(name).length > 0
+    push(results, present ? 'pass' : 'warn', `env:${name}`, present ? 'configured' : 'missing')
+  }
   push(
     results,
     cronSecretConfigured ? 'pass' : requiredJobs.length > 0 ? 'fail' : 'warn',
