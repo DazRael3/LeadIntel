@@ -54,6 +54,17 @@ It intentionally avoids printing or storing secret values.
 - Keep `SENTRY_AUTH_TOKEN` server/build only.
 - Never expose secrets in status, health, or version responses.
 
+### If `@sentry/nextjs` is not installed
+
+Install Sentry SDK only when you intentionally want Sentry runtime instrumentation:
+
+```bash
+npm install @sentry/nextjs
+npx @sentry/wizard@latest -i nextjs
+```
+
+If DSN env vars are set but the SDK package is absent, diagnostics will report this as a safe misconfiguration.
+
 ## Automation guardrails
 
 - Missing cron config may degrade automation status, but must not break signup, auth, checkout, billing, or public pages.
