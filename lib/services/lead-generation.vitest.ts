@@ -1,10 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { GeneratedLeadCandidate, LeadGenerationRequest } from '@/lib/services/lead-generation'
 import {
   deduplicateLeadCandidates,
+  generateSearchStrategyAndCandidates,
   scoreLeadFit,
-  type LeadGenerationRequest,
-  type GeneratedLeadCandidate,
 } from '@/lib/services/lead-generation'
+import { generateWithProviderRouter } from '@/lib/ai/providerRouter'
+
+vi.mock('@/lib/ai/providerRouter', () => ({
+  generateWithProviderRouter: vi.fn(),
+}))
+
+const generateWithProviderRouterMock = vi.mocked(generateWithProviderRouter)
 
 describe('lead-generation deduplication', () => {
   it('deduplicates by domain, email, and company name', () => {
@@ -109,5 +116,80 @@ describe('lead-generation scoring', () => {
     const scored = scoreLeadFit(request, candidate)
     expect(scored.score).toBeGreaterThanOrEqual(0)
     expect(scored.score).toBeLessThanOrEqual(100)
+  })
+})
+
+describe('lead-generation provider-router integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns ai source when router returns valid json', async () => {
+    const request: LeadGenerationRequest = {
+      targetIndustry: 'Healthcare',
+      location: 'Chicago',
+      companySize: '200-500',
+      targetRole: 'VP Sales',
+      painPoint: 'slow pipeline velocity',
+      offerService: 'AI lead prioritization',
+      numberOfLeads: 2,
+    }
+    generateWithProviderRouterMock.mockResolvedValueOnce({
+      ok: true,
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      requestId: 'req_leads',
+      text: JSON.stringify({
+        strategy: {
+          query: 'Healthcare VP Sales Chicago',
+          rationale: 'Focus on high-intent accounts with growing teams.',
+          channels: ['company websites', 'linkedin'],
+          enrichmentNotes: 'Validate role ownership and near-term trigger events.',
+        },
+        leads: [
+          {
+            companyName: 'Acme Health',
+            companyDomain: 'acmehealth.com',
+            companyUrl: 'https://acmehealth.com',
+            contactEmail: 'vp.sales@acmehealth.com',
+            targetRole: 'VP Sales',
+            industry: 'Healthcare',
+            location: 'Chicago',
+            companySize: '200-500',
+            fitNotes: ['Hiring signal detected'],
+          },
+        ],
+      }),
+    })
+
+    const result = await generateSearchStrategyAndCandidates(request)
+    expect(result.source).toBe('ai')
+    expect(result.warning).toBeNull()
+    expect(result.candidates.length).toBe(2)
+  })
+
+  it('falls back when provider chain is unavailable', async () => {
+    const request: LeadGenerationRequest = {
+      targetIndustry: 'Healthcare',
+      location: 'Chicago',
+      companySize: '200-500',
+      targetRole: 'VP Sales',
+      painPoint: 'slow pipeline velocity',
+      offerService: 'AI lead prioritization',
+      numberOfLeads: 2,
+    }
+    generateWithProviderRouterMock.mockResolvedValueOnce({
+      ok: false,
+      provider: 'none',
+      model: null,
+      text: '',
+      errorCode: 'AI_PROVIDERS_UNAVAILABLE',
+      requestId: 'req_leads_fallback',
+    })
+
+    const result = await generateSearchStrategyAndCandidates(request)
+    expect(result.source).toBe('fallback')
+    expect(result.warning).toBe('ai_providers_unavailable')
+    expect(result.candidates.length).toBe(2)
   })
 })

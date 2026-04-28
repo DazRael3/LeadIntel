@@ -1,26 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AiPitchPromptInputSchema, estimateTokenCostUsd, generateLeadPitchBundle } from '@/lib/services/ai-pitch-generation'
+import {
+  AiPitchPromptInputSchema,
+  estimateTokenCostUsd,
+  generateLeadPitchBundle,
+} from '@/lib/services/ai-pitch-generation'
 
-const completionCreateMock = vi.fn()
+const { generateWithProviderRouterMock } = vi.hoisted(() => ({
+  generateWithProviderRouterMock: vi.fn(),
+}))
 
-vi.mock('openai', () => {
-  class OpenAiMock {
-    chat = {
-      completions: {
-        create: completionCreateMock,
-      },
-    }
-  }
-
-  return {
-    default: OpenAiMock,
-  }
-})
+vi.mock('@/lib/ai/providerRouter', () => ({
+  generateWithProviderRouter: generateWithProviderRouterMock,
+}))
 
 describe('ai-pitch-generation prompt input validation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.OPENAI_API_KEY = 'sk-test-openai-key'
   })
 
   it('accepts optional empty payload', () => {
@@ -63,38 +58,33 @@ describe('ai-pitch-generation token cost estimation', () => {
   })
 })
 
-describe('ai-pitch-generation retries', () => {
+describe('ai-pitch-generation router behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.OPENAI_API_KEY = 'sk-test-openai-key'
   })
 
-  it('retries retryable OpenAI errors and succeeds', async () => {
-    completionCreateMock
-      .mockRejectedValueOnce({ status: 429, code: 'rate_limit_exceeded' })
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                shortEmailOpener: 'Short opener that is long enough to satisfy validation.',
-                fullColdEmail:
-                  'Full cold email content that is sufficiently long to pass validation and contains context for the lead.',
-                linkedinDm: 'LinkedIn DM content with practical ask and clear relevance.',
-                painPointSummary: 'Pain point summary with clear context and supporting details.',
-                recommendedOfferAngle: 'Offer angle tailored to the account context and goals.',
-                objectionHandlingNotes:
-                  'Handle objections by anchoring on context, reducing risk with scoped pilot, and proposing one measurable next step.',
-              }),
-            },
-          },
-        ],
-        usage: {
-          prompt_tokens: 200,
-          completion_tokens: 100,
-          total_tokens: 300,
-        },
-      })
+  it('uses provider output when valid JSON is returned', async () => {
+    generateWithProviderRouterMock.mockResolvedValueOnce({
+      ok: true,
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      requestId: 'req_1',
+      text: JSON.stringify({
+        shortEmailOpener: 'Short opener that is long enough to satisfy validation.',
+        fullColdEmail:
+          'Full cold email content that is sufficiently long to pass validation and contains context for the lead.',
+        linkedinDm: 'LinkedIn DM content with practical ask and clear relevance.',
+        painPointSummary: 'Pain point summary with clear context and supporting details.',
+        recommendedOfferAngle: 'Offer angle tailored to the account context and goals.',
+        objectionHandlingNotes:
+          'Handle objections by anchoring on context, reducing risk with scoped pilot, and proposing one measurable next step.',
+      }),
+      usage: {
+        promptTokens: 200,
+        completionTokens: 100,
+        totalTokens: 300,
+      },
+    })
 
     const result = await generateLeadPitchBundle({
       companyName: 'Acme',
@@ -105,22 +95,31 @@ describe('ai-pitch-generation retries', () => {
     })
 
     expect(result.outputs.shortEmailOpener).toContain('Short opener')
-    expect(completionCreateMock).toHaveBeenCalledTimes(2)
+    expect(result.model).toBe('gemini-2.5-flash')
+    expect(result.totalTokens).toBe(300)
+    expect(generateWithProviderRouterMock).toHaveBeenCalledTimes(1)
   })
 
-  it('does not retry non-retryable OpenAI errors', async () => {
-    completionCreateMock.mockRejectedValueOnce({ status: 400, code: 'invalid_request_error' })
+  it('falls back to deterministic template when provider fails', async () => {
+    generateWithProviderRouterMock.mockResolvedValueOnce({
+      ok: false,
+      provider: 'none',
+      model: null,
+      text: '',
+      errorCode: 'AI_PROVIDERS_UNAVAILABLE',
+      requestId: 'req_2',
+    })
 
-    await expect(
-      generateLeadPitchBundle({
-        companyName: 'Acme',
-        companyDomain: 'acme.com',
-        companyUrl: 'https://acme.com',
-        existingPitchDraft: null,
-        promptInput: {},
-      })
-    ).rejects.toBeTruthy()
+    const result = await generateLeadPitchBundle({
+      companyName: 'Acme',
+      companyDomain: 'acme.com',
+      companyUrl: 'https://acme.com',
+      existingPitchDraft: null,
+      promptInput: {},
+    })
 
-    expect(completionCreateMock).toHaveBeenCalledTimes(1)
+    expect(result.model).toBe('deterministic-template-v1')
+    expect(result.outputs.fullColdEmail).toContain('Hi team')
+    expect(result.totalTokens).toBe(0)
   })
 })

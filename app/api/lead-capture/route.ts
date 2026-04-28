@@ -12,8 +12,8 @@ import { getResendReplyToEmail } from '@/lib/email/routing'
 import { getAppUrl } from '@/lib/app-url'
 import { isSchemaError } from '@/lib/supabase/schema'
 import { SUPPORT_EMAIL } from '@/lib/config/contact'
-import OpenAI from 'openai'
 import crypto from 'crypto'
+import { generateWithProviderRouter } from '@/lib/ai/providerRouter'
 
 const LeadCaptureSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -466,14 +466,6 @@ function normalizePlanFromText(text: string): LeadDemoPlan {
   }
 }
 
-function getOpenAiApiKey(): string {
-  return getTrimmedEnv('OPENAI_API_KEY')
-}
-
-function canGenerateAiDemoPlan(): boolean {
-  return getOpenAiApiKey().startsWith('sk-')
-}
-
 async function generateLeadDemoPlan(args: {
   intent: 'demo' | 'pricing_question' | 'trial_help' | 'general'
   company?: string
@@ -482,37 +474,25 @@ async function generateLeadDemoPlan(args: {
   route: string
 }): Promise<LeadDemoPlan> {
   const fallback = buildFallbackDemoPlan(args)
-  if (!canGenerateAiDemoPlan()) return fallback
   try {
-    const apiKey = getOpenAiApiKey()
-    if (!apiKey) return fallback
-    const client = new OpenAI({ apiKey })
-    const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const aiResult = await generateWithProviderRouter({
+      task: 'outreach_draft',
+      system:
+        'You produce short B2B demo onboarding outlines. Return plain text with 5 lines only: line1 summary, line2 step1, line3 step2, line4 step3, line5 "Time-to-value: <duration>".',
+      prompt: [
+        `Intent: ${args.intent}`,
+        `Company: ${args.company ?? 'Unknown'}`,
+        `Role: ${args.role ?? 'Unknown'}`,
+        `Route: ${args.route}`,
+        `Message: ${(args.message ?? '').slice(0, 300) || 'None'}`,
+        'Keep each step actionable and realistic for a first implementation pass.',
+      ].join('\n'),
       temperature: 0.4,
-      max_tokens: 220,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You produce short B2B demo onboarding outlines. Return plain text with 5 lines only: line1 summary, line2 step1, line3 step2, line4 step3, line5 "Time-to-value: <duration>".',
-        },
-        {
-          role: 'user',
-          content: [
-            `Intent: ${args.intent}`,
-            `Company: ${args.company ?? 'Unknown'}`,
-            `Role: ${args.role ?? 'Unknown'}`,
-            `Route: ${args.route}`,
-            `Message: ${(args.message ?? '').slice(0, 300) || 'None'}`,
-            'Keep each step actionable and realistic for a first implementation pass.',
-          ].join('\n'),
-        },
-      ],
+      maxTokens: 220,
+      metadata: { route: '/api/lead-capture' },
     })
-    const content = response.choices[0]?.message?.content
-    if (!content || !content.trim()) return fallback
-    return normalizePlanFromText(content)
+    if (!aiResult.ok || !aiResult.text.trim()) return fallback
+    return normalizePlanFromText(aiResult.text)
   } catch {
     return fallback
   }

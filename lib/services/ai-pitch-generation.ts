@@ -1,8 +1,6 @@
 import { z } from 'zod'
-import OpenAI from 'openai'
-import { serverEnv } from '@/lib/env'
+import { generateWithProviderRouter } from '@/lib/ai/providerRouter'
 
-const AI_PITCH_MODEL = 'gpt-4o-mini'
 const AI_PITCH_PROMPT_VERSION = 'v1'
 
 const AI_PITCH_PRICING_USD_PER_MILLION_TOKENS = {
@@ -59,60 +57,9 @@ type GenerateLeadPitchBundleResult = {
   estimatedCostUsd: number
 }
 
-const OPENAI_MAX_RETRIES = 2
-const OPENAI_RETRY_BASE_DELAY_MS = 300
-
-type RetryableOpenAiError = {
-  status?: number
-  code?: string
-}
-
-function getOpenAiClient(): OpenAI {
-  const apiKey = (serverEnv.OPENAI_API_KEY ?? '').trim()
-  if (!apiKey) {
-    throw new Error('openai_not_configured')
-  }
-  return new OpenAI({ apiKey })
-}
-
-function isRetryableOpenAiError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const err = error as RetryableOpenAiError
-  const status = typeof err.status === 'number' ? err.status : null
-  const code = typeof err.code === 'string' ? err.code : null
-  if (status === 408 || status === 409 || status === 429) return true
-  if (status !== null && status >= 500 && status <= 599) return true
-  return code === 'rate_limit_exceeded' || code === 'timeout'
-}
-
-async function createCompletionWithRetry(args: {
-  openai: OpenAI
-  prompt: string
-}): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  let attempts = 0
-  while (true) {
-    try {
-      return await args.openai.chat.completions.create({
-        model: AI_PITCH_MODEL,
-        temperature: 0.3,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: GENERATION_SYSTEM_PROMPT },
-          { role: 'user', content: args.prompt },
-        ],
-      })
-    } catch (error) {
-      if (attempts >= OPENAI_MAX_RETRIES || !isRetryableOpenAiError(error)) {
-        throw error
-      }
-      const backoffMs = OPENAI_RETRY_BASE_DELAY_MS * 2 ** attempts
-      attempts += 1
-      await new Promise((resolve) => setTimeout(resolve, backoffMs))
-    }
-  }
-}
-
-function extractCompletionText(content: string | Array<{ text?: string; type?: string }> | null | undefined): string {
+function extractCompletionText(
+  content: string | Array<{ text?: string; type?: string }> | null | undefined
+): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
   return content
@@ -190,29 +137,81 @@ function buildUserPrompt(args: GenerateLeadPitchBundleArgs): string {
   ].join('\n')
 }
 
-export async function generateLeadPitchBundle(args: GenerateLeadPitchBundleArgs): Promise<GenerateLeadPitchBundleResult> {
-  const promptInput = AiPitchPromptInputSchema.parse(args.promptInput)
-  const openai = getOpenAiClient()
-  const completion = await createCompletionWithRetry({
-    openai,
-    prompt: buildUserPrompt({ ...args, promptInput }),
-  })
-
-  const rawContent = extractCompletionText(completion.choices[0]?.message?.content)
-  const parsed = JSON.parse(rawContent) as unknown
-  const outputs = enforceSafetyPolicy(AiPitchOutputsSchema.parse(parsed))
-
-  const promptTokens = completion.usage?.prompt_tokens ?? 0
-  const completionTokens = completion.usage?.completion_tokens ?? 0
-  const totalTokens = completion.usage?.total_tokens ?? promptTokens + completionTokens
+function buildDeterministicPitchOutputs(args: {
+  companyName: string | null
+  promptInput: AiPitchPromptInput
+}): AiPitchOutputs {
+  const company = args.companyName?.trim() || 'the account'
+  const painPoint = args.promptInput.painPoint?.trim() || 'slow response times and inconsistent lead prioritization'
+  const offer = args.promptInput.offerService?.trim() || 'a focused workflow that improves lead qualification and follow-through'
+  const objective =
+    args.promptInput.campaignObjective?.trim() || 'book a short discovery follow-up tied to a measurable outcome'
+  const cta = args.promptInput.callToAction?.trim() || 'Would a short working session next week be useful?'
 
   return {
-    model: AI_PITCH_MODEL,
+    shortEmailOpener: `Quick note on ${company}: teams often lose momentum when ${painPoint}.`,
+    fullColdEmail: `Hi team,\n\nI reviewed ${company} and noticed a likely friction point around ${painPoint}. We help revenue teams tighten this by using ${offer}, which keeps outreach focused on high-intent opportunities and clearer next steps.\n\nIf the priority is ${objective}, we can start with one narrow pilot and define success metrics before expanding.\n\n${cta}`,
+    linkedinDm: `Noticed activity around ${company}. If ${painPoint} is on your radar, I can share a practical outline using ${offer} to improve execution without adding heavy process.`,
+    painPointSummary: `${company} likely faces execution drag from ${painPoint}, which can slow pipeline progression and reduce message relevance.`,
+    recommendedOfferAngle: `Position ${offer} as a low-risk first step that supports ${objective} and creates a measurable baseline.`,
+    objectionHandlingNotes: `If timing is a concern, acknowledge current priorities, narrow scope to one high-value workflow, and confirm a concrete success criterion before asking for broader adoption.`,
+  }
+}
+
+export async function generateLeadPitchBundle(
+  args: GenerateLeadPitchBundleArgs
+): Promise<GenerateLeadPitchBundleResult> {
+  const promptInput = AiPitchPromptInputSchema.parse(args.promptInput)
+  const prompt = buildUserPrompt({ ...args, promptInput })
+  const aiResult = await generateWithProviderRouter({
+    task: 'outreach_draft',
+    system: GENERATION_SYSTEM_PROMPT,
+    prompt,
+    temperature: 0.3,
+    maxTokens: 1200,
+    metadata: {
+      route: '/lib/services/ai-pitch-generation',
+      companyDomain: args.companyDomain,
+    },
+  })
+
+  let outputs: AiPitchOutputs
+  if (aiResult.ok) {
+    try {
+      const rawContent = extractCompletionText(aiResult.text)
+      const parsed = JSON.parse(rawContent) as unknown
+      outputs = enforceSafetyPolicy(AiPitchOutputsSchema.parse(parsed))
+    } catch {
+      outputs = enforceSafetyPolicy(
+        buildDeterministicPitchOutputs({
+          companyName: args.companyName,
+          promptInput,
+        })
+      )
+    }
+  } else {
+    outputs = enforceSafetyPolicy(
+      buildDeterministicPitchOutputs({
+        companyName: args.companyName,
+        promptInput,
+      })
+    )
+  }
+
+  const promptTokens = aiResult.ok ? aiResult.usage?.promptTokens ?? 0 : 0
+  const completionTokens = aiResult.ok ? aiResult.usage?.completionTokens ?? 0 : 0
+  const totalTokens =
+    aiResult.ok ? aiResult.usage?.totalTokens ?? promptTokens + completionTokens : 0
+
+  return {
+    model: aiResult.ok ? aiResult.model : 'deterministic-template-v1',
     promptVersion: AI_PITCH_PROMPT_VERSION,
     outputs,
     promptTokens,
     completionTokens,
     totalTokens,
-    estimatedCostUsd: estimateTokenCostUsd({ promptTokens, completionTokens }),
+    estimatedCostUsd: aiResult.ok
+      ? estimateTokenCostUsd({ promptTokens, completionTokens })
+      : 0,
   }
 }
