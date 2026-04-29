@@ -231,7 +231,7 @@ const ROUTE_POLICIES: Record<string, RoutePolicy> = {
       ipPerMin: 5,
     },
     originRequired: true,
-    authRequired: true,
+    authRequired: false, // route returns checkout-specific AUTH_REQUIRED code
     cronAllowed: false,
     devOnly: false,
     webhookSignatureRequired: false,

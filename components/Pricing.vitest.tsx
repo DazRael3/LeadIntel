@@ -113,5 +113,51 @@ describe('Pricing (public)', () => {
 
     fetchMock.mockRestore()
   })
+
+  it('shows safe checkout config message from server code', async () => {
+    getUserSafeMock.mockResolvedValue({ id: 'user_1', email: 'u@example.com' })
+    const fetchMock = vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () =>
+        JSON.stringify({
+          ok: false,
+          error: { code: 'CHECKOUT_CONFIG_MISSING', message: 'Checkout is not configured yet.' },
+        }),
+      json: async () => ({}),
+    } as any)
+
+    const { Pricing } = await import('./Pricing')
+    const { container } = render(<Pricing />)
+    const proCard = container.querySelector('#plan-pro')
+    expect(proCard).not.toBeNull()
+    fireEvent.click(within(proCard as HTMLElement).getByRole('button', { name: /upgrade to pro/i }))
+
+    expect(await screen.findByText('Checkout is not configured yet.')).toBeTruthy()
+    fetchMock.mockRestore()
+  })
+
+  it('shows safe auth-required message from checkout error code', async () => {
+    getUserSafeMock.mockResolvedValue({ id: 'user_1', email: 'u@example.com' })
+    const fetchMock = vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () =>
+        JSON.stringify({
+          ok: false,
+          error: { code: 'AUTH_REQUIRED', message: 'Please sign in to upgrade.' },
+        }),
+      json: async () => ({}),
+    } as any)
+
+    const { Pricing } = await import('./Pricing')
+    const { container } = render(<Pricing />)
+    const proCard = container.querySelector('#plan-pro')
+    expect(proCard).not.toBeNull()
+    fireEvent.click(within(proCard as HTMLElement).getByRole('button', { name: /upgrade to pro/i }))
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/login?mode=signin&redirect=/pricing'))
+    fetchMock.mockRestore()
+  })
 })
 

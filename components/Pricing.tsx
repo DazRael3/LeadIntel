@@ -28,6 +28,14 @@ type UpgradeBlockerReason =
 
 type PaidPlanId = 'pro' | 'closer_plus' | 'team'
 type BillingCycle = 'monthly' | 'annual'
+type CheckoutErrorCode =
+  | 'CHECKOUT_CONFIG_MISSING'
+  | 'AUTH_REQUIRED'
+  | 'INVALID_CHECKOUT_PAYLOAD'
+  | 'UNSUPPORTED_PLAN'
+  | 'STRIPE_CUSTOMER_INVALID'
+  | 'CHECKOUT_SESSION_CREATE_FAILED'
+  | 'INTERNAL_CHECKOUT_ERROR'
 
 const PRICING = {
   closerMonthly: 79,
@@ -83,25 +91,6 @@ function extractApiErrorMessage(payload: unknown): string {
       }
     }
 
-    // If Stripe checkout failed, surface safe Stripe hints when provided.
-    if (obj.error && typeof obj.error === 'object') {
-      const err = obj.error as { code?: unknown; details?: unknown; requestId?: unknown }
-      const code = typeof err.code === 'string' ? err.code : null
-      if (code === 'EXTERNAL_API_ERROR' && err.details && typeof err.details === 'object') {
-        const details = err.details as { stripeCode?: unknown; stripeType?: unknown; debugMessage?: unknown }
-        const debugMessage = typeof details.debugMessage === 'string' ? details.debugMessage : null
-        if (debugMessage && debugMessage.trim().length > 0) {
-          return debugMessage
-        }
-        const stripeCode = typeof details.stripeCode === 'string' ? details.stripeCode : null
-        const stripeType = typeof details.stripeType === 'string' ? details.stripeType : null
-        if (stripeCode || stripeType) {
-          const hint = stripeCode ? `Stripe error: ${stripeCode}` : stripeType ? `Stripe error: ${stripeType}` : ''
-          return hint || 'Stripe checkout failed'
-        }
-      }
-    }
-    
     // Check for direct message property
     if (typeof obj.message === 'string') {
       return obj.message
@@ -112,6 +101,33 @@ function extractApiErrorMessage(payload: unknown): string {
   }
   
   return 'An unexpected error occurred'
+}
+
+function extractCheckoutErrorCode(payload: unknown): CheckoutErrorCode | null {
+  if (!payload || typeof payload !== 'object') return null
+  const maybeCode = (payload as { error?: { code?: unknown } }).error?.code
+  if (typeof maybeCode !== 'string') return null
+  const codes: CheckoutErrorCode[] = [
+    'CHECKOUT_CONFIG_MISSING',
+    'AUTH_REQUIRED',
+    'INVALID_CHECKOUT_PAYLOAD',
+    'UNSUPPORTED_PLAN',
+    'STRIPE_CUSTOMER_INVALID',
+    'CHECKOUT_SESSION_CREATE_FAILED',
+    'INTERNAL_CHECKOUT_ERROR',
+  ]
+  return codes.includes(maybeCode as CheckoutErrorCode) ? (maybeCode as CheckoutErrorCode) : null
+}
+
+function checkoutMessageForCode(code: CheckoutErrorCode | null): string | null {
+  if (code === 'CHECKOUT_CONFIG_MISSING') return 'Checkout is not configured yet.'
+  if (code === 'AUTH_REQUIRED') return 'Please sign in to upgrade.'
+  if (code === 'UNSUPPORTED_PLAN') return 'Selected plan is unavailable.'
+  if (code === 'INVALID_CHECKOUT_PAYLOAD') return 'Checkout request was invalid. Please refresh and try again.'
+  if (code === 'STRIPE_CUSTOMER_INVALID') return 'Checkout is temporarily unavailable. Please try again shortly.'
+  if (code === 'CHECKOUT_SESSION_CREATE_FAILED') return 'Checkout is temporarily unavailable. Please try again shortly.'
+  if (code === 'INTERNAL_CHECKOUT_ERROR') return 'Checkout is currently unavailable. Please try again later.'
+  return null
 }
 
 /**
@@ -286,19 +302,8 @@ export function Pricing() {
           extractApiErrorMessage(payload) ||
           (raw.trim().length > 0 ? raw : `Checkout failed (${response.status})`)
         console.error('[Pricing] Checkout failed:', { status: response.status, message: errorMessage })
-        // User-friendly message (do not leak internals).
-        // If it's a configuration issue, we can surface an actionable message safely
-        // because the server returns only missing env var *names* (never values).
-        const maybeCode =
-          payload && typeof payload === 'object'
-            ? (payload as { error?: { code?: unknown } }).error?.code
-            : undefined
-        const code = typeof maybeCode === 'string' ? maybeCode : null
-        const showActionable =
-          response.status === 500 &&
-          (code === 'CHECKOUT_NOT_CONFIGURED' ||
-            errorMessage.toLowerCase().includes('checkout is not configured') ||
-            isStripeConfigError(errorMessage))
+        const code = extractCheckoutErrorCode(payload)
+        const mappedMessage = checkoutMessageForCode(code)
         // Owner debugging: if you're using the House Closer override, show safe error details
         // (Stripe code/type/request id) so you can fix config quickly.
         const requestId =
@@ -309,10 +314,18 @@ export function Pricing() {
 
         if (isHouseCloserOverride && response.status === 500) {
           const suffix = rid ? ` (requestId: ${rid})` : ''
-          setCheckoutError(`${errorMessage}${suffix}`)
+          setCheckoutError(`${mappedMessage ?? errorMessage}${suffix}`)
           return
         }
 
+        if (mappedMessage) {
+          setCheckoutError(mappedMessage)
+          return
+        }
+
+        const showActionable =
+          response.status === 500 &&
+          (errorMessage.toLowerCase().includes('checkout is not configured') || isStripeConfigError(errorMessage))
         setCheckoutError(showActionable ? errorMessage : 'Checkout is currently unavailable. Please try again later.')
         return
       }

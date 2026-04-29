@@ -1,31 +1,31 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, type NextResponse } from 'next/server'
 import type Stripe from 'stripe'
-import { stripe } from '@/lib/stripe'
-import { createRouteClient } from '@/lib/supabase/route'
-import { serverEnv } from '@/lib/env'
-import { ok, fail, asHttpError, ErrorCode, createCookieBridge } from '@/lib/api/http'
-import { withApiGuard } from '@/lib/api/guard'
 import { z } from 'zod'
+
+import { stripe } from '@/lib/stripe'
+import { withApiGuard } from '@/lib/api/guard'
+import { createCookieBridge, fail, ok } from '@/lib/api/http'
 import { readBodyWithLimit } from '@/lib/api/validate'
-import { captureMessage } from '@/lib/observability/sentry'
+import { createRouteClient } from '@/lib/supabase/route'
 import { logger } from '@/lib/observability/logger'
 import { assertProdStripeConfig } from '@/lib/config/runtimeEnv'
-import { getPriceIdsFromEnv, resolveCheckoutLineItems, type BillingCycle, type CheckoutLineItem, type PaidPlanId } from '@/lib/billing/stripePriceMap'
-import { isHouseCloserEmail } from '@/lib/billing/houseAccounts'
+import {
+  getPriceIdsFromEnv,
+  resolveCheckoutLineItems,
+  type BillingCycle,
+  type CheckoutLineItem,
+  type PaidPlanId,
+} from '@/lib/billing/stripePriceMap'
 import { validateSubscriptionLineItemsAreRecurring } from '@/lib/billing/stripePriceValidation'
 
-/**
- * Validates required Stripe environment variables
- * @throws Error with clear message if validation fails
- */
-function validateStripeEnv(): { siteUrl: string } {
-  // STRIPE_SECRET_KEY is already validated in lib/stripe.ts via serverEnv
-
-  // Get site URL (optional, defaults to request origin)
-  const siteUrl = serverEnv.NEXT_PUBLIC_SITE_URL || ''
-
-  return { siteUrl }
-}
+type CheckoutErrorCode =
+  | 'CHECKOUT_CONFIG_MISSING'
+  | 'AUTH_REQUIRED'
+  | 'INVALID_CHECKOUT_PAYLOAD'
+  | 'UNSUPPORTED_PLAN'
+  | 'STRIPE_CUSTOMER_INVALID'
+  | 'CHECKOUT_SESSION_CREATE_FAILED'
+  | 'INTERNAL_CHECKOUT_ERROR'
 
 type StripeErrorLike = {
   name?: unknown
@@ -51,17 +51,68 @@ type CheckoutErrorDetails = {
   stripeRawType: string | null
 }
 
+const CheckoutBodySchema = z.object({
+  planId: z.string().min(1),
+  billingCycle: z.enum(['monthly', 'annual']).optional(),
+  seats: z.number().int().min(1).max(250).optional(),
+})
+
+function validateStripeEnv(): { siteUrl: string; hasStripeSecretKey: boolean } {
+  return {
+    siteUrl: (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim(),
+    hasStripeSecretKey: Boolean((process.env.STRIPE_SECRET_KEY ?? '').trim()),
+  }
+}
+
+function getStripeMode(): 'live' | 'test' {
+  return (process.env.STRIPE_SECRET_KEY ?? '').trim().startsWith('sk_live_') ? 'live' : 'test'
+}
+
+function isDevelopment(): boolean {
+  return (process.env.NODE_ENV ?? '').trim() === 'development'
+}
+
+function normalizeCheckoutPlanId(rawPlanId: string): PaidPlanId | null {
+  const normalized = rawPlanId.trim().toLowerCase()
+  if (normalized === 'pro' || normalized === 'closer') return 'pro'
+  if (normalized === 'agency' || normalized === 'team') return 'team'
+  if (normalized === 'closer_plus') return 'closer_plus'
+  return null
+}
+
+function resolveSiteUrl(args: { request: NextRequest; configuredSiteUrl: string }): string {
+  const configured = args.configuredSiteUrl.trim()
+  if (configured) return configured
+
+  const origin = args.request.nextUrl.origin?.trim()
+  if (origin) return origin
+
+  if (isDevelopment()) return 'http://localhost:3000'
+  return ''
+}
+
+function redactStripeId(id: string | null | undefined): string | null {
+  if (!id) return null
+  if (id.length <= 8) return '[redacted]'
+  return `${id.slice(0, 4)}...[redacted]...${id.slice(-4)}`
+}
+
 function sanitizeErrorMessage(message: string | null): string | null {
   if (!message) return null
-  return message.length > 400 ? `${message.slice(0, 397)}...` : message
+  const redacted = message
+    .replace(/\bcus_[A-Za-z0-9]+\b/g, 'cus_[redacted]')
+    .replace(/\bsub_[A-Za-z0-9]+\b/g, 'sub_[redacted]')
+    .replace(/\bpi_[A-Za-z0-9]+\b/g, 'pi_[redacted]')
+  return redacted.length > 280 ? `${redacted.slice(0, 277)}...` : redacted
 }
 
 function getCheckoutErrorDetails(error: unknown): CheckoutErrorDetails {
   const err = (typeof error === 'object' && error !== null ? error : {}) as StripeErrorLike
-  const errorName = typeof err.name === 'string' ? err.name : error instanceof Error ? error.name : null
-  const rawMessage = typeof err.message === 'string' ? err.message : error instanceof Error ? error.message : null
+  const rawMessage =
+    typeof err.message === 'string' ? err.message : error instanceof Error ? error.message : null
+
   return {
-    errorName,
+    errorName: typeof err.name === 'string' ? err.name : error instanceof Error ? error.name : null,
     errorMessage: sanitizeErrorMessage(rawMessage),
     stripeType: typeof err.type === 'string' ? err.type : null,
     stripeCode: typeof err.code === 'string' ? err.code : null,
@@ -112,12 +163,13 @@ function selectedPriceEnvVarNames(args: {
     for (const name of names) selected.add(name)
   }
 
-  // If values are not resolvable (or line items are empty), provide deterministic expectation.
   if (selected.size === 0) {
     if (args.planId === 'pro') {
       selected.add(args.billingCycle === 'annual' ? 'STRIPE_PRICE_ID_CLOSER_ANNUAL' : 'STRIPE_PRICE_ID_PRO')
     } else if (args.planId === 'closer_plus') {
-      selected.add(args.billingCycle === 'annual' ? 'STRIPE_PRICE_ID_CLOSER_PLUS_ANNUAL' : 'STRIPE_PRICE_ID_CLOSER_PLUS')
+      selected.add(
+        args.billingCycle === 'annual' ? 'STRIPE_PRICE_ID_CLOSER_PLUS_ANNUAL' : 'STRIPE_PRICE_ID_CLOSER_PLUS'
+      )
     } else if (args.billingCycle === 'annual') {
       selected.add('STRIPE_PRICE_ID_TEAM_ANNUAL')
       selected.add('STRIPE_PRICE_ID_TEAM_BASE_ANNUAL')
@@ -132,446 +184,484 @@ function selectedPriceEnvVarNames(args: {
   return Array.from(selected)
 }
 
-function resolveSiteUrl(args: { request: NextRequest; configuredSiteUrl: string }): string {
-  const configured = args.configuredSiteUrl.trim()
-  if (configured) return configured
+function isMissingRowError(code: string | null | undefined): boolean {
+  return code === 'PGRST116'
+}
 
-  const origin = args.request.nextUrl.origin?.trim()
-  if (origin) return origin
+function buildCheckoutError(
+  code: CheckoutErrorCode,
+  message: string,
+  status: number,
+  bridge: NextResponse,
+  requestId: string,
+  details?: unknown
+) {
+  return fail(code, message, details, { status }, bridge, requestId)
+}
 
-  if (serverEnv.NODE_ENV === 'development') {
-    return 'http://localhost:3000'
+function createSessionParams(args: {
+  customerId: string
+  lineItems: CheckoutLineItem[]
+  planId: PaidPlanId
+  billingCycle: BillingCycle
+  seats: number | undefined
+  siteUrl: string
+  userId: string
+  userEmail: string | null | undefined
+}): Stripe.Checkout.SessionCreateParams {
+  return {
+    customer: args.customerId,
+    mode: 'subscription',
+    payment_method_collection: 'always',
+    payment_method_types: ['card'],
+    line_items: args.lineItems,
+    success_url: `${args.siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${args.siteUrl}/pricing`,
+    client_reference_id: args.userId,
+    metadata: {
+      user_id: args.userId,
+      email: args.userEmail ?? '',
+      plan_id: args.planId,
+      product_plan: args.planId === 'team' ? 'agency' : 'pro',
+      billing_cycle: args.billingCycle,
+      seats: typeof args.seats === 'number' ? String(args.seats) : '',
+    },
+    subscription_data: {
+      metadata: {
+        user_id: args.userId,
+      },
+    },
+    allow_promotion_codes: true,
   }
-
-  return ''
 }
 
 export async function POST(request: NextRequest) {
   return POST_GUARDED(request)
 }
 
-export async function GET(_request: NextRequest) {
-  // Explicitly return JSON (not Next.js default 404) so callers get a clear signal.
-  return fail(
-    'METHOD_NOT_ALLOWED',
-    'Method not allowed. Use POST /api/checkout.',
-    undefined,
-    { status: 405 }
-  )
+export async function GET() {
+  return fail('METHOD_NOT_ALLOWED', 'Method not allowed. Use POST /api/checkout.', undefined, { status: 405 })
 }
 
-const CheckoutBodySchema = z.object({
-  // Validate supported values manually so we can return a stable 400 for unsupported plans.
-  planId: z.string().min(1),
-  billingCycle: z.enum(['monthly', 'annual']).optional(),
-  seats: z
-    .number()
-    .int()
-    .min(1)
-    .max(250)
-    .optional(),
-})
-
-function normalizeCheckoutPlanId(rawPlanId: string): PaidPlanId | null {
-  const normalized = rawPlanId.trim().toLowerCase()
-  if (normalized === 'pro' || normalized === 'closer') return 'pro'
-  if (normalized === 'agency' || normalized === 'team') return 'team'
-  if (normalized === 'closer_plus') return 'closer_plus'
-  return null
-}
-
-const POST_GUARDED = withApiGuard(
-  async (request: NextRequest, { requestId }) => {
+const POST_GUARDED = withApiGuard(async (request: NextRequest, { requestId }) => {
   const bridge = createCookieBridge()
   try {
-    // Parse + validate body here (not in guard) so we can return route-specific error codes.
-    // Also enforces an explicit 32KB limit.
     let parsedBody: z.infer<typeof CheckoutBodySchema>
     try {
       const raw = await readBodyWithLimit(request, 32768)
       if (!raw || raw.trim().length === 0) {
-        return fail(
+        return buildCheckoutError(
           'INVALID_CHECKOUT_PAYLOAD',
           'Missing JSON body',
-          { hint: 'Send JSON like { "planId": "pro" }' },
-          { status: 400 },
+          400,
           bridge,
-          requestId
+          requestId,
+          { hint: 'Send JSON like { "planId": "pro" }' }
         )
       }
-      const json = JSON.parse(raw)
-      const result = CheckoutBodySchema.safeParse(json)
-      if (!result.success) {
-        return fail(
+      const json = JSON.parse(raw) as unknown
+      const parsed = CheckoutBodySchema.safeParse(json)
+      if (!parsed.success) {
+        return buildCheckoutError(
           'INVALID_CHECKOUT_PAYLOAD',
           'Invalid checkout payload',
-          result.error.errors.map((e) => ({ path: e.path.join('.'), message: e.message, code: e.code })),
-          { status: 422 },
+          422,
           bridge,
-          requestId
+          requestId,
+          parsed.error.errors.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message,
+            code: issue.code,
+          }))
         )
       }
-      parsedBody = result.data
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid JSON body'
-      return fail(
+      parsedBody = parsed.data
+    } catch (error) {
+      const details = getCheckoutErrorDetails(error)
+      return buildCheckoutError(
         'INVALID_CHECKOUT_PAYLOAD',
-        message.startsWith('Invalid JSON') ? message : 'Invalid JSON body',
-        undefined,
-        { status: 400 },
-        bridge,
-        requestId
-      )
-    }
-
-    // Dev-only breadcrumb logging (no secrets).
-    if (serverEnv.NODE_ENV === 'development') {
-      console.log('[checkout] Request received', {
-        requestId,
-        planId: parsedBody.planId,
-        hasStripeSecretKey: Boolean(serverEnv.STRIPE_SECRET_KEY),
-        hasProPriceId: Boolean(serverEnv.STRIPE_PRICE_ID || serverEnv.STRIPE_PRICE_ID_PRO),
-        hasTeamPriceId: Boolean(serverEnv.STRIPE_PRICE_ID_TEAM),
-      })
-    }
-
-    // Create Supabase client using the bridge response (cookies will be set on bridge)
-    const supabase = createRouteClient(request, bridge)
-    
-    // Get current user (this may set cookies on bridge)
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return fail(ErrorCode.UNAUTHORIZED, 'Authentication required', undefined, undefined, bridge, requestId)
-    }
-
-    const isOwnerDebug = isHouseCloserEmail(user.email ?? null, process.env.HOUSE_CLOSER_EMAILS)
-
-    const rawPlanId = parsedBody.planId
-    const planId = normalizeCheckoutPlanId(rawPlanId)
-
-    if (!planId) {
-      return fail(
-        'INVALID_CHECKOUT_PLAN',
-        'Invalid or unsupported planId',
-        { planId: rawPlanId },
-        { status: 400 },
+        details.errorMessage?.startsWith('Invalid JSON')
+          ? details.errorMessage
+          : 'Invalid JSON body',
+        400,
         bridge,
         requestId
       )
     }
 
     const billingCycle: BillingCycle = parsedBody.billingCycle ?? 'monthly'
+    logger.info({
+      level: 'info',
+      scope: 'checkout',
+      message: 'checkout.start',
+      requestId,
+      planId: parsedBody.planId,
+      billingInterval: billingCycle,
+      stripeMode: getStripeMode(),
+    })
+
+    const supabase = createRouteClient(request, bridge)
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return buildCheckoutError('AUTH_REQUIRED', 'Please sign in to upgrade.', 401, bridge, requestId)
+    }
+
+    const planId = normalizeCheckoutPlanId(parsedBody.planId)
+    if (!planId) {
+      return buildCheckoutError('UNSUPPORTED_PLAN', 'Selected plan is unavailable.', 400, bridge, requestId, {
+        planId: parsedBody.planId,
+      })
+    }
+
+    const stripeMode = getStripeMode()
     const seats = parsedBody.seats
-    const isDevelopment = serverEnv.NODE_ENV === 'development'
+    const env = validateStripeEnv()
 
-    // Production safety: block accidental Stripe test keys.
-    // (No effect in dev/staging; enforced only when NEXT_PUBLIC_APP_ENV === "production".)
-    assertProdStripeConfig()
-
-    // Validate Stripe environment variables
-    let siteUrl: string
-    let lineItems: CheckoutLineItem[] = []
     try {
-      const env = validateStripeEnv()
-      // IMPORTANT: Do not accept price IDs from the client. Always map from server-side plan definition.
-      const resolved = resolveCheckoutLineItems(planId, billingCycle, seats)
-      if (!resolved.ok) {
-        captureMessage('checkout_not_configured', { route: '/api/checkout', requestId, planId, billingCycle })
-        return fail(
-          'CHECKOUT_NOT_CONFIGURED',
-          `Missing Stripe price ID for plan: ${planId}`,
-          {
-            planId,
-            billingCycle,
-            missing: resolved.missing,
-          },
-          { status: 500 },
-          bridge,
-          requestId
-        )
-      }
-      lineItems = resolved.lineItems
-      siteUrl = resolveSiteUrl({ request, configuredSiteUrl: env.siteUrl })
-      if (!siteUrl) {
-        logger.error({
-          level: 'error',
-          scope: 'checkout',
-          message: 'site_url_unavailable',
-          requestId,
-          planId,
-          selectedPriceEnvVarNames: selectedPriceEnvVarNames({ planId, billingCycle, lineItems }),
-        })
-        return fail(
-          'CHECKOUT_NOT_CONFIGURED',
-          'Checkout base URL is not configured',
-          { required: ['NEXT_PUBLIC_SITE_URL'] },
-          { status: 500 },
-          bridge,
-          requestId
-        )
-      }
-    } catch (error) {
-      const details = getCheckoutErrorDetails(error)
-      logger.error({
-        level: 'error',
-        scope: 'checkout',
-        message: 'line_items_resolve_failed',
-        requestId,
-        planId,
-        billingCycle,
-        selectedPriceEnvVarNames: selectedPriceEnvVarNames({ planId, billingCycle, lineItems }),
-        ...details,
-      })
-      captureMessage('checkout_not_configured', {
-        route: '/api/checkout',
-        requestId,
-      })
-      return fail(
-        'CHECKOUT_NOT_CONFIGURED',
-        isDevelopment && details.errorMessage
-          ? details.errorMessage
-          : `Checkout is not configured for plan: ${planId}`,
-        {
-          // Do not leak env values; just explain what is missing.
-          message: details.errorMessage ?? 'Missing Stripe configuration',
-          required: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID_PRO (recommended)', 'NEXT_PUBLIC_SITE_URL (recommended)'],
-          ...(isDevelopment ? details : {}),
-        },
-        { status: 500 },
+      assertProdStripeConfig()
+    } catch {
+      return buildCheckoutError(
+        'CHECKOUT_CONFIG_MISSING',
+        'Checkout is not configured yet.',
+        503,
         bridge,
-        requestId
+        requestId,
+        { required: ['STRIPE_SECRET_KEY (live key required in production)'] }
       )
     }
 
-    const stripeMode = serverEnv.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test'
+    if (!env.hasStripeSecretKey) {
+      return buildCheckoutError(
+        'CHECKOUT_CONFIG_MISSING',
+        'Checkout is not configured yet.',
+        503,
+        bridge,
+        requestId,
+        { required: ['STRIPE_SECRET_KEY'] }
+      )
+    }
+
+    const resolvedLineItems = resolveCheckoutLineItems(planId, billingCycle, seats)
+    const selectedEnvNames = selectedPriceEnvVarNames({
+      planId,
+      billingCycle,
+      lineItems: resolvedLineItems.ok ? resolvedLineItems.lineItems : [],
+    })
+
+    if (!resolvedLineItems.ok) {
+      return buildCheckoutError(
+        'CHECKOUT_CONFIG_MISSING',
+        'Checkout is not configured yet.',
+        503,
+        bridge,
+        requestId,
+        { missing: resolvedLineItems.missing, selectedPriceEnvVarNames: selectedEnvNames }
+      )
+    }
+
+    const siteUrl = resolveSiteUrl({ request, configuredSiteUrl: env.siteUrl })
+    if (!siteUrl) {
+      return buildCheckoutError(
+        'CHECKOUT_CONFIG_MISSING',
+        'Checkout is not configured yet.',
+        503,
+        bridge,
+        requestId,
+        { required: ['NEXT_PUBLIC_SITE_URL'], selectedPriceEnvVarNames: selectedEnvNames }
+      )
+    }
 
     logger.info({
       level: 'info',
       scope: 'checkout',
-      message: 'config.summary',
+      message: 'checkout.config.summary',
+      requestId,
       planId,
+      billingInterval: billingCycle,
       stripeMode,
-      hasStripeSecretKey: !!serverEnv.STRIPE_SECRET_KEY,
-      proPriceId: serverEnv.STRIPE_PRICE_ID_PRO ?? serverEnv.STRIPE_PRICE_ID ?? null,
-      teamPriceId: serverEnv.STRIPE_PRICE_ID_TEAM ?? null,
+      hasUser: true,
+      hasStripeSecretKey: env.hasStripeSecretKey,
+      hasPriceConfig: true,
+      hasSiteUrl: Boolean(siteUrl),
+      selectedPriceEnvVarNames: selectedEnvNames,
     })
 
-    // Fail fast before creating a Stripe customer if a configured "subscription" price is not recurring.
-    // This avoids orphan Stripe customers caused by price misconfiguration.
-    const priceValidation = await validateSubscriptionLineItemsAreRecurring(stripe, lineItems)
+    const priceValidation = await validateSubscriptionLineItemsAreRecurring(stripe, resolvedLineItems.lineItems)
     if (!priceValidation.ok) {
-      const details =
-        priceValidation.reason === 'stripe_error'
-          ? { ...priceValidation.error, priceId: priceValidation.priceId }
-          : { reason: priceValidation.reason, invalidPrices: priceValidation.invalidPrices }
-
-      logger.error({
-        level: 'error',
-        scope: 'checkout',
-        message: 'subscription_price_validation_failed',
-        requestId,
-        planId,
-        billingCycle,
-        selectedPriceEnvVarNames: selectedPriceEnvVarNames({ planId, billingCycle, lineItems }),
-        ...details,
-      })
-
-      return fail(
-        'CHECKOUT_NOT_CONFIGURED',
-        'Stripe price configuration is invalid for subscription checkout',
-        {
-          planId,
-          billingCycle,
-          ...details,
-          hint: 'All prices used with mode="subscription" must be recurring (monthly/yearly) and active.',
-        },
-        { status: 500 },
+      return buildCheckoutError(
+        'CHECKOUT_CONFIG_MISSING',
+        'Checkout is not configured yet.',
+        503,
         bridge,
-        requestId
+        requestId,
+        {
+          reason: priceValidation.reason,
+          selectedPriceEnvVarNames: selectedEnvNames,
+        }
       )
     }
 
-    // Check if user already has a Stripe customer ID
-    let { data: userData } = await supabase
+    const { data: userRow, error: userRowError } = await supabase
       .from('users')
       .select('stripe_customer_id')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
-    let customerId = userData?.stripe_customer_id
-
-    // Create Stripe customer if doesn't exist
-    const createCustomer = async (): Promise<string> => {
-      const customer = await stripe.customers.create({
-        email: user.email || undefined,
-        metadata: {
-          supabase_user_id: user.id,
-        },
+    if (userRowError && !isMissingRowError(userRowError.code)) {
+      logger.warn({
+        level: 'warn',
+        scope: 'checkout',
+        message: 'checkout.customer.lookup',
+        requestId,
+        planId,
+        billingInterval: billingCycle,
+        stripeMode,
+        hasStoredCustomer: false,
+        userLookupErrorCode: userRowError.code ?? null,
       })
-      const nextCustomerId = customer.id
+    }
 
-      // Update user in database
-      const { error: upsertError } = await supabase
-        .from('users')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          stripe_customer_id: nextCustomerId,
-        })
+    let customerId =
+      userRow && typeof userRow.stripe_customer_id === 'string' && userRow.stripe_customer_id.trim().length > 0
+        ? userRow.stripe_customer_id.trim()
+        : null
+
+    logger.info({
+      level: 'info',
+      scope: 'checkout',
+      message: 'checkout.customer.lookup',
+      requestId,
+      planId,
+      billingInterval: billingCycle,
+      stripeMode,
+      hasStoredCustomer: Boolean(customerId),
+    })
+
+    if (customerId && !customerId.startsWith('cus_')) {
+      logger.warn({
+        level: 'warn',
+        scope: 'checkout',
+        message: 'checkout.customer.invalid',
+        requestId,
+        planId,
+        billingInterval: billingCycle,
+        stripeMode,
+        reason: 'malformed_stored_customer_id',
+        customerIdHint: redactStripeId(customerId),
+      })
+      customerId = null
+    }
+
+    const persistCustomerId = async (nextCustomerId: string): Promise<void> => {
+      const { error: upsertError } = await supabase.from('users').upsert({
+        id: user.id,
+        email: user.email,
+        stripe_customer_id: nextCustomerId,
+      })
       if (upsertError) {
-        logger.error({
-          level: 'error',
+        logger.warn({
+          level: 'warn',
           scope: 'checkout',
-          message: 'customer_id_upsert_failed',
+          message: 'checkout.customer.lookup',
           requestId,
           planId,
-          userId: user.id,
-          customerId: nextCustomerId,
-          errorCode: upsertError.code,
+          billingInterval: billingCycle,
+          stripeMode,
+          hasStoredCustomer: true,
+          userLookupErrorCode: upsertError.code ?? null,
         })
       }
-      return nextCustomerId
+    }
+
+    const createCustomer = async (): Promise<string> => {
+      const customer = await stripe.customers.create({
+        email: user.email ?? undefined,
+        metadata: { supabase_user_id: user.id },
+      })
+      await persistCustomerId(customer.id)
+      return customer.id
     }
 
     if (!customerId) {
-      customerId = await createCustomer()
+      try {
+        customerId = await createCustomer()
+      } catch (createCustomerError) {
+        const details = getCheckoutErrorDetails(createCustomerError)
+        logger.error({
+          level: 'error',
+          scope: 'checkout',
+          message: 'checkout.session.create.failed',
+          requestId,
+          planId,
+          billingInterval: billingCycle,
+          stripeMode,
+          selectedPriceEnvVarNames: selectedEnvNames,
+          stage: 'create_customer',
+          ...details,
+        })
+        return buildCheckoutError(
+          'CHECKOUT_SESSION_CREATE_FAILED',
+          'Checkout is temporarily unavailable. Please try again shortly.',
+          502,
+          bridge,
+          requestId,
+          { stripeCode: details.stripeCode, stripeType: details.stripeType }
+        )
+      }
     }
 
-    // Check for existing active/trialing subscription (avoid duplicate checkouts)
-    const { data: existingSubscription } = await supabase
+    const { data: existingSubscription, error: existingSubscriptionError } = await supabase
       .from('subscriptions')
-      .select('*')
+      .select('id')
       .eq('user_id', user.id)
       .in('status', ['active', 'trialing'])
-      .single()
+      .maybeSingle()
 
-    if (existingSubscription) {
-      return fail(
-        ErrorCode.CONFLICT,
-        'Already subscribed',
-        undefined,
-        undefined,
+    if (existingSubscriptionError && !isMissingRowError(existingSubscriptionError.code)) {
+      return buildCheckoutError(
+        'INTERNAL_CHECKOUT_ERROR',
+        'Checkout is currently unavailable. Please try again later.',
+        500,
         bridge,
         requestId
       )
     }
 
-    // Create checkout session
-    let sessionUrl: string | null = null
-    const createSessionParams = (selectedCustomerId: string): Stripe.Checkout.SessionCreateParams => ({
-      customer: selectedCustomerId,
-      mode: 'subscription',
-      // Collect payment method up-front.
-      payment_method_collection: 'always',
-      payment_method_types: ['card'],
-      line_items: lineItems,
-      success_url: `${siteUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/pricing`,
-      client_reference_id: user.id,
-      metadata: {
-        user_id: user.id,
-        email: user.email ?? '',
-        plan_id: planId,
-        product_plan: planId === 'team' ? 'agency' : 'pro',
-        billing_cycle: billingCycle,
-        seats: typeof seats === 'number' ? String(seats) : '',
-      },
-      subscription_data: {
-        metadata: {
-          user_id: user.id,
-        },
-      },
-      allow_promotion_codes: true,
-    })
+    if (existingSubscription) {
+      return fail('CONFLICT', 'Already subscribed', undefined, { status: 409 }, bridge, requestId)
+    }
 
+    const doCreateSession = async (selectedCustomerId: string): Promise<Stripe.Checkout.Session> => {
+      logger.info({
+        level: 'info',
+        scope: 'checkout',
+        message: 'checkout.session.create.start',
+        requestId,
+        planId,
+        billingInterval: billingCycle,
+        stripeMode,
+        hasCustomer: true,
+        selectedPriceEnvVarNames: selectedEnvNames,
+      })
+      return stripe.checkout.sessions.create(
+        createSessionParams({
+          customerId: selectedCustomerId,
+          lineItems: resolvedLineItems.lineItems,
+          planId,
+          billingCycle,
+          seats,
+          siteUrl,
+          userId: user.id,
+          userEmail: user.email,
+        })
+      )
+    }
+
+    let session: Stripe.Checkout.Session
     try {
-      const session = await stripe.checkout.sessions.create(createSessionParams(customerId))
-      sessionUrl = session.url ?? null
-    } catch (error) {
-      const firstFailure = getCheckoutErrorDetails(error)
+      session = await doCreateSession(customerId)
+    } catch (createSessionError) {
+      const firstFailure = getCheckoutErrorDetails(createSessionError)
       logger.error({
         level: 'error',
         scope: 'checkout',
-        message: 'session.create_failed',
+        message: 'checkout.session.create.failed',
         requestId,
         planId,
+        billingInterval: billingCycle,
         stripeMode,
-        selectedPriceEnvVarNames: selectedPriceEnvVarNames({ planId, billingCycle, lineItems }),
+        selectedPriceEnvVarNames: selectedEnvNames,
+        stage: 'initial',
+        customerIdHint: redactStripeId(customerId),
         ...firstFailure,
       })
 
-      // Common root cause during test/live mode switches:
-      // stored customer id belongs to a different Stripe mode and no longer exists.
       if (customerId && isStripeMissingCustomerError(firstFailure)) {
+        logger.warn({
+          level: 'warn',
+          scope: 'checkout',
+          message: 'checkout.customer.invalid',
+          requestId,
+          planId,
+          billingInterval: billingCycle,
+          stripeMode,
+          reason: 'stripe_missing_customer',
+          customerIdHint: redactStripeId(customerId),
+        })
+        logger.warn({
+          level: 'warn',
+          scope: 'checkout',
+          message: 'checkout.session.create.retry',
+          requestId,
+          planId,
+          billingInterval: billingCycle,
+          stripeMode,
+          selectedPriceEnvVarNames: selectedEnvNames,
+        })
+
         try {
-          logger.warn({
-            level: 'warn',
-            scope: 'checkout',
-            message: 'session.create_retry_new_customer',
-            requestId,
-            planId,
-            priorCustomerId: customerId,
-          })
           customerId = await createCustomer()
-          const retrySession = await stripe.checkout.sessions.create(createSessionParams(customerId))
-          sessionUrl = retrySession.url ?? null
+          session = await doCreateSession(customerId)
         } catch (retryError) {
           const retryFailure = getCheckoutErrorDetails(retryError)
           logger.error({
             level: 'error',
             scope: 'checkout',
-            message: 'session.create_retry_failed',
+            message: 'checkout.session.create.failed',
             requestId,
             planId,
+            billingInterval: billingCycle,
             stripeMode,
-            selectedPriceEnvVarNames: selectedPriceEnvVarNames({ planId, billingCycle, lineItems }),
+            selectedPriceEnvVarNames: selectedEnvNames,
+            stage: 'retry',
             ...retryFailure,
           })
-          return fail(
-            ErrorCode.EXTERNAL_API_ERROR,
-            isDevelopment && retryFailure.errorMessage
-              ? retryFailure.errorMessage
-              : 'Stripe checkout session creation failed',
-            {
-              ...retryFailure,
-            },
-            { status: 500 },
+          return buildCheckoutError(
+            'CHECKOUT_SESSION_CREATE_FAILED',
+            'Checkout is temporarily unavailable. Please try again shortly.',
+            502,
             bridge,
-            requestId
+            requestId,
+            { stripeCode: retryFailure.stripeCode, stripeType: retryFailure.stripeType }
           )
         }
+      } else {
+        return buildCheckoutError(
+          'CHECKOUT_SESSION_CREATE_FAILED',
+          'Checkout is temporarily unavailable. Please try again shortly.',
+          502,
+          bridge,
+          requestId,
+          { stripeCode: firstFailure.stripeCode, stripeType: firstFailure.stripeType }
+        )
       }
-
-      if (sessionUrl) {
-        return ok({ url: sessionUrl }, undefined, bridge, requestId)
-      }
-
-      // Keep the user-facing message stable, but include safe Stripe metadata for troubleshooting.
-      // (No secrets, no env values, no full payloads.)
-      return fail(
-        ErrorCode.EXTERNAL_API_ERROR,
-        isDevelopment && firstFailure.errorMessage
-          ? firstFailure.errorMessage
-          : 'Stripe checkout session creation failed',
-        firstFailure,
-        { status: 500 },
-        bridge,
-        requestId
-      )
     }
 
-    // Return standardized success response
+    const sessionUrl = session.url ?? null
     if (!sessionUrl) {
-      return fail(
-        ErrorCode.INTERNAL_ERROR,
-        'Stripe checkout session missing redirect URL',
-        undefined,
-        { status: 500 },
+      return buildCheckoutError(
+        'CHECKOUT_SESSION_CREATE_FAILED',
+        'Checkout is temporarily unavailable. Please try again shortly.',
+        502,
         bridge,
         requestId
       )
     }
+
+    logger.info({
+      level: 'info',
+      scope: 'checkout',
+      message: 'checkout.session.create.success',
+      requestId,
+      planId,
+      billingInterval: billingCycle,
+      stripeMode,
+      selectedPriceEnvVarNames: selectedEnvNames,
+      hasCustomer: true,
+    })
 
     return ok({ url: sessionUrl }, undefined, bridge, requestId)
   } catch (error) {
@@ -579,22 +669,17 @@ const POST_GUARDED = withApiGuard(
     logger.error({
       level: 'error',
       scope: 'checkout',
-      message: 'checkout_unhandled_error',
+      message: 'checkout.session.create.failed',
       requestId,
+      stage: 'unhandled',
       ...details,
     })
-    if (serverEnv.NODE_ENV === 'development' && details.errorMessage) {
-      return fail(
-        ErrorCode.INTERNAL_ERROR,
-        details.errorMessage,
-        details,
-        { status: 500 },
-        bridge,
-        requestId
-      )
-    }
-    return asHttpError(error, '/api/checkout', undefined, bridge, requestId)
+    return buildCheckoutError(
+      'INTERNAL_CHECKOUT_ERROR',
+      'Checkout is currently unavailable. Please try again later.',
+      500,
+      bridge,
+      requestId
+    )
   }
-},
-  // No bodySchema: we validate body inside handler for custom error codes.
-)
+})

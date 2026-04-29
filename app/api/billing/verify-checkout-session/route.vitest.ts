@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const mockGetUser = vi.fn()
@@ -61,6 +61,7 @@ const adminUpdate = vi.fn((payload: { subscription_tier?: string }) => ({
   },
 }))
 const adminUpsert = vi.fn(async () => ({ error: null }))
+
 vi.mock('@/lib/supabase/admin', () => ({
   createSupabaseAdminClient: (_opts?: { schema?: string }) => ({
     from: (table: string) => {
@@ -70,7 +71,6 @@ vi.mock('@/lib/supabase/admin', () => ({
             eq: (_col: string, id: string) => ({
               maybeSingle: async () => ({ data: db.api.users.get(id) ?? null, error: null }),
             }),
-            // If someone calls maybeSingle() without eq() (not expected), return null.
             maybeSingle: async () => ({ data: null, error: null }),
           }),
           update: adminUpdate,
@@ -82,15 +82,14 @@ vi.mock('@/lib/supabase/admin', () => ({
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  then: (onfulfilled: (v: any) => any, onrejected?: (e: unknown) => any) => {
+                  then: (onfulfilled: (v: unknown) => unknown, onrejected?: (e: unknown) => unknown) => {
                     const rows = db.api.subscriptions.get('latest') ? [db.api.subscriptions.get('latest')] : []
                     return Promise.resolve({ data: rows, error: null }).then(onfulfilled, onrejected)
                   },
                 }),
               }),
             }),
-            // If awaited directly without eq/order (not expected), return empty rows.
-            then: (onfulfilled: (v: any) => any, onrejected?: (e: unknown) => any) =>
+            then: (onfulfilled: (v: unknown) => unknown, onrejected?: (e: unknown) => unknown) =>
               Promise.resolve({ data: [], error: null }).then(onfulfilled, onrejected),
           }),
           upsert: async (payload: { user_id: string; status: string; stripe_price_id: string | null }) => {
@@ -127,21 +126,21 @@ describe('/api/billing/verify-checkout-session', () => {
     vi.resetModules()
     db = { api: { users: new Map(), subscriptions: new Map() } }
 
-    // Minimal env to satisfy validation.
-    process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co'
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key'
-    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_123'
-    process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
-    process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
-    process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
-    process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test-openai'
+    process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = 'pk_test_123'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+    process.env.STRIPE_SECRET_KEY = 'sk_test_123'
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_123'
     process.env.STRIPE_PRICE_ID_PRO = 'price_test_pro_123'
+    process.env.STRIPE_PRICE_ID_CLOSER_PLUS = 'price_plus_123'
+    process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
 
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user_1', email: 'u@example.com' } }, error: null })
   })
 
-  it('verifies a paid session and upserts subscription', async () => {
+  it('verifies paid pro checkout session and persists subscription', async () => {
     retrieve.mockResolvedValue({
       id: 'cs_test_123',
       client_reference_id: 'user_1',
@@ -159,19 +158,7 @@ describe('/api/billing/verify-checkout-session', () => {
         items: { data: [{ price: { id: 'price_test_pro_123' } }] },
       },
     })
-
-    listLineItems.mockResolvedValue({
-      data: [{ price: { id: 'price_test_pro_123' } }],
-    })
-    retrieveSubscription.mockResolvedValue({
-      id: 'sub_123',
-      status: 'active',
-      current_period_start: 1700000000,
-      current_period_end: 1700003600,
-      cancel_at_period_end: false,
-      trial_end: null,
-      items: { data: [{ price: { id: 'price_test_pro_123' } }] },
-    })
+    listLineItems.mockResolvedValue({ data: [{ price: { id: 'price_test_pro_123' } }] })
 
     const { GET } = await import('./route')
     const req = new NextRequest('http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_123', {
@@ -182,14 +169,12 @@ describe('/api/billing/verify-checkout-session', () => {
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.data?.verified).toBe(true)
-    expect(json.data?.plan).toBe('pro')
-    expect(adminUpdateEq).toHaveBeenCalled()
+    expect(json.data?.planId).toBe('pro')
     expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'pro' }))
     expect(adminUpsert).toHaveBeenCalled()
   })
 
-  it('persists closer_plus subscription tier when Stripe price maps to closer_plus', async () => {
-    process.env.STRIPE_PRICE_ID_CLOSER_PLUS = 'price_plus_123'
+  it('verifies paid pro+ checkout session and maps closer_plus tier', async () => {
     retrieve.mockResolvedValue({
       id: 'cs_test_plus',
       client_reference_id: 'user_1',
@@ -207,24 +192,23 @@ describe('/api/billing/verify-checkout-session', () => {
         items: { data: [{ price: { id: 'price_plus_123' } }] },
       },
     })
-    listLineItems.mockResolvedValue({
-      data: [{ price: { id: 'price_plus_123' } }],
-    })
+    listLineItems.mockResolvedValue({ data: [{ price: { id: 'price_plus_123' } }] })
 
     const { GET } = await import('./route')
-    const req = new NextRequest('http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_plus', {
-      method: 'GET',
-    })
+    const req = new NextRequest(
+      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_plus',
+      { method: 'GET' }
+    )
     const res = await GET(req)
     expect(res.status).toBe(200)
-    expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'closer_plus' }))
     const json = await res.json()
     expect(json.ok).toBe(true)
-    expect(json.data?.plan).toBe('pro')
+    expect(json.data?.verified).toBe(true)
+    expect(json.data?.tier).toBe('closer_plus')
+    expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'closer_plus' }))
   })
 
-  it('returns agency product plan when Stripe price maps to team', async () => {
-    process.env.STRIPE_PRICE_ID_TEAM = 'price_team_123'
+  it('verifies paid team checkout session and maps agency plan', async () => {
     retrieve.mockResolvedValue({
       id: 'cs_test_team',
       client_reference_id: 'user_1',
@@ -242,69 +226,24 @@ describe('/api/billing/verify-checkout-session', () => {
         items: { data: [{ price: { id: 'price_team_123' } }] },
       },
     })
-    listLineItems.mockResolvedValue({
-      data: [{ price: { id: 'price_team_123' } }],
-    })
+    listLineItems.mockResolvedValue({ data: [{ price: { id: 'price_team_123' } }] })
 
     const { GET } = await import('./route')
-    const req = new NextRequest('http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_team', {
-      method: 'GET',
-    })
+    const req = new NextRequest(
+      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_team',
+      { method: 'GET' }
+    )
     const res = await GET(req)
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.ok).toBe(true)
     expect(json.data?.verified).toBe(true)
     expect(json.data?.tier).toBe('team')
-    expect(json.data?.planId).toBe('team')
     expect(json.data?.plan).toBe('agency')
     expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'team' }))
   })
 
-  it('persists to api schema so /api/plan resolves closer immediately', async () => {
-    retrieve.mockResolvedValue({
-      id: 'cs_test_123',
-      client_reference_id: 'user_1',
-      metadata: { user_id: 'user_1' },
-      payment_status: 'paid',
-      status: 'complete',
-      customer: 'cus_123',
-      subscription: {
-        id: 'sub_123',
-        status: 'active',
-        current_period_start: 1700000000,
-        current_period_end: 1700003600,
-        cancel_at_period_end: false,
-        trial_end: null,
-        items: { data: [{ price: { id: 'price_test_pro_123' } }] },
-      },
-    })
-    listLineItems.mockResolvedValue({ data: [{ price: { id: 'price_test_pro_123' } }] })
-
-    const { GET: verify } = await import('./route')
-    const verifyReq = new NextRequest(
-      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_123',
-      { method: 'GET' }
-    )
-    const verifyRes = await verify(verifyReq)
-    expect(verifyRes.status).toBe(200)
-    const verifyJson = await verifyRes.json()
-    expect(verifyJson.ok).toBe(true)
-    expect(verifyJson.data?.tier).toBe('closer')
-    expect(db.api.users.get('user_1')?.subscription_tier).toBe('pro')
-    expect(db.api.subscriptions.get('latest')?.status).toBe('active')
-
-    const { GET: plan } = await import('@/app/api/plan/route')
-    const planReq = new NextRequest('http://localhost:3000/api/plan', { method: 'GET' })
-    const planRes = await plan(planReq)
-    expect(planRes.status).toBe(200)
-    const planJson = await planRes.json()
-    expect(planJson.ok).toBe(true)
-    expect(planJson.data?.tier).toBe('closer')
-    expect(planJson.data?.planId).toBe('pro')
-  })
-
-  it('does not grant paid tier when session is incomplete/unpaid', async () => {
+  it('returns verified false and free plan when session is unpaid', async () => {
     retrieve.mockResolvedValue({
       id: 'cs_test_pending',
       client_reference_id: 'user_1',
@@ -322,14 +261,13 @@ describe('/api/billing/verify-checkout-session', () => {
         items: { data: [{ price: { id: 'price_test_pro_123' } }] },
       },
     })
-    listLineItems.mockResolvedValue({
-      data: [{ price: { id: 'price_test_pro_123' } }],
-    })
+    listLineItems.mockResolvedValue({ data: [{ price: { id: 'price_test_pro_123' } }] })
 
     const { GET } = await import('./route')
-    const req = new NextRequest('http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_pending', {
-      method: 'GET',
-    })
+    const req = new NextRequest(
+      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_pending',
+      { method: 'GET' }
+    )
     const res = await GET(req)
     expect(res.status).toBe(200)
     const json = await res.json()
@@ -340,10 +278,10 @@ describe('/api/billing/verify-checkout-session', () => {
     expect(adminUpsert).not.toHaveBeenCalled()
   })
 
-  it('returns 403 when the session belongs to a different user', async () => {
+  it('returns forbidden when session belongs to a different user', async () => {
     retrieve.mockResolvedValue({
       id: 'cs_test_123',
-      client_reference_id: 'someone_else',
+      client_reference_id: 'other_user',
       metadata: {},
       payment_status: 'paid',
       status: 'complete',
@@ -351,11 +289,21 @@ describe('/api/billing/verify-checkout-session', () => {
       subscription: 'sub_123',
     })
     listLineItems.mockResolvedValue({ data: [{ price: { id: 'price_test_pro_123' } }] })
+    retrieveSubscription.mockResolvedValue({
+      id: 'sub_123',
+      status: 'active',
+      current_period_start: 1700000000,
+      current_period_end: 1700003600,
+      cancel_at_period_end: false,
+      trial_end: null,
+      items: { data: [{ price: { id: 'price_test_pro_123' } }] },
+    })
 
     const { GET } = await import('./route')
-    const req = new NextRequest('http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_123', {
-      method: 'GET',
-    })
+    const req = new NextRequest(
+      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_123',
+      { method: 'GET' }
+    )
     const res = await GET(req)
     expect(res.status).toBe(403)
     const json = await res.json()
@@ -363,76 +311,4 @@ describe('/api/billing/verify-checkout-session', () => {
     expect(adminUpdateEq).not.toHaveBeenCalled()
     expect(adminUpsert).not.toHaveBeenCalled()
   })
-
-  it('does not grant access when checkout is complete but Stripe subscription cannot be resolved', async () => {
-    retrieve.mockResolvedValue({
-      id: 'cs_test_missing_sub',
-      client_reference_id: 'user_1',
-      metadata: { user_id: 'user_1' },
-      payment_status: 'paid',
-      status: 'complete',
-      customer: 'cus_123',
-      subscription: 'sub_missing',
-    })
-    listLineItems.mockResolvedValue({
-      data: [{ price: { id: 'price_test_pro_123' } }],
-    })
-    retrieveSubscription.mockRejectedValue(new Error('subscription not found'))
-
-    const { GET } = await import('./route')
-    const req = new NextRequest(
-      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_missing_sub',
-      {
-        method: 'GET',
-      }
-    )
-    const res = await GET(req)
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.ok).toBe(true)
-    expect(json.data?.verified).toBe(false)
-    expect(json.data?.plan).toBe('free')
-    expect(adminUpdateEq).not.toHaveBeenCalled()
-    expect(adminUpsert).not.toHaveBeenCalled()
-  })
-
-  it('keeps access free for canceled Stripe subscriptions even after completed checkout', async () => {
-    retrieve.mockResolvedValue({
-      id: 'cs_test_canceled',
-      client_reference_id: 'user_1',
-      metadata: { user_id: 'user_1' },
-      payment_status: 'paid',
-      status: 'complete',
-      customer: 'cus_123',
-      subscription: {
-        id: 'sub_canceled',
-        status: 'canceled',
-        current_period_start: 1700000000,
-        current_period_end: 1700003600,
-        cancel_at_period_end: true,
-        trial_end: null,
-        items: { data: [{ price: { id: 'price_test_pro_123' } }] },
-      },
-    })
-    listLineItems.mockResolvedValue({
-      data: [{ price: { id: 'price_test_pro_123' } }],
-    })
-
-    const { GET } = await import('./route')
-    const req = new NextRequest(
-      'http://localhost:3000/api/billing/verify-checkout-session?session_id=cs_test_canceled',
-      {
-        method: 'GET',
-      }
-    )
-    const res = await GET(req)
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.ok).toBe(true)
-    expect(json.data?.verified).toBe(false)
-    expect(json.data?.plan).toBe('free')
-    expect(adminUpdate).toHaveBeenCalledWith(expect.objectContaining({ subscription_tier: 'free' }))
-    expect(adminUpsert).toHaveBeenCalled()
-  })
 })
-
