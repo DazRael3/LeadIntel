@@ -314,5 +314,94 @@ describe('PitchGenerator', () => {
     const calls = fetchMock.mock.calls.map((c: unknown[]) => String(c[0]))
     expect(calls.some((u) => u === '/api/usage/premium-generations')).toBe(false)
   })
+
+  it('shows specific safe server error message when generate-pitch fails', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u === '/api/usage/premium-generations') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              capabilities: { tier: 'starter' },
+              usage: { used: 0, limit: STARTER_PITCH_CAP_LIMIT, remaining: STARTER_PITCH_CAP_LIMIT },
+            },
+          }),
+          { status: 200 }
+        )
+      }
+      if (u.startsWith('/api/pitch/latest')) {
+        return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
+      }
+      if (u === '/api/generate-pitch') {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: {
+              code: 'AI_PROVIDER_UNAVAILABLE',
+              message: 'AI providers are currently unavailable.',
+            },
+          }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock as any)
+
+    render(<PitchGenerator />)
+
+    fireEvent.change(screen.getByTestId('pitch-input'), { target: { value: 'Acme' } })
+    fireEvent.click(screen.getByTestId('pitch-generate'))
+
+    await waitFor(() => {
+      expect(screen.getByText('AI provider unavailable right now. Please try again shortly.')).toBeTruthy()
+    })
+  })
+
+  it('shows generated pitch when server reports TEMPLATE_FALLBACK_USED', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url)
+      if (u === '/api/usage/premium-generations') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              capabilities: { tier: 'starter' },
+              usage: { used: 0, limit: STARTER_PITCH_CAP_LIMIT, remaining: STARTER_PITCH_CAP_LIMIT },
+            },
+          }),
+          { status: 200 }
+        )
+      }
+      if (u.startsWith('/api/pitch/latest')) {
+        return new Response(JSON.stringify({ ok: true, data: { pitch: null } }), { status: 200 })
+      }
+      if (u === '/api/generate-pitch') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              generationCode: 'TEMPLATE_FALLBACK_USED',
+              pitch: 'Template fallback output is available.',
+              warnings: [],
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock as any)
+
+    render(<PitchGenerator />)
+    fireEvent.change(screen.getByTestId('pitch-input'), { target: { value: 'Fallback Co' } })
+    fireEvent.click(screen.getByTestId('pitch-generate'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Template fallback output is available.')).toBeTruthy()
+    })
+    expect(screen.queryByText('Failed to generate pitch. Please try again.')).toBeNull()
+  })
 })
 

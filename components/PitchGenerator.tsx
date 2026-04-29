@@ -35,6 +35,14 @@ type ApiSuccess<T> = { ok: true; data: T }
 type ApiError = { ok: false; error: { code?: string; message?: string } }
 type ApiEnvelope<T> = ApiSuccess<T> | ApiError
 
+type PitchErrorCode =
+  | 'AUTH_REQUIRED'
+  | 'PLAN_REQUIRED'
+  | 'FREE_PLAN_LIMIT_REACHED'
+  | 'AI_PROVIDER_UNAVAILABLE'
+  | 'PITCH_GENERATION_FAILED'
+  | 'UNKNOWN'
+
 interface BattleCard {
   currentTech: string[]
   painPoint: string
@@ -142,6 +150,30 @@ function unwrapGeneratePitchPayload(raw: unknown): GeneratePitchPayload {
   }
   // Backward/legacy: some callers may expect a flat object already containing fields.
   return isRecord(raw) ? (raw as GeneratePitchPayload) : {}
+}
+
+function parsePitchErrorCode(raw: unknown): PitchErrorCode {
+  if (!isRecord(raw)) return 'UNKNOWN'
+  const directCode = typeof raw.code === 'string' ? raw.code : null
+  const nestedError = isRecord(raw.error) ? raw.error : null
+  const nestedCode = nestedError && typeof nestedError.code === 'string' ? nestedError.code : null
+  const code = directCode ?? nestedCode
+  if (!code) return 'UNKNOWN'
+  if (code === 'AUTH_REQUIRED') return 'AUTH_REQUIRED'
+  if (code === 'PLAN_REQUIRED') return 'PLAN_REQUIRED'
+  if (code === 'FREE_PLAN_LIMIT_REACHED' || code === 'FREE_TIER_GENERATION_LIMIT_REACHED') return 'FREE_PLAN_LIMIT_REACHED'
+  if (code === 'AI_PROVIDER_UNAVAILABLE' || code === 'AI_PROVIDERS_UNAVAILABLE') return 'AI_PROVIDER_UNAVAILABLE'
+  if (code === 'PITCH_GENERATION_FAILED') return 'PITCH_GENERATION_FAILED'
+  return 'UNKNOWN'
+}
+
+function messageForPitchErrorCode(code: PitchErrorCode): string {
+  if (code === 'AUTH_REQUIRED') return 'Please sign in to generate intelligence.'
+  if (code === 'PLAN_REQUIRED') return 'Your current plan does not support this generation request.'
+  if (code === 'FREE_PLAN_LIMIT_REACHED') return 'Starter: 3 pitch previews reached. Upgrade to continue.'
+  if (code === 'AI_PROVIDER_UNAVAILABLE') return 'AI provider unavailable right now. Please try again shortly.'
+  if (code === 'PITCH_GENERATION_FAILED') return 'Pitch generation failed. Please try again.'
+  return 'Failed to generate pitch. Please try again.'
 }
 
 function getSavedKey(userId: string | null): string {
@@ -638,11 +670,8 @@ export function PitchGenerator({
         } catch {
           errorData = null
         }
-        const code =
-          (errorData as any)?.code ??
-          (errorData as any)?.error?.code ??
-          null
-        if (response.status === 429 && code === 'FREE_TIER_GENERATION_LIMIT_REACHED') {
+        const pitchErrorCode = parsePitchErrorCode(errorData)
+        if (response.status === 429 && pitchErrorCode === 'FREE_PLAN_LIMIT_REACHED') {
           const used = Number((errorData as any)?.error?.details?.usage?.byType?.pitch ?? (errorData as any)?.usage?.byType?.pitch ?? (errorData as any)?.usage?.used ?? 3) || 3
           const limit = Number((errorData as any)?.error?.details?.usage?.limitsByType?.pitch ?? (errorData as any)?.usage?.limitsByType?.pitch ?? (errorData as any)?.usage?.limit ?? 3) || 3
           const msg =
@@ -655,13 +684,21 @@ export function PitchGenerator({
           track('premium_generation_blocked_free_limit', { surface: 'pitch_generator', used, limit })
           return
         }
+        if (response.status === 401 || pitchErrorCode === 'AUTH_REQUIRED') {
+          const authMessage = messageForPitchErrorCode('AUTH_REQUIRED')
+          setAuthError(authMessage)
+          router.push('/login?redirect=/')
+          return
+        }
 
-        let errorMessage = 'Failed to generate pitch. Please try again.'
+        let errorMessage = messageForPitchErrorCode(pitchErrorCode)
         if (errorData) {
           const obj = errorData as any
-          if (typeof obj.error?.message === 'string') errorMessage = obj.error.message
-          else if (typeof obj.error === 'string') errorMessage = obj.error
-          else if (typeof obj.message === 'string') errorMessage = obj.message
+          if (pitchErrorCode === 'UNKNOWN') {
+            if (typeof obj.error?.message === 'string') errorMessage = obj.error.message
+            else if (typeof obj.error === 'string') errorMessage = obj.error
+            else if (typeof obj.message === 'string') errorMessage = obj.message
+          }
         } else if (rawText.trim()) {
           errorMessage = rawText.trim().slice(0, 200)
         } else if (response.status === 424) {

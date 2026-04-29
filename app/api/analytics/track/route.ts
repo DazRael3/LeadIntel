@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { withApiGuard } from '@/lib/api/guard'
-import { ok, fail, ErrorCode, asHttpError, createCookieBridge } from '@/lib/api/http'
+import { ok, createCookieBridge } from '@/lib/api/http'
 import { serverEnv } from '@/lib/env'
 import { logProductEvent } from '@/lib/services/analytics'
 import { createRouteClient } from '@/lib/supabase/route'
@@ -10,6 +10,7 @@ import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } 
 import { isGrowthEventName } from '@/lib/growth-events/definitions'
 import { sanitizeGrowthEventProps } from '@/lib/growth-events/validators'
 import { normalizeFunnelEventName } from '@/lib/analytics/funnel-events'
+import { logInfo, logWarn } from '@/lib/observability/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,9 +23,20 @@ const TrackBodySchema = z.object({
 export const POST = withApiGuard(
   async (request: NextRequest, { body, requestId }) => {
     const bridge = createCookieBridge()
+    logInfo({
+      scope: 'analytics',
+      message: 'analytics.track.start',
+      requestId,
+    })
     try {
       const enabled = serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true'
       if (!enabled) {
+        logInfo({
+          scope: 'analytics',
+          message: 'analytics.track.skipped',
+          requestId,
+          reason: 'analytics_disabled',
+        })
         return ok({ ok: true }, undefined, bridge, requestId)
       }
 
@@ -35,11 +47,24 @@ export const POST = withApiGuard(
       const user = await getUserSafe(supabase)
       const actorUserId = user?.id ?? null
 
-      await logProductEvent({
-        userId: actorUserId,
-        eventName: normalizedEventName,
-        eventProps: sanitizedProps,
-      })
+      try {
+        await logProductEvent({
+          userId: actorUserId,
+          eventName: normalizedEventName,
+          eventProps: sanitizedProps,
+        })
+      } catch (error) {
+        logWarn({
+          scope: 'analytics',
+          message: 'analytics.track.failed',
+          requestId,
+          reason: 'product_analytics_insert_failed',
+          eventName: normalizedEventName,
+          userId: actorUserId,
+          errorName: error instanceof Error ? error.name : 'unknown',
+        })
+        return ok({ ok: true }, undefined, bridge, requestId)
+      }
 
       // Secondary: workspace-scoped growth event capture (queryable, sanitized).
       // Only capture for a bounded allowlist and never store nested objects.
@@ -70,7 +95,14 @@ export const POST = withApiGuard(
       }
       return ok({ ok: true }, undefined, bridge, requestId)
     } catch (err) {
-      return asHttpError(err, '/api/analytics/track', undefined, bridge, requestId)
+      logWarn({
+        scope: 'analytics',
+        message: 'analytics.track.failed',
+        requestId,
+        reason: 'track_route_unexpected_error',
+        errorName: err instanceof Error ? err.name : 'unknown',
+      })
+      return ok({ ok: true }, undefined, bridge, requestId)
     }
   },
   { bodySchema: TrackBodySchema }

@@ -8,6 +8,7 @@ import { isE2E, isTestEnv } from './runtimeFlags'
 import { captureException, captureMessage } from './observability/sentry'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
 import { generateWithProviderRouter } from '@/lib/ai/providerRouter'
+import type { AiErrorCode, AiProviderName } from '@/lib/ai/providers/types'
 
 const COMPETITIVE_REPORT_URL = `${getAppUrl()}/competitive-report?auto=1`
 const COMPETITIVE_REPORT_CTA = `Generate a sourced competitive report here: ${COMPETITIVE_REPORT_URL}`
@@ -39,6 +40,16 @@ export interface EmailSequence {
   part1: string
   part2: string
   part3: string
+}
+
+export interface PitchGenerationDiagnostics {
+  pitch: string
+  provider: AiProviderName | 'none' | null
+  model: string | null
+  requestId: string | null
+  providerErrorCode: AiErrorCode | null
+  templateFallbackUsed: boolean
+  aiProviderUnavailable: boolean
 }
 
 function fallbackFitScore(input: DealScoringInput): number {
@@ -284,8 +295,43 @@ export async function generatePitch(
   },
   templateId?: PitchTemplateId
 ): Promise<string> {
+  const result = await generatePitchWithDiagnostics(
+    companyName,
+    triggerEvent,
+    ceoName,
+    companyInfo,
+    userSettings,
+    whyNow,
+    templateId
+  )
+  return result.pitch
+}
+
+export async function generatePitchWithDiagnostics(
+  companyName: string,
+  triggerEvent: string | null,
+  ceoName: string | null,
+  companyInfo: string | null,
+  userSettings?: {
+    whatYouSell?: string
+    idealCustomer?: string
+  },
+  whyNow?: {
+    bullets: string[]
+  },
+  templateId?: PitchTemplateId
+): Promise<PitchGenerationDiagnostics> {
+  const fallbackPitch = `Hi ${ceoName || 'there'}, I put together a sourced competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${COMPETITIVE_REPORT_CTA}`
   if (isE2E() || isTestEnv()) {
-    return `Hi ${ceoName || 'there'}, I put together a sourced competitive intelligence report for ${companyName} based on your recent ${triggerEvent || 'activity'}.\n\n${COMPETITIVE_REPORT_CTA}`
+    return {
+      pitch: `Hi ${ceoName || 'there'}, I put together a sourced competitive intelligence report for ${companyName} based on your recent ${triggerEvent || 'activity'}.\n\n${COMPETITIVE_REPORT_CTA}`,
+      provider: null,
+      model: 'e2e-fixture',
+      requestId: null,
+      providerErrorCode: null,
+      templateFallbackUsed: false,
+      aiProviderUnavailable: false,
+    }
   }
 
   const template = getPitchTemplate(templateId ?? 'default')
@@ -329,13 +375,37 @@ End with a clear link to ${COMPETITIVE_REPORT_URL} encouraging them to generate 
         route: 'lib/ai-logic.generatePitch',
         errorCode: aiResult.ok ? null : aiResult.errorCode,
       })
-      return `Hi ${ceoName || 'there'}, I put together a sourced competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${COMPETITIVE_REPORT_CTA}`
+      return {
+        pitch: fallbackPitch,
+        provider: aiResult.provider,
+        model: aiResult.model,
+        requestId: aiResult.requestId,
+        providerErrorCode: aiResult.ok ? null : aiResult.errorCode,
+        templateFallbackUsed: true,
+        aiProviderUnavailable: !aiResult.ok,
+      }
     }
 
-    return normalizePitchText(aiResult.text)
+    return {
+      pitch: normalizePitchText(aiResult.text),
+      provider: aiResult.provider,
+      model: aiResult.model,
+      requestId: aiResult.requestId,
+      providerErrorCode: null,
+      templateFallbackUsed: aiResult.provider === 'template',
+      aiProviderUnavailable: false,
+    }
   } catch (error) {
     captureException(error, { route: 'lib/ai-logic.generatePitch' })
-    return `Hi ${ceoName || 'there'}, I put together a sourced competitive intelligence report for ${companyName} based on your recent ${triggerEvent}.\n\n${COMPETITIVE_REPORT_CTA}`
+    return {
+      pitch: fallbackPitch,
+      provider: 'none',
+      model: null,
+      requestId: null,
+      providerErrorCode: 'AI_PROVIDER_ERROR',
+      templateFallbackUsed: true,
+      aiProviderUnavailable: true,
+    }
   }
 }
 

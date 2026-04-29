@@ -52,5 +52,19 @@ describe('/api/analytics/track', () => {
       })
     )
   })
+
+  it('returns 200 safe no-op when analytics provider fails', async () => {
+    logProductEventMock.mockRejectedValueOnce(new Error('posthog_unavailable'))
+    const { POST } = await import('./route')
+    const req = new NextRequest('http://localhost:3000/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({ eventName: 'pricing_cta_clicked', eventProps: { src: 'pricing' } }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+  })
 })
 

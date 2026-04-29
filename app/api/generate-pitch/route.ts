@@ -1,22 +1,19 @@
-import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createRouteClient } from '@/lib/supabase/route'
-import { generatePitch, generateBattleCard, generateEmailSequence } from '@/lib/ai-logic'
+import { generatePitchWithDiagnostics, generateBattleCard, generateEmailSequence } from '@/lib/ai-logic'
 import { queryWithSchemaFallback } from '@/lib/supabase/schema-client'
-import { getDbSchema } from '@/lib/supabase/schema'
 import { getServerEnv } from '@/lib/env'
-import { ok, asHttpError, createCookieBridge, fail } from '@/lib/api/http'
+import { ok, createCookieBridge, fail } from '@/lib/api/http'
 import { CompanyUrlSchema, GeneratePitchOptionsSchema } from '@/lib/api/schemas'
 import { withApiGuard } from '@/lib/api/guard'
 import { isE2E, isTestEnv } from '@/lib/runtimeFlags'
-import { isPro as isProPlan } from '@/lib/billing/plan'
 import { getPlanDetails } from '@/lib/billing/plan'
 import { ingestRealTriggerEvents, seedDemoTriggerEventsIfEmpty, hasAnyTriggerEvents, getLatestTriggerEvent } from '@/lib/services/triggerEvents'
 import { serverEnv } from '@/lib/env'
 import { logProductEvent } from '@/lib/services/analytics'
 import { getCompositeTriggerEvents } from '@/lib/services/trigger-events/engine'
 import { getPitchTemplate, type PitchTemplateId } from '@/lib/ai/pitch-templates'
-import { logInfo } from '@/lib/observability/logger'
+import { logInfo, logWarn, logError } from '@/lib/observability/logger'
 import { makeNameCompanyKey } from '@/lib/company-key'
 import { ensurePersonalWorkspace, getCurrentWorkspace, getWorkspaceMembership } from '@/lib/team/workspace'
 import { enqueueWebhookEvent } from '@/lib/integrations/webhooks'
@@ -92,6 +89,30 @@ function safeExtractDomain(input: string): string | null {
   }
 }
 
+type PitchFailureCode =
+  | 'AUTH_REQUIRED'
+  | 'PLAN_REQUIRED'
+  | 'FREE_PLAN_LIMIT_REACHED'
+  | 'AI_PROVIDER_UNAVAILABLE'
+  | 'PITCH_GENERATION_FAILED'
+
+function mapPitchFailure(error: unknown): { code: PitchFailureCode; message: string; status: number } {
+  const raw = error instanceof Error ? error.message : ''
+  if (raw === 'AUTH_REQUIRED') {
+    return { code: 'AUTH_REQUIRED', message: 'Authentication required', status: 401 }
+  }
+  if (raw === 'PLAN_REQUIRED') {
+    return { code: 'PLAN_REQUIRED', message: 'Your current plan does not support this generation request.', status: 403 }
+  }
+  if (raw === 'FREE_PLAN_LIMIT_REACHED') {
+    return { code: 'FREE_PLAN_LIMIT_REACHED', message: 'Starter: 3 pitch previews. Upgrade to continue.', status: 429 }
+  }
+  if (raw === 'AI_PROVIDER_UNAVAILABLE' || raw === 'AI_PROVIDERS_UNAVAILABLE') {
+    return { code: 'AI_PROVIDER_UNAVAILABLE', message: 'AI providers are currently unavailable.', status: 503 }
+  }
+  return { code: 'PITCH_GENERATION_FAILED', message: 'Pitch generation failed. Please try again.', status: 500 }
+}
+
 export const POST = withApiGuard(
   async (request, { body, userId, requestId }) => {
     const env = getServerEnv()
@@ -101,7 +122,7 @@ export const POST = withApiGuard(
     
     try {
       if (!userId) {
-        return asHttpError(new Error('Authentication required'), '/api/generate-pitch', undefined, bridge, requestId)
+        return fail('AUTH_REQUIRED', 'Authentication required', undefined, { status: 401 }, bridge, requestId)
       }
 
       const data = body as { companyUrl: string; options?: unknown; templateId?: unknown }
@@ -110,10 +131,11 @@ export const POST = withApiGuard(
       // Normalize input
       const input = companyUrl.trim()
       if (!input) {
-        return asHttpError(
-          new Error('Please enter a company name, URL, or topic for your pitch'),
-          '/api/generate-pitch',
+        return fail(
+          'PITCH_GENERATION_FAILED',
+          'Please enter a company name, URL, or topic for your pitch',
           undefined,
+          { status: 400 },
           bridge,
           requestId
         )
@@ -130,7 +152,7 @@ export const POST = withApiGuard(
       const supabase = createRouteClient(request, bridge)
       const user = await getUserSafe(supabase)
       if (!user) {
-        return asHttpError(new Error('Authentication required'), '/api/generate-pitch', undefined, bridge, requestId)
+        return fail('AUTH_REQUIRED', 'Authentication required', undefined, { status: 401 }, bridge, requestId)
       }
     
     const [capabilities, usageBefore] = await Promise.all([
@@ -162,7 +184,7 @@ export const POST = withApiGuard(
     const template = getPitchTemplate(templateId)
     logInfo({
       scope: 'pitch',
-      message: 'generate.start',
+      message: 'pitch.generate.start',
       userId,
       correlationId,
       templateId: template.id,
@@ -189,7 +211,7 @@ export const POST = withApiGuard(
     if (capabilities.tier === 'starter') {
       if ((usageBefore.byType?.pitch ?? 0) >= (usageBefore.limitsByType?.pitch ?? 3)) {
         return fail(
-          'FREE_TIER_GENERATION_LIMIT_REACHED',
+          'FREE_PLAN_LIMIT_REACHED',
           'Starter: 3 pitch previews. Upgrade to continue.',
           { usage: usageBefore, upgradeRequired: true },
           { status: 429 },
@@ -201,7 +223,7 @@ export const POST = withApiGuard(
       if (!reserved.ok || !reserved.reservationId) {
         const usage = await getPremiumGenerationUsage({ supabase, userId: user.id })
         return fail(
-          'FREE_TIER_GENERATION_LIMIT_REACHED',
+          'FREE_PLAN_LIMIT_REACHED',
           'Starter: 3 pitch previews. Upgrade to continue.',
           { usage, upgradeRequired: true },
           { status: 429 },
@@ -212,209 +234,298 @@ export const POST = withApiGuard(
       reservationId = reserved.reservationId
     }
 
-    // Generate pitch using AI
-    const pitch = await generatePitch(
-      topicName,
-      null, // triggerEvent - not available in this context
-      null, // ceoName - not available
-      companyInfo,
-      {
-        whatYouSell: userSettings?.what_you_sell || '',
-        idealCustomer: userSettings?.ideal_customer || '',
-      },
-      whyNowBullets.length > 0 ? { bullets: whyNowBullets } : undefined
-      ,
-      template.id
-    )
-
-    // Generate battle card and email sequence (best-effort).
-    // These outputs are visually gated in the UI for Starter users, but we still compute them here
-    // so Starter users can preview blurred content and upgrade.
-    let battleCard: unknown | null = null
-    let emailSequence: unknown | null = null
-    try {
-      const [bc, seq] = await Promise.allSettled([
-        generateBattleCard(topicName, null, companyInfo, {
+      // Generate pitch using AI (with deterministic fallback diagnostics).
+      const pitchResult = await generatePitchWithDiagnostics(
+        topicName,
+        null, // triggerEvent - not available in this context
+        null, // ceoName - not available
+        companyInfo,
+        {
           whatYouSell: userSettings?.what_you_sell || '',
           idealCustomer: userSettings?.ideal_customer || '',
-        }),
-        generateEmailSequence(topicName, null, null, companyInfo, {
-          whatYouSell: userSettings?.what_you_sell || '',
-          idealCustomer: userSettings?.ideal_customer || '',
-        }),
-      ])
-      if (bc.status === 'fulfilled') battleCard = bc.value
-      if (seq.status === 'fulfilled') emailSequence = seq.value
-    } catch {
-      // Best-effort only; do not block pitch generation.
-      battleCard = null
-      emailSequence = null
+        },
+        whyNowBullets.length > 0 ? { bullets: whyNowBullets } : undefined,
+        template.id
+      )
+    const pitch = pitchResult.pitch
+    if (!pitch || !pitch.trim()) {
+      throw new Error('PITCH_GENERATION_FAILED')
     }
+      if (pitchResult.provider && pitchResult.provider !== 'none') {
+        logInfo({
+          scope: 'pitch',
+          message: 'pitch.generate.provider_selected',
+          userId,
+          correlationId,
+          provider: pitchResult.provider,
+          model: pitchResult.model,
+          providerRequestId: pitchResult.requestId,
+        })
+      }
+      if (pitchResult.providerErrorCode) {
+        logWarn({
+          scope: 'pitch',
+          message: 'pitch.generate.provider_failed',
+          userId,
+          correlationId,
+          provider: pitchResult.provider,
+          errorCode: pitchResult.providerErrorCode,
+        })
+      }
+      if (pitchResult.templateFallbackUsed) {
+        logInfo({
+          scope: 'pitch',
+          message: 'pitch.generate.template_fallback',
+          userId,
+          correlationId,
+          providerUnavailable: pitchResult.aiProviderUnavailable,
+        })
+      }
 
-    // Get database schema
-    const dbSchema = getDbSchema()
-    const dbSchemaUsed = dbSchema.primary || 'api'
-    const dbFallbackUsed = false
+      // Generate battle card and email sequence (best-effort).
+      // These outputs are visually gated in the UI for Starter users, but we still compute them here
+      // so Starter users can preview blurred content and upgrade.
+      let battleCard: unknown | null = null
+      let emailSequence: unknown | null = null
+      try {
+        const [bc, seq] = await Promise.allSettled([
+          generateBattleCard(topicName, null, companyInfo, {
+            whatYouSell: userSettings?.what_you_sell || '',
+            idealCustomer: userSettings?.ideal_customer || '',
+          }),
+          generateEmailSequence(topicName, null, null, companyInfo, {
+            whatYouSell: userSettings?.what_you_sell || '',
+            idealCustomer: userSettings?.ideal_customer || '',
+          }),
+        ])
+        if (bc.status === 'fulfilled') battleCard = bc.value
+        if (seq.status === 'fulfilled') emailSequence = seq.value
+      } catch {
+        // Best-effort only; do not block pitch generation.
+        battleCard = null
+        emailSequence = null
+      }
 
-    // Save lead to database.
-    // Note: pitches.lead_id is NOT NULL, so we always ensure there is a lead row.
-    // IMPORTANT: `api.leads.company_domain` is NOT NULL (default '' in prod schema). For name-only inputs,
-    // we store a deterministic name-key so the unique constraint (user_id, company_domain) remains usable.
-    let savedLead: { data: unknown; error: unknown } = { data: null, error: null }
-    const leadCompanyDomain = domain ? domain : makeNameCompanyKey(topicName || input)
-    savedLead = await queryWithSchemaFallback(request, bridge, async (client) => {
-      if (domain) {
+      // Save lead to database.
+      // Note: pitches.lead_id is NOT NULL, so we always ensure there is a lead row.
+      // IMPORTANT: `api.leads.company_domain` is NOT NULL (default '' in prod schema). For name-only inputs,
+      // we store a deterministic name-key so the unique constraint (user_id, company_domain) remains usable.
+      const warnings: string[] = []
+      let savedLead: { data: unknown; error: unknown } = { data: null, error: null }
+      const leadCompanyDomain = domain ? domain : makeNameCompanyKey(topicName || input)
+      savedLead = await queryWithSchemaFallback(request, bridge, async (client) => {
+        if (domain) {
+          const result = await client
+            .from('leads')
+            .upsert(
+              {
+                user_id: user.id,
+                company_name: topicName,
+                company_domain: leadCompanyDomain,
+                company_url: input,
+                ai_personalized_pitch: pitch,
+                battle_card: battleCard,
+                email_sequence: emailSequence,
+              },
+              {
+                onConflict: 'user_id,company_domain',
+              }
+            )
+            .select()
+            .single()
+          return { data: result.data, error: result.error }
+        }
+
         const result = await client
           .from('leads')
-          .upsert(
-            {
-              user_id: user.id,
-              company_name: topicName,
-              company_domain: leadCompanyDomain,
-              company_url: input,
-              ai_personalized_pitch: pitch,
-              battle_card: battleCard,
-              email_sequence: emailSequence,
-            },
-            {
-              onConflict: 'user_id,company_domain',
-            }
-          )
+          .insert({
+            user_id: user.id,
+            company_name: topicName,
+            company_domain: leadCompanyDomain,
+            company_url: input,
+            ai_personalized_pitch: pitch,
+            battle_card: battleCard,
+            email_sequence: emailSequence,
+          })
           .select()
           .single()
         return { data: result.data, error: result.error }
-      }
-
-      const result = await client
-        .from('leads')
-        .insert({
-          user_id: user.id,
-          company_name: topicName,
-          company_domain: leadCompanyDomain,
-          company_url: input,
-          ai_personalized_pitch: pitch,
-          battle_card: battleCard,
-          email_sequence: emailSequence,
-        })
-        .select()
-        .single()
-      return { data: result.data, error: result.error }
-    })
-
-    const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
-    const triggerInput = {
-      userId: user.id,
-      leadId: typeof leadId === 'string' ? leadId : null,
-      companyName: topicName || null,
-      companyDomain: domain,
-      correlationId,
-    }
-
-    // Production-style Trigger Events ingestion:
-    // 1) Ingest real events first (best effort, may be no-op if provider is none)
-    await ingestRealTriggerEvents(triggerInput)
-
-    // 2) Optionally seed demo events if still empty
-    // Note: Keep this callable in tests; service is mocked there.
-    // Demo trigger events are a dev/test convenience and should be OFF by default in production.
-    const demoEnabled = isE2E() || isTestEnv()
-      ? env.ENABLE_DEMO_TRIGGER_EVENTS !== '0' && env.ENABLE_DEMO_TRIGGER_EVENTS !== 'false'
-      : env.ENABLE_DEMO_TRIGGER_EVENTS === '1' || env.ENABLE_DEMO_TRIGGER_EVENTS === 'true'
-    if (demoEnabled) {
-      await seedDemoTriggerEventsIfEmpty(triggerInput)
-    }
-
-    const hasTriggerEvent = await hasAnyTriggerEvents(triggerInput)
-    const latestTriggerEvent = await getLatestTriggerEvent(triggerInput)
-
-    // Persist pitch history row (required for premium generation counting).
-    // This ensures the server-side cap remains consistent and cannot be bypassed.
-    const warnings: string[] = []
-    const pitchId = randomUUID()
-    if (!(typeof leadId === 'string' && leadId.length > 0)) {
-      throw new Error('missing_lead_id')
-    }
-    const persisted = await queryWithSchemaFallback(request, bridge, async (client) => {
-      const { error } = await client.from('pitches').insert({
-        id: pitchId,
-        user_id: user.id,
-        lead_id: leadId,
-        content: pitch,
       })
-      return { data: null, error }
-    })
-    if (persisted.error) {
-      throw new Error('pitch_persist_failed')
-    }
-    await completePremiumGeneration({
-      supabase,
-      reservationId,
-      objectType: 'pitch',
-      objectId: pitchId,
-    })
-    const usageAfter = await getPremiumGenerationUsage({ supabase, userId: user.id })
-
-    // Lifecycle marker: first successful output (best-effort, no blocking).
-    // Used by cron to send a one-time "first output" reinforcement email.
-    try {
-      const { data: ls } = await supabase.from('lifecycle_state').select('first_output_at').eq('user_id', user.id).maybeSingle()
-      const first = (ls as { first_output_at?: string | null } | null)?.first_output_at ?? null
-      if (!first) {
-        await supabase.from('lifecycle_state').upsert({ user_id: user.id }, { onConflict: 'user_id' })
-        await supabase
-          .from('lifecycle_state')
-          .update({ first_output_at: new Date().toISOString(), last_active_at: new Date().toISOString() })
-          .eq('user_id', user.id)
-      } else {
-        await supabase.from('lifecycle_state').update({ last_active_at: new Date().toISOString() }).eq('user_id', user.id)
+      if (savedLead.error) {
+        warnings.push('Lead persistence failed; continuing with generated output.')
+        logWarn({
+          scope: 'pitch',
+          message: 'pitch.generate.lead_persist_failed',
+          userId,
+          correlationId,
+        })
       }
-    } catch {
-      // best-effort only
-    }
 
-    const leadRow = (savedLead.data ?? null) as { id?: string; company_name?: string | null; company_domain?: string | null; company_url?: string | null } | null
-    const reportCtaHref = buildCompetitiveReportNewUrl({
-      company: leadRow?.company_name ?? topicName ?? null,
-      url: leadRow?.company_url ?? (isUrlLike ? input : null),
-      ticker: null,
-      auto: true,
-    })
-    const baseResponse = {
-      lead: leadRow
-        ? {
-            id: leadRow.id ?? null,
-            company_name: leadRow.company_name ?? null,
-            company_domain: leadRow.company_domain ?? null,
-            company_url: leadRow.company_url ?? null,
-          }
-        : null,
-      reportCtaHref,
-      triggerEvent: latestTriggerEvent,
-      hasTriggerEvent,
-      warnings,
-      usage: usageAfter,
-      upgradeRequired: capabilities.tier === 'starter' && (usageAfter.remainingByType?.pitch ?? 0) <= 0,
-    }
+      const leadId = (savedLead.data as { id?: string } | null)?.id ?? null
+      const triggerInput = {
+        userId: user.id,
+        leadId: typeof leadId === 'string' ? leadId : null,
+        companyName: topicName || null,
+        companyDomain: domain,
+        correlationId,
+      }
 
-    const response =
-      capabilities.blurPremiumSections
-        ? {
-            ...baseResponse,
-            isBlurred: true,
-            lockedSections: ['pitch', 'battle_card', 'email_sequence'] as const,
-            pitch: null,
-            pitchPreview: typeof pitch === 'string' ? redactTextPreview(pitch, 520) : '',
-            battleCard: null,
-            emailSequence: null,
-          }
-        : {
-            ...baseResponse,
-            isBlurred: false,
-            lockedSections: [] as const,
-            pitch,
-            battleCard,
-            emailSequence,
-          }
+      // Production-style Trigger Events ingestion:
+      // 1) Ingest real events first (best effort, may be no-op if provider is none)
+      try {
+        await ingestRealTriggerEvents(triggerInput)
+      } catch {
+        // best-effort
+      }
+
+      // 2) Optionally seed demo events if still empty
+      // Note: Keep this callable in tests; service is mocked there.
+      // Demo trigger events are a dev/test convenience and should be OFF by default in production.
+      const demoEnabled = isE2E() || isTestEnv()
+        ? env.ENABLE_DEMO_TRIGGER_EVENTS !== '0' && env.ENABLE_DEMO_TRIGGER_EVENTS !== 'false'
+        : env.ENABLE_DEMO_TRIGGER_EVENTS === '1' || env.ENABLE_DEMO_TRIGGER_EVENTS === 'true'
+      if (demoEnabled) {
+        try {
+          await seedDemoTriggerEventsIfEmpty(triggerInput)
+        } catch {
+          // best-effort
+        }
+      }
+
+      let hasTriggerEvent = false
+      let latestTriggerEvent: unknown = null
+      try {
+        hasTriggerEvent = await hasAnyTriggerEvents(triggerInput)
+        latestTriggerEvent = await getLatestTriggerEvent(triggerInput)
+      } catch {
+        hasTriggerEvent = false
+        latestTriggerEvent = null
+      }
+
+      // Persist pitch history row (required for premium generation counting), but fail open
+      // if persistence infrastructure has a temporary issue.
+      let pitchId: string | null = null
+      let pitchPersisted = false
+      if (!(typeof leadId === 'string' && leadId.length > 0)) {
+        warnings.push('Pitch history not saved (missing lead id).')
+      } else {
+        pitchId = randomUUID()
+        const persisted = await queryWithSchemaFallback(request, bridge, async (client) => {
+          const { error } = await client.from('pitches').insert({
+            id: pitchId,
+            user_id: user.id,
+            lead_id: leadId,
+            content: pitch,
+          })
+          return { data: null, error }
+        })
+        if (persisted.error) {
+          warnings.push('Pitch history persistence failed.')
+          logWarn({
+            scope: 'pitch',
+            message: 'pitch.generate.persist_failed',
+            userId,
+            correlationId,
+          })
+        } else {
+          pitchPersisted = true
+        }
+      }
+
+      if (pitchPersisted && pitchId) {
+        try {
+          await completePremiumGeneration({
+            supabase,
+            reservationId,
+            objectType: 'pitch',
+            objectId: pitchId,
+          })
+        } catch {
+          warnings.push('Usage completion failed; preview may not be counted yet.')
+        }
+      } else if (reservationId) {
+        try {
+          await cancelPremiumGeneration({ supabase, reservationId })
+          reservationId = null
+        } catch {
+          // best-effort
+        }
+      }
+
+      const usageAfter = await getPremiumGenerationUsage({ supabase, userId: user.id })
+
+      // Lifecycle marker: first successful output (best-effort, no blocking).
+      // Used by cron to send a one-time "first output" reinforcement email.
+      try {
+        const { data: ls } = await supabase.from('lifecycle_state').select('first_output_at').eq('user_id', user.id).maybeSingle()
+        const first = (ls as { first_output_at?: string | null } | null)?.first_output_at ?? null
+        if (!first) {
+          await supabase.from('lifecycle_state').upsert({ user_id: user.id }, { onConflict: 'user_id' })
+          await supabase
+            .from('lifecycle_state')
+            .update({ first_output_at: new Date().toISOString(), last_active_at: new Date().toISOString() })
+            .eq('user_id', user.id)
+        } else {
+          await supabase.from('lifecycle_state').update({ last_active_at: new Date().toISOString() }).eq('user_id', user.id)
+        }
+      } catch {
+        // best-effort only
+      }
+
+      const leadRow = (savedLead.data ?? null) as { id?: string; company_name?: string | null; company_domain?: string | null; company_url?: string | null } | null
+      const reportCtaHref = buildCompetitiveReportNewUrl({
+        company: leadRow?.company_name ?? topicName ?? null,
+        url: leadRow?.company_url ?? (isUrlLike ? input : null),
+        ticker: null,
+        auto: true,
+      })
+      const baseResponse = {
+        lead: leadRow
+          ? {
+              id: leadRow.id ?? null,
+              company_name: leadRow.company_name ?? null,
+              company_domain: leadRow.company_domain ?? null,
+              company_url: leadRow.company_url ?? null,
+            }
+          : null,
+        reportCtaHref,
+        triggerEvent: latestTriggerEvent,
+        hasTriggerEvent,
+        warnings,
+        usage: usageAfter,
+        upgradeRequired: capabilities.tier === 'starter' && (usageAfter.remainingByType?.pitch ?? 0) <= 0,
+        generationCode: pitchResult.templateFallbackUsed ? 'TEMPLATE_FALLBACK_USED' : null,
+      }
+
+      const response =
+        capabilities.blurPremiumSections
+          ? {
+              ...baseResponse,
+              isBlurred: true,
+              lockedSections: ['pitch', 'battle_card', 'email_sequence'] as const,
+              pitch: null,
+              pitchPreview: typeof pitch === 'string' ? redactTextPreview(pitch, 520) : '',
+              battleCard: null,
+              emailSequence: null,
+            }
+          : {
+              ...baseResponse,
+              isBlurred: false,
+              lockedSections: [] as const,
+              pitch,
+              battleCard,
+              emailSequence,
+            }
+
+      logInfo({
+        scope: 'pitch',
+        message: 'pitch.generate.success',
+        userId,
+        correlationId,
+        templateFallbackUsed: pitchResult.templateFallbackUsed,
+        warningCount: warnings.length,
+        pitchPersisted,
+      })
 
     // Product analytics (best-effort; behind env flag).
     if (serverEnv.ENABLE_PRODUCT_ANALYTICS === '1' || serverEnv.ENABLE_PRODUCT_ANALYTICS === 'true') {
@@ -436,7 +547,7 @@ export const POST = withApiGuard(
           eventName: 'generation_succeeded',
           eventProps: {
             kind: 'pitch',
-            objectId: pitchId,
+            objectId: pitchId ?? leadId ?? 'not_persisted',
             templateId: template.id,
             hasDomain: Boolean(domain),
             plan: details.plan,
@@ -452,8 +563,6 @@ export const POST = withApiGuard(
         hasPitch: !!pitch, 
         hasLead: !!savedLead.data, 
         hasTriggerEvent,
-        schema: dbSchemaUsed,
-        fallbackUsed: dbFallbackUsed,
       })
     }
 
@@ -471,7 +580,7 @@ export const POST = withApiGuard(
               actorUserId: user.id,
               action: 'pitch.generated',
               targetType: 'pitch',
-              targetId: pitchId,
+              targetId: pitchId ?? leadId ?? null,
               meta: { leadId, templateId: template.id },
               request,
             })
@@ -479,7 +588,7 @@ export const POST = withApiGuard(
           await enqueueWebhookEvent({
             workspaceId: workspace.id,
             eventType: 'pitch.generated',
-            eventId: pitchId,
+            eventId: pitchId ?? leadId ?? `lead-${leadId}`,
             payload: {
               workspaceId: workspace.id,
               leadId,
@@ -517,7 +626,15 @@ export const POST = withApiGuard(
       } catch {
         // best-effort
       }
-      return asHttpError(error, '/api/generate-pitch', userId, bridge, requestId)
+      const mapped = mapPitchFailure(error)
+      logError({
+        scope: 'pitch',
+        message: 'pitch.generate.failed',
+        userId,
+        requestId,
+        code: mapped.code,
+      })
+      return fail(mapped.code, mapped.message, undefined, { status: mapped.status }, bridge, requestId)
     }
   },
   {
